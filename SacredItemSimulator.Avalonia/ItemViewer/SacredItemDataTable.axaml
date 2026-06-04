@@ -1,0 +1,36 @@
+﻿<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:SacredItemSimulator.Avalonia.ItemViewer"
+             Loaded="Control_OnLoaded"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="SacredItemSimulator.Avalonia.ItemViewer.SacredItemDataTable"
+             x:DataType="vm:SacredItemDataTableViewModel">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        
+        <ScrollViewer AllowAutoHide="False" HorizontalScrollBarVisibility="Visible" Grid.Row="0">
+            <DataGrid
+                Name="DataGrid"
+                ItemsSource="{Binding CurrentPageItems}"
+                GridLinesVisibility="All"
+                CanUserReorderColumns="True"
+                Sorting="DataGrid_OnSorting"
+                IsReadOnly="True" AutoGenerateColumns="True" />
+        </ScrollViewer>
+
+        <StackPanel Orientation="Horizontal" Grid.Row="1" HorizontalAlignment="Center" Margin="10">
+            <Button Click="FirstPageButton_Click">|◀</Button>
+            <Button Command="{Binding PreviousPageCommand}">◀</Button>
+            <TextBlock Text="{Binding CurrentPage}"  VerticalAlignment="Center" HorizontalAlignment="Center"/>
+            <TextBlock Text=" of "  VerticalAlignment="Center" HorizontalAlignment="Center"/>
+            <TextBlock Text="{Binding TotalPages}"  VerticalAlignment="Center" HorizontalAlignment="Center"/>
+            <Button Command="{Binding NextPageCommand}">▶</Button>
+            <Button Click="LastPageButton_Click">▶|</Button>
+        </StackPanel>
+    </Grid>
+</UserControl>

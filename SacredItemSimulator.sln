@@ -1,0 +1,46 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SacredItemSimulator.Avalonia", "SacredItemSimulator.Avalonia\SacredItemSimulator.Avalonia.csproj", "{075D1DEE-CDE5-491E-8716-A73D01B0A4C1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SacredItemSimulator", "SacredItemSimulator\SacredItemSimulator.csproj", "{6F1F50DE-3E4B-4A48-A7F8-AA1E5DE27771}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SacredItemSimulator.TerminalTests", "SacredItemSimulator.TerminalTests\SacredItemSimulator.TerminalTests.csproj", "{88FB163C-E82C-4938-8414-C69E13A57DC6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sacred.Engine", "Sacred.Engine\Sacred.Engine.csproj", "{E573A4D1-CF25-4F7C-B672-06BCF11E04ED}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SacredEngineRemake", "SacredEngineRemake\SacredEngineRemake.csproj", "{D895268B-925B-493D-9EF3-F2ADBB1E6B3D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sacred.Core", "Sacred.Core\Sacred.Core.csproj", "{A80BF4A8-D06B-41AE-BE8A-CCC6258F7ECB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{075D1DEE-CDE5-491E-8716-A73D01B0A4C1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{075D1DEE-CDE5-491E-8716-A73D01B0A4C1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{075D1DEE-CDE5-491E-8716-A73D01B0A4C1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{075D1DEE-CDE5-491E-8716-A73D01B0A4C1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6F1F50DE-3E4B-4A48-A7F8-AA1E5DE27771}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6F1F50DE-3E4B-4A48-A7F8-AA1E5DE27771}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6F1F50DE-3E4B-4A48-A7F8-AA1E5DE27771}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6F1F50DE-3E4B-4A48-A7F8-AA1E5DE27771}.Release|Any CPU.Build.0 = Release|Any CPU
+		{88FB163C-E82C-4938-8414-C69E13A57DC6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{88FB163C-E82C-4938-8414-C69E13A57DC6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{88FB163C-E82C-4938-8414-C69E13A57DC6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{88FB163C-E82C-4938-8414-C69E13A57DC6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E573A4D1-CF25-4F7C-B672-06BCF11E04ED}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E573A4D1-CF25-4F7C-B672-06BCF11E04ED}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E573A4D1-CF25-4F7C-B672-06BCF11E04ED}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E573A4D1-CF25-4F7C-B672-06BCF11E04ED}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D895268B-925B-493D-9EF3-F2ADBB1E6B3D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D895268B-925B-493D-9EF3-F2ADBB1E6B3D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D895268B-925B-493D-9EF3-F2ADBB1E6B3D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D895268B-925B-493D-9EF3-F2ADBB1E6B3D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A80BF4A8-D06B-41AE-BE8A-CCC6258F7ECB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A80BF4A8-D06B-41AE-BE8A-CCC6258F7ECB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A80BF4A8-D06B-41AE-BE8A-CCC6258F7ECB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A80BF4A8-D06B-41AE-BE8A-CCC6258F7ECB}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <UseWindowsForms>false</UseWindowsForms>
+    
+    <SingleFile>true</SingleFile>
+    <SelfContained>true</SelfContained>
+    <Aot>true</Aot>
+    <PublishAot>true</PublishAot>
+    <StripSymbols>true</StripSymbols>
+    <OptimizationPreference>Speed</OptimizationPreference>
+    <StackTraceSupport>false</StackTraceSupport>
+    <RootNamespace>SacredRemake</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Sacred.Engine\Sacred.Engine.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\Assets\models\**\*.*" Link="assets\models\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

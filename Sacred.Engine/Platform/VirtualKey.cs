@@ -1,0 +1,36 @@
+﻿namespace Sacred.Engine.Platform;
+
+public enum VirtualKey : uint
+{
+    Tab = 0x09,
+    Shift = 0x10,
+
+    Left = 0x25,
+    Up = 0x26,
+    Right = 0x27,
+    Down = 0x28,
+
+    A = 0x41,
+    D = 0x44,
+    E = 0x45,
+    Q = 0x51,
+    S = 0x53,
+    W = 0x57,
+    
+    Z = 0x5A,
+    X = 0x58,
+
+    Space = 0x61,
+
+    One = 0x58,
+    Two = 0x59,
+    Three = 0x5A,
+    Four = 0x5B,
+    Five = 0x5C,
+
+    F1 = 0x5D,
+    F2 = 0x5E,
+    F3 = 0x5F,
+    F4 = 0x60,
+    F5 = 0x61,
+}
