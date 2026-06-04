@@ -32,6 +32,10 @@ public readonly record struct MixedCutoutRecord(
     float Uv2,
     float Uv3);
 
+public readonly record struct ModelPakDescriptor(uint EntryId, uint Offset);
+
+public readonly record struct ModelPakRecord(uint Offset, int Size, string Name);
+
 public readonly record struct StaticObjectRecord(
     uint StaticId,
     uint DescriptorType,

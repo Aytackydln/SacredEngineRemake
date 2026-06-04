@@ -17,11 +17,11 @@ public sealed class ModelsPakArchive
 
     private readonly string _path;
 
-    private readonly List<ModelRecord> _records;
-    private readonly Dictionary<string, ModelRecord> _recordsByName = new();
-    private readonly Dictionary<uint, ModelRecord> _recordsById = new();
+    private readonly List<ModelPakRecord> _records;
+    private readonly Dictionary<string, ModelPakRecord> _recordsByName = new();
+    private readonly Dictionary<uint, ModelPakRecord> _recordsById = new();
 
-    private ModelsPakArchive(string path, List<ModelRecord> records)
+    private ModelsPakArchive(string path, List<ModelPakRecord> records)
     {
         _path = path;
         _records = records;
@@ -37,17 +37,17 @@ public sealed class ModelsPakArchive
         stream.ReadExactly(header);
 
         var count = ReadEntryCount(header, stream.Length);
-        var records = new List<ModelRecord>(count);
+        var records = new List<ModelPakRecord>(count);
         var descriptors = new byte[count * DescriptorSize];
         stream.ReadExactly(descriptors);
 
-        var modelDescriptors = new List<ModelDescriptor>(count);
+        var modelDescriptors = new List<ModelPakDescriptor>(count);
         for (uint i = 0; i < count; i++)
         {
             var descriptorOffset = (int)i * DescriptorSize;
             var offset = BitConverter.ToUInt32(descriptors.AsSpan(descriptorOffset + 4, 4));
             if (offset > 0 && offset < stream.Length)
-                modelDescriptors.Add(new ModelDescriptor(i, offset));
+                modelDescriptors.Add(new ModelPakDescriptor(i, offset));
         }
 
         var orderedOffsets = modelDescriptors
@@ -66,7 +66,7 @@ public sealed class ModelsPakArchive
         }
 
         var archive = new ModelsPakArchive(path, records);
-        var recordsByOffset = new Dictionary<uint, ModelRecord>();
+        var recordsByOffset = new Dictionary<uint, ModelPakRecord>();
         foreach (var descriptor in modelDescriptors)
         {
             if (!sizesByOffset.TryGetValue(descriptor.Offset, out var size))
@@ -75,7 +75,7 @@ public sealed class ModelsPakArchive
             if (!recordsByOffset.TryGetValue(descriptor.Offset, out var record))
             {
                 var name = ReadPayloadStartName(stream, descriptor.Offset, size);
-                record = new ModelRecord(descriptor.Offset, size, name);
+                record = new ModelPakRecord(descriptor.Offset, size, name);
                 recordsByOffset.Add(descriptor.Offset, record);
                 records.Add(record);
             }
@@ -83,7 +83,7 @@ public sealed class ModelsPakArchive
             if (!string.IsNullOrWhiteSpace(record.Name))
             {
                 archive._recordsByName.TryAdd(record.Name, record);
-                archive._recordsById.TryAdd(descriptor.Id, record);
+                archive._recordsById.TryAdd(descriptor.EntryId, record);
             }
         }
 
@@ -123,7 +123,7 @@ public sealed class ModelsPakArchive
         return GrnAssetLoader.LoadFromBytes($"Model_{entryId}", payload, meshExtractionMode);
     }
 
-    private ModelRecord FindRecord(string modelName)
+    private ModelPakRecord FindRecord(string modelName)
     {
         if (_recordsByName.TryGetValue(modelName, out var record))
             return record;
@@ -134,7 +134,7 @@ public sealed class ModelsPakArchive
         return record;
     }
 
-    private ModelRecord? FindContainingRecord(string normalizedName)
+    private ModelPakRecord? FindContainingRecord(string normalizedName)
     {
         var needle = NameEncoding.GetBytes(normalizedName);
         var buffer = new byte[ScanChunkSize + needle.Length];
@@ -167,7 +167,7 @@ public sealed class ModelsPakArchive
         return null;
     }
 
-    private byte[] ReadPayload(ModelRecord record)
+    private byte[] ReadPayload(ModelPakRecord record)
     {
         using var stream = File.OpenRead(_path);
         var payload = new byte[record.Size];
@@ -231,7 +231,4 @@ public sealed class ModelsPakArchive
         throw new InvalidDataException($"Cannot determine models.pak entry count. count16={count16}, count32={count32}, max={maxDescriptorCount}");
     }
 
-    private readonly record struct ModelRecord(uint Offset, int Size, string Name);
-
-    private readonly record struct ModelDescriptor(uint Id, uint Offset);
 }

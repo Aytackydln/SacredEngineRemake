@@ -12,27 +12,9 @@ namespace Sacred.Engine.World;
 
 public sealed class SacredWorldArchive : IDisposable
 {
-    private const int KeyxHeaderSize = 0x100;
-    private const int KeyxEntrySize = 0x300;
     private const int SectorW = Sector.TileCount;
     private const int SectorH = Sector.TileCount;
-    private const int TileDescriptorSize = 0x20;
-    private const int KeyxAbsoluteRawXOffset = 0x3C;
-    private const int KeyxAbsoluteRawYOffset = 0x40;
-    private const int KeyxCompressedOffset = 0x0EC;
-    private const int KeyxCompressedSize = 0x0F0;
-    private const int KeyxTilesRelativeOffset = 0x0D4;
-    private const int KeyxTilesSizeOffset = 0x0D8;
     private const int KeyxAbsoluteBias = 0x19;
-    private const int KeyxStyle90Offset = 0x2E0;
-    private const int KeyxStyleA0Offset = 0x2E1;
-    private const int TileStaticChainHeadOffset = 0x04;
-    private const int TileLiquidAlpha0Offset = 0x10;
-    private const int TileLiquidAlpha1Offset = 0x11;
-    private const int TileLiquidAlpha2Offset = 0x12;
-    private const int TileLiquidAlpha3Offset = 0x13;
-    private const int TileFloorChainHeadOffset = 0x0C;
-    private const int TileSurfaceTypeOffset = 0x1F;
     private const byte LiquidSurfaceTypeMask = 0xF0;
     private const byte LiquidSurfaceType90 = 0x90;
     private const byte LiquidSurfaceTypeA0 = 0xA0;
@@ -42,7 +24,7 @@ public sealed class SacredWorldArchive : IDisposable
 
     private readonly FloorPakArchive _floorPak;
     private readonly StaticPakArchive _staticPak;
-    private readonly Dictionary<uint, KeyxSectorEntry> _entriesById = new();
+    private readonly Dictionary<uint, KeyxSectorRecord> _entriesById = new();
     private readonly Dictionary<SectorCoord, uint> _sectorIdByGrid = new();
 
     private readonly SemaphoreSlim _wldxLock = new(1, 1);
@@ -105,7 +87,7 @@ public sealed class SacredWorldArchive : IDisposable
         }
 
         if (entry.TilesRelativeOffset < 0 ||
-            entry.TilesSize < SectorW * SectorH * TileDescriptorSize ||
+            entry.TilesSize < SectorW * SectorH * WldxTileRecord.Size ||
             entry.TilesRelativeOffset + entry.TilesSize > decompressed.Length)
             throw new InvalidDataException($"Sector {sectorId} has an invalid tile block.");
 
@@ -114,22 +96,22 @@ public sealed class SacredWorldArchive : IDisposable
         var liquidSurfaces = new LiquidSurfaceLayer();
         var staticObjects = new StaticObjectLayer();
         var staticTileVisits = new List<StaticTileVisit>();
-        var tiles = decompressed.AsSpan(entry.TilesRelativeOffset, SectorW * SectorH * TileDescriptorSize);
+        var tiles = decompressed.AsSpan(entry.TilesRelativeOffset, SectorW * SectorH * WldxTileRecord.Size);
         for (var y = 0; y < SectorH; y++)
         for (var x = 0; x < SectorW; x++)
         {
-            var tileOffset = (y * SectorW + x) * TileDescriptorSize;
-            ground[x, y] = BitConverter.ToUInt32(tiles.Slice(tileOffset, 4));
-            var staticHead = BitConverter.ToUInt32(tiles.Slice(tileOffset + TileStaticChainHeadOffset, 4));
-            if (staticHead != 0)
+            var tileOffset = (y * SectorW + x) * WldxTileRecord.Size;
+            var tile = WldxTileRecord.FromBytes(tiles.Slice(tileOffset, WldxTileRecord.Size));
+            ground[x, y] = tile.GroundTileId;
+            if (tile.StaticChainHeadId != 0)
             {
                 var worldX = coord.X * SectorW + x;
                 var worldY = coord.Y * SectorH + y;
-                staticTileVisits.Add(new StaticTileVisit(worldX + worldY, worldY, worldX, staticHead));
+                staticTileVisits.Add(new StaticTileVisit(worldX + worldY, worldY, worldX, tile.StaticChainHeadId));
             }
 
-            LoadFloorOverlayChain(floorOverlays, x, y, BitConverter.ToUInt32(tiles.Slice(tileOffset + TileFloorChainHeadOffset, 4)));
-            LoadLiquidSurface(liquidSurfaces, x, y, tiles.Slice(tileOffset, TileDescriptorSize), entry);
+            LoadFloorOverlayChain(floorOverlays, x, y, tile.FloorChainHeadId);
+            LoadLiquidSurface(liquidSurfaces, x, y, tile, entry);
         }
 
         LoadStaticObjectChains(staticObjects, staticTileVisits);
@@ -219,10 +201,10 @@ public sealed class SacredWorldArchive : IDisposable
         LiquidSurfaceLayer liquidSurfaces,
         int x,
         int y,
-        ReadOnlySpan<byte> tile,
-        KeyxSectorEntry entry)
+        WldxTileRecord tile,
+        KeyxSectorRecord entry)
     {
-        var surfaceType = (byte)(tile[TileSurfaceTypeOffset] & LiquidSurfaceTypeMask);
+        var surfaceType = (byte)(tile.SurfaceType & LiquidSurfaceTypeMask);
         if (surfaceType is not LiquidSurfaceType90 and not LiquidSurfaceTypeA0)
             return;
 
@@ -232,51 +214,38 @@ public sealed class SacredWorldArchive : IDisposable
             y,
             surfaceType,
             styleId,
-            unchecked((sbyte)tile[TileLiquidAlpha0Offset]),
-            unchecked((sbyte)tile[TileLiquidAlpha1Offset]),
-            unchecked((sbyte)tile[TileLiquidAlpha2Offset]),
-            unchecked((sbyte)tile[TileLiquidAlpha3Offset])));
+            tile.LiquidAlphaLeft,
+            tile.LiquidAlphaTop,
+            tile.LiquidAlphaRight,
+            tile.LiquidAlphaBottom));
     }
 
     private void LoadKeyx(string path)
     {
         var data = File.ReadAllBytes(path);
-        if (data.Length < KeyxHeaderSize)
+        if (data.Length < KeyxSectorRecord.FileHeaderSize)
             throw new InvalidDataException("sectors.keyx is too small to contain a header.");
 
         var count = ReadEntryCount(data);
-        var rawEntries = new List<(uint Id, byte[] Raw)>(count);
+        var rawEntries = new List<KeyxSectorRecord>(count);
         for (var i = 0; i < count; i++)
         {
-            var offset = KeyxHeaderSize + i * KeyxEntrySize;
-            if (offset + KeyxEntrySize > data.Length)
+            var offset = KeyxSectorRecord.FileHeaderSize + i * KeyxSectorRecord.Size;
+            if (offset + KeyxSectorRecord.Size > data.Length)
                 break;
 
-            var raw = data[offset..(offset + KeyxEntrySize)];
-            rawEntries.Add((BitConverter.ToUInt32(raw, 0x24), raw));
+            rawEntries.Add(KeyxSectorRecord.FromBytes(data.AsSpan(offset, KeyxSectorRecord.Size)));
         }
 
         var scale = InferKeyxPositionScale(rawEntries);
-        foreach (var (id, raw) in rawEntries)
+        foreach (var entry in rawEntries)
         {
-            var rawX = BitConverter.ToInt32(raw, KeyxAbsoluteRawXOffset);
-            var rawY = BitConverter.ToInt32(raw, KeyxAbsoluteRawYOffset);
-            var originX = RoundToSectorOrigin((rawX + KeyxAbsoluteBias) * scale);
-            var originY = RoundToSectorOrigin((rawY + KeyxAbsoluteBias) * scale);
+            var originX = RoundToSectorOrigin((entry.RawX + KeyxAbsoluteBias) * scale);
+            var originY = RoundToSectorOrigin((entry.RawY + KeyxAbsoluteBias) * scale);
             var coord = new SectorCoord(originX / SectorW, originY / SectorH);
 
-            var entry = new KeyxSectorEntry(
-                id,
-                coord,
-                BitConverter.ToUInt32(raw, KeyxCompressedOffset),
-                BitConverter.ToUInt32(raw, KeyxCompressedSize),
-                checked((int)BitConverter.ToUInt32(raw, KeyxTilesRelativeOffset)),
-                checked((int)BitConverter.ToUInt32(raw, KeyxTilesSizeOffset)),
-                raw[KeyxStyle90Offset],
-                raw[KeyxStyleA0Offset]);
-
-            _entriesById[id] = entry;
-            _sectorIdByGrid[coord] = id;
+            _entriesById[entry.Id] = entry;
+            _sectorIdByGrid[coord] = entry.Id;
         }
     }
 
@@ -284,7 +253,7 @@ public sealed class SacredWorldArchive : IDisposable
     {
         var count32 = BitConverter.ToUInt32(data, 4);
         var count16 = BitConverter.ToUInt16(data, 4);
-        var maxCount = Math.Max(0, (data.Length - KeyxHeaderSize) / KeyxEntrySize);
+        var maxCount = Math.Max(0, (data.Length - KeyxSectorRecord.FileHeaderSize) / KeyxSectorRecord.Size);
         if (count32 <= maxCount)
             return (int)count32;
         if (count16 <= maxCount)
@@ -293,11 +262,11 @@ public sealed class SacredWorldArchive : IDisposable
         throw new InvalidDataException($"Cannot determine sectors.keyx entry count. count16={count16}, count32={count32}, max={maxCount}");
     }
 
-    private static float InferKeyxPositionScale(List<(uint Id, byte[] Raw)> entries)
+    private static float InferKeyxPositionScale(List<KeyxSectorRecord> entries)
     {
         var diffs = new List<int>();
-        CollectDiffs(entries, KeyxAbsoluteRawXOffset, diffs);
-        CollectDiffs(entries, KeyxAbsoluteRawYOffset, diffs);
+        CollectDiffs(entries, static entry => entry.RawX, diffs);
+        CollectDiffs(entries, static entry => entry.RawY, diffs);
         if (diffs.Count == 0)
             throw new InvalidDataException("Cannot infer KEYX absolute-position scale from sector positions.");
 
@@ -309,11 +278,14 @@ public sealed class SacredWorldArchive : IDisposable
         return SectorW / (float)min;
     }
 
-    private static void CollectDiffs(List<(uint Id, byte[] Raw)> entries, int offset, List<int> diffs)
+    private static void CollectDiffs(
+        List<KeyxSectorRecord> entries,
+        Func<KeyxSectorRecord, int> selectValue,
+        List<int> diffs)
     {
         var values = new SortedSet<int>();
-        foreach (var (_, raw) in entries)
-            values.Add(BitConverter.ToInt32(raw, offset));
+        foreach (var entry in entries)
+            values.Add(selectValue(entry));
 
         int? previous = null;
         foreach (var value in values)
@@ -329,21 +301,11 @@ public sealed class SacredWorldArchive : IDisposable
 
     private SectorCoord FirstSectorOrZero()
     {
-        foreach (var entry in _entriesById.Values)
-            return entry.Grid;
+        foreach (var coord in _sectorIdByGrid.Keys)
+            return coord;
 
         return new SectorCoord(3200, 2600);
     }
-
-    private readonly record struct KeyxSectorEntry(
-        uint Id,
-        SectorCoord Grid,
-        uint CompressedOffset,
-        uint CompressedSize,
-        int TilesRelativeOffset,
-        int TilesSize,
-        byte Style90,
-        byte StyleA0);
 
     private readonly record struct StaticTileVisit(int Depth, int WorldY, int WorldX, uint StaticHeadId);
 

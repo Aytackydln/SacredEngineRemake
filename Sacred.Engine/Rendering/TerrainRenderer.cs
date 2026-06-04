@@ -16,8 +16,8 @@ public sealed class TerrainRenderer
     private const int SourceTileHeight = 50;
     private const int RenderTileWidth = 96;
     private const int RenderTileHeight = 48;
-    private const int IsoStepWidth = 96;
-    private const int IsoStepHeight = 48;
+    private const int IsoStepWidth = IsometricProjection.StepWidth;
+    private const int IsoStepHeight = IsometricProjection.StepHeight;
     private const int SectorImageOriginX = -(Sector.TileCount - 1) * (IsoStepWidth / 2);
     private const int SectorImageOriginY = 0;
     private const int SectorImageWidth = (Sector.TileCount - 1) * IsoStepWidth + RenderTileWidth;
@@ -742,7 +742,7 @@ public sealed class TerrainRenderer
     }
 
     private static Vector2 WorldToIso(float worldX, float worldY) =>
-        new((worldX - worldY) * (IsoStepWidth * 0.5f), (worldX + worldY) * (IsoStepHeight * 0.5f));
+        IsometricProjection.WorldToIso(worldX, worldY);
 
     private static void DrawUnscaledRgba(
         byte[] dest,

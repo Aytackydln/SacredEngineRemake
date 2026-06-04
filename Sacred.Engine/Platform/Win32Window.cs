@@ -94,9 +94,16 @@ public sealed class Win32Window : IDisposable
                 return 1;
             case 0x0100: Input.Set((VirtualKey)wParam, true); return 0; // WM_KEYDOWN
             case 0x0101: Input.Set((VirtualKey)wParam, false); return 0; // WM_KEYUP
+            case 0x0200: Input.SetMousePosition(GetMouseX(lParam), GetMouseY(lParam)); return 0; // WM_MOUSEMOVE
+            case 0x0201: Input.SetLeftMouseButton(true, GetMouseX(lParam), GetMouseY(lParam)); return 0; // WM_LBUTTONDOWN
+            case 0x0202: Input.SetLeftMouseButton(false, GetMouseX(lParam), GetMouseY(lParam)); return 0; // WM_LBUTTONUP
         }
         return User32.DefWindowProc(hwnd, msg, wParam, lParam);
     }
+
+    private static int GetMouseX(nint lParam) => unchecked((short)(lParam.ToInt64() & 0xFFFF));
+
+    private static int GetMouseY(nint lParam) => unchecked((short)((lParam.ToInt64() >> 16) & 0xFFFF));
 
     public void Dispose()
     {

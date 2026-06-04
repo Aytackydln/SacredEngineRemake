@@ -6,6 +6,9 @@ namespace Sacred.Engine.Scene;
 
 public sealed class SacredCamera
 {
+    private const float NormalMovementSpeed = 10.0f;
+    private const float FastMovementSpeed = 30.0f;
+
     private static readonly Matrix3x2 IsometricRotation = Matrix3x2.CreateRotation(-MathF.PI / 4);
 
     public Vector2 WorldCenter { get; private set; }
@@ -16,6 +19,7 @@ public sealed class SacredCamera
 
     private readonly int _width;
     private readonly int _height;
+    private Vector2? _movementTarget;
 
     public Vector2 CameraSpeedUnitVector { get; private set; } = Vector2.Zero;
 
@@ -36,27 +40,70 @@ public sealed class SacredCamera
         RebuildMatrices();
     }
 
+    public Vector2 ScreenToWorld(Vector2 screenPosition, int viewportWidth, int viewportHeight) =>
+        IsometricProjection.ScreenToWorld(screenPosition, WorldCenter, Zoom, viewportWidth, viewportHeight);
+
+    public void MoveTo(Vector2 worldTarget) => _movementTarget = worldTarget;
+
+    public void StopMoving()
+    {
+        _movementTarget = null;
+        CameraSpeedUnitVector = Vector2.Zero;
+    }
+
     public void UpdateFromKeyboard(InputState input, float dt)
     {
-        var speed = (input.IsDown(VirtualKey.Shift) ? 30f : 10f) / Zoom;
+        var speed = (input.IsDown(VirtualKey.Shift) ? FastMovementSpeed : NormalMovementSpeed) / Zoom;
         var delta = MovementDirection(input);
 
         if (delta.LengthSquared() > 0)
         {
-            CameraSpeedUnitVector = Vector2.Normalize(delta);
-            delta = CameraSpeedUnitVector * speed * dt;
+            _movementTarget = null;
+            MoveInDirection(delta, speed, dt);
+        }
+        else if (_movementTarget is { } target)
+        {
+            MoveTowardTarget(target, speed, dt);
         }
         else
         {
             CameraSpeedUnitVector = Vector2.Zero;
         }
 
-        WorldCenter += delta;
         if (input.IsDown(VirtualKey.Q)) Zoom *= MathF.Pow(0.985f, dt * 60f);
         if (input.IsDown(VirtualKey.E)) Zoom *= MathF.Pow(1.015f, dt * 60f);
         Zoom = Math.Clamp(Zoom, 0.25f, 3.0f);
 
         RebuildMatrices();
+    }
+
+    private void MoveInDirection(Vector2 direction, float speed, float dt)
+    {
+        CameraSpeedUnitVector = Vector2.Normalize(direction);
+        WorldCenter += CameraSpeedUnitVector * speed * dt;
+    }
+
+    private void MoveTowardTarget(Vector2 target, float speed, float dt)
+    {
+        var delta = target - WorldCenter;
+        var distance = delta.Length();
+        if (distance <= float.Epsilon)
+        {
+            _movementTarget = null;
+            CameraSpeedUnitVector = Vector2.Zero;
+            return;
+        }
+
+        CameraSpeedUnitVector = delta / distance;
+        var step = speed * dt;
+        if (step >= distance)
+        {
+            WorldCenter = target;
+            _movementTarget = null;
+            return;
+        }
+
+        WorldCenter += CameraSpeedUnitVector * step;
     }
 
     private static Vector2 MovementDirection(InputState input)

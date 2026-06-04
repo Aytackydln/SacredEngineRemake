@@ -22,6 +22,7 @@ public sealed class SacredGame : IDisposable
     private readonly AssetManager _assets;
     private readonly WorldStreamer _worldStreamer;
     private readonly SacredCamera _camera;
+    private readonly ClickToMoveController _clickToMove = new();
     private readonly SceneState _scene = new();
     private readonly Mesh _playerProxyMesh = MeshFactory.CreateHumanoidProxyMesh();
 
@@ -80,6 +81,13 @@ public sealed class SacredGame : IDisposable
 
         if (_window.Input.ConsumePressed(VirtualKey.Tab))
             CyclePlayerModel();
+
+        _clickToMove.Update(
+            _window.Input,
+            _camera,
+            _window.ClientWidth,
+            _window.ClientHeight,
+            deltaSeconds);
 
         _camera.UpdateFromKeyboard(_window.Input, deltaSeconds);
         _playerPosition = new Vector3(_camera.WorldCenter.X, _camera.WorldCenter.Y, 0.0f);

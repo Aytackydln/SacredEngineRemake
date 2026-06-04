@@ -7,8 +7,6 @@ using Sacred.Core.Assets;
 
 namespace Sacred.Engine.Assets;
 
-public sealed record PlayerCharacterAsset(uint SlotId, string DisplayName, string ModelName, GrnAsset Model);
-
 public sealed class AssetManager : IDisposable
 {
     private const int MaxTextureCacheEntries = 64;

@@ -33,8 +33,8 @@ public sealed unsafe class Dx12Renderer : IDisposable
     private const int FirstModelTextureSrvSlot = DebugOverlaySrvSlot + 1;
     private const int FirstStaticSpriteSrvSlot = FirstModelTextureSrvSlot + MaxModelTextures;
     private const int SrvDescriptorCount = FirstStaticSpriteSrvSlot + MaxStaticSpriteTextures;
-    private const int IsoStepWidth = 96;
-    private const int IsoStepHeight = 48;
+    private const int IsoStepWidth = IsometricProjection.StepWidth;
+    private const int IsoStepHeight = IsometricProjection.StepHeight;
     private const float PainterDepthScale = 1.0f / 4096.0f;
     private const float StaticSpriteAlphaCutoff = 0.45f;
     private const float PlayerDepthBias = 0.0005f;
