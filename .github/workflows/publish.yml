@@ -27,7 +27,7 @@ jobs:
           dotnet publish SacredEngineRemake/SacredEngineRemake.csproj \
             --configuration Release \
             --output ./publish/SacredEngineRemake \
-            -p:Version=${{ github.ref_name }} \
+            -p:Version=${${{ github.ref_name }}#v} \
             -p:PublishSingleFile=true \
             -p:SelfContained=true \
             -p:IncludeNativeLibrariesForSelfExtract=true \
@@ -40,7 +40,7 @@ jobs:
           dotnet publish SacredItemSimulator.Avalonia/SacredItemSimulator.Avalonia.csproj \
             --configuration Release \
             --output ./publish/SacredItemSimulator.Avalonia \
-            -p:Version=${{ github.ref_name }} \
+            -p:Version=${${{ github.ref_name }}#v} \
             -p:PublishSingleFile=true \
             -p:SelfContained=true \
             -p:IncludeNativeLibrariesForSelfExtract=true \
