@@ -8,6 +8,8 @@ on:
 jobs:
   publish:
     runs-on: windows-latest
+    permissions:
+      contents: write  # needed to create releases and upload assets
 
     steps:
       - name: Checkout repository
@@ -60,6 +62,6 @@ jobs:
           draft: true
           files: |
             ./publish/SacredEngineRemake/SacredEngineRemake.exe
-            ./publish/SacredItemSimulator.Avalonia/SacredItemSimulator.Avalonia.zip
+            ./publish/SacredItemSimulator.Avalonia/SacredItemSimulator.Avalonia.exe
           tag_name: ${{ github.ref_name }}
           allow_override: true
