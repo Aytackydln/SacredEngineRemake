@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
 using System.Threading.Tasks;
-using Sacred.Core.Assets;
+using Sacred.Assets;
 using Sacred.Core.World;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Scene;
@@ -167,7 +167,12 @@ public sealed class TerrainRenderer
                 if (staticObject.SurfaceRenderLayer > StaticExteriorActiveLayer)
                     continue;
 
-                var sprite = _assets.LoadStaticSprite(staticObject.TypeId);
+                if (!_assets.TryGetStaticSpriteOrRequest(staticObject.TypeId, out var sprite))
+                {
+                    staticMissingObjects++;
+                    continue;
+                }
+
                 if (sprite is null)
                 {
                     staticMissingObjects++;
@@ -283,7 +288,7 @@ public sealed class TerrainRenderer
             return cached;
 
         if (!_sectorBuildTasks.ContainsKey(sector.Coord) && CountPendingSectorBuilds() < MaxConcurrentSectorImageBuilds)
-            _sectorBuildTasks[sector.Coord] = Task.Run(() => BuildSectorImage(sector));
+            _sectorBuildTasks[sector.Coord] = Task.Run(() => BuildSectorImageAsync(sector));
 
         return null;
     }
@@ -298,7 +303,7 @@ public sealed class TerrainRenderer
         return count;
     }
 
-    private TerrainSectorImage BuildSectorImage(Sector sector)
+    private async Task<TerrainSectorImage> BuildSectorImageAsync(Sector sector)
     {
         var sectorOriginIso = WorldToIso(
             sector.Coord.X * Sector.TileCount,
@@ -342,7 +347,7 @@ public sealed class TerrainRenderer
         composeTiles.Sort(CompareDrawTiles);
         foreach (var item in composeTiles)
         {
-            var tile = GetTileImage(item.TileId);
+            var tile = await GetTileImageAsync(item.TileId).ConfigureAwait(false);
             if (tile is null)
             {
                 groundMissingTiles++;
@@ -376,7 +381,7 @@ public sealed class TerrainRenderer
         composeTiles.Sort(CompareDrawTiles);
         foreach (var item in composeTiles)
         {
-            var tile = GetFloorImage(item.TileId, item.SecondaryTileId);
+            var tile = await GetFloorImageAsync(item.TileId, item.SecondaryTileId).ConfigureAwait(false);
             if (tile is null)
             {
                 floorMissingTiles++;
@@ -390,7 +395,7 @@ public sealed class TerrainRenderer
         foreach (var liquid in sector.LiquidSurfaces.Surfaces)
         {
             var textureName = LiquidTextureName(liquid);
-            var liquidTile = GetLiquidImage(textureName, LiquidCornerAlphas(liquid));
+            var liquidTile = await GetLiquidImageAsync(textureName, LiquidCornerAlphas(liquid)).ConfigureAwait(false);
             if (liquidTile is null)
             {
                 liquidMissingTiles++;
@@ -488,71 +493,96 @@ public sealed class TerrainRenderer
         return 3;
     }
 
-    private TileImage? GetTileImage(uint tileId)
+    private async Task<TileImage?> GetTileImageAsync(uint tileId)
     {
+        lock (_tileCacheLock)
+            if (_tileCache.TryGetValue(tileId, out var cached))
+                return cached;
+
+        var image = await BuildTileImageAsync(tileId, forceOpaque: false).ConfigureAwait(false);
         lock (_tileCacheLock)
         {
             if (_tileCache.TryGetValue(tileId, out var cached))
                 return cached;
 
-            return _tileCache[tileId] = BuildTileImage(tileId, forceOpaque: false);
+            return _tileCache[tileId] = image;
         }
     }
 
-    private TileImage? GetFloorImage(uint primaryTileId, uint secondaryTileId)
+    private async Task<TileImage?> GetFloorImageAsync(uint primaryTileId, uint secondaryTileId)
     {
         var packedRef = primaryTileId | (secondaryTileId << 17);
+        lock (_tileCacheLock)
+            if (_floorCache.TryGetValue(packedRef, out var cached))
+                return cached;
+
+        var primary = await BuildTileImageAsync(primaryTileId, forceOpaque: false).ConfigureAwait(false);
+        if (primary is null)
+            return CacheFloorImage(packedRef, null);
+
+        if (secondaryTileId == 0)
+            return CacheFloorImage(packedRef, primary);
+
+        var mask = await BuildTileImageAsync(secondaryTileId, forceOpaque: false).ConfigureAwait(false);
+        if (mask is null)
+            return CacheFloorImage(packedRef, primary);
+
+        var rgba = new byte[primary.Rgba.Length];
+        for (var i = 0; i < rgba.Length; i += 4)
+        {
+            rgba[i + 0] = primary.Rgba[i + 0];
+            rgba[i + 1] = primary.Rgba[i + 1];
+            rgba[i + 2] = primary.Rgba[i + 2];
+            rgba[i + 3] = mask.Rgba[i + 3];
+        }
+
+        return CacheFloorImage(packedRef, new TileImage(primary.Width, primary.Height, rgba));
+    }
+
+    private TileImage? CacheFloorImage(uint packedRef, TileImage? image)
+    {
         lock (_tileCacheLock)
         {
             if (_floorCache.TryGetValue(packedRef, out var cached))
                 return cached;
 
-            var primary = BuildTileImage(primaryTileId, forceOpaque: false);
-            if (primary is null)
-                return _floorCache[packedRef] = null;
-
-            if (secondaryTileId == 0)
-                return _floorCache[packedRef] = primary;
-
-            var mask = BuildTileImage(secondaryTileId, forceOpaque: false);
-            if (mask is null)
-                return _floorCache[packedRef] = primary;
-
-            var rgba = new byte[primary.Rgba.Length];
-            for (var i = 0; i < rgba.Length; i += 4)
-            {
-                rgba[i + 0] = primary.Rgba[i + 0];
-                rgba[i + 1] = primary.Rgba[i + 1];
-                rgba[i + 2] = primary.Rgba[i + 2];
-                rgba[i + 3] = mask.Rgba[i + 3];
-            }
-
-            return _floorCache[packedRef] = new TileImage(primary.Width, primary.Height, rgba);
+            return _floorCache[packedRef] = image;
         }
     }
 
-    private TileImage? GetLiquidImage(string textureName, LiquidAlphas alphas)
+    private async Task<TileImage?> GetLiquidImageAsync(string textureName, LiquidAlphas alphas)
     {
         var key = new LiquidImageKey(textureName, alphas);
+        lock (_tileCacheLock)
+            if (_liquidCache.TryGetValue(key, out var cached))
+                return cached;
+
+        TextureAsset texture;
+        try
+        {
+            texture = await _assets.LoadTextureAsync(textureName).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or NotSupportedException)
+        {
+            return CacheLiquidImage(key, null);
+        }
+
+        return CacheLiquidImage(
+            key,
+            new TileImage(
+                LiquidRenderTileWidth,
+                LiquidRenderTileHeight,
+                BuildLiquidDiamond(texture, alphas)));
+    }
+
+    private TileImage? CacheLiquidImage(LiquidImageKey key, TileImage? image)
+    {
         lock (_tileCacheLock)
         {
             if (_liquidCache.TryGetValue(key, out var cached))
                 return cached;
 
-            TextureAsset texture;
-            try
-            {
-                texture = _assets.LoadTexture(textureName);
-            }
-            catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or NotSupportedException)
-            {
-                return _liquidCache[key] = null;
-            }
-
-            return _liquidCache[key] = new TileImage(
-                LiquidRenderTileWidth,
-                LiquidRenderTileHeight,
-                BuildLiquidDiamond(texture, alphas));
+            return _liquidCache[key] = image;
         }
     }
 
@@ -644,7 +674,7 @@ public sealed class TerrainRenderer
         return Math.Clamp((int)MathF.Round(alphaA * wA + alphaB * wB + alphaC * wC), 0, 255);
     }
 
-    private TileImage? BuildTileImage(uint tileId, bool forceOpaque)
+    private async Task<TileImage?> BuildTileImageAsync(uint tileId, bool forceOpaque)
     {
         var definition = _assets.GetTileDefinition(tileId);
         if (definition is null || string.IsNullOrWhiteSpace(definition.Value.FileName))
@@ -653,7 +683,7 @@ public sealed class TerrainRenderer
         TextureAsset sheet;
         try
         {
-            sheet = _assets.LoadTexture(definition.Value.FileName);
+            sheet = await _assets.LoadTextureAsync(definition.Value.FileName).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or NotSupportedException)
         {

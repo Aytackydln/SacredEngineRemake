@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
-using static Sacred.Core.Assets.PakDataHelpers;
+using static Sacred.Assets.PakDataHelpers;
 
-namespace Sacred.Core.Assets;
+namespace Sacred.Assets;
 
 public sealed class FloorPakData
 {

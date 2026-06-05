@@ -1,0 +1,55 @@
+name: Publish Projects on Tag
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Adjust pattern as needed (e.g., v* or *)
+
+jobs:
+  publish:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET (adjust version if needed)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'   # Change according to your projects
+
+      # ==================== SacredEngineRemake ====================
+      - name: Publish Project1
+        run: |
+          dotnet publish SacredEngineRemake/SacredEngineRemake.csproj \
+            --configuration Release \
+            --output ./publish/SacredEngineRemake \
+            -p:Version=${{ github.ref_name }} \
+            -p:PublishSingleFile=true \
+            -p:SelfContained=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true
+
+      # ==================== SacredItemSimulator.Avalonia ====================
+      - name: Publish Project2
+        run: |
+          dotnet publish SacredItemSimulator.Avalonia/SacredItemSimulator.Avalonia.csproj \
+            --configuration Release \
+            --output ./publish/SacredItemSimulator.Avalonia \
+            -p:Version=${{ github.ref_name }} \
+            -p:PublishSingleFile=true \
+            -p:SelfContained=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true
+
+      # Attach to GitHub Release (if triggered by tag)
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          draft: true
+          files: |
+            ./publish/SacredEngineRemake/SacredEngineRemake.exe
+            ./publish/SacredItemSimulator.Avalonia/SacredItemSimulator.Avalonia.zip
+          tag_name: ${{ github.ref_name }}
+          allow_override: true

@@ -2,14 +2,18 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using System.Threading.Tasks;
 using Sacred.Core;
-using Sacred.Core.Assets;
+using Sacred.Assets;
+using Sacred.Engine.Storage;
+using Sacred.Granny;
 
 namespace Sacred.Engine.Assets;
 
 public sealed class AssetManager : IDisposable
 {
     private const int MaxTextureCacheEntries = 64;
+    private const int MaxConcurrentTextureLoads = 1;
     private static readonly PlayerCharacterDefinition[] PlayerCharacterDefinitions =
     [
         new(1, "Gladiator", "GLADIATORBACKUP.GRN", [], []),
@@ -27,45 +31,95 @@ public sealed class AssetManager : IDisposable
     private readonly ItemsPakTypeArchive _itemsPak;
     private readonly MixedPakArchive _mixedPak;
     private readonly ModelsPakArchive _modelsPak;
+    private readonly DirectStoragePayloadReader? _directStoragePayloadReader;
     private readonly Dictionary<string, TextureCacheEntry> _textures = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Task<TextureAsset>> _textureLoads = new(StringComparer.OrdinalIgnoreCase);
     private readonly LinkedList<string> _textureLru = [];
     private readonly Lock _textureLock = new();
+    private readonly SemaphoreSlim _textureLoadThrottle = new(MaxConcurrentTextureLoads, MaxConcurrentTextureLoads);
     private readonly Dictionary<uint, StaticSpriteAsset?> _staticSprites = new();
+    private readonly Dictionary<uint, Task<StaticSpriteAsset?>> _staticSpriteLoads = new();
     private readonly Lock _staticSpriteLock = new();
     private readonly Dictionary<string, GrnAsset> _grnModels = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Task<GrnAsset>> _grnModelLoads = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<uint, PlayerCharacterAsset> _playerCharacters = new();
+    private readonly Dictionary<uint, Task<PlayerCharacterAsset>> _playerCharacterLoads = new();
+    private readonly Lock _modelLock = new();
+    private bool _disposed;
 
     public AssetManager(SacredGameDirectories gameDirectories)
     {
         var texturePakPath = gameDirectories.TexturesPakPath;
-        _texturePak = TexturePakArchive.Load(texturePakPath);
         var pakDirectory = Path.GetDirectoryName(texturePakPath)
             ?? throw new InvalidDataException("Cannot infer tiles.pak path from texture PAK path.");
+        _directStoragePayloadReader = DirectStoragePayloadReader.TryCreate();
+        _texturePak = TexturePakArchive.LoadFromDirectory(pakDirectory, _directStoragePayloadReader);
         _tilesPak = TilesPakArchive.Load(Path.Combine(pakDirectory, "tiles.pak"));
         _itemsPak = ItemsPakTypeArchive.Load(gameDirectories.ItemsPakPath);
         _mixedPak = MixedPakArchive.Load(Path.Combine(pakDirectory, "mixed.pak"));
-        _modelsPak = ModelsPakArchive.Load(Path.Combine(pakDirectory, "models.pak"));
+        _modelsPak = ModelsPakArchive.Load(Path.Combine(pakDirectory, "models.pak"), _directStoragePayloadReader);
     }
 
     public int PlayerCharacterCount => PlayerCharacterDefinitions.Length;
 
-    public TextureAsset LoadTexture(string textureName)
+    public Task<TextureAsset> LoadTextureAsync(string textureName, CancellationToken cancellationToken = default)
     {
+        Task<TextureAsset> loadTask;
         lock (_textureLock)
         {
             if (_textures.TryGetValue(textureName, out var cached))
             {
                 _textureLru.Remove(cached.Node);
                 _textureLru.AddFirst(cached.Node);
-                return cached.Asset;
+                return Task.FromResult(cached.Asset);
             }
 
-            var asset = _texturePak.LoadTexture(textureName);
-            var node = new LinkedListNode<string>(textureName);
-            _textureLru.AddFirst(node);
-            _textures[textureName] = new TextureCacheEntry(asset, node);
-            EvictOldTextures();
+            if (_textureLoads.TryGetValue(textureName, out var existingLoadTask))
+            {
+                loadTask = existingLoadTask;
+            }
+            else
+            {
+                loadTask = Task.Run(() => LoadAndCacheTextureAsync(textureName));
+                _textureLoads[textureName] = loadTask;
+            }
+        }
+
+        return cancellationToken.CanBeCanceled ? loadTask.WaitAsync(cancellationToken) : loadTask;
+    }
+
+    private async Task<TextureAsset> LoadAndCacheTextureAsync(string textureName)
+    {
+        try
+        {
+            await _textureLoadThrottle.WaitAsync().ConfigureAwait(false);
+            TextureAsset asset;
+            try
+            {
+                asset = await _texturePak.LoadTextureAsync(textureName).ConfigureAwait(false);
+            }
+            finally
+            {
+                _textureLoadThrottle.Release();
+            }
+
+            lock (_textureLock)
+            {
+                if (_textures.TryGetValue(textureName, out var cached))
+                    return cached.Asset;
+
+                var node = new LinkedListNode<string>(textureName);
+                _textureLru.AddFirst(node);
+                _textures[textureName] = new TextureCacheEntry(asset, node);
+                EvictOldTextures();
+            }
+
             return asset;
+        }
+        finally
+        {
+            lock (_textureLock)
+                _textureLoads.Remove(textureName);
         }
     }
 
@@ -82,28 +136,78 @@ public sealed class AssetManager : IDisposable
 
     public ItemTypeRecord? GetItemType(uint typeId) => _itemsPak.Get(typeId);
 
-    public StaticSpriteAsset? LoadStaticSprite(uint typeId)
+    public Task<StaticSpriteAsset?> LoadStaticSpriteAsync(uint typeId, CancellationToken cancellationToken = default)
     {
         var item = _itemsPak.Get(typeId);
         if (item is null || item.Value.MixedBaseGroupId == 0)
-            return null;
+            return Task.FromResult<StaticSpriteAsset?>(null);
 
         var groupId = _mixedPak.ResolveGroupId(item.Value.MixedBaseGroupId);
         if (groupId is null)
-            return null;
+            return Task.FromResult<StaticSpriteAsset?>(null);
 
+        Task<StaticSpriteAsset?> loadTask;
         lock (_staticSpriteLock)
         {
             if (_staticSprites.TryGetValue(groupId.Value, out var cached))
-                return cached;
+                return Task.FromResult(cached);
 
-            var sprite = BuildStaticSprite(groupId.Value);
-            _staticSprites[groupId.Value] = sprite;
+            if (_staticSpriteLoads.TryGetValue(groupId.Value, out var existingLoadTask))
+            {
+                loadTask = existingLoadTask;
+            }
+            else
+            {
+                loadTask = Task.Run(() => LoadAndCacheStaticSpriteAsync(groupId.Value));
+                _staticSpriteLoads[groupId.Value] = loadTask;
+            }
+        }
+
+        return cancellationToken.CanBeCanceled ? loadTask.WaitAsync(cancellationToken) : loadTask;
+    }
+
+    public bool TryGetStaticSpriteOrRequest(uint typeId, out StaticSpriteAsset? sprite)
+    {
+        sprite = null;
+
+        var item = _itemsPak.Get(typeId);
+        if (item is null || item.Value.MixedBaseGroupId == 0)
+            return true;
+
+        var groupId = _mixedPak.ResolveGroupId(item.Value.MixedBaseGroupId);
+        if (groupId is null)
+            return true;
+
+        lock (_staticSpriteLock)
+        {
+            if (_staticSprites.TryGetValue(groupId.Value, out sprite))
+                return true;
+
+            if (!_staticSpriteLoads.ContainsKey(groupId.Value))
+                _staticSpriteLoads[groupId.Value] = Task.Run(() => LoadAndCacheStaticSpriteAsync(groupId.Value));
+        }
+
+        return false;
+    }
+
+    private async Task<StaticSpriteAsset?> LoadAndCacheStaticSpriteAsync(uint groupId)
+    {
+        try
+        {
+            var sprite = await BuildStaticSpriteAsync(groupId).ConfigureAwait(false);
+            lock (_staticSpriteLock)
+                _staticSprites[groupId] = sprite;
+
             return sprite;
+        }
+        finally
+        {
+            lock (_staticSpriteLock)
+                _staticSpriteLoads.Remove(groupId);
         }
     }
 
-    private StaticSpriteAsset? BuildStaticSprite(uint groupId)
+    private async Task<StaticSpriteAsset?> BuildStaticSpriteAsync(uint groupId)
     {
         var pieces = _mixedPak.GetGroup(groupId);
         if (pieces is null || pieces.Count == 0)
@@ -123,7 +227,7 @@ public sealed class AssetManager : IDisposable
             TextureAsset atlas;
             try
             {
-                atlas = LoadTexture(piece.AtlasName);
+                atlas = await LoadTextureAsync(piece.AtlasName).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or NotSupportedException)
             {
@@ -246,59 +350,142 @@ public sealed class AssetManager : IDisposable
         }
     }
 
-    public GrnAsset LoadGrnModel(string relativePath)
+    public Task<GrnAsset> LoadGrnModelAsync(string relativePath, CancellationToken cancellationToken = default)
     {
-        return LoadGrnModel(relativePath, GrnMeshExtractionMode.PrimarySlice);
+        return LoadGrnModelAsync(relativePath, GrnMeshExtractionMode.PrimarySlice, cancellationToken);
     }
 
-    private GrnAsset LoadGrnModel(string relativePath, GrnMeshExtractionMode meshExtractionMode)
+    private Task<GrnAsset> LoadGrnModelAsync(
+        string relativePath,
+        GrnMeshExtractionMode meshExtractionMode,
+        CancellationToken cancellationToken = default)
     {
         var key = Path.GetFileName(relativePath);
         var cacheKey = ModelCacheKey(key, meshExtractionMode);
-        if (_grnModels.TryGetValue(cacheKey, out var cached)) return cached;
 
-        var asset = _modelsPak.LoadModel(key, meshExtractionMode);
+        Task<GrnAsset> loadTask;
+        lock (_modelLock)
+        {
+            if (_grnModels.TryGetValue(cacheKey, out var cached))
+                return Task.FromResult(cached);
 
-        _grnModels.Add(cacheKey, asset);
-        return asset;
+            if (_grnModelLoads.TryGetValue(cacheKey, out var existingLoadTask))
+            {
+                loadTask = existingLoadTask;
+            }
+            else
+            {
+                loadTask = Task.Run(() => LoadAndCacheGrnModelAsync(key, cacheKey, meshExtractionMode));
+                _grnModelLoads[cacheKey] = loadTask;
+            }
+        }
+
+        return cancellationToken.CanBeCanceled ? loadTask.WaitAsync(cancellationToken) : loadTask;
     }
 
-    public PlayerCharacterAsset LoadPlayerCharacter(uint entryId)
+    private async Task<GrnAsset> LoadAndCacheGrnModelAsync(
+        string key,
+        string cacheKey,
+        GrnMeshExtractionMode meshExtractionMode)
     {
-        if (_playerCharacters.TryGetValue(entryId, out var cached))
-            return cached;
+        try
+        {
+            var asset = await _modelsPak.LoadModelAsync(key, meshExtractionMode).ConfigureAwait(false);
+            lock (_modelLock)
+                _grnModels.TryAdd(cacheKey, asset);
 
-        var definitionIndex = checked((int)entryId - 1);
-        if ((uint)definitionIndex >= (uint)PlayerCharacterDefinitions.Length)
-            throw new FileNotFoundException($"Player character slot {entryId} was not configured.");
+            return asset;
+        }
+        finally
+        {
+            lock (_modelLock)
+                _grnModelLoads.Remove(cacheKey);
+        }
+    }
 
-        var definition = PlayerCharacterDefinitions[definitionIndex];
-        var model = definition.AttachmentModelNames.Length > 0
-            ? _modelsPak.LoadCharacterModel(
-                definition.ModelName,
-                definition.AttachmentModelNames,
-                definition.HiddenBaseTextureNames.Length > 0
-                    ? new HashSet<string>(definition.HiddenBaseTextureNames, StringComparer.OrdinalIgnoreCase)
-                    : null)
-            : LoadGrnModel(definition.ModelName, GrnMeshExtractionMode.PrimarySlice);
-        var asset = new PlayerCharacterAsset(definition.SlotId, definition.DisplayName, definition.ModelName, model);
-        _playerCharacters.Add(entryId, asset);
-        return asset;
+    public Task<PlayerCharacterAsset> LoadPlayerCharacterAsync(uint entryId, CancellationToken cancellationToken = default)
+    {
+        Task<PlayerCharacterAsset> loadTask;
+        lock (_modelLock)
+        {
+            if (_playerCharacters.TryGetValue(entryId, out var cached))
+                return Task.FromResult(cached);
+
+            if (_playerCharacterLoads.TryGetValue(entryId, out var existingLoadTask))
+            {
+                loadTask = existingLoadTask;
+            }
+            else
+            {
+                loadTask = Task.Run(() => LoadAndCachePlayerCharacterAsync(entryId));
+                _playerCharacterLoads[entryId] = loadTask;
+            }
+        }
+
+        return cancellationToken.CanBeCanceled ? loadTask.WaitAsync(cancellationToken) : loadTask;
+    }
+
+    private async Task<PlayerCharacterAsset> LoadAndCachePlayerCharacterAsync(uint entryId)
+    {
+        try
+        {
+            var definitionIndex = checked((int)entryId - 1);
+            if ((uint)definitionIndex >= (uint)PlayerCharacterDefinitions.Length)
+                throw new FileNotFoundException($"Player character slot {entryId} was not configured.");
+
+            var definition = PlayerCharacterDefinitions[definitionIndex];
+            var model = definition.AttachmentModelNames.Length > 0
+                ? await _modelsPak.LoadCharacterModelAsync(
+                    definition.ModelName,
+                    definition.AttachmentModelNames,
+                    definition.HiddenBaseTextureNames.Length > 0
+                        ? new HashSet<string>(definition.HiddenBaseTextureNames, StringComparer.OrdinalIgnoreCase)
+                        : null).ConfigureAwait(false)
+                : await LoadGrnModelAsync(definition.ModelName, GrnMeshExtractionMode.PrimarySlice).ConfigureAwait(false);
+            var asset = new PlayerCharacterAsset(definition.SlotId, definition.DisplayName, definition.ModelName, model);
+
+            lock (_modelLock)
+                _playerCharacters.TryAdd(entryId, asset);
+
+            return asset;
+        }
+        finally
+        {
+            lock (_modelLock)
+                _playerCharacterLoads.Remove(entryId);
+        }
     }
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
+
         lock (_textureLock)
         {
             _textures.Clear();
+            _textureLoads.Clear();
             _textureLru.Clear();
         }
 
         lock (_staticSpriteLock)
+        {
             _staticSprites.Clear();
+            _staticSpriteLoads.Clear();
+        }
 
-        _grnModels.Clear();
-        _playerCharacters.Clear();
+        lock (_modelLock)
+        {
+            _grnModels.Clear();
+            _grnModelLoads.Clear();
+            _playerCharacters.Clear();
+            _playerCharacterLoads.Clear();
+        }
+
+        _texturePak.Dispose();
+        _modelsPak.Dispose();
+        _textureLoadThrottle.Dispose();
+        _directStoragePayloadReader?.Dispose();
     }
 
     private sealed record TextureCacheEntry(TextureAsset Asset, LinkedListNode<string> Node);

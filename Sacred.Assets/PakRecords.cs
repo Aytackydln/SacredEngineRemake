@@ -1,4 +1,4 @@
-namespace Sacred.Core.Assets;
+namespace Sacred.Assets;
 
 public readonly record struct FloorOverlayRecord(uint FloorId, uint TileOrBlendRef, uint NextFloorId)
 {

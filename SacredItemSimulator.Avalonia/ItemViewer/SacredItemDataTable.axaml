@@ -12,18 +12,24 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="5*"/>
+            <ColumnDefinition Width="3*"/>
+        </Grid.ColumnDefinitions>
         
-        <ScrollViewer AllowAutoHide="False" HorizontalScrollBarVisibility="Visible" Grid.Row="0">
+        <ScrollViewer AllowAutoHide="False" HorizontalScrollBarVisibility="Visible" Grid.Row="0" Grid.Column="0">
             <DataGrid
                 Name="DataGrid"
                 ItemsSource="{Binding CurrentPageItems}"
+                SelectionChanged="DataGrid_OnSelectionChanged"
+                SelectionMode="Single"
                 GridLinesVisibility="All"
                 CanUserReorderColumns="True"
                 Sorting="DataGrid_OnSorting"
                 IsReadOnly="True" AutoGenerateColumns="True" />
         </ScrollViewer>
 
-        <StackPanel Orientation="Horizontal" Grid.Row="1" HorizontalAlignment="Center" Margin="10">
+        <StackPanel Orientation="Horizontal" Grid.Row="1" Grid.Column="0" HorizontalAlignment="Center" Margin="10">
             <Button Click="FirstPageButton_Click">|◀</Button>
             <Button Command="{Binding PreviousPageCommand}">◀</Button>
             <TextBlock Text="{Binding CurrentPage}"  VerticalAlignment="Center" HorizontalAlignment="Center"/>
@@ -32,5 +38,7 @@
             <Button Command="{Binding NextPageCommand}">▶</Button>
             <Button Click="LastPageButton_Click">▶|</Button>
         </StackPanel>
+        
+        <Panel Name="ModelViewerPanel" Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="1" Background="DarkGreen"></Panel>
     </Grid>
 </UserControl>

@@ -11,6 +11,7 @@ public sealed class Win32Window : IDisposable
 
     private readonly WndProc _wndProc;
     private readonly string _className;
+    private bool _quitRequested;
     private bool _disposed;
 
     public nint Hwnd { get; }
@@ -74,9 +75,16 @@ public sealed class Win32Window : IDisposable
 
     public bool ProcessMessages()
     {
+        if (_quitRequested) return false;
+
         while (User32.PeekMessage(out var msg, 0, 0, 0, 1))
         {
-            if (msg.message == 0x0012) return false; // WM_QUIT
+            if (msg.message == Win32WindowEventCodes.WmQuit)
+            {
+                _quitRequested = true;
+                return false;
+            }
+
             User32.TranslateMessage(ref msg);
             User32.DispatchMessage(ref msg);
         }
@@ -87,16 +95,29 @@ public sealed class Win32Window : IDisposable
     {
         switch (msg)
         {
-            case 0x0002: User32.PostQuitMessage(0); return 0; // WM_DESTROY
+            case 0x0002: // WM_DESTROY
+                _quitRequested = true;
+                User32.PostQuitMessage(0);
+                return 0;
             case 0x0014: // WM_ERASEBKGND
                 User32.GetClientRect(hwnd, out var rect);
                 User32.FillRect((nint)wParam, ref rect, Gdi32.GetStockObject(BlackBrush));
                 return 1;
-            case 0x0100: Input.Set((VirtualKey)wParam, true); return 0; // WM_KEYDOWN
-            case 0x0101: Input.Set((VirtualKey)wParam, false); return 0; // WM_KEYUP
-            case 0x0200: Input.SetMousePosition(GetMouseX(lParam), GetMouseY(lParam)); return 0; // WM_MOUSEMOVE
-            case 0x0201: Input.SetLeftMouseButton(true, GetMouseX(lParam), GetMouseY(lParam)); return 0; // WM_LBUTTONDOWN
-            case 0x0202: Input.SetLeftMouseButton(false, GetMouseX(lParam), GetMouseY(lParam)); return 0; // WM_LBUTTONUP
+            case 0x0100: // WM_KEYDOWN
+                Input.Set((VirtualKey)wParam, true);
+                return 0;
+            case 0x0101: // WM_KEYUP
+                Input.Set((VirtualKey)wParam, false);
+                return 0;
+            case 0x0200: // WM_MOUSEMOVE
+                Input.SetMousePosition(GetMouseX(lParam), GetMouseY(lParam));
+                return 0;
+            case 0x0201: // WM_LBUTTONDOWN
+                Input.SetLeftMouseButton(true, GetMouseX(lParam), GetMouseY(lParam));
+                return 0;
+            case 0x0202: // WM_LBUTTONUP
+                Input.SetLeftMouseButton(false, GetMouseX(lParam), GetMouseY(lParam));
+                return 0;
         }
         return User32.DefWindowProc(hwnd, msg, wParam, lParam);
     }

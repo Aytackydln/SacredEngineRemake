@@ -1,5 +1,6 @@
 ﻿using System.Collections.Frozen;
 using System.Diagnostics;
+using System.Numerics;
 using System.Text;
 using Sacred.Core.Items;
 using SacredItemSimulator.GamePak;
@@ -9,25 +10,48 @@ namespace Sacred.Core.Weapon;
 
 // each entry is 258 bytes, with some fields at fixed offsets
 // debug view with ItemId, Name, Width, Height, TypeIdentifier
-[DebuggerDisplay("{IdemId}: {Name}, Type = {TypeIdentifier}")]
+[DebuggerDisplay("{IdemId}: {Name}, Class = {EffectiveCharacterClassMask}, Type = {EquipmentType}, Unique = {IsUnique}")]
 public readonly record struct SacredEquipment(
     SacredPakLocation PakLocation, // location of the entry in the pak file, useful for debugging and lookup
     ItemsPakEntry Item,
     ushort Short1, // 2 bytes at offset 0
-    ushort Short2, // 2 bytes at offset 8
-    byte[] SpanX, // 20 bytes at offset 10-12
+    Vector3 PreviewRotation, // candidate item preview rotation: three unaligned floats at offsets 2, 6, and 10 in radians
+    ushort Short2, // legacy overlapping interpretation of bytes at offset 8
+    byte[] SpanX, // legacy overlapping interpretation of bytes at offsets 10-11
     byte Width, // 1 byte at offset 26
     byte Height, // 1 byte at offset 27
-    byte TypeIdentifier, // 1 byte at offset 37
+    byte UsageIdentifier, // 1 byte at offset 28; weapon/animation shape, partly tied to handedness
+    byte TypeIdentifier, // 1 byte at offset 37; observed as 0 in sampled equipment
     string Name, // 88 bytes at offset 38-125, null-terminated string in iso 8859-1 encoding
-    uint IdemId, // 4 bytes at offset 126
-    byte[] UnknownBytes // 64 bytes at offset 194-257
+    uint IdemId, // 2 bytes at offset 126, kept as uint for existing dictionary keys
+    SacredEquipmentClassification Classification,
+    byte[] UnknownBytes // remaining bytes that are not currently mapped to named fields
 )
 {
     private const int Size = 258;
 
     // iso 8859-1 encoding for german text
     private static readonly Encoding SacredEncoding = Encoding.GetEncoding("iso-8859-1");
+
+    public byte CharacterClassMaskCode => Classification.CharacterClassMaskCode;
+    public SacredCharacterClassMask CharacterClassMask => Classification.CharacterClassMask;
+    public SacredCharacterClassMask EffectiveCharacterClassMask => Classification.EffectiveCharacterClassMask;
+    public byte EquipmentTypeCode => Classification.EquipmentTypeCode;
+    public SacredEquipmentType EquipmentType => Classification.EquipmentType;
+    public byte RarityAndClassFlags => Classification.RarityAndClassFlags;
+    public byte RarityTierCode => Classification.RarityTierCode;
+    public byte ClassFlagCode => Classification.ClassFlagCode;
+    public bool IsUnique => Classification.IsUnique;
+    public SacredEquipmentLore InferredLore => Classification.InferLore(Short2);
+    public SacredEquipmentSlot InferredSlot => Classification.InferSlot();
+    public SacredEquipmentHandedness InferredHandedness => Classification.InferHandedness(UsageIdentifier, Short2);
+
+    public bool? InferredTwoHanded => InferredHandedness switch
+    {
+        SacredEquipmentHandedness.TwoHanded => true,
+        SacredEquipmentHandedness.OneHanded or SacredEquipmentHandedness.NotApplicable => false,
+        _ => null
+    };
 
     public static SacredEquipment FromBytes(
         BinaryReader br,
@@ -54,14 +78,20 @@ public readonly record struct SacredEquipment(
 
         var width = bytes[26];
         var height = bytes[27];
+        var usageIdentifier = bytes[28];
         var itemId = BitConverter.ToUInt16(bytes[126..128]);
         var item = items[itemId];
+        var classification = SacredEquipmentClassification.FromBytes(
+            characterClassMaskCode: bytes[130],
+            equipmentTypeCode: bytes[131],
+            rarityAndClassFlags: bytes[132]
+        );
 
         var span1 = bytes[2..8];
-        var span2 = bytes[12..32];
-        var span3 = bytes[28..37];
-        var span4 = bytes[130..194];
-        var span5 = bytes[194..258];
+        var span2 = bytes[12..26];
+        var span3 = bytes[29..37];
+        var span4 = bytes[128..130];
+        var span5 = bytes[133..258];
 
         var unknownBytes = ByteArrayUtils.Combine(span1, span2, span3, span4, span5);
 
@@ -69,13 +99,20 @@ public readonly record struct SacredEquipment(
             PakLocation: pakLocation,
             Item: item,
             Short1: BitConverter.ToUInt16(bytes[..2]),
+            PreviewRotation: new Vector3(
+                BitConverter.ToSingle(bytes[2..6]),
+                BitConverter.ToSingle(bytes[6..10]),
+                BitConverter.ToSingle(bytes[10..14])    //This is absolutely correct
+            ),
             Short2: BitConverter.ToUInt16(bytes[8..10]),
             SpanX: bytes[10..12].ToArray(),
             Width: width,
             Height: height,
+            UsageIdentifier: usageIdentifier,
             TypeIdentifier: bytes[37],
             Name: name,
             IdemId: itemId,
+            Classification: classification,
             UnknownBytes: unknownBytes
         );
     }

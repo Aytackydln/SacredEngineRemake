@@ -18,5 +18,9 @@ internal static partial class Kernel32
 
     [LibraryImport(LibraryName)]
     [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool SetEvent(nint handle);
+
+    [LibraryImport(LibraryName)]
+    [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool CloseHandle(nint handle);
 }

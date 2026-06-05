@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Numerics;
-using Sacred.Core.Assets;
+using Sacred.Assets;
+using Sacred.Granny;
 
 namespace Sacred.Engine.Scene;
 

@@ -1,4 +1,4 @@
-namespace Sacred.Core.Assets;
+namespace Sacred.Assets;
 
 public sealed record TextureAsset(string Name, int Width, int Height, byte[] Rgba8);
 

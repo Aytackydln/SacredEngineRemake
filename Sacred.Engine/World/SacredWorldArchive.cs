@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Threading;
 using System.Threading.Tasks;
+using Sacred.Assets;
 using Sacred.Core;
 using Sacred.Core.World;
 using Sacred.Engine.Assets;

@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 using System.Numerics;
 using System.Text;
 
-namespace Sacred.Core.Assets;
+namespace Sacred.Granny;
 
 public sealed record GrnAsset(
     string Name,
@@ -13,23 +13,16 @@ public sealed record GrnAsset(
 
 public static class GrnAssetLoader
 {
-    private const bool EnableHeuristicMeshExtraction = false;
-
     public static GrnAsset LoadFromBytes(
         string name,
         byte[] bytes,
         GrnMeshExtractionMode meshExtractionMode = GrnMeshExtractionMode.PrimarySlice)
     {
-        var ascii = Encoding.ASCII.GetString(bytes.Where(static b => b is >= 32 and < 127).ToArray());
-        var referencedTexture = ascii.Contains("shield_tower.tga", StringComparison.OrdinalIgnoreCase)
-            ? "shield_tower.tga"
-            : null;
-
         // The current extractor is intentionally disabled: broad binary heuristics can find plausible
         // float/index blocks that are not the actual Granny mesh, producing slow loads and bad geometry.
         var mesh = Granny1MeshExtractor.TryExtract(bytes, meshExtractionMode);
 
-        return new GrnAsset(name, bytes, referencedTexture, mesh);
+        return new GrnAsset(name, bytes, null, mesh);
     }
 
     public static GrnAsset LoadCharacterFromBytes(

@@ -1,10 +1,13 @@
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.Gaming.Input;
 using Sacred.Core;
-using Sacred.Core.Assets;
+using Sacred.Assets;
+using Sacred.Granny;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Graphics;
 using Sacred.Engine.Platform;
@@ -16,6 +19,8 @@ namespace Sacred.Engine;
 public sealed class SacredGame : IDisposable
 {
     private const uint FirstPlayerModelSlotId = 1;
+
+    public static FramePacingMode Mode = FramePacingMode.VSync;
 
     private readonly Win32Window _window;
     private readonly Dx12Renderer _renderer;
@@ -55,17 +60,35 @@ public sealed class SacredGame : IDisposable
         _playerPosition = new Vector3(_camera.WorldCenter.X, _camera.WorldCenter.Y, 0.0f);
         _playerRotation = new Vector3(0.0f, 90.0f, 45.0f);
 
-        SetPlayerModel(FirstPlayerModelSlotId);
+        _scene.Models.Add(new SceneModel(
+            Name: "Loading player model",
+            Mesh: _playerProxyMesh,
+            Position: _playerPosition,
+            Rotation: _playerRotation));
+        _ = SetPlayerModelAsync(FirstPlayerModelSlotId);
     }
 
-    public void Run()
+    public async Task Run(CancellationToken cancellationToken = default)
+    {
+        await Win32AsyncPump.RunAsync(() => RunCoreAsync(cancellationToken), _window.ProcessMessages);
+    }
+
+    private async Task RunCoreAsync(CancellationToken cancellationToken)
     {
         var clock = new FrameClock();
-        while (_window.ProcessMessages())
+        while (!cancellationToken.IsCancellationRequested && _window.ProcessMessages())
         {
+            await clock.WaitForFrameStartAsync(Mode, cancellationToken);
+            if (!_window.ProcessMessages())
+                break;
+
+            var iterationStart = Stopwatch.GetTimestamp();
             var dt = clock.Tick();
             Update(dt);
-            _renderer.RenderFrame(_camera, _worldStreamer.VisibleWorld, _scene);
+            await _renderer.RenderFrameAsync(_camera, _worldStreamer.VisibleWorld, _scene, cancellationToken);
+
+            var iterationTime = Stopwatch.GetElapsedTime(iterationStart);
+            await clock.WaitForFrameEndAsync(Mode, iterationTime, cancellationToken);
         }
     }
 
@@ -110,12 +133,12 @@ public sealed class SacredGame : IDisposable
             ? FirstPlayerModelSlotId
             : _activePlayerModelEntryId + 1;
 
-        Task.Run(() => SetPlayerModel(next));
+        _ = SetPlayerModelAsync(next);
     }
 
-    private void SetPlayerModel(uint entryId)
+    private async Task SetPlayerModelAsync(uint entryId)
     {
-        var player = _assets.LoadPlayerCharacter(entryId);
+        var player = await _assets.LoadPlayerCharacterAsync(entryId).ConfigureAwait(false);
         _activePlayerModelEntryId = entryId;
         
         var sceneModel = new SceneModel(

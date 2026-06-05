@@ -6,7 +6,9 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Runtime;
 using System.Threading;
-using Sacred.Core.Assets;
+using System.Threading.Tasks;
+using Sacred.Assets;
+using Sacred.Granny;
 using Sacred.Core.World;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Extern;
@@ -23,12 +25,14 @@ using static Vortice.DXGI.DXGI;
 
 namespace Sacred.Engine.Graphics;
 
-public sealed unsafe class Dx12Renderer : IDisposable
+public sealed class Dx12Renderer : IDisposable
 {
     private const int FrameCount = 2;
     private const int MaxSectorTextures = 64;
     private const int MaxModelTextures = 32;
     private const int MaxStaticSpriteTextures = 4096;
+    private const int MaxModelTextureUploadsPerFrame = 2;
+    private const int MaxStaticSpriteTextureUploadsPerFrame = 8;
     private const int DebugOverlaySrvSlot = MaxSectorTextures;
     private const int FirstModelTextureSrvSlot = DebugOverlaySrvSlot + 1;
     private const int FirstStaticSpriteSrvSlot = FirstModelTextureSrvSlot + MaxModelTextures;
@@ -98,6 +102,7 @@ public sealed unsafe class Dx12Renderer : IDisposable
     private ulong _sectorUploadFenceValue;
     private bool _commandsInFlight;
     private long _releasedCpuTextureBytesSinceGc;
+    private int _staticSpriteUploadsThisFrame;
 
     public Dx12Renderer(Win32Window window, AssetManager assets)
     {
@@ -122,9 +127,13 @@ public sealed unsafe class Dx12Renderer : IDisposable
         CreatePipeline();
     }
 
-    public void RenderFrame(SacredCamera camera, VisibleWorld world, SceneState scene)
+    public async Task RenderFrameAsync(
+        SacredCamera camera,
+        VisibleWorld world,
+        SceneState scene,
+        CancellationToken cancellationToken = default)
     {
-        WaitForGpu();
+        await WaitForGpuAsync(cancellationToken);
         DisposeUploadResources();
         ResizeIfNeeded();
 
@@ -136,6 +145,7 @@ public sealed unsafe class Dx12Renderer : IDisposable
 
         _commandAllocator.Reset();
         _commandList.Reset(_commandAllocator, _pipelineState);
+        _staticSpriteUploadsThisFrame = 0;
         CollectCompletedModelTextureLoads();
 
         _debugOverlay.Update(
@@ -143,11 +153,14 @@ public sealed unsafe class Dx12Renderer : IDisposable
             world,
             scene,
             new Dx12DebugOverlayStats(_sectorTextures.Count, MaxSectorTextures, _pendingSectorUploads.Count));
-        RecordWorldPass(camera, sectorImages, staticSprites, scene);
+        unsafe
+        {
+            RecordWorldPass(camera, sectorImages, staticSprites, scene);
+        }
 
         _commandList.Close();
         ExecuteCommandList();
-        _swapChain.Present(1, PresentFlags.None);
+        _swapChain.Present(0, PresentFlags.None);
         SignalFrameFence();
     }
 
@@ -566,6 +579,7 @@ public sealed unsafe class Dx12Renderer : IDisposable
 
     private void CollectCompletedModelTextureLoads()
     {
+        var uploadsThisFrame = 0;
         while (_completedModelTextureLoads.TryDequeue(out var completed))
         {
             if (!_modelTextures.TryGetValue(completed.TextureName, out var texture))
@@ -588,6 +602,7 @@ public sealed unsafe class Dx12Renderer : IDisposable
             {
                 var slot = _freeModelSrvSlots.Pop();
                 texture.SrvSlot = slot;
+                uploadsThisFrame++;
                 var resource = _textureUploader.UploadRgbaTexture(
                     _commandList,
                     completed.Asset.Width,
@@ -609,6 +624,9 @@ public sealed unsafe class Dx12Renderer : IDisposable
 
                 texture.Failed = true;
             }
+
+            if (uploadsThisFrame >= MaxModelTextureUploadsPerFrame)
+                break;
         }
     }
 
@@ -626,21 +644,22 @@ public sealed unsafe class Dx12Renderer : IDisposable
         };
         _modelTextures.Add(textureName, texture);
 
-        ThreadPool.QueueUserWorkItem(static state =>
-        {
-            var (renderer, name) = ((Dx12Renderer Renderer, string Name))state!;
-            try
-            {
-                var asset = renderer._assets.LoadTexture(name);
-                renderer._completedModelTextureLoads.Enqueue(new CompletedModelTextureLoad(name, asset, null));
-            }
-            catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or NotSupportedException)
-            {
-                renderer._completedModelTextureLoads.Enqueue(new CompletedModelTextureLoad(name, null, ex));
-            }
-        }, (this, textureName));
+        _ = LoadModelTextureAsync(textureName);
 
         return null;
+    }
+
+    private async Task LoadModelTextureAsync(string textureName)
+    {
+        try
+        {
+            var asset = await _assets.LoadTextureAsync(textureName).ConfigureAwait(false);
+            _completedModelTextureLoads.Enqueue(new CompletedModelTextureLoad(textureName, asset, null));
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or NotSupportedException)
+        {
+            _completedModelTextureLoads.Enqueue(new CompletedModelTextureLoad(textureName, null, ex));
+        }
     }
 
     private StaticSpriteTexture? GetOrCreateStaticSpriteTexture(StaticSpriteAsset sprite)
@@ -651,9 +670,13 @@ public sealed unsafe class Dx12Renderer : IDisposable
         if (_freeStaticSpriteSrvSlots.Count == 0)
             return null;
 
+        if (_staticSpriteUploadsThisFrame >= MaxStaticSpriteTextureUploadsPerFrame)
+            return null;
+
         var slot = _freeStaticSpriteSrvSlots.Pop();
         try
         {
+            _staticSpriteUploadsThisFrame++;
             var resource = _textureUploader.UploadRgbaTexture(
                 _commandList,
                 sprite.Width,
@@ -710,7 +733,7 @@ public sealed unsafe class Dx12Renderer : IDisposable
         GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
     }
 
-    private void RecordWorldPass(
+    private unsafe void RecordWorldPass(
         SacredCamera camera,
         IReadOnlyList<TerrainSectorImage> sectorImages,
         IReadOnlyList<TerrainStaticSprite> staticSprites,
@@ -778,7 +801,7 @@ public sealed unsafe class Dx12Renderer : IDisposable
         Transition(backBuffer, ResourceStates.RenderTarget, ResourceStates.Present);
     }
 
-    private void RecordStaticSpritePass(
+    private unsafe void RecordStaticSpritePass(
         SacredCamera camera,
         IReadOnlyList<TerrainStaticSprite> sprites)
     {
@@ -845,7 +868,7 @@ public sealed unsafe class Dx12Renderer : IDisposable
         return Math.Clamp(0.50f - (depthKey - centerDepthKey) * PainterDepthScale, 0.20f, 0.72f);
     }
 
-    private void RecordModelPass(SacredCamera camera, IReadOnlyList<SceneModel> models, SceneLighting lighting)
+    private unsafe void RecordModelPass(SacredCamera camera, IReadOnlyList<SceneModel> models, SceneLighting lighting)
     {
         if (models.Count == 0)
             return;
@@ -967,7 +990,7 @@ public sealed unsafe class Dx12Renderer : IDisposable
         return gpuMesh;
     }
 
-    private static void WriteMatrix(Matrix4x4 matrix, float* target)
+    private static unsafe void WriteMatrix(Matrix4x4 matrix, float* target)
     {
         target[0] = matrix.M11;
         target[1] = matrix.M12;
@@ -987,7 +1010,7 @@ public sealed unsafe class Dx12Renderer : IDisposable
         target[15] = matrix.M44;
     }
 
-    private static void WriteModelColor(string name, float* target)
+    private static unsafe void WriteModelColor(string name, float* target)
     {
         var hash = (uint)StringComparer.OrdinalIgnoreCase.GetHashCode(name);
         target[0] = 0.35f + ((hash & 0xFF) / 255.0f) * 0.55f;
@@ -996,7 +1019,7 @@ public sealed unsafe class Dx12Renderer : IDisposable
         target[3] = 1.0f;
     }
 
-    private static void WriteModelLighting(SacredCamera camera, SceneLighting lighting, float* target)
+    private static unsafe void WriteModelLighting(SacredCamera camera, SceneLighting lighting, float* target)
     {
         target[0] = lighting.LightPosition.X;
         target[1] = lighting.LightPosition.Y;
@@ -1090,6 +1113,19 @@ public sealed unsafe class Dx12Renderer : IDisposable
         _commandsInFlight = false;
     }
 
+    private async Task WaitForGpuAsync(CancellationToken cancellationToken)
+    {
+        if (!_commandsInFlight || _fence.CompletedValue >= _fenceValue)
+        {
+            _commandsInFlight = false;
+            return;
+        }
+
+        _fence.SetEventOnCompletion(_fenceValue, _fenceEvent).CheckError();
+        await Win32EventAwaiter.WaitAsync(_fenceEvent, cancellationToken);
+        _commandsInFlight = false;
+    }
+
     private void DisposeUploadResources()
     {
         foreach (var resource in _uploadResources)
@@ -1160,3 +1196,4 @@ public sealed unsafe class Dx12Renderer : IDisposable
     }
 
 }
+

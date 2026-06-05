@@ -99,6 +99,14 @@ internal static partial class User32
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool PeekMessage(out Msg lpMsg, nint hWnd, uint min, uint max, uint remove);
 
+    [LibraryImport(LibraryName, SetLastError = true)]
+    internal static unsafe partial uint MsgWaitForMultipleObjectsEx(
+        uint nCount,
+        nint* pHandles,
+        uint dwMilliseconds,
+        uint dwWakeMask,
+        uint dwFlags);
+
     [LibraryImport(LibraryName)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool TranslateMessage(ref Msg lpMsg);

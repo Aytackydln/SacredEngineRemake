@@ -43,5 +43,5 @@ var directories = new SacredGameDirectories
 };
 
 using var game = new SacredGame(directories);
-game.Run();
+await game.Run();
 Console.WriteLine("Game exited.");

@@ -8,13 +8,16 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Raffinert.EmbeddedResourceAccessGenerator" Version="1.0.10"/>
+    <PackageReference Include="Raffinert.EmbeddedResourceAccessGenerator" Version="1.0.10" />
     <PackageReference Include="Vortice.Direct3D12" Version="3.8.3" />
+    <PackageReference Include="Vortice.DirectStorage" Version="3.8.3" />
     <PackageReference Include="Vortice.DXGI" Version="3.8.3" />
     <PackageReference Include="Vortice.Dxc" Version="3.8.3" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Sacred.Core\Sacred.Core.csproj" />
+    <ProjectReference Include="..\Sacred.Assets\Sacred.Assets.csproj" />
+    <ProjectReference Include="..\Sacred.Granny\Sacred.Granny.csproj" />
   </ItemGroup>
   
   <ItemGroup>

@@ -1,8 +1,7 @@
 using System;
 using System.IO;
-using Sacred.Core.Assets;
 
-namespace Sacred.Engine.Assets;
+namespace Sacred.Assets;
 
 public sealed class TilesPakArchive
 {

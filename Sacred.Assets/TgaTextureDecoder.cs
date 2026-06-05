@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 
-namespace Sacred.Core.Assets;
+namespace Sacred.Assets;
 
 public static class TgaTextureDecoder
 {
