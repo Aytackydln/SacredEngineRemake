@@ -20,6 +20,12 @@ jobs:
         with:
           dotnet-version: '10.0.x'   # Change according to your projects
 
+      - name: Extract version
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
       # ==================== SacredEngineRemake ====================
       - name: Publish Project1
         shell: bash
@@ -27,7 +33,7 @@ jobs:
           dotnet publish SacredEngineRemake/SacredEngineRemake.csproj \
             --configuration Release \
             --output ./publish/SacredEngineRemake \
-            -p:Version=${${{ github.ref_name }}#v} \
+            -p:Version=${{ env.VERSION }} \
             -p:PublishSingleFile=true \
             -p:SelfContained=true \
             -p:IncludeNativeLibrariesForSelfExtract=true \
@@ -40,7 +46,7 @@ jobs:
           dotnet publish SacredItemSimulator.Avalonia/SacredItemSimulator.Avalonia.csproj \
             --configuration Release \
             --output ./publish/SacredItemSimulator.Avalonia \
-            -p:Version=${${{ github.ref_name }}#v} \
+            -p:Version=${{ env.VERSION }} \
             -p:PublishSingleFile=true \
             -p:SelfContained=true \
             -p:IncludeNativeLibrariesForSelfExtract=true \
