@@ -8,6 +8,8 @@ namespace Sacred.Engine.Platform;
 public sealed class Win32Window : IDisposable
 {
     private const int BlackBrush = 4;
+    private const int XButton1 = 1;
+    private const int XButton2 = 2;
 
     private readonly WndProc _wndProc;
     private readonly string _className;
@@ -118,6 +120,13 @@ public sealed class Win32Window : IDisposable
             case 0x0202: // WM_LBUTTONUP
                 Input.SetLeftMouseButton(false, GetMouseX(lParam), GetMouseY(lParam));
                 return 0;
+            case 0x020A: // WM_MOUSEWHEEL
+                Input.AddMouseWheelDelta(GetSignedHighWord((nint)wParam));
+                return 0;
+            case 0x020B: // WM_XBUTTONDOWN
+                if (GetUnsignedHighWord((nint)wParam) is XButton1 or XButton2)
+                    Input.PressXButtonCycle();
+                return 1;
         }
         return User32.DefWindowProc(hwnd, msg, wParam, lParam);
     }
@@ -125,6 +134,10 @@ public sealed class Win32Window : IDisposable
     private static int GetMouseX(nint lParam) => unchecked((short)(lParam.ToInt64() & 0xFFFF));
 
     private static int GetMouseY(nint lParam) => unchecked((short)((lParam.ToInt64() >> 16) & 0xFFFF));
+
+    private static int GetSignedHighWord(nint value) => unchecked((short)((value.ToInt64() >> 16) & 0xFFFF));
+
+    private static int GetUnsignedHighWord(nint value) => unchecked((ushort)((value.ToInt64() >> 16) & 0xFFFF));
 
     public void Dispose()
     {

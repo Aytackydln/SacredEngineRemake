@@ -8,6 +8,7 @@ public sealed class SacredCamera
 {
     private const float NormalMovementSpeed = 10.0f;
     private const float FastMovementSpeed = 30.0f;
+    private const float JoystickDeadzone = 0.1f;
 
     private static readonly Matrix3x2 IsometricRotation = Matrix3x2.CreateRotation(-MathF.PI / 4);
 
@@ -53,7 +54,7 @@ public sealed class SacredCamera
 
     public void UpdateFromKeyboard(InputState input, float dt)
     {
-        var speed = (input.IsDown(VirtualKey.Shift) ? FastMovementSpeed : NormalMovementSpeed) / Zoom;
+        var speed = (input.IsMoveFasterDown ? FastMovementSpeed : NormalMovementSpeed) / Zoom;
         var delta = MovementDirection(input);
 
         if (delta.LengthSquared() > 0)
@@ -72,6 +73,15 @@ public sealed class SacredCamera
 
         if (input.IsDown(VirtualKey.Q)) Zoom *= MathF.Pow(0.985f, dt * 60f);
         if (input.IsDown(VirtualKey.E)) Zoom *= MathF.Pow(1.015f, dt * 60f);
+
+        var rightStickZoom = ApplyDeadzone((float)input.RightJoystickY);
+        if (rightStickZoom != 0.0f)
+            Zoom *= MathF.Pow(1.015f, rightStickZoom * dt * 60f);
+
+        var mouseWheelDelta = input.ConsumeMouseWheelDelta();
+        if (mouseWheelDelta != 0)
+            Zoom *= MathF.Pow(1.12f, mouseWheelDelta / 120.0f);
+
         Zoom = Math.Clamp(Zoom, 0.25f, 3.0f);
 
         RebuildMatrices();
@@ -109,8 +119,8 @@ public sealed class SacredCamera
     private static Vector2 MovementDirection(InputState input)
     {
         if (
-            input.LeftJoystickX >= 0.1 || input.LeftJoystickX <= -0.1
-                                       || input.LeftJoystickY >= 0.1 || input.LeftJoystickY <= -0.1)
+            input.LeftJoystickX >= JoystickDeadzone || input.LeftJoystickX <= -JoystickDeadzone
+                                                     || input.LeftJoystickY >= JoystickDeadzone || input.LeftJoystickY <= -JoystickDeadzone)
         {
             var movementDirection = new Vector2((float)input.LeftJoystickX, -(float)input.LeftJoystickY);
             
@@ -147,6 +157,9 @@ public sealed class SacredCamera
 
         return delta;
     }
+
+    private static float ApplyDeadzone(float value) =>
+        MathF.Abs(value) < JoystickDeadzone ? 0.0f : value;
 
     private void RebuildMatrices()
     {

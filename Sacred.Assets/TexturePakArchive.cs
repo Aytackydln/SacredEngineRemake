@@ -15,6 +15,7 @@ public sealed class TexturePakArchive : IDisposable
     private readonly PakStream[] _archives;
     private readonly IPakPayloadReader? _payloadReader;
     private readonly Dictionary<string, IndexedTexturePakRecord> _recordsByName = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<uint, IndexedTexturePakRecord> _recordsByEntryId = new();
     private bool _disposed;
 
     private TexturePakArchive(string[] paths, IPakPayloadReader? payloadReader)
@@ -70,6 +71,21 @@ public sealed class TexturePakArchive : IDisposable
             }
         }
 
+        return await LoadTextureAsync(indexedRecord, cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task<TextureAsset> LoadTextureAsync(uint entryId, CancellationToken cancellationToken = default)
+    {
+        if (!_recordsByEntryId.TryGetValue(entryId, out var indexedRecord))
+            throw new FileNotFoundException($"Texture entry #{entryId} was not found in: {string.Join(", ", _archives.Select(static archive => Path.GetFileName(archive.Path)))}.");
+
+        return LoadTextureAsync(indexedRecord, cancellationToken);
+    }
+
+    private async Task<TextureAsset> LoadTextureAsync(
+        IndexedTexturePakRecord indexedRecord,
+        CancellationToken cancellationToken)
+    {
         var archive = indexedRecord.Archive;
         var record = indexedRecord.Record;
         var payloadOffset = record.Offset + TexturePakDecoder.TextureHeaderSize;
@@ -126,7 +142,7 @@ public sealed class TexturePakArchive : IDisposable
             if (string.IsNullOrWhiteSpace(name))
                 continue;
 
-            AddLookupNames(
+            var indexedRecord = new IndexedTexturePakRecord(
                 archive,
                 new TexturePakRecord(
                     name,
@@ -135,17 +151,21 @@ public sealed class TexturePakArchive : IDisposable
                     BitConverter.ToUInt16(textureHeader[0x20..0x22]),
                     BitConverter.ToUInt16(textureHeader[0x22..0x24]),
                     textureHeader[0x24]));
+
+            _recordsByEntryId.TryAdd((uint)i, indexedRecord);
+            AddLookupNames(indexedRecord);
         }
     }
 
-    private void AddLookupNames(PakStream archive, TexturePakRecord record)
+    private void AddLookupNames(IndexedTexturePakRecord indexedRecord)
     {
-        Add(archive, record.Name, record);
-        Add(archive, Path.GetFileNameWithoutExtension(record.Name), record);
+        var record = indexedRecord.Record;
+        Add(indexedRecord, record.Name);
+        Add(indexedRecord, Path.GetFileNameWithoutExtension(record.Name));
 
         var stem = Path.GetFileNameWithoutExtension(record.Name);
         if (stem?.StartsWith("mix", StringComparison.OrdinalIgnoreCase) == true)
-            Add(archive, stem + ".444", record);
+            Add(indexedRecord, stem + ".444");
 
         var lowerName = record.Name.ToLowerInvariant();
         if (lowerName.StartsWith("iso", StringComparison.Ordinal) &&
@@ -153,15 +173,15 @@ public sealed class TexturePakArchive : IDisposable
             int.TryParse(lowerName[3..^4], out var number))
         {
             for (var width = 1; width <= 4; width++)
-                Add(archive, number.ToString().PadLeft(width, '0').Insert(0, "iso") + ".tga", record);
-            Add(archive, $"iso{number}.tga", record);
+                Add(indexedRecord, number.ToString().PadLeft(width, '0').Insert(0, "iso") + ".tga");
+            Add(indexedRecord, $"iso{number}.tga");
         }
     }
 
-    private void Add(PakStream archive, string? name, TexturePakRecord record)
+    private void Add(IndexedTexturePakRecord indexedRecord, string? name)
     {
         if (!string.IsNullOrWhiteSpace(name))
-            _recordsByName[NormalizeName(name)] = new IndexedTexturePakRecord(archive, record);
+            _recordsByName[NormalizeName(name)] = indexedRecord;
     }
 
     private static string ReadCString(ReadOnlySpan<byte> data, int maxLength)

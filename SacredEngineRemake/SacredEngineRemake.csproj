@@ -4,11 +4,12 @@
     <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <UseWindowsForms>false</UseWindowsForms>
-    
+
     <SingleFile>true</SingleFile>
     <SelfContained>true</SelfContained>
     <Aot>true</Aot>
     <PublishAot>true</PublishAot>
+    <PublishTrimmed>true</PublishTrimmed>
     <StripSymbols>true</StripSymbols>
     <OptimizationPreference>Speed</OptimizationPreference>
     <StackTraceSupport>false</StackTraceSupport>

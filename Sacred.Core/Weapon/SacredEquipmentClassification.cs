@@ -32,6 +32,7 @@ public enum SacredEquipmentType : byte
     Blade = 10,
     ChestArmor = 13,
     Ring = 14,
+    Amulet = 15,
     HeadArmor = 16,
     ArmArmor = 17,
     LegArmor = 18,

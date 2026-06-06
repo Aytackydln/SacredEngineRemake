@@ -17,15 +17,13 @@ public readonly record struct SacredEquipment(
     ushort Short1, // 2 bytes at offset 0
     Vector3 PreviewRotation, // candidate item preview rotation: three unaligned floats at offsets 2, 6, and 10 in radians
     ushort Short2, // legacy overlapping interpretation of bytes at offset 8
-    byte[] SpanX, // legacy overlapping interpretation of bytes at offsets 10-11
     byte Width, // 1 byte at offset 26
     byte Height, // 1 byte at offset 27
     byte UsageIdentifier, // 1 byte at offset 28; weapon/animation shape, partly tied to handedness
     byte TypeIdentifier, // 1 byte at offset 37; observed as 0 in sampled equipment
     string Name, // 88 bytes at offset 38-125, null-terminated string in iso 8859-1 encoding
     uint IdemId, // 2 bytes at offset 126, kept as uint for existing dictionary keys
-    SacredEquipmentClassification Classification,
-    byte[] UnknownBytes // remaining bytes that are not currently mapped to named fields
+    SacredEquipmentClassification Classification
 )
 {
     private const int Size = 258;
@@ -87,14 +85,6 @@ public readonly record struct SacredEquipment(
             rarityAndClassFlags: bytes[132]
         );
 
-        var span1 = bytes[2..8];
-        var span2 = bytes[12..26];
-        var span3 = bytes[29..37];
-        var span4 = bytes[128..130];
-        var span5 = bytes[133..258];
-
-        var unknownBytes = ByteArrayUtils.Combine(span1, span2, span3, span4, span5);
-
         return new SacredEquipment(
             PakLocation: pakLocation,
             Item: item,
@@ -105,15 +95,13 @@ public readonly record struct SacredEquipment(
                 BitConverter.ToSingle(bytes[10..14])    //This is absolutely correct
             ),
             Short2: BitConverter.ToUInt16(bytes[8..10]),
-            SpanX: bytes[10..12].ToArray(),
             Width: width,
             Height: height,
             UsageIdentifier: usageIdentifier,
             TypeIdentifier: bytes[37],
             Name: name,
             IdemId: itemId,
-            Classification: classification,
-            UnknownBytes: unknownBytes
+            Classification: classification
         );
     }
 }

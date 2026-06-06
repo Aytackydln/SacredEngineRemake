@@ -7,8 +7,40 @@
              mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
              x:Class="SacredItemSimulator.Avalonia.ItemViewer.SacredItemDataTable"
              x:DataType="vm:SacredItemDataTableViewModel">
+    <UserControl.DataTemplates>
+        <DataTemplate DataType="{x:Type vm:EnumFilterOptionViewModel}" x:DataType="vm:EnumFilterOptionViewModel">
+            <CheckBox Content="{Binding DisplayText}"
+                      IsChecked="{Binding IsSelected}"
+                      Margin="0,2" />
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:EnumFilterViewModel}" x:DataType="vm:EnumFilterViewModel">
+            <Expander Margin="4"
+                      MinWidth="150">
+                <Expander.Header>
+                    <StackPanel>
+                        <TextBlock Text="{Binding PropertyName}" />
+                        <TextBlock Text="{Binding Summary}"
+                                   FontSize="11"
+                                   Opacity="0.72" />
+                    </StackPanel>
+                </Expander.Header>
+
+                <StackPanel MinWidth="180" Spacing="4">
+                    <Button Content="Clear"
+                            Command="{Binding ClearCommand}"
+                            HorizontalAlignment="Stretch" />
+                    <ScrollViewer MaxHeight="260">
+                        <ItemsControl ItemsSource="{Binding Options}" />
+                    </ScrollViewer>
+                </StackPanel>
+            </Expander>
+        </DataTemplate>
+    </UserControl.DataTemplates>
+
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -17,7 +49,27 @@
             <ColumnDefinition Width="3*"/>
         </Grid.ColumnDefinitions>
         
-        <ScrollViewer AllowAutoHide="False" HorizontalScrollBarVisibility="Visible" Grid.Row="0" Grid.Column="0">
+        <ScrollViewer Grid.Row="0"
+                      Grid.Column="0"
+                      HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Disabled">
+            <StackPanel Orientation="Horizontal"
+                        Margin="4">
+                <CheckBox Content="Has model"
+                          IsChecked="{Binding FilterHasModel}"
+                          VerticalAlignment="Top"
+                          Margin="4,8,12,0" />
+                <ItemsControl ItemsSource="{Binding EnumFilters}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+        
+        <ScrollViewer AllowAutoHide="False" HorizontalScrollBarVisibility="Visible" Grid.Row="1" Grid.Column="0">
             <DataGrid
                 Name="DataGrid"
                 ItemsSource="{Binding CurrentPageItems}"
@@ -29,7 +81,7 @@
                 IsReadOnly="True" AutoGenerateColumns="True" />
         </ScrollViewer>
 
-        <StackPanel Orientation="Horizontal" Grid.Row="1" Grid.Column="0" HorizontalAlignment="Center" Margin="10">
+        <StackPanel Orientation="Horizontal" Grid.Row="2" Grid.Column="0" HorizontalAlignment="Center" Margin="10">
             <Button Click="FirstPageButton_Click">|◀</Button>
             <Button Command="{Binding PreviousPageCommand}">◀</Button>
             <TextBlock Text="{Binding CurrentPage}"  VerticalAlignment="Center" HorizontalAlignment="Center"/>
@@ -39,6 +91,92 @@
             <Button Click="LastPageButton_Click">▶|</Button>
         </StackPanel>
         
-        <Panel Name="ModelViewerPanel" Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="1" Background="DarkGreen"></Panel>
+        <Grid Grid.Row="0" Grid.Column="1" Grid.RowSpan="2" Background="DarkGreen">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Panel Name="ModelViewerPanel" Grid.Row="0" />
+
+            <Border Grid.Row="1"
+                    Background="#DD09110E"
+                    BorderBrush="#44749A7B"
+                    BorderThickness="1"
+                    Padding="10">
+                <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+                    <TextBlock Grid.Row="0"
+                               Grid.Column="0"
+                               Text="Yaw"
+                               Foreground="#E8F4D6"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,0" />
+                    <Slider Name="ModelYawSlider"
+                            Grid.Row="0"
+                            Grid.Column="1"
+                            Minimum="-180"
+                            Maximum="180"
+                            TickFrequency="15" />
+                    <TextBlock Name="ModelYawValueText"
+                               Grid.Row="0"
+                               Grid.Column="2"
+                               Text="0 deg"
+                               Foreground="#E8F4D6"
+                               MinWidth="58"
+                               TextAlignment="Right"
+                               VerticalAlignment="Center"
+                               Margin="8,0,0,0" />
+                    <Button Grid.Row="0" Grid.Column="3" Name="ModelYawResetButton" Click="ModelYawResetButton_OnClick">Reset</Button>
+
+                    <TextBlock Grid.Row="1"
+                               Grid.Column="0"
+                               Text="Pitch"
+                               Foreground="#E8F4D6"
+                               VerticalAlignment="Center"
+                               Margin="0,4,8,0" />
+                    <Slider Name="ModelPitchSlider"
+                            Grid.Row="1"
+                            Grid.Column="1"
+                            Minimum="-180"
+                            Maximum="180"
+                            TickFrequency="15"
+                            Margin="0,4,0,0" />
+                    <TextBlock Name="ModelPitchValueText"
+                               Grid.Row="1"
+                               Grid.Column="2"
+                               Text="0 deg"
+                               Foreground="#E8F4D6"
+                               MinWidth="58"
+                               TextAlignment="Right"
+                               VerticalAlignment="Center"
+                               Margin="8,4,0,0" />
+                    <Button Grid.Row="1" Grid.Column="3" Name="ModelPitchResetButton" Click="ModelPitchResetButton_OnClick" Margin="0,4,0,0">Reset</Button>
+
+                    <TextBlock Grid.Row="2"
+                               Grid.Column="0"
+                               Text="Roll"
+                               Foreground="#E8F4D6"
+                               VerticalAlignment="Center"
+                               Margin="0,4,8,0" />
+                    <Slider Name="ModelRollSlider"
+                            Grid.Row="2"
+                            Grid.Column="1"
+                            Minimum="-180"
+                            Maximum="180"
+                            TickFrequency="15"
+                            Margin="0,4,0,0" />
+                    <TextBlock Name="ModelRollValueText"
+                               Grid.Row="2"
+                               Grid.Column="2"
+                               Text="0 deg"
+                               Foreground="#E8F4D6"
+                               MinWidth="58"
+                               TextAlignment="Right"
+                               VerticalAlignment="Center"
+                               Margin="8,4,0,0" />
+                    <Button Grid.Row="2" Grid.Column="3" Name="ModelRollResetButton" Click="ModelRollResetButton_OnClick" Margin="0,4,0,0">Reset</Button>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>

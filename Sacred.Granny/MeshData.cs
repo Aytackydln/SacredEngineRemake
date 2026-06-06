@@ -37,6 +37,16 @@ public static class GrnAssetLoader
             hiddenBaseTextureNames);
         return new GrnAsset(name, baseBytes, null, mesh);
     }
+
+    public static GrnAsset LoadAttachmentFromBytes(
+        string name,
+        byte[] baseBytes,
+        byte[] attachmentBytes)
+    {
+        var mesh = Granny1MeshExtractor.TryExtractAttachment(baseBytes, attachmentBytes)
+                   ?? Granny1MeshExtractor.TryExtract(attachmentBytes);
+        return new GrnAsset(name, attachmentBytes, null, mesh);
+    }
 }
 
 public readonly record struct VertexPositionNormalTexture(Vector3 Position, Vector3 Normal, Vector2 TexCoord);
@@ -142,6 +152,22 @@ public static class Granny1MeshExtractor
         }
 
         return BuildMesh(slices);
+    }
+
+    public static Mesh? TryExtractAttachment(
+        ReadOnlySpan<byte> baseData,
+        ReadOnlySpan<byte> attachmentData)
+    {
+        var baseSlices = ExtractSlices(baseData);
+        if (baseSlices.Count == 0)
+            return null;
+
+        var attachmentSlices = ExtractSlices(attachmentData);
+        if (attachmentSlices.Count == 0)
+            return null;
+
+        var attachment = RetargetSlice(SelectPrimarySlice(attachmentSlices), SelectPrimarySlice(baseSlices).Skeleton);
+        return attachment is null ? null : BuildMesh([attachment]);
     }
 
     private static List<ParsedMeshSlice> ExtractSlices(ReadOnlySpan<byte> data)

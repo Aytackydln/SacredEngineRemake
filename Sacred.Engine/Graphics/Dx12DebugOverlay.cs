@@ -12,19 +12,27 @@ public unsafe class Dx12DebugOverlay : IDisposable
 {
     private const int DebugOverlayX = 12;
     private const int DebugOverlayY = 12;
+    private const int ControlsOverlayX = 12;
+    private const int ControlsOverlayBottomMargin = 12;
 
     private readonly DebugTextOverlay _debugOverlay = new();
+    private readonly DebugTextOverlay _controlsOverlay = new();
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private readonly ID3D12GraphicsCommandList _commandList;
     private readonly Dx12TextureUploader _textureUploader;
     private readonly TerrainRenderer _terrain;
     private readonly CpuDescriptorHandle _debugOverlayCpuHandle;
     private readonly GpuDescriptorHandle _debugOverlayGpuHandle;
+    private readonly CpuDescriptorHandle _controlsOverlayCpuHandle;
+    private readonly GpuDescriptorHandle _controlsOverlayGpuHandle;
     private readonly List<ID3D12Resource> _uploadResources;
 
     private bool _debugOverlayDirty = true;
+    private bool _controlsOverlayDirty = true;
     private ID3D12Resource? _debugOverlayTexture;
+    private ID3D12Resource? _controlsOverlayTexture;
     private ResourceStates _debugOverlayState = ResourceStates.Common;
+    private ResourceStates _controlsOverlayState = ResourceStates.Common;
 
     private int _framesSinceTitleUpdate;
     private double _lastTitleUpdateSeconds;
@@ -35,64 +43,120 @@ public unsafe class Dx12DebugOverlay : IDisposable
         Dx12TextureUploader textureUploader,
         TerrainRenderer terrain,
         CpuDescriptorHandle debugOverlayCpuHandle,
-        GpuDescriptorHandle debugOverlayGpuHandle)
+        GpuDescriptorHandle debugOverlayGpuHandle,
+        CpuDescriptorHandle controlsOverlayCpuHandle,
+        GpuDescriptorHandle controlsOverlayGpuHandle)
     {
         _commandList = commandList;
         _textureUploader = textureUploader;
         _terrain = terrain;
         _debugOverlayCpuHandle = debugOverlayCpuHandle;
         _debugOverlayGpuHandle = debugOverlayGpuHandle;
+        _controlsOverlayCpuHandle = controlsOverlayCpuHandle;
+        _controlsOverlayGpuHandle = controlsOverlayGpuHandle;
         _uploadResources = [];
+        _controlsOverlay.SetLines(
+        [
+            "CONTROLS",
+            "MOVE: WASD, ARROWS, LEFT STICK",
+            "FASTER: SHIFT OR GAMEPAD A",
+            "CYCLE: TAB, MOUSE4/5, GAMEPAD B",
+            "ZOOM: Q/E, WHEEL, RIGHT STICK"
+        ]);
     }
 
     public void Update(SacredCamera camera, VisibleWorld world, SceneState scene, Dx12DebugOverlayStats rendererStats)
     {
         DisposeUploadResources();
         UpdateDebugInfo(camera, world, scene, rendererStats);
-        UploadDebugOverlayIfNeeded();
+        UploadOverlayIfNeeded(
+            _debugOverlay,
+            ref _debugOverlayDirty,
+            ref _debugOverlayTexture,
+            ref _debugOverlayState,
+            _debugOverlayCpuHandle);
+        UploadOverlayIfNeeded(
+            _controlsOverlay,
+            ref _controlsOverlayDirty,
+            ref _controlsOverlayTexture,
+            ref _controlsOverlayState,
+            _controlsOverlayCpuHandle);
     }
 
-    private void UploadDebugOverlayIfNeeded()
+    private void UploadOverlayIfNeeded(
+        DebugTextOverlay overlay,
+        ref bool dirty,
+        ref ID3D12Resource? texture,
+        ref ResourceStates state,
+        CpuDescriptorHandle cpuHandle)
     {
-        if (!_debugOverlayDirty)
+        if (!dirty)
             return;
 
-        if (_debugOverlayTexture is null)
+        if (texture is null)
         {
-            _debugOverlayTexture = _textureUploader.UploadRgbaTexture(
+            texture = _textureUploader.UploadRgbaTexture(
                 _commandList,
                 DebugTextOverlay.Width,
                 DebugTextOverlay.Height,
-                _debugOverlay.Rgba,
+                overlay.Rgba,
                 _uploadResources);
-            _textureUploader.CreateShaderResourceView(_debugOverlayTexture, _debugOverlayCpuHandle);
-            _debugOverlayState = ResourceStates.PixelShaderResource;
+            _textureUploader.CreateShaderResourceView(texture, cpuHandle);
+            state = ResourceStates.PixelShaderResource;
         }
         else
         {
-            _debugOverlayState = _textureUploader.UpdateRgbaTexture(
+            state = _textureUploader.UpdateRgbaTexture(
                 _commandList,
-                _debugOverlayTexture,
+                texture,
                 DebugTextOverlay.Width,
                 DebugTextOverlay.Height,
-                _debugOverlay.Rgba,
-                _debugOverlayState,
+                overlay.Rgba,
+                state,
                 _uploadResources);
         }
 
-        _debugOverlayDirty = false;
+        dirty = false;
     }
 
     public void RecordDebugOverlay(int renderWidth, int renderHeight)
     {
-        if (_debugOverlayTexture is null || _debugOverlayState != ResourceStates.PixelShaderResource)
+        RecordOverlay(
+            _debugOverlayTexture,
+            _debugOverlayState,
+            _debugOverlayGpuHandle,
+            DebugOverlayX,
+            DebugOverlayY,
+            renderWidth,
+            renderHeight);
+
+        RecordOverlay(
+            _controlsOverlayTexture,
+            _controlsOverlayState,
+            _controlsOverlayGpuHandle,
+            ControlsOverlayX,
+            Math.Max(DebugOverlayY, renderHeight - DebugTextOverlay.Height - ControlsOverlayBottomMargin),
+            renderWidth,
+            renderHeight);
+    }
+
+    private void RecordOverlay(
+        ID3D12Resource? texture,
+        ResourceStates state,
+        GpuDescriptorHandle gpuHandle,
+        float x,
+        float y,
+        int renderWidth,
+        int renderHeight)
+    {
+        if (texture is null || state != ResourceStates.PixelShaderResource)
             return;
 
         var constants = stackalloc float[8];
-        constants[0] = DebugOverlayX;
-        constants[1] = DebugOverlayY;
-        constants[2] = Math.Min(DebugTextOverlay.Width, Math.Max(0, renderWidth - DebugOverlayX * 2));
-        constants[3] = Math.Min(DebugTextOverlay.Height, Math.Max(0, renderHeight - DebugOverlayY * 2));
+        constants[0] = x;
+        constants[1] = y;
+        constants[2] = Math.Min(DebugTextOverlay.Width, Math.Max(0, renderWidth - x - DebugOverlayX));
+        constants[3] = Math.Min(DebugTextOverlay.Height, Math.Max(0, renderHeight - y - DebugOverlayY));
         constants[4] = renderWidth;
         constants[5] = renderHeight;
         constants[6] = 0.0f;
@@ -102,7 +166,7 @@ public unsafe class Dx12DebugOverlay : IDisposable
             return;
 
         _commandList.SetGraphicsRoot32BitConstants(0, 8, constants, 0);
-        _commandList.SetGraphicsRootDescriptorTable(1, _debugOverlayGpuHandle);
+        _commandList.SetGraphicsRootDescriptorTable(1, gpuHandle);
         _commandList.DrawInstanced(6, 1, 0, 0);
     }
 
@@ -165,6 +229,8 @@ public unsafe class Dx12DebugOverlay : IDisposable
         DisposeUploadResources();
         _debugOverlayTexture?.Dispose();
         _debugOverlayTexture = null;
+        _controlsOverlayTexture?.Dispose();
+        _controlsOverlayTexture = null;
     }
 }
 

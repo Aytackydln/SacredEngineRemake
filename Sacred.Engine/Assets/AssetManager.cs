@@ -13,17 +13,31 @@ namespace Sacred.Engine.Assets;
 public sealed class AssetManager : IDisposable
 {
     private const int MaxTextureCacheEntries = 64;
-    private const int MaxConcurrentTextureLoads = 1;
+    private const int MaxConcurrentTextureLoads = 2;
+    
+    private const string SeraWings = "SeraWings01.grn";
+    private const string SeraHair = "SeraHair01.grn";
+    private const string SeraHelm = "Seraphim_christmas_helm.GRN";
+
+    private const string GladBelt = "Gladiator_belt.grn";
+    private const string MageCowl = "MAGICIAN_COWL.GRN";
+    private const string DaemonHelm = "Daemonia_Armor01_Helm.grn";
+
+    private static readonly string[] GladAttachments = [GladBelt];
+    private static readonly string[] SeraAtachments = [SeraWings, SeraHair, SeraHelm];
+    private static readonly string[] MageAttachments = [MageCowl];
+    private static readonly string[] DaemonAttachments = [DaemonHelm];
+
     private static readonly PlayerCharacterDefinition[] PlayerCharacterDefinitions =
     [
-        new(1, "Gladiator", "GLADIATORBACKUP.GRN", [], []),
-        new(2, "Seraphim", "SERAPHIM.GRN", [], []),
+        new(1, "Gladiator", "GLADIATOR.GRN", GladAttachments, []),
+        new(2, "Seraphim", "SERAPHIM.GRN", SeraAtachments, []),
         new(3, "Wood Elf", "WALDELFE.GRN", [], []),
         new(4, "Dark Elf", "DARKELVE.GRN", [], []),
-        new(5, "Battle Mage", "MAGICIAN.GRN", ["MAGICIAN_COWL.GRN"], []),
+        new(5, "Battle Mage", "MAGICIAN.GRN", MageAttachments, []),
         new(6, "Vampiress", "VLADY_D.GRN", [], []),
         new(7, "Dwarf", "DWARF.GRN", [], []),
-        new(8, "Daemon", "DAEMONIA.GRN", [], [])
+        new(8, "Daemon", "DAEMONIA.GRN", DaemonAttachments, [])
     ];
 
     private readonly TexturePakArchive _texturePak;

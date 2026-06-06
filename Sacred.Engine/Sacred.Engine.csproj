@@ -22,8 +22,5 @@
   
   <ItemGroup>
     <EmbeddedResource Include="Shaders\*.hlsl" />
-    <None Update="Shaders\*.hlsl">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
 </Project>

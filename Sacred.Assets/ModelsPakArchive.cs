@@ -23,6 +23,7 @@ public sealed class ModelsPakArchive : IDisposable
     private readonly SemaphoreSlim _streamLock = new(1, 1);
     private readonly List<ModelPakRecord> _records;
     private readonly Dictionary<string, ModelPakRecord> _recordsByName = new();
+    private readonly Dictionary<string, ModelPakRecord> _recordsByNameIgnoreCase = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<uint, ModelPakRecord> _recordsById = new();
     private readonly Lock _recordLock = new();
     private bool _disposed;
@@ -93,6 +94,7 @@ public sealed class ModelsPakArchive : IDisposable
                 if (!string.IsNullOrWhiteSpace(record.Name))
                 {
                     archive._recordsByName.TryAdd(record.Name, record);
+                    archive._recordsByNameIgnoreCase.TryAdd(record.Name, record);
                     archive._recordsById.TryAdd(descriptor.EntryId, record);
                 }
             }
@@ -142,6 +144,24 @@ public sealed class ModelsPakArchive : IDisposable
             hiddenBaseTextureNames);
     }
 
+    public async Task<GrnAsset> LoadAttachmentModelAsync(
+        string baseModelName,
+        string attachmentModelName,
+        CancellationToken cancellationToken = default)
+    {
+        var basePayload = await ReadPayloadAsync(
+            await FindRecordAsync(baseModelName, cancellationToken).ConfigureAwait(false),
+            cancellationToken).ConfigureAwait(false);
+        var attachmentPayload = await ReadPayloadAsync(
+            await FindRecordAsync(attachmentModelName, cancellationToken).ConfigureAwait(false),
+            cancellationToken).ConfigureAwait(false);
+
+        return GrnAssetLoader.LoadAttachmentFromBytes(
+            Path.GetFileNameWithoutExtension(attachmentModelName),
+            basePayload,
+            attachmentPayload);
+    }
+
     public async Task<GrnAsset> LoadModelAsync(
         uint entryId,
         GrnMeshExtractionMode meshExtractionMode = GrnMeshExtractionMode.PrimarySlice,
@@ -164,6 +184,8 @@ public sealed class ModelsPakArchive : IDisposable
         {
             if (_recordsByName.TryGetValue(modelName, out var cached))
                 return cached;
+            if (_recordsByNameIgnoreCase.TryGetValue(modelName, out cached))
+                return cached;
         }
 
         await _streamLock.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -173,13 +195,18 @@ public sealed class ModelsPakArchive : IDisposable
             {
                 if (_recordsByName.TryGetValue(modelName, out var cached))
                     return cached;
+                if (_recordsByNameIgnoreCase.TryGetValue(modelName, out cached))
+                    return cached;
             }
 
             var record = FindContainingRecord(modelName)
                 ?? throw new FileNotFoundException($"Model '{modelName}' was not found in models.pak.");
 
             lock (_recordLock)
+            {
                 _recordsByName.TryAdd(modelName, record);
+                _recordsByNameIgnoreCase.TryAdd(modelName, record);
+            }
 
             return record;
         }
@@ -207,7 +234,7 @@ public sealed class ModelsPakArchive : IDisposable
                     break;
 
                 var length = overlap + read;
-                if (ContainsAsciiIgnoreCase(buffer, length, needle))
+                if (ContainsModelNameTokenAsciiIgnoreCase(buffer, length, needle))
                     return record;
 
                 overlap = Math.Min(needle.Length - 1, length);
@@ -264,13 +291,17 @@ public sealed class ModelsPakArchive : IDisposable
         return NameEncoding.GetString(probe[..end]);
     }
 
-    private static bool ContainsAsciiIgnoreCase(byte[] buffer, int length, byte[] needle)
+    private static bool ContainsModelNameTokenAsciiIgnoreCase(byte[] buffer, int length, byte[] needle)
     {
         if (needle.Length == 0 || length < needle.Length)
             return false;
 
         for (var i = 0; i <= length - needle.Length; i++)
         {
+            if (!IsModelNameBoundary(buffer, i - 1) ||
+                !IsModelNameBoundary(buffer, i + needle.Length))
+                continue;
+
             var match = true;
             for (var n = 0; n < needle.Length; n++)
             {
@@ -286,6 +317,27 @@ public sealed class ModelsPakArchive : IDisposable
         }
 
         return false;
+    }
+
+    private static bool IsModelNameBoundary(byte[] buffer, int index)
+    {
+        if (index < 0 || index >= buffer.Length)
+            return true;
+
+        var value = buffer[index];
+        return value is 0 or (byte)'/' or (byte)'\\' or (byte)':' or (byte)'"' or (byte)'\''
+            || value <= 0x20
+            || !IsAsciiModelNameByte(value);
+    }
+
+    private static bool IsAsciiModelNameByte(byte value)
+    {
+        return value is >= (byte)'A' and <= (byte)'Z'
+            or >= (byte)'a' and <= (byte)'z'
+            or >= (byte)'0' and <= (byte)'9'
+            or (byte)'_'
+            or (byte)'-'
+            or (byte)'.';
     }
 
     private static byte ToLowerAscii(byte value) =>

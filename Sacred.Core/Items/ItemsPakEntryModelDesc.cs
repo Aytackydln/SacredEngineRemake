@@ -8,6 +8,7 @@ public readonly record struct ItemsPakEntryModelDesc(
     SacredPakLocation PakLocation, // location of the entry in the pak file, useful for debugging and lookup
     ushort SomeShort2, // 2 bytes at offset 9, purpose unknown
     uint Int1, // 4 bytes at offset 0
+    uint TextureId, // 4 bytes at offset 8; item-specific texture.pak descriptor index for shared item models
     uint ItemId, // 4 bytes at offset 32
     string ModelName, // null-terminated string at 55, max length 34 bytes (including null terminator)
     ushort SomeShort1, // 2 bytes at offset 112, purpose unknown
@@ -29,6 +30,7 @@ public readonly record struct ItemsPakEntryModelDesc(
         var someShort2 = BitConverter.ToUInt16(bytes[9..11]);
 
         var int1 = BitConverter.ToUInt32(bytes[..4]);
+        var textureId = BitConverter.ToUInt32(bytes[8..12]);
         var rawBytes1 = bytes[4..32];
         var itemId = BitConverter.ToUInt32(bytes[32..36]);
         var rawBytes2 = bytes[36..55];
@@ -43,6 +45,7 @@ public readonly record struct ItemsPakEntryModelDesc(
             PakLocation: pakLocation,
             SomeShort2: someShort2,
             Int1: int1,
+            TextureId: textureId,
             ItemId: itemId,
             ModelName: modelName,
             SomeShort1: someShort1,

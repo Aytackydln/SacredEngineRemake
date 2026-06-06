@@ -34,7 +34,8 @@ public sealed class Dx12Renderer : IDisposable
     private const int MaxModelTextureUploadsPerFrame = 2;
     private const int MaxStaticSpriteTextureUploadsPerFrame = 8;
     private const int DebugOverlaySrvSlot = MaxSectorTextures;
-    private const int FirstModelTextureSrvSlot = DebugOverlaySrvSlot + 1;
+    private const int ControlsOverlaySrvSlot = DebugOverlaySrvSlot + 1;
+    private const int FirstModelTextureSrvSlot = ControlsOverlaySrvSlot + 1;
     private const int FirstStaticSpriteSrvSlot = FirstModelTextureSrvSlot + MaxModelTextures;
     private const int SrvDescriptorCount = FirstStaticSpriteSrvSlot + MaxStaticSpriteTextures;
     private const int IsoStepWidth = IsometricProjection.StepWidth;
@@ -341,7 +342,9 @@ public sealed class Dx12Renderer : IDisposable
             _textureUploader,
             _terrain,
             SrvCpuHandle(DebugOverlaySrvSlot),
-            SrvGpuHandle(DebugOverlaySrvSlot));
+            SrvGpuHandle(DebugOverlaySrvSlot),
+            SrvCpuHandle(ControlsOverlaySrvSlot),
+            SrvGpuHandle(ControlsOverlaySrvSlot));
     }
 
     private void CreatePipeline()

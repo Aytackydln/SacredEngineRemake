@@ -11,10 +11,10 @@ public readonly record struct SacredItemDataModel(
     SacredCharacterClassMask CharacterClassMask,
     SacredEquipmentType EquipmentType,
     string ModelName,
+    uint TextureId,
     Vector3 PreviewRotation,
     byte Width,
-    byte Height,
-    byte[] UnknownBytes
+    byte Height
 )
 {
     public static SacredItemDataModel FromSacredEquipment(SacredEquipment equipment, FrozenDictionary<string, string> translationMap)
@@ -24,11 +24,11 @@ public readonly record struct SacredItemDataModel(
             ItemName: translationMap.GetValueOrDefault(equipment.Name, equipment.Name),
             CharacterClassMask: equipment.EffectiveCharacterClassMask,
             ModelName: equipment.Item.ModelDesc.ModelName,
+            TextureId: equipment.Item.ModelDesc.TextureId,
             EquipmentType: equipment.EquipmentType,
             PreviewRotation: equipment.PreviewRotation,
             Width: equipment.Width,
-            Height: equipment.Height,
-            UnknownBytes: equipment.UnknownBytes
+            Height: equipment.Height
         );
     }
 }

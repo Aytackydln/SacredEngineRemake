@@ -35,6 +35,7 @@ public sealed class SacredGame : IDisposable
     private Vector3 _playerRotation;
 
     private uint _activePlayerModelEntryId = FirstPlayerModelSlotId;
+    private GamepadButtons _previousGamepadButtons;
     private bool _disposed;
 
     public SacredGame(SacredGameDirectories gameDirectories)
@@ -100,10 +101,31 @@ public sealed class SacredGame : IDisposable
             var gamepadReading = gamepad.GetCurrentReading();
             _window.Input.LeftJoystickX = gamepadReading.LeftThumbstickX;
             _window.Input.LeftJoystickY = gamepadReading.LeftThumbstickY;
+            _window.Input.RightJoystickY = gamepadReading.RightThumbstickY;
+            _window.Input.GamepadMoveFaster = gamepadReading.Buttons.HasFlag(GamepadButtons.A);
+
+            if (gamepadReading.Buttons.HasFlag(GamepadButtons.B) &&
+                !_previousGamepadButtons.HasFlag(GamepadButtons.B))
+            {
+                CyclePlayerModel();
+            }
+
+            _previousGamepadButtons = gamepadReading.Buttons;
+        }
+        else
+        {
+            _window.Input.LeftJoystickX = 0.0;
+            _window.Input.LeftJoystickY = 0.0;
+            _window.Input.RightJoystickY = 0.0;
+            _window.Input.GamepadMoveFaster = false;
+            _previousGamepadButtons = GamepadButtons.None;
         }
 
-        if (_window.Input.ConsumePressed(VirtualKey.Tab))
+        if (_window.Input.ConsumePressed(VirtualKey.Tab) ||
+            _window.Input.ConsumeXButtonCyclePressed())
+        {
             CyclePlayerModel();
+        }
 
         _clickToMove.Update(
             _window.Input,
