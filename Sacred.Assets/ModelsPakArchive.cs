@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -14,98 +15,80 @@ public sealed class ModelsPakArchive : IDisposable
     private const int HeaderSize = 0x100;
     private const int DescriptorSize = 0x0C;
     private const int NameProbeLength = 0x40;
-    private const int ScanChunkSize = 64 * 1024;
     private static readonly Encoding NameEncoding = Encoding.Latin1;
 
     private readonly string _path;
     private readonly FileStream _stream;
-    private readonly IPakPayloadReader? _payloadReader;
     private readonly SemaphoreSlim _streamLock = new(1, 1);
-    private readonly List<ModelPakRecord> _records;
-    private readonly Dictionary<string, ModelPakRecord> _recordsByName = new();
-    private readonly Dictionary<string, ModelPakRecord> _recordsByNameIgnoreCase = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<uint, ModelPakRecord> _recordsById = new();
-    private readonly Lock _recordLock = new();
+    private readonly FrozenDictionary<string, ModelPakRecord> _recordsByName;
     private bool _disposed;
 
-    private ModelsPakArchive(string path, FileStream stream, List<ModelPakRecord> records, IPakPayloadReader? payloadReader)
+    private ModelsPakArchive(string path, FileStream stream, Dictionary<string, ModelPakRecord> recordsByName)
     {
         _path = path;
         _stream = stream;
-        _records = records;
-        _payloadReader = payloadReader;
+        _recordsByName = recordsByName.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
     }
 
-    public static ModelsPakArchive Load(string path, IPakPayloadReader? payloadReader = null)
+    public static ModelsPakArchive Load(string path)
     {
         if (!File.Exists(path))
             throw new FileNotFoundException("models.pak was not found.", path);
 
         var stream = OpenArchiveStream(path);
-        try
+
+        Span<byte> header = stackalloc byte[HeaderSize];
+        stream.ReadExactly(header);
+
+        var count = ReadEntryCount(header, stream.Length);
+        var descriptors = new byte[count * DescriptorSize];
+        stream.ReadExactly(descriptors);
+
+        var modelDescriptors = new List<ModelPakDescriptor>(count);
+        for (uint i = 0; i < count; i++)
         {
-            Span<byte> header = stackalloc byte[HeaderSize];
-            stream.ReadExactly(header);
-
-            var count = ReadEntryCount(header, stream.Length);
-            var records = new List<ModelPakRecord>(count);
-            var descriptors = new byte[count * DescriptorSize];
-            stream.ReadExactly(descriptors);
-
-            var modelDescriptors = new List<ModelPakDescriptor>(count);
-            for (uint i = 0; i < count; i++)
-            {
-                var descriptorOffset = (int)i * DescriptorSize;
-                var offset = BitConverter.ToUInt32(descriptors.AsSpan(descriptorOffset + 4, 4));
-                if (offset > 0 && offset < stream.Length)
-                    modelDescriptors.Add(new ModelPakDescriptor(i, offset));
-            }
-
-            var orderedOffsets = modelDescriptors
-                .Select(static descriptor => descriptor.Offset)
-                .Distinct()
-                .Order()
-                .ToArray();
-            var sizesByOffset = new Dictionary<uint, int>(orderedOffsets.Length);
-            for (var i = 0; i < orderedOffsets.Length; i++)
-            {
-                var offset = orderedOffsets[i];
-                var end = i + 1 < orderedOffsets.Length ? orderedOffsets[i + 1] : stream.Length;
-                var size = end - offset;
-                if (size is > 0 and <= int.MaxValue)
-                    sizesByOffset[offset] = (int)size;
-            }
-
-            var archive = new ModelsPakArchive(path, stream, records, payloadReader);
-            var recordsByOffset = new Dictionary<uint, ModelPakRecord>();
-            foreach (var descriptor in modelDescriptors)
-            {
-                if (!sizesByOffset.TryGetValue(descriptor.Offset, out var size))
-                    continue;
-
-                if (!recordsByOffset.TryGetValue(descriptor.Offset, out var record))
-                {
-                    var name = ReadPayloadStartName(stream, descriptor.Offset, size);
-                    record = new ModelPakRecord(descriptor.Offset, size, name);
-                    recordsByOffset.Add(descriptor.Offset, record);
-                    records.Add(record);
-                }
-
-                if (!string.IsNullOrWhiteSpace(record.Name))
-                {
-                    archive._recordsByName.TryAdd(record.Name, record);
-                    archive._recordsByNameIgnoreCase.TryAdd(record.Name, record);
-                    archive._recordsById.TryAdd(descriptor.EntryId, record);
-                }
-            }
-
-            stream = null!;
-            return archive;
+            var descriptorOffset = (int)i * DescriptorSize;
+            var offset = BitConverter.ToUInt32(descriptors.AsSpan(descriptorOffset + 4, 4));
+            if (offset > 0 && offset < stream.Length)
+                modelDescriptors.Add(new ModelPakDescriptor(i, offset));
         }
-        finally
+
+        var orderedOffsets = modelDescriptors
+            .Select(static descriptor => descriptor.Offset)
+            .Distinct()
+            .Order()
+            .ToArray();
+        var sizesByOffset = new Dictionary<uint, int>(orderedOffsets.Length);
+        for (var i = 0; i < orderedOffsets.Length; i++)
         {
-            stream?.Dispose();
+            var offset = orderedOffsets[i];
+            var end = i + 1 < orderedOffsets.Length ? orderedOffsets[i + 1] : stream.Length;
+            var size = end - offset;
+            if (size is > 0 and <= int.MaxValue)
+                sizesByOffset[offset] = (int)size;
         }
+
+        var recordsByName = new Dictionary<string, ModelPakRecord>(StringComparer.OrdinalIgnoreCase);
+        var recordsByOffset = new Dictionary<uint, ModelPakRecord>();
+        foreach (var descriptor in modelDescriptors)
+        {
+            if (!sizesByOffset.TryGetValue(descriptor.Offset, out var size))
+                continue;
+
+            if (!recordsByOffset.TryGetValue(descriptor.Offset, out var record))
+            {
+                var name = ReadPayloadStartName(stream, descriptor.Offset, size);
+                record = new ModelPakRecord(descriptor.Offset, size, name);
+                recordsByOffset.Add(descriptor.Offset, record);
+            }
+
+            if (!string.IsNullOrWhiteSpace(record.Name))
+            {
+                recordsByName.TryAdd(record.Name, record);
+            }
+        }
+
+        return new ModelsPakArchive(path, stream, recordsByName);
     }
 
     public async Task<GrnAsset> LoadModelAsync(
@@ -132,8 +115,9 @@ public sealed class ModelsPakArchive : IDisposable
         for (var i = 0; i < attachmentModelNames.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var attachmentRecord = await FindRecordAsync(attachmentModelNames[i], cancellationToken).ConfigureAwait(false);
             attachmentPayloads[i] = await ReadPayloadAsync(
-                await FindRecordAsync(attachmentModelNames[i], cancellationToken).ConfigureAwait(false),
+                attachmentRecord,
                 cancellationToken).ConfigureAwait(false);
         }
 
@@ -144,123 +128,18 @@ public sealed class ModelsPakArchive : IDisposable
             hiddenBaseTextureNames);
     }
 
-    public async Task<GrnAsset> LoadAttachmentModelAsync(
-        string baseModelName,
-        string attachmentModelName,
-        CancellationToken cancellationToken = default)
+    private Task<ModelPakRecord> FindRecordAsync(string modelName, CancellationToken cancellationToken)
     {
-        var basePayload = await ReadPayloadAsync(
-            await FindRecordAsync(baseModelName, cancellationToken).ConfigureAwait(false),
-            cancellationToken).ConfigureAwait(false);
-        var attachmentPayload = await ReadPayloadAsync(
-            await FindRecordAsync(attachmentModelName, cancellationToken).ConfigureAwait(false),
-            cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
 
-        return GrnAssetLoader.LoadAttachmentFromBytes(
-            Path.GetFileNameWithoutExtension(attachmentModelName),
-            basePayload,
-            attachmentPayload);
-    }
+        if (_recordsByName.TryGetValue(modelName, out var record))
+            return Task.FromResult(record);
 
-    public async Task<GrnAsset> LoadModelAsync(
-        uint entryId,
-        GrnMeshExtractionMode meshExtractionMode = GrnMeshExtractionMode.PrimarySlice,
-        CancellationToken cancellationToken = default)
-    {
-        ModelPakRecord record;
-        lock (_recordLock)
-        {
-            if (!_recordsById.TryGetValue(entryId, out record))
-                throw new FileNotFoundException($"Model with entry ID {entryId} was not found in models.pak.");
-        }
-
-        var payload = await ReadPayloadAsync(record, cancellationToken).ConfigureAwait(false);
-        return GrnAssetLoader.LoadFromBytes($"Model_{entryId}", payload, meshExtractionMode);
-    }
-
-    private async Task<ModelPakRecord> FindRecordAsync(string modelName, CancellationToken cancellationToken)
-    {
-        lock (_recordLock)
-        {
-            if (_recordsByName.TryGetValue(modelName, out var cached))
-                return cached;
-            if (_recordsByNameIgnoreCase.TryGetValue(modelName, out cached))
-                return cached;
-        }
-
-        await _streamLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            lock (_recordLock)
-            {
-                if (_recordsByName.TryGetValue(modelName, out var cached))
-                    return cached;
-                if (_recordsByNameIgnoreCase.TryGetValue(modelName, out cached))
-                    return cached;
-            }
-
-            var record = FindContainingRecord(modelName)
-                ?? throw new FileNotFoundException($"Model '{modelName}' was not found in models.pak.");
-
-            lock (_recordLock)
-            {
-                _recordsByName.TryAdd(modelName, record);
-                _recordsByNameIgnoreCase.TryAdd(modelName, record);
-            }
-
-            return record;
-        }
-        finally
-        {
-            _streamLock.Release();
-        }
-    }
-
-    private ModelPakRecord? FindContainingRecord(string normalizedName)
-    {
-        var needle = NameEncoding.GetBytes(normalizedName);
-        var buffer = new byte[ScanChunkSize + needle.Length];
-
-        foreach (var record in _records)
-        {
-            _stream.Position = record.Offset;
-            var remaining = record.Size;
-            var overlap = 0;
-
-            while (remaining > 0)
-            {
-                var read = _stream.Read(buffer, overlap, Math.Min(ScanChunkSize, remaining));
-                if (read == 0)
-                    break;
-
-                var length = overlap + read;
-                if (ContainsModelNameTokenAsciiIgnoreCase(buffer, length, needle))
-                    return record;
-
-                overlap = Math.Min(needle.Length - 1, length);
-                if (overlap > 0)
-                    Buffer.BlockCopy(buffer, length - overlap, buffer, 0, overlap);
-
-                remaining -= read;
-            }
-        }
-
-        return null;
+        throw new FileNotFoundException($"Model '{modelName}' was not found in models.pak.");
     }
 
     private async Task<byte[]> ReadPayloadAsync(ModelPakRecord record, CancellationToken cancellationToken)
     {
-        if (_payloadReader is not null)
-        {
-            var directStoragePayload = await _payloadReader.TryReadAsync(
-                _path,
-                record.Offset,
-                record.Size,
-                cancellationToken).ConfigureAwait(false);
-            if (directStoragePayload is not null)
-                return directStoragePayload;
-        }
-
         var payload = new byte[record.Size];
 
         await _streamLock.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -290,58 +169,6 @@ public sealed class ModelsPakArchive : IDisposable
 
         return NameEncoding.GetString(probe[..end]);
     }
-
-    private static bool ContainsModelNameTokenAsciiIgnoreCase(byte[] buffer, int length, byte[] needle)
-    {
-        if (needle.Length == 0 || length < needle.Length)
-            return false;
-
-        for (var i = 0; i <= length - needle.Length; i++)
-        {
-            if (!IsModelNameBoundary(buffer, i - 1) ||
-                !IsModelNameBoundary(buffer, i + needle.Length))
-                continue;
-
-            var match = true;
-            for (var n = 0; n < needle.Length; n++)
-            {
-                if (ToLowerAscii(buffer[i + n]) == ToLowerAscii(needle[n]))
-                    continue;
-
-                match = false;
-                break;
-            }
-
-            if (match)
-                return true;
-        }
-
-        return false;
-    }
-
-    private static bool IsModelNameBoundary(byte[] buffer, int index)
-    {
-        if (index < 0 || index >= buffer.Length)
-            return true;
-
-        var value = buffer[index];
-        return value is 0 or (byte)'/' or (byte)'\\' or (byte)':' or (byte)'"' or (byte)'\''
-            || value <= 0x20
-            || !IsAsciiModelNameByte(value);
-    }
-
-    private static bool IsAsciiModelNameByte(byte value)
-    {
-        return value is >= (byte)'A' and <= (byte)'Z'
-            or >= (byte)'a' and <= (byte)'z'
-            or >= (byte)'0' and <= (byte)'9'
-            or (byte)'_'
-            or (byte)'-'
-            or (byte)'.';
-    }
-
-    private static byte ToLowerAscii(byte value) =>
-        value is >= (byte)'A' and <= (byte)'Z' ? (byte)(value + 32) : value;
 
     private static int ReadEntryCount(ReadOnlySpan<byte> header, long archiveLength)
     {

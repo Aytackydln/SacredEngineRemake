@@ -18,6 +18,8 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
     private Dx12ItemModelRenderer? _renderer;
     private GrnAsset? _pendingAsset;
     private Vector3 _pendingPreviewRotation;
+    private int _pendingGridWidth = 1;
+    private int _pendingGridHeight = 1;
     private IReadOnlyDictionary<string, TextureAsset> _pendingTextures = new Dictionary<string, TextureAsset>(StringComparer.OrdinalIgnoreCase);
     private float _pendingYaw;
     private float _pendingPitch;
@@ -40,12 +42,14 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
         _renderer?.ClearModel();
     }
 
-    public void ShowModel(GrnAsset asset, Vector3 previewRotation)
+    public void ShowModel(GrnAsset asset, Vector3 previewRotation, int gridWidth, int gridHeight)
     {
         _pendingAsset = asset;
         _pendingPreviewRotation = previewRotation;
+        _pendingGridWidth = gridWidth;
+        _pendingGridHeight = gridHeight;
         _pendingTextures = new Dictionary<string, TextureAsset>(StringComparer.OrdinalIgnoreCase);
-        _renderer?.SetModel(asset, previewRotation);
+        _renderer?.SetModel(asset, previewRotation, gridWidth, gridHeight);
         _renderer?.SetUserRotation(_pendingYaw, _pendingPitch, _pendingRoll);
     }
 
@@ -84,7 +88,7 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
             return;
 
         if (_pendingAsset is not null)
-            _renderer.SetModel(_pendingAsset, _pendingPreviewRotation);
+            _renderer.SetModel(_pendingAsset, _pendingPreviewRotation, _pendingGridWidth, _pendingGridHeight);
         else
             _renderer.ClearModel();
 

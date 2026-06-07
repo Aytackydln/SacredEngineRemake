@@ -46,6 +46,7 @@
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="5*"/>
+            <ColumnDefinition Width="Auto"/>
             <ColumnDefinition Width="3*"/>
         </Grid.ColumnDefinitions>
         
@@ -90,8 +91,10 @@
             <Button Command="{Binding NextPageCommand}">▶</Button>
             <Button Click="LastPageButton_Click">▶|</Button>
         </StackPanel>
-        
-        <Grid Grid.Row="0" Grid.Column="1" Grid.RowSpan="2" Background="DarkGreen">
+
+        <GridSplitter Grid.Row="0" Grid.Column="1" Grid.RowSpan="2" Width="15" HorizontalAlignment="Stretch" />
+
+        <Grid Grid.Row="0" Grid.Column="2" Grid.RowSpan="2" Background="DarkGreen">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />

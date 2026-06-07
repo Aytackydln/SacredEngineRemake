@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Numerics;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,6 +14,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Sacred.Assets;
 using Sacred.Core;
+using Sacred.Core.Weapon;
 using Sacred.Granny;
 
 namespace SacredItemSimulator.Avalonia.ItemViewer;
@@ -274,7 +276,11 @@ public partial class SacredItemDataTable : UserControl
             if (cancellationToken.IsCancellationRequested)
                 return;
 
-            _modelViewer.ShowModel(asset, selectedItem.PreviewRotation);
+            _modelViewer.ShowModel(
+                asset,
+                CreateViewerPreviewRotation(selectedItem),
+                selectedItem.Width,
+                selectedItem.Height);
             await _modelViewer.Dispatcher.InvokeAsync(UpdateModelRotationFromSliders);
             await LoadSelectedModelTexturesAsync(asset, selectedItem, cancellationToken);
         }
@@ -441,6 +447,79 @@ public partial class SacredItemDataTable : UserControl
     }
 
     private sealed record TextureLoadResult(IReadOnlyDictionary<string, TextureAsset> Textures, int FailedCount);
+
+    private static Vector3 CreateViewerPreviewRotation(SacredItemDataModel item)
+    {
+        if (item.EquipmentType == SacredEquipmentType.Shield)
+            return CreateShieldPreviewRotation(item);
+
+        var rotation = CanonicalizePreviewRotation(item.PreviewRotation);
+
+        // Weapon.pak armor rotations are authored in direct yaw/pitch/roll order, while weapon entries
+        // use the legacy item-viewer order that is already handled by Dx12ItemModelRenderer.
+        return IsArmorEquipment(item.EquipmentType)
+            ? new Vector3(rotation.Z, rotation.X, rotation.Y)
+            : rotation;
+    }
+
+    private static Vector3 CreateShieldPreviewRotation(SacredItemDataModel item)
+    {
+        var rotation = NormalizeRotation(item.PreviewRotation);
+        return item.ModelName.Equals("SHIELD_ROUND.GRN", StringComparison.OrdinalIgnoreCase)
+            ? rotation with { X = NormalizeAngle(rotation.X + MathF.PI * 0.5f) }
+            : rotation;
+    }
+
+    private static Vector3 CanonicalizePreviewRotation(Vector3 rotation)
+    {
+        var x = rotation.X;
+        var y = rotation.Y;
+        while (y > MathF.PI)
+        {
+            x -= MathF.PI;
+            y -= MathF.PI;
+        }
+
+        while (y < -MathF.PI)
+        {
+            x += MathF.PI;
+            y += MathF.PI;
+        }
+
+        return new Vector3(
+            NormalizeAngle(x),
+            NormalizeAngle(y),
+            NormalizeAngle(rotation.Z));
+    }
+
+    private static Vector3 NormalizeRotation(Vector3 rotation)
+    {
+        return new Vector3(
+            NormalizeAngle(rotation.X),
+            NormalizeAngle(rotation.Y),
+            NormalizeAngle(rotation.Z));
+    }
+
+    private static float NormalizeAngle(float angle)
+    {
+        while (angle > MathF.PI)
+            angle -= MathF.Tau;
+        while (angle < -MathF.PI)
+            angle += MathF.Tau;
+        return angle;
+    }
+
+    private static bool IsArmorEquipment(SacredEquipmentType equipmentType)
+    {
+        return equipmentType is SacredEquipmentType.ChestArmor
+            or SacredEquipmentType.HeadArmor
+            or SacredEquipmentType.ArmArmor
+            or SacredEquipmentType.LegArmor
+            or SacredEquipmentType.Belt
+            or SacredEquipmentType.Shoulder
+            or SacredEquipmentType.FootArmor
+            or SacredEquipmentType.Gloves;
+    }
 
     private void ModelYawResetButton_OnClick(object? sender, RoutedEventArgs e)
     {

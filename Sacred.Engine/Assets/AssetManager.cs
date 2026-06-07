@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Core;
 using Sacred.Assets;
-using Sacred.Engine.Storage;
 using Sacred.Granny;
 
 namespace Sacred.Engine.Assets;
@@ -13,29 +12,39 @@ namespace Sacred.Engine.Assets;
 public sealed class AssetManager : IDisposable
 {
     private const int MaxTextureCacheEntries = 64;
-    private const int MaxConcurrentTextureLoads = 2;
     
     private const string SeraWings = "SeraWings01.grn";
     private const string SeraHair = "SeraHair01.grn";
     private const string SeraHelm = "Seraphim_christmas_helm.GRN";
 
+    private const string DelfClothArmor = "ELVE_MAGICAN_CLOTH.GRN";
+    private const string DelfBreastplate = "DElve_sa5_body.grn";
+
     private const string GladBelt = "Gladiator_belt.grn";
     private const string MageCowl = "MAGICIAN_COWL.GRN";
+    private const string VampDHair = "vlady_d_hair.grn";
+    private const string VampNHair = "vlady_n_hair.grn";
     private const string DaemonHelm = "Daemonia_Armor01_Helm.grn";
 
     private static readonly string[] GladAttachments = [GladBelt];
-    private static readonly string[] SeraAtachments = [SeraWings, SeraHair, SeraHelm];
+    private static readonly string[] SeraAttachments = [SeraWings, SeraHair, SeraHelm];
+    private static readonly string[] Delf1Attachments = [DelfClothArmor];
+    private static readonly string[] Delf2Attachments = [DelfBreastplate];
     private static readonly string[] MageAttachments = [MageCowl];
+    private static readonly string[] VampDAttachments = [VampDHair];
+    private static readonly string[] VampNAttachments = [VampNHair];
     private static readonly string[] DaemonAttachments = [DaemonHelm];
 
     private static readonly PlayerCharacterDefinition[] PlayerCharacterDefinitions =
     [
         new(1, "Gladiator", "GLADIATOR.GRN", GladAttachments, []),
-        new(2, "Seraphim", "SERAPHIM.GRN", SeraAtachments, []),
+        new(2, "Seraphim", "SERAPHIM.GRN", SeraAttachments, []),
         new(3, "Wood Elf", "WALDELFE.GRN", [], []),
-        new(4, "Dark Elf", "DARKELVE.GRN", [], []),
+        new(4, "Dark Elf 1", "DARKELVE.GRN", Delf1Attachments, []),
+        new(4, "Dark Elf 2", "DARKELVE.GRN", Delf2Attachments, []),
         new(5, "Battle Mage", "MAGICIAN.GRN", MageAttachments, []),
-        new(6, "Vampiress", "VLADY_D.GRN", [], []),
+        new(6, "Vampiress D", "VLADY_D.GRN", VampDAttachments, []),
+        new(6, "Vampiress N", "VLADY_N.GRN", VampNAttachments, []),
         new(7, "Dwarf", "DWARF.GRN", [], []),
         new(8, "Daemon", "DAEMONIA.GRN", DaemonAttachments, [])
     ];
@@ -45,12 +54,10 @@ public sealed class AssetManager : IDisposable
     private readonly ItemsPakTypeArchive _itemsPak;
     private readonly MixedPakArchive _mixedPak;
     private readonly ModelsPakArchive _modelsPak;
-    private readonly DirectStoragePayloadReader? _directStoragePayloadReader;
     private readonly Dictionary<string, TextureCacheEntry> _textures = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Task<TextureAsset>> _textureLoads = new(StringComparer.OrdinalIgnoreCase);
     private readonly LinkedList<string> _textureLru = [];
     private readonly Lock _textureLock = new();
-    private readonly SemaphoreSlim _textureLoadThrottle = new(MaxConcurrentTextureLoads, MaxConcurrentTextureLoads);
     private readonly Dictionary<uint, StaticSpriteAsset?> _staticSprites = new();
     private readonly Dictionary<uint, Task<StaticSpriteAsset?>> _staticSpriteLoads = new();
     private readonly Lock _staticSpriteLock = new();
@@ -66,12 +73,11 @@ public sealed class AssetManager : IDisposable
         var texturePakPath = gameDirectories.TexturesPakPath;
         var pakDirectory = Path.GetDirectoryName(texturePakPath)
             ?? throw new InvalidDataException("Cannot infer tiles.pak path from texture PAK path.");
-        _directStoragePayloadReader = DirectStoragePayloadReader.TryCreate();
-        _texturePak = TexturePakArchive.LoadFromDirectory(pakDirectory, _directStoragePayloadReader);
+        _texturePak = TexturePakArchive.LoadFromDirectory(pakDirectory);
         _tilesPak = TilesPakArchive.Load(Path.Combine(pakDirectory, "tiles.pak"));
         _itemsPak = ItemsPakTypeArchive.Load(gameDirectories.ItemsPakPath);
         _mixedPak = MixedPakArchive.Load(Path.Combine(pakDirectory, "mixed.pak"));
-        _modelsPak = ModelsPakArchive.Load(Path.Combine(pakDirectory, "models.pak"), _directStoragePayloadReader);
+        _modelsPak = ModelsPakArchive.Load(Path.Combine(pakDirectory, "models.pak"));
     }
 
     public int PlayerCharacterCount => PlayerCharacterDefinitions.Length;
@@ -106,16 +112,7 @@ public sealed class AssetManager : IDisposable
     {
         try
         {
-            await _textureLoadThrottle.WaitAsync().ConfigureAwait(false);
-            TextureAsset asset;
-            try
-            {
-                asset = await _texturePak.LoadTextureAsync(textureName).ConfigureAwait(false);
-            }
-            finally
-            {
-                _textureLoadThrottle.Release();
-            }
+            var asset = await _texturePak.LoadTextureAsync(textureName).ConfigureAwait(false);
 
             lock (_textureLock)
             {
@@ -498,8 +495,6 @@ public sealed class AssetManager : IDisposable
 
         _texturePak.Dispose();
         _modelsPak.Dispose();
-        _textureLoadThrottle.Dispose();
-        _directStoragePayloadReader?.Dispose();
     }
 
     private sealed record TextureCacheEntry(TextureAsset Asset, LinkedListNode<string> Node);

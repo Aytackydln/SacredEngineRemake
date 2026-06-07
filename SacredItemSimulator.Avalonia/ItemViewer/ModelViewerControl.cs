@@ -20,6 +20,8 @@ public sealed class ModelViewerControl : UserControl
     private GrnAsset? _asset;
     private string _status = "Select an item to load its model.";
     private Vector3 _previewRotation;
+    private int _gridWidth = 1;
+    private int _gridHeight = 1;
     private float _userYaw;
     private float _userPitch;
     private float _userRoll;
@@ -71,21 +73,25 @@ public sealed class ModelViewerControl : UserControl
         {
             _asset = null;
             _previewRotation = Vector3.Zero;
+            _gridWidth = 1;
+            _gridHeight = 1;
             _viewport.ClearModel();
             SetStatusText("Select an item to load its model.");
         });
     }
 
-    public void ShowModel(GrnAsset asset, Vector3 previewRotation)
+    public void ShowModel(GrnAsset asset, Vector3 previewRotation, int gridWidth, int gridHeight)
     {
         RunOnUiThread(() =>
         {
             _asset = asset;
             _previewRotation = previewRotation;
-            _viewport.ShowModel(asset, previewRotation);
+            _gridWidth = Math.Clamp(gridWidth, 1, 4);
+            _gridHeight = Math.Clamp(gridHeight, 1, 5);
+            _viewport.ShowModel(asset, previewRotation, _gridWidth, _gridHeight);
             SetStatusText(asset.Mesh is null
                 ? $"{asset.Name}: GRN loaded, no mesh extracted."
-                : $"{asset.Name}: {asset.Mesh.Vertices.Length} vertices, {asset.Mesh.Indices.Length / 3} triangles | rot {FormatRotation(previewRotation)}");
+                : $"{asset.Name}: {asset.Mesh.Vertices.Length} vertices, {asset.Mesh.Indices.Length / 3} triangles | {_gridWidth}x{_gridHeight} cells | rot {FormatRotation(previewRotation)}");
         });
     }
 
@@ -135,6 +141,8 @@ public sealed class ModelViewerControl : UserControl
         {
             _asset = null;
             _previewRotation = Vector3.Zero;
+            _gridWidth = 1;
+            _gridHeight = 1;
             _viewport.ClearModel();
             SetStatusText(status);
         });
@@ -145,7 +153,7 @@ public sealed class ModelViewerControl : UserControl
         _status = status;
         _statusText.Text = _asset is null
             ? status
-            : $"{status}\npreview {FormatRotationWithDegrees(_previewRotation)}\nuser yaw {FormatAngle(_userYaw)}\npitch {FormatAngle(_userPitch)}\nroll {FormatAngle(_userRoll)}";
+            : $"{status}\ngrid {_gridWidth}x{_gridHeight}\npreview {FormatRotationWithDegrees(_previewRotation)}\nuser yaw {FormatAngle(_userYaw)}\npitch {FormatAngle(_userPitch)}\nroll {FormatAngle(_userRoll)}";
     }
 
     private void RunOnUiThread(Action action)

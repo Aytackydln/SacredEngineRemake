@@ -13,14 +13,12 @@ public sealed class TexturePakArchive : IDisposable
     private static readonly Encoding NameEncoding = Encoding.Latin1;
 
     private readonly PakStream[] _archives;
-    private readonly IPakPayloadReader? _payloadReader;
     private readonly Dictionary<string, IndexedTexturePakRecord> _recordsByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<uint, IndexedTexturePakRecord> _recordsByEntryId = new();
     private bool _disposed;
 
-    private TexturePakArchive(string[] paths, IPakPayloadReader? payloadReader)
+    private TexturePakArchive(string[] paths)
     {
-        _payloadReader = payloadReader;
         var archives = new List<PakStream>(paths.Length);
         try
         {
@@ -39,7 +37,7 @@ public sealed class TexturePakArchive : IDisposable
         }
     }
 
-    public static TexturePakArchive LoadFromDirectory(string pakDirectory, IPakPayloadReader? payloadReader = null)
+    public static TexturePakArchive LoadFromDirectory(string pakDirectory)
     {
         if (string.IsNullOrWhiteSpace(pakDirectory))
             throw new ArgumentException("PAK directory path cannot be empty.", nameof(pakDirectory));
@@ -54,22 +52,13 @@ public sealed class TexturePakArchive : IDisposable
         if (paths.Length == 0)
             throw new FileNotFoundException($"No texture*.pak files were found in '{pakDirectory}'.");
 
-        return new TexturePakArchive(paths, payloadReader);
+        return new TexturePakArchive(paths);
     }
 
     public async Task<TextureAsset> LoadTextureAsync(string textureName, CancellationToken cancellationToken = default)
     {
-        if (!_recordsByName.TryGetValue(NormalizeName(textureName), out var indexedRecord))
-        {
-            var stem = Path.GetFileNameWithoutExtension(textureName);
-            var stemWithoutDimensions = StripDimensionSuffix(stem);
-            if (!_recordsByName.TryGetValue(NormalizeName(stem), out indexedRecord) &&
-                !_recordsByName.TryGetValue(NormalizeName(stemWithoutDimensions), out indexedRecord) &&
-                !_recordsByName.TryGetValue(NormalizeName(StripNumericSuffix(stemWithoutDimensions)), out indexedRecord))
-            {
-                throw new FileNotFoundException($"Texture '{textureName}' was not found in: {string.Join(", ", _archives.Select(static archive => Path.GetFileName(archive.Path)))}.");
-            }
-        }
+        if (!TryFindTexture(textureName, out var indexedRecord))
+            throw new FileNotFoundException($"Texture '{textureName}' was not found in: {string.Join(", ", _archives.Select(static archive => Path.GetFileName(archive.Path)))}.");
 
         return await LoadTextureAsync(indexedRecord, cancellationToken).ConfigureAwait(false);
     }
@@ -90,25 +79,19 @@ public sealed class TexturePakArchive : IDisposable
         var record = indexedRecord.Record;
         var payloadOffset = record.Offset + TexturePakDecoder.TextureHeaderSize;
         var payloadLength = Math.Min(record.Size, Math.Max(0, archive.Stream.Length - payloadOffset));
-        var payload = _payloadReader is not null
-            ? await _payloadReader.TryReadAsync(archive.Path, payloadOffset, (int)payloadLength, cancellationToken).ConfigureAwait(false)
-            : null;
-        if (payload is not null)
-            return TexturePakDecoder.Decode(record, payload);
 
         await archive.StreamLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             archive.Stream.Position = payloadOffset;
-            payload = new byte[(int)payloadLength];
+            var payload = new byte[(int)payloadLength];
             await archive.Stream.ReadExactlyAsync(payload, cancellationToken).ConfigureAwait(false);
+            return TexturePakDecoder.Decode(record, payload);
         }
         finally
         {
             archive.StreamLock.Release();
         }
-
-        return TexturePakDecoder.Decode(record, payload);
     }
 
     private void Index(PakStream archive)
@@ -155,6 +138,18 @@ public sealed class TexturePakArchive : IDisposable
             _recordsByEntryId.TryAdd((uint)i, indexedRecord);
             AddLookupNames(indexedRecord);
         }
+    }
+
+    private bool TryFindTexture(string textureName, out IndexedTexturePakRecord indexedRecord)
+    {
+        if (_recordsByName.TryGetValue(NormalizeName(textureName), out indexedRecord))
+            return true;
+
+        var stem = Path.GetFileNameWithoutExtension(textureName);
+        var stemWithoutDimensions = StripDimensionSuffix(stem);
+        return _recordsByName.TryGetValue(NormalizeName(stem), out indexedRecord) ||
+               _recordsByName.TryGetValue(NormalizeName(stemWithoutDimensions), out indexedRecord) ||
+               _recordsByName.TryGetValue(NormalizeName(StripNumericSuffix(stemWithoutDimensions)), out indexedRecord);
     }
 
     private void AddLookupNames(IndexedTexturePakRecord indexedRecord)

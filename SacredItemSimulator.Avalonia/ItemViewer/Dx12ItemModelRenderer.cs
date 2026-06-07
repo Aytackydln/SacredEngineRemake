@@ -20,9 +20,17 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
     private const int FrameCount = 2;
     private const int MaxTextures = 128;
     private const int FallbackTextureSlot = 0;
+    private const int FirstModelTextureSlot = 1;
     private const int ModelRootConstantCount = 40;
+    private const int GridColumns = 4;
+    private const int GridRows = 5;
+    private const float GridCellWorldSize = 36.0f;
+    private const float GridFitPadding = 0.86f;
+    private const float GridLineWorldThickness = 1.35f;
     private const float MinimumZoom = 0.45f;
     private const float MaximumZoom = 3.5f;
+    private static readonly Vector4 UsableCellColor = new(0.40f, 0.40f, 0.40f, 0.20f);
+    private static readonly Vector4 GridLineColor = new(0.48f, 0.48f, 0.0f, 0.52f);
     private static readonly int VertexStride = Marshal.SizeOf<VertexPositionNormalTexture>();
     private const Format BackBufferFormat = Format.R8G8B8A8_UNorm;
     private const Format DepthBufferFormat = Format.D32_Float;
@@ -44,17 +52,24 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
     private ID3D12Fence _fence = null!;
     private ID3D12RootSignature _rootSignature = null!;
     private ID3D12PipelineState _pipelineState = null!;
+    private ID3D12PipelineState _inventoryUiPipelineState = null!;
     private ID3D12Resource? _depthBuffer;
     private ID3D12Resource? _fallbackTexture;
+    private ModelGpuMesh? _inventoryUiMesh;
     private ModelGpuMesh? _mesh;
+    private InventoryUiSurface[] _inventoryUiSurfaces = [];
     private MeshBounds _meshBounds = new(Vector3.Zero, 1.0f);
     private MeshSurface[] _surfaces = [];
     private string _modelName = string.Empty;
     private Vector3 _previewRotation;
+    private Vector2 _itemGridCenter;
+    private float _modelScale = 1.0f;
+    private int _itemGridWidth = 1;
+    private int _itemGridHeight = 1;
     private float _userYaw;
     private float _userPitch;
     private float _userRoll;
-    private float _zoom = 1.0f;
+    private float _zoom = 1.12f;
     private nint _fenceEvent;
     private int _rtvDescriptorSize;
     private int _srvDescriptorSize;
@@ -74,6 +89,7 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         CreateDepthBuffer();
         CreateCommands();
         CreatePipeline();
+        RebuildInventoryUiMesh(includeOccupiedCells: false);
         CreateFallbackTexture();
     }
 
@@ -84,10 +100,15 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         _mesh = null;
         _surfaces = [];
         _modelName = string.Empty;
+        _itemGridWidth = 1;
+        _itemGridHeight = 1;
+        _itemGridCenter = Vector2.Zero;
+        _modelScale = 1.0f;
+        RebuildInventoryUiMesh(includeOccupiedCells: false);
         DisposeModelTextures();
     }
 
-    public void SetModel(GrnAsset asset, Vector3 previewRotation)
+    public void SetModel(GrnAsset asset, Vector3 previewRotation, int gridWidth, int gridHeight)
     {
         WaitForGpu();
         _mesh?.Dispose();
@@ -95,12 +116,18 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         _surfaces = [];
         _modelName = asset.Name;
         _previewRotation = IsFinite(previewRotation) ? previewRotation : Vector3.Zero;
+        _itemGridWidth = Math.Clamp(gridWidth, 1, GridColumns);
+        _itemGridHeight = Math.Clamp(gridHeight, 1, GridRows);
+        _itemGridCenter = CalculateOccupiedCellCenter(_itemGridWidth, _itemGridHeight);
+        _modelScale = 1.0f;
+        RebuildInventoryUiMesh(includeOccupiedCells: true);
         DisposeModelTextures();
 
         if (asset.Mesh is null || asset.Mesh.Vertices.Length == 0 || asset.Mesh.Indices.Length == 0)
             return;
 
         _meshBounds = CalculateBounds(asset.Mesh.Vertices);
+        _modelScale = CalculateGridFitScale(asset.Mesh.Vertices, _meshBounds.Center, _previewRotation, _itemGridWidth, _itemGridHeight);
         _mesh = UploadMesh(asset.Mesh);
         _surfaces = asset.Mesh.Surfaces.Count == 0
             ? [new MeshSurface(0, asset.Mesh.Indices.Length, null)]
@@ -119,7 +146,7 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         WaitForGpu();
         DisposeModelTextures();
 
-        var slot = 1;
+        var slot = FirstModelTextureSlot;
         foreach (var pair in textures)
         {
             if (slot >= MaxTextures)
@@ -169,12 +196,15 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
 
         _fallbackTexture?.Dispose();
         _fallbackTexture = null;
+        _inventoryUiMesh?.Dispose();
+        _inventoryUiMesh = null;
         _depthBuffer?.Dispose();
         _depthBuffer = null;
 
         foreach (var backBuffer in _backBuffers)
             backBuffer?.Dispose();
 
+        _inventoryUiPipelineState.Dispose();
         _pipelineState.Dispose();
         _rootSignature.Dispose();
         _fence.Dispose();
@@ -318,18 +348,19 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         var pixelShader = D3DShaderCompiler.Compile("SacredItemViewer", shaderSource, "ps_main", "ps_5_0");
         var depthStencil = DepthStencilDescription.Default;
         depthStencil.DepthFunc = ComparisonFunction.LessEqual;
+        var inputLayout = new[]
+        {
+            new InputElementDescription("POSITION", 0, Format.R32G32B32_Float, 0, 0),
+            new InputElementDescription("NORMAL", 0, Format.R32G32B32_Float, 12, 0),
+            new InputElementDescription("TEXCOORD", 0, Format.R32G32_Float, 24, 0)
+        };
 
         var pipelineDescription = new GraphicsPipelineStateDescription
         {
             RootSignature = _rootSignature,
             VertexShader = vertexShader,
             PixelShader = pixelShader,
-            InputLayout = new[]
-            {
-                new InputElementDescription("POSITION", 0, Format.R32G32B32_Float, 0, 0),
-                new InputElementDescription("NORMAL", 0, Format.R32G32B32_Float, 12, 0),
-                new InputElementDescription("TEXCOORD", 0, Format.R32G32_Float, 24, 0)
-            },
+            InputLayout = inputLayout,
             BlendState = BlendDescription.AlphaBlend,
             RasterizerState = RasterizerDescription.CullNone,
             DepthStencilState = depthStencil,
@@ -341,6 +372,18 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         };
 
         _pipelineState = _device.CreateGraphicsPipelineState(pipelineDescription);
+
+        var inventoryUiShaderSource = EmbeddedResource_Shaders.SacredInventoryUi_hlsl.ReadAllText();
+        var inventoryUiVertexShader = D3DShaderCompiler.Compile("SacredInventoryUi", inventoryUiShaderSource, "vs_main", "vs_5_0");
+        var inventoryUiPixelShader = D3DShaderCompiler.Compile("SacredInventoryUi", inventoryUiShaderSource, "ps_main", "ps_5_0");
+        var inventoryUiDepthStencil = DepthStencilDescription.Default;
+        inventoryUiDepthStencil.DepthEnable = false;
+        inventoryUiDepthStencil.DepthWriteMask = DepthWriteMask.Zero;
+
+        pipelineDescription.VertexShader = inventoryUiVertexShader;
+        pipelineDescription.PixelShader = inventoryUiPixelShader;
+        pipelineDescription.DepthStencilState = inventoryUiDepthStencil;
+        _inventoryUiPipelineState = _device.CreateGraphicsPipelineState(pipelineDescription);
     }
 
     private void CreateFallbackTexture()
@@ -389,6 +432,7 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         _commandList.ClearRenderTargetView(rtv, new Color4(0.05f, 0.10f, 0.09f, 1.0f));
         _commandList.ClearDepthStencilView(dsv, ClearFlags.Depth, 1.0f, 0, 0, []);
 
+        RecordInventoryUi();
         if (_mesh is not null)
             RecordModel();
 
@@ -432,23 +476,71 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         }
     }
 
+    private void RecordInventoryUi()
+    {
+        var mesh = _inventoryUiMesh;
+        if (mesh is null || _inventoryUiSurfaces.Length == 0)
+            return;
+
+        var vertexBufferView = mesh.VertexBufferView;
+        var indexBufferView = mesh.IndexBufferView;
+
+        _commandList.SetGraphicsRootSignature(_rootSignature);
+        _commandList.SetPipelineState(_inventoryUiPipelineState);
+        _commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
+        _commandList.IASetVertexBuffers(0, 1, &vertexBufferView);
+        _commandList.IASetIndexBuffer(&indexBufferView);
+
+        var constants = stackalloc float[ModelRootConstantCount];
+        var world = CreateGridWorldMatrix();
+        var wvp = world * CreateViewProjectionMatrix();
+        WriteMatrix(wvp, constants);
+        WriteMatrix(world, constants + 16);
+
+        foreach (var surface in _inventoryUiSurfaces)
+        {
+            WriteColor(surface.Color, constants + 32);
+            constants[36] = 0.0f;
+            constants[37] = 0.0f;
+            constants[38] = 0.0f;
+            constants[39] = 0.0f;
+            _commandList.SetGraphicsRoot32BitConstants(0, ModelRootConstantCount, constants, 0);
+            _commandList.DrawIndexedInstanced((uint)surface.IndexCount, 1, (uint)surface.IndexStart, 0, 0);
+        }
+    }
+
     private Matrix4x4 CreateWorldMatrix()
     {
         var itemRotation = Matrix4x4.CreateFromYawPitchRoll(_previewRotation.Y, _previewRotation.Z, _previewRotation.X);
         var userRotation = Matrix4x4.CreateFromYawPitchRoll(_userYaw, _userPitch, _userRoll);
         var rotation = itemRotation * userRotation;
-        return Matrix4x4.CreateTranslation(-_meshBounds.Center) * rotation;
+        return Matrix4x4.CreateTranslation(-_meshBounds.Center) *
+               rotation *
+               Matrix4x4.CreateScale(_modelScale) *
+               Matrix4x4.CreateTranslation(_itemGridCenter.X, 0.0f, _itemGridCenter.Y);
+    }
+
+    private Matrix4x4 CreateGridWorldMatrix()
+    {
+        return Matrix4x4.Identity;
     }
 
     private Matrix4x4 CreateViewProjectionMatrix()
     {
-        var radius = Math.Max(1.0f, _meshBounds.Radius);
-        var distance = Math.Max(80.0f, radius * 3.25f / _zoom);
+        var sceneRadius = Math.Max(GridCellWorldSize * 3.0f, _meshBounds.Radius * _modelScale * 2.0f);
+        var distance = Math.Max(120.0f, sceneRadius * 3.25f);
         var aspect = Math.Max(0.1f, _renderWidth / (float)Math.Max(1, _renderHeight));
-        var eye = new Vector3(0.0f, -distance, radius * 0.18f);
+        var eye = new Vector3(0.0f, -distance, sceneRadius * 0.18f);
         var target = Vector3.Zero;
         var view = Matrix4x4.CreateLookAt(eye, target, Vector3.UnitZ);
-        var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 4.0f, aspect, 0.5f, distance + radius * 6.0f);
+        var gridWidth = GridColumns * GridCellWorldSize;
+        var gridHeight = GridRows * GridCellWorldSize;
+        var orthographicHeight = Math.Max(gridHeight, gridWidth / aspect) * 1.18f / _zoom;
+        var projection = Matrix4x4.CreateOrthographic(
+            orthographicHeight * aspect,
+            orthographicHeight,
+            0.5f,
+            distance + sceneRadius * 6.0f);
         return view * projection;
     }
 
@@ -458,6 +550,99 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
             return texture;
 
         return null;
+    }
+
+    private void RebuildInventoryUiMesh(bool includeOccupiedCells)
+    {
+        _inventoryUiMesh?.Dispose();
+        _inventoryUiMesh = null;
+
+        var vertices = new List<VertexPositionNormalTexture>();
+        var indices = new List<ushort>();
+        var surfaces = new List<InventoryUiSurface>();
+
+        if (includeOccupiedCells)
+        {
+            var occupied = CalculateOccupiedCellBounds(_itemGridWidth, _itemGridHeight);
+            var start = indices.Count;
+            AddQuad(vertices, indices, occupied.MinX, occupied.MinZ, occupied.MaxX, occupied.MaxZ);
+            surfaces.Add(new InventoryUiSurface(start, indices.Count - start, UsableCellColor));
+        }
+
+        var lineStart = indices.Count;
+        var halfWidth = GridColumns * GridCellWorldSize * 0.5f;
+        var halfHeight = GridRows * GridCellWorldSize * 0.5f;
+        for (var column = 0; column <= GridColumns; column++)
+        {
+            var x = -halfWidth + column * GridCellWorldSize;
+            AddQuad(
+                vertices,
+                indices,
+                x - GridLineWorldThickness * 0.5f,
+                -halfHeight,
+                x + GridLineWorldThickness * 0.5f,
+                halfHeight);
+        }
+
+        for (var row = 0; row <= GridRows; row++)
+        {
+            var z = -halfHeight + row * GridCellWorldSize;
+            AddQuad(
+                vertices,
+                indices,
+                -halfWidth,
+                z - GridLineWorldThickness * 0.5f,
+                halfWidth,
+                z + GridLineWorldThickness * 0.5f);
+        }
+
+        surfaces.Add(new InventoryUiSurface(lineStart, indices.Count - lineStart, GridLineColor));
+        _inventoryUiMesh = UploadMesh(new Mesh(vertices.ToArray(), indices.ToArray()));
+        _inventoryUiSurfaces = surfaces.ToArray();
+    }
+
+    private static void AddQuad(
+        List<VertexPositionNormalTexture> vertices,
+        List<ushort> indices,
+        float minX,
+        float minZ,
+        float maxX,
+        float maxZ)
+    {
+        if (vertices.Count > ushort.MaxValue - 4)
+            throw new InvalidOperationException("Inventory UI mesh is too large for 16-bit indices.");
+
+        var start = (ushort)vertices.Count;
+        var normal = new Vector3(0.0f, -1.0f, 0.0f);
+        vertices.Add(new VertexPositionNormalTexture(new Vector3(minX, 0.0f, maxZ), normal, new Vector2(0.0f, 0.0f)));
+        vertices.Add(new VertexPositionNormalTexture(new Vector3(maxX, 0.0f, maxZ), normal, new Vector2(1.0f, 0.0f)));
+        vertices.Add(new VertexPositionNormalTexture(new Vector3(maxX, 0.0f, minZ), normal, new Vector2(1.0f, 1.0f)));
+        vertices.Add(new VertexPositionNormalTexture(new Vector3(minX, 0.0f, minZ), normal, new Vector2(0.0f, 1.0f)));
+        indices.Add(start);
+        indices.Add((ushort)(start + 1));
+        indices.Add((ushort)(start + 2));
+        indices.Add(start);
+        indices.Add((ushort)(start + 2));
+        indices.Add((ushort)(start + 3));
+    }
+
+    private static Vector2 CalculateOccupiedCellCenter(int gridWidth, int gridHeight)
+    {
+        var bounds = CalculateOccupiedCellBounds(gridWidth, gridHeight);
+        return new Vector2((bounds.MinX + bounds.MaxX) * 0.5f, (bounds.MinZ + bounds.MaxZ) * 0.5f);
+    }
+
+    private static OccupiedCellBounds CalculateOccupiedCellBounds(int gridWidth, int gridHeight)
+    {
+        gridWidth = Math.Clamp(gridWidth, 1, GridColumns);
+        gridHeight = Math.Clamp(gridHeight, 1, GridRows);
+        var startColumn = (GridColumns - gridWidth) / 2;
+        var startRow = (GridRows - gridHeight) / 2;
+        var minX = -GridColumns * GridCellWorldSize * 0.5f + startColumn * GridCellWorldSize;
+        var maxX = minX + gridWidth * GridCellWorldSize;
+        var minZ = -GridRows * GridCellWorldSize * 0.5f + startRow * GridCellWorldSize;
+        var maxZ = minZ + gridHeight * GridCellWorldSize;
+        return new OccupiedCellBounds(minX, minZ, maxX, maxZ);
     }
 
     private ModelGpuMesh UploadMesh(Mesh mesh)
@@ -653,6 +838,34 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         return new MeshBounds(center, Math.Max(1.0f, radius));
     }
 
+    private static float CalculateGridFitScale(
+        IReadOnlyList<VertexPositionNormalTexture> vertices,
+        Vector3 center,
+        Vector3 previewRotation,
+        int gridWidth,
+        int gridHeight)
+    {
+        if (vertices.Count == 0)
+            return 1.0f;
+
+        var rotation = Matrix4x4.CreateFromYawPitchRoll(previewRotation.Y, previewRotation.Z, previewRotation.X);
+        var min = new Vector2(float.MaxValue);
+        var max = new Vector2(float.MinValue);
+        foreach (var vertex in vertices)
+        {
+            var position = Vector3.Transform(vertex.Position - center, rotation);
+            min = Vector2.Min(min, new Vector2(position.X, position.Z));
+            max = Vector2.Max(max, new Vector2(position.X, position.Z));
+        }
+
+        var extents = Vector2.Max(max - min, new Vector2(0.001f));
+        var target = new Vector2(
+            Math.Max(1, gridWidth) * GridCellWorldSize * GridFitPadding,
+            Math.Max(1, gridHeight) * GridCellWorldSize * GridFitPadding);
+        var scale = Math.Min(target.X / extents.X, target.Y / extents.Y);
+        return float.IsFinite(scale) && scale > 0.0f ? scale : 1.0f;
+    }
+
     private static void WriteMatrix(Matrix4x4 matrix, float* target)
     {
         target[0] = matrix.M11;
@@ -682,6 +895,14 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         target[3] = 1.0f;
     }
 
+    private static void WriteColor(Vector4 color, float* target)
+    {
+        target[0] = color.X;
+        target[1] = color.Y;
+        target[2] = color.Z;
+        target[3] = color.W;
+    }
+
     private static bool IsFinite(Vector3 value)
     {
         return float.IsFinite(value.X) &&
@@ -692,6 +913,10 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
     private static int Align(int value, int alignment) => (value + alignment - 1) & ~(alignment - 1);
 
     private sealed record ModelTexture(ID3D12Resource Resource, int SrvSlot);
+
+    private readonly record struct InventoryUiSurface(int IndexStart, int IndexCount, Vector4 Color);
+
+    private readonly record struct OccupiedCellBounds(float MinX, float MinZ, float MaxX, float MaxZ);
 
     private sealed record ModelGpuMesh(
         ID3D12Resource VertexBuffer,
