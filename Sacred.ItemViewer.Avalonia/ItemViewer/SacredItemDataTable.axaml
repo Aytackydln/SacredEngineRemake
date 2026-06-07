@@ -1,0 +1,232 @@
+﻿<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:Sacred.ItemViewer.Avalonia.ItemViewer"
+             Loaded="Control_OnLoaded"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="Sacred.ItemViewer.Avalonia.ItemViewer.SacredItemDataTable"
+             x:DataType="vm:SacredItemDataTableViewModel">
+    <UserControl.DataTemplates>
+        <DataTemplate DataType="{x:Type vm:EnumFilterOptionViewModel}" x:DataType="vm:EnumFilterOptionViewModel">
+            <CheckBox Content="{Binding DisplayText}"
+                      IsChecked="{Binding IsSelected}"
+                      Margin="0,2" />
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:EnumFilterViewModel}" x:DataType="vm:EnumFilterViewModel">
+            <Expander Margin="4"
+                      MinWidth="150">
+                <Expander.Header>
+                    <StackPanel>
+                        <TextBlock Text="{Binding PropertyName}" />
+                        <TextBlock Text="{Binding Summary}"
+                                   FontSize="11"
+                                   Opacity="0.72" />
+                    </StackPanel>
+                </Expander.Header>
+
+                <StackPanel MinWidth="180" Spacing="4">
+                    <Button Content="Clear"
+                            Command="{Binding ClearCommand}"
+                            HorizontalAlignment="Stretch" />
+                    <ScrollViewer MaxHeight="260">
+                        <ItemsControl ItemsSource="{Binding Options}" />
+                    </ScrollViewer>
+                </StackPanel>
+            </Expander>
+        </DataTemplate>
+    </UserControl.DataTemplates>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="5*"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="3*"/>
+        </Grid.ColumnDefinitions>
+        
+        <ScrollViewer Grid.Row="0"
+                      Grid.Column="0"
+                      HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Disabled">
+            <StackPanel Orientation="Horizontal"
+                        Margin="4">
+                <CheckBox Content="Has model"
+                          IsChecked="{Binding FilterHasModel}"
+                          VerticalAlignment="Top"
+                          Margin="4,8,12,0" />
+                <StackPanel Margin="4,2,12,0"
+                            MinWidth="150">
+                    <TextBlock Text="Preview confirmation"
+                               FontSize="11"
+                               Opacity="0.72" />
+                    <ComboBox ItemsSource="{Binding PreviewConfirmationFilterOptions}"
+                              SelectedItem="{Binding PreviewConfirmationFilter}"
+                              HorizontalAlignment="Stretch" />
+                </StackPanel>
+                <ItemsControl ItemsSource="{Binding EnumFilters}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+        
+        <ScrollViewer AllowAutoHide="False" HorizontalScrollBarVisibility="Visible" Grid.Row="1" Grid.Column="0">
+            <DataGrid
+                Name="DataGrid"
+                ItemsSource="{Binding CurrentPageItems}"
+                SelectionChanged="DataGrid_OnSelectionChanged"
+                SelectionMode="Single"
+                GridLinesVisibility="All"
+                CanUserReorderColumns="True"
+                Sorting="DataGrid_OnSorting"
+                IsReadOnly="True" AutoGenerateColumns="True" />
+        </ScrollViewer>
+
+        <StackPanel Orientation="Horizontal" Grid.Row="2" Grid.Column="0" HorizontalAlignment="Center" Margin="10">
+            <Button Click="FirstPageButton_Click">|◀</Button>
+            <Button Command="{Binding PreviousPageCommand}">◀</Button>
+            <TextBlock Text="{Binding CurrentPage}"  VerticalAlignment="Center" HorizontalAlignment="Center"/>
+            <TextBlock Text=" of "  VerticalAlignment="Center" HorizontalAlignment="Center"/>
+            <TextBlock Text="{Binding TotalPages}"  VerticalAlignment="Center" HorizontalAlignment="Center"/>
+            <Button Command="{Binding NextPageCommand}">▶</Button>
+            <Button Click="LastPageButton_Click">▶|</Button>
+        </StackPanel>
+
+        <GridSplitter Grid.Row="0" Grid.Column="1" Grid.RowSpan="2" Width="15" HorizontalAlignment="Stretch" />
+
+        <Grid Grid.Row="0" Grid.Column="2" Grid.RowSpan="2" Background="DarkGreen">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Panel Name="ModelViewerPanel" Grid.Row="0" />
+
+            <Border Grid.Row="1"
+                    Background="#DD09110E"
+                    BorderBrush="#44749A7B"
+                    BorderThickness="1"
+                    Padding="10">
+                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+                    <TextBlock Grid.Row="0"
+                               Grid.Column="0"
+                               Text="Yaw"
+                               Foreground="#E8F4D6"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,0" />
+                    <Slider Name="ModelYawSlider"
+                            Grid.Row="0"
+                            Grid.Column="1"
+                            Minimum="-3.2"
+                            Maximum="3.2"
+                            IsSnapToTickEnabled="True"
+                            TickFrequency="0.05" />
+                    <TextBlock Name="ModelYawValueText"
+                               Grid.Row="0"
+                               Grid.Column="2"
+                               Text="0 rad"
+                               Foreground="#E8F4D6"
+                               MinWidth="58"
+                               TextAlignment="Right"
+                               VerticalAlignment="Center"
+                               Margin="8,0,0,0" />
+                    <Button Grid.Row="0" Grid.Column="3" Name="ModelYawResetButton" Click="ModelYawResetButton_OnClick">Reset</Button>
+
+                    <TextBlock Grid.Row="1"
+                               Grid.Column="0"
+                               Text="Pitch"
+                               Foreground="#E8F4D6"
+                               VerticalAlignment="Center"
+                               Margin="0,4,8,0" />
+                    <Slider Name="ModelPitchSlider"
+                            Grid.Row="1"
+                            Grid.Column="1"
+                            Minimum="-3.2"
+                            Maximum="3.2"
+                            TickFrequency="0.05"
+                            IsSnapToTickEnabled="True"
+                            Margin="0,4,0,0" />
+                    <TextBlock Name="ModelPitchValueText"
+                               Grid.Row="1"
+                               Grid.Column="2"
+                               Text="0 rad"
+                               Foreground="#E8F4D6"
+                               MinWidth="58"
+                               TextAlignment="Right"
+                               VerticalAlignment="Center"
+                               Margin="8,4,0,0" />
+                    <Button Grid.Row="1" Grid.Column="3" Name="ModelPitchResetButton" Click="ModelPitchResetButton_OnClick" Margin="0,4,0,0">Reset</Button>
+
+                    <TextBlock Grid.Row="2"
+                               Grid.Column="0"
+                               Text="Roll"
+                               Foreground="#E8F4D6"
+                               VerticalAlignment="Center"
+                               Margin="0,4,8,0" />
+                    <Slider Name="ModelRollSlider"
+                            Grid.Row="2"
+                            Grid.Column="1"
+                            Minimum="-3.2"
+                            Maximum="3.2"
+                            TickFrequency="0.05"
+                            IsSnapToTickEnabled="True"
+                            Margin="0,4,0,0" />
+                    <TextBlock Name="ModelRollValueText"
+                               Grid.Row="2"
+                               Grid.Column="2"
+                               Text="0 rad"
+                               Foreground="#E8F4D6"
+                               MinWidth="58"
+                               TextAlignment="Right"
+                               VerticalAlignment="Center"
+                               Margin="8,4,0,0" />
+                    <Button Grid.Row="2" Grid.Column="3" Name="ModelRollResetButton" Click="ModelRollResetButton_OnClick" Margin="0,4,0,0">Reset</Button>
+
+                    <StackPanel Grid.Row="3"
+                                Grid.Column="0"
+                                Grid.ColumnSpan="5"
+                                Orientation="Horizontal"
+                                Spacing="8"
+                                Margin="0,8,0,0">
+                        <TextBlock Text="Rotation"
+                                   Foreground="#E8F4D6"
+                                   VerticalAlignment="Center" />
+                        <ComboBox Name="PreviewRotationModeComboBox"
+                                  MinWidth="150" />
+                        <TextBlock Text="Pivot"
+                                   Foreground="#E8F4D6"
+                                   VerticalAlignment="Center"
+                                   Margin="10,0,0,0" />
+                        <ComboBox Name="PreviewPivotModeComboBox"
+                                  MinWidth="150" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="4"
+                                Grid.Column="0"
+                                Grid.ColumnSpan="5"
+                                Orientation="Horizontal"
+                                Spacing="8"
+                                Margin="0,8,0,0">
+                        <Button Name="ConfirmPreviewButton"
+                                Content="Confirm Preview"
+                                IsEnabled="False"
+                                Click="ConfirmPreviewButton_OnClick" />
+                        <TextBlock Name="ConfirmPreviewStatusText"
+                                   Foreground="#E8F4D6"
+                                   VerticalAlignment="Center"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

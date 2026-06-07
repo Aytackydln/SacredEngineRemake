@@ -1,8 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SacredItemSimulator.Avalonia", "SacredItemSimulator.Avalonia\SacredItemSimulator.Avalonia.csproj", "{075D1DEE-CDE5-491E-8716-A73D01B0A4C1}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SacredItemSimulator", "SacredItemSimulator\SacredItemSimulator.csproj", "{6F1F50DE-3E4B-4A48-A7F8-AA1E5DE27771}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sacred.ItemViewer.Avalonia", "Sacred.ItemViewer.Avalonia\Sacred.ItemViewer.Avalonia.csproj", "{075D1DEE-CDE5-491E-8716-A73D01B0A4C1}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SacredItemSimulator.TerminalTests", "SacredItemSimulator.TerminalTests\SacredItemSimulator.TerminalTests.csproj", "{88FB163C-E82C-4938-8414-C69E13A57DC6}"
 EndProject
@@ -38,18 +36,6 @@ Global
 		{075D1DEE-CDE5-491E-8716-A73D01B0A4C1}.Release|x64.Build.0 = Release|Any CPU
 		{075D1DEE-CDE5-491E-8716-A73D01B0A4C1}.Release|x86.ActiveCfg = Release|Any CPU
 		{075D1DEE-CDE5-491E-8716-A73D01B0A4C1}.Release|x86.Build.0 = Release|Any CPU
-		{6F1F50DE-3E4B-4A48-A7F8-AA1E5DE27771}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{6F1F50DE-3E4B-4A48-A7F8-AA1E5DE27771}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{6F1F50DE-3E4B-4A48-A7F8-AA1E5DE27771}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{6F1F50DE-3E4B-4A48-A7F8-AA1E5DE27771}.Debug|x64.Build.0 = Debug|Any CPU
-		{6F1F50DE-3E4B-4A48-A7F8-AA1E5DE27771}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{6F1F50DE-3E4B-4A48-A7F8-AA1E5DE27771}.Debug|x86.Build.0 = Debug|Any CPU
-		{6F1F50DE-3E4B-4A48-A7F8-AA1E5DE27771}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{6F1F50DE-3E4B-4A48-A7F8-AA1E5DE27771}.Release|Any CPU.Build.0 = Release|Any CPU
-		{6F1F50DE-3E4B-4A48-A7F8-AA1E5DE27771}.Release|x64.ActiveCfg = Release|Any CPU
-		{6F1F50DE-3E4B-4A48-A7F8-AA1E5DE27771}.Release|x64.Build.0 = Release|Any CPU
-		{6F1F50DE-3E4B-4A48-A7F8-AA1E5DE27771}.Release|x86.ActiveCfg = Release|Any CPU
-		{6F1F50DE-3E4B-4A48-A7F8-AA1E5DE27771}.Release|x86.Build.0 = Release|Any CPU
 		{88FB163C-E82C-4938-8414-C69E13A57DC6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{88FB163C-E82C-4938-8414-C69E13A57DC6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{88FB163C-E82C-4938-8414-C69E13A57DC6}.Debug|x64.ActiveCfg = Debug|Any CPU

@@ -1,7 +1,7 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
+using Sacred.Assets;
 using Sacred.Core;
-using SacredItemSimulator;
 using SacredItemSimulator.TerminalTests.Experiments;
 
 const string gameDir = @"E:\SteamLibrary\steamapps\common\Sacred Gold";

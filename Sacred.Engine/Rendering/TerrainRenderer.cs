@@ -4,6 +4,7 @@ using System.IO;
 using System.Numerics;
 using System.Threading.Tasks;
 using Sacred.Assets;
+using Sacred.Assets.Paks.Texture;
 using Sacred.Core.World;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Scene;
@@ -77,9 +78,9 @@ public sealed class TerrainRenderer
         _assets = assets;
     }
 
-    public IReadOnlyList<TerrainSectorImage> PrepareVisibleWorld(VisibleWorld world, SacredCamera camera, int viewportWidth, int viewportHeight)
+    public IReadOnlyList<TerrainSectorImage> PrepareVisibleWorld(VisibleWorld world)
     {
-        SelectCandidateSectors(world, camera, viewportWidth, viewportHeight);
+        SelectCandidateSectors(world);
         PruneSectorCache();
         PumpCompletedSectorBuilds();
         _visibleSectorImages.Clear();
@@ -142,18 +143,12 @@ public sealed class TerrainRenderer
         return _visibleSectorImages;
     }
 
-    public IReadOnlyList<TerrainStaticSprite> PrepareVisibleStaticSprites(
-        SacredCamera camera,
-        int viewportWidth,
-        int viewportHeight)
+    public IReadOnlyList<TerrainStaticSprite> PrepareVisibleStaticSprites()
     {
         _visibleStaticSprites.Clear();
 
         var staticCandidateObjects = 0;
         var staticMissingObjects = 0;
-
-        var centerIsoX = (camera.WorldCenter.X - camera.WorldCenter.Y) * (IsoStepWidth * 0.5f);
-        var centerIsoY = (camera.WorldCenter.X + camera.WorldCenter.Y) * (IsoStepHeight * 0.5f);
 
         foreach (var sector in _candidateSectors)
         {
@@ -190,13 +185,6 @@ public sealed class TerrainRenderer
                     continue;
                 }
 
-                var drawX = viewportWidth * 0.5f + (spriteIsoX - centerIsoX) * camera.Zoom;
-                var drawY = viewportHeight * 0.5f + (spriteIsoY - centerIsoY) * camera.Zoom;
-                var drawWidth = sprite.Width * camera.Zoom;
-                var drawHeight = sprite.Height * camera.Zoom;
-                if (drawX >= viewportWidth || drawY >= viewportHeight || drawX + drawWidth <= 0 || drawY + drawHeight <= 0)
-                    continue;
-
                 _visibleStaticSprites.Add(new TerrainStaticSprite(
                     sprite,
                     spriteIsoX,
@@ -224,16 +212,13 @@ public sealed class TerrainRenderer
         return _visibleStaticSprites;
     }
 
-    private void SelectCandidateSectors(VisibleWorld world, SacredCamera camera, int viewportWidth, int viewportHeight)
+    private void SelectCandidateSectors(VisibleWorld world)
     {
         _neededSectorCoords.Clear();
         _candidateSectors.Clear();
 
         foreach (var sector in world.Sectors)
         {
-            if (!IsSectorOnScreen(sector.Coord, camera, viewportWidth, viewportHeight))
-                continue;
-
             _neededSectorCoords.Add(sector.Coord);
             _candidateSectors.Add(sector);
         }
@@ -248,22 +233,6 @@ public sealed class TerrainRenderer
 
         foreach (var coord in _sectorCoordsToRemove)
             _sectorCache.Remove(coord);
-    }
-
-    private static bool IsSectorOnScreen(SectorCoord coord, SacredCamera camera, int viewportWidth, int viewportHeight)
-    {
-        var sectorOriginIso = WorldToIso(coord.X * Sector.TileCount, coord.Y * Sector.TileCount);
-        var centerIsoX = (camera.WorldCenter.X - camera.WorldCenter.Y) * (IsoStepWidth * 0.5f);
-        var centerIsoY = (camera.WorldCenter.X + camera.WorldCenter.Y) * (IsoStepHeight * 0.5f);
-        var drawX = viewportWidth * 0.5f + (sectorOriginIso.X + SectorImageOriginX - centerIsoX) * camera.Zoom;
-        var drawY = viewportHeight * 0.5f + (sectorOriginIso.Y + SectorImageOriginY - centerIsoY) * camera.Zoom;
-        var drawWidth = SectorImageWidth * camera.Zoom;
-        var drawHeight = SectorImageHeight * camera.Zoom;
-
-        return drawX < viewportWidth &&
-               drawY < viewportHeight &&
-               drawX + drawWidth > 0 &&
-               drawY + drawHeight > 0;
     }
 
     private void PumpCompletedSectorBuilds()
@@ -347,7 +316,7 @@ public sealed class TerrainRenderer
         composeTiles.Sort(CompareDrawTiles);
         foreach (var item in composeTiles)
         {
-            var tile = await GetTileImageAsync(item.TileId).ConfigureAwait(false);
+            var tile = await GetTileImageAsync(item.TileId);
             if (tile is null)
             {
                 groundMissingTiles++;
@@ -381,7 +350,7 @@ public sealed class TerrainRenderer
         composeTiles.Sort(CompareDrawTiles);
         foreach (var item in composeTiles)
         {
-            var tile = await GetFloorImageAsync(item.TileId, item.SecondaryTileId).ConfigureAwait(false);
+            var tile = await GetFloorImageAsync(item.TileId, item.SecondaryTileId);
             if (tile is null)
             {
                 floorMissingTiles++;
@@ -395,7 +364,7 @@ public sealed class TerrainRenderer
         foreach (var liquid in sector.LiquidSurfaces.Surfaces)
         {
             var textureName = LiquidTextureName(liquid);
-            var liquidTile = await GetLiquidImageAsync(textureName, LiquidCornerAlphas(liquid)).ConfigureAwait(false);
+            var liquidTile = await GetLiquidImageAsync(textureName, LiquidCornerAlphas(liquid));
             if (liquidTile is null)
             {
                 liquidMissingTiles++;
@@ -471,7 +440,7 @@ public sealed class TerrainRenderer
 
     private int StaticEngineQueueIndex(StaticWorldObject staticObject)
     {
-        var item = _assets.GetItemType(staticObject.TypeId);
+        var item = _assets.GetItem(staticObject.TypeId);
         var graphicFlags = item?.GraphicRenderFlags ?? 0;
         var renderClass = item?.RenderClass ?? 0;
 
@@ -499,7 +468,7 @@ public sealed class TerrainRenderer
             if (_tileCache.TryGetValue(tileId, out var cached))
                 return cached;
 
-        var image = await BuildTileImageAsync(tileId, forceOpaque: false).ConfigureAwait(false);
+        var image = await BuildTileImageAsync(tileId, forceOpaque: false);
         lock (_tileCacheLock)
         {
             if (_tileCache.TryGetValue(tileId, out var cached))
@@ -516,14 +485,14 @@ public sealed class TerrainRenderer
             if (_floorCache.TryGetValue(packedRef, out var cached))
                 return cached;
 
-        var primary = await BuildTileImageAsync(primaryTileId, forceOpaque: false).ConfigureAwait(false);
+        var primary = await BuildTileImageAsync(primaryTileId, forceOpaque: false);
         if (primary is null)
             return CacheFloorImage(packedRef, null);
 
         if (secondaryTileId == 0)
             return CacheFloorImage(packedRef, primary);
 
-        var mask = await BuildTileImageAsync(secondaryTileId, forceOpaque: false).ConfigureAwait(false);
+        var mask = await BuildTileImageAsync(secondaryTileId, forceOpaque: false);
         if (mask is null)
             return CacheFloorImage(packedRef, primary);
 
@@ -560,7 +529,7 @@ public sealed class TerrainRenderer
         TextureAsset texture;
         try
         {
-            texture = await _assets.LoadTextureAsync(textureName).ConfigureAwait(false);
+            texture = await _assets.LoadTextureAsync(textureName);
         }
         catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or NotSupportedException)
         {
@@ -683,7 +652,7 @@ public sealed class TerrainRenderer
         TextureAsset sheet;
         try
         {
-            sheet = await _assets.LoadTextureAsync(definition.Value.FileName).ConfigureAwait(false);
+            sheet = await _assets.LoadTextureAsync(definition.Value.FileName);
         }
         catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or NotSupportedException)
         {

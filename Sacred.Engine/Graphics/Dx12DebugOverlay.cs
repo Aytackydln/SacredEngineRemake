@@ -119,7 +119,7 @@ public unsafe class Dx12DebugOverlay : IDisposable
         dirty = false;
     }
 
-    public void RecordDebugOverlay(int renderWidth, int renderHeight)
+    public void RecordDebugOverlay(int renderWidth, int renderHeight, float uiPaperWhiteNits)
     {
         RecordOverlay(
             _debugOverlayTexture,
@@ -128,7 +128,8 @@ public unsafe class Dx12DebugOverlay : IDisposable
             DebugOverlayX,
             DebugOverlayY,
             renderWidth,
-            renderHeight);
+            renderHeight,
+            uiPaperWhiteNits);
 
         RecordOverlay(
             _controlsOverlayTexture,
@@ -137,7 +138,8 @@ public unsafe class Dx12DebugOverlay : IDisposable
             ControlsOverlayX,
             Math.Max(DebugOverlayY, renderHeight - DebugTextOverlay.Height - ControlsOverlayBottomMargin),
             renderWidth,
-            renderHeight);
+            renderHeight,
+            uiPaperWhiteNits);
     }
 
     private void RecordOverlay(
@@ -147,12 +149,13 @@ public unsafe class Dx12DebugOverlay : IDisposable
         float x,
         float y,
         int renderWidth,
-        int renderHeight)
+        int renderHeight,
+        float uiPaperWhiteNits)
     {
         if (texture is null || state != ResourceStates.PixelShaderResource)
             return;
 
-        var constants = stackalloc float[8];
+        var constants = stackalloc float[12];
         constants[0] = x;
         constants[1] = y;
         constants[2] = Math.Min(DebugTextOverlay.Width, Math.Max(0, renderWidth - x - DebugOverlayX));
@@ -161,11 +164,15 @@ public unsafe class Dx12DebugOverlay : IDisposable
         constants[5] = renderHeight;
         constants[6] = 0.0f;
         constants[7] = 0.0f;
+        constants[8] = uiPaperWhiteNits;
+        constants[9] = uiPaperWhiteNits;
+        constants[10] = 1.0f;
+        constants[11] = 0.0f;
 
         if (constants[2] <= 0.0f || constants[3] <= 0.0f)
             return;
 
-        _commandList.SetGraphicsRoot32BitConstants(0, 8, constants, 0);
+        _commandList.SetGraphicsRoot32BitConstants(0, 12, constants, 0);
         _commandList.SetGraphicsRootDescriptorTable(1, gpuHandle);
         _commandList.DrawInstanced(6, 1, 0, 0);
     }

@@ -8,10 +8,12 @@ using System.Runtime;
 using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Assets;
+using Sacred.Assets.Paks.Texture;
 using Sacred.Granny;
 using Sacred.Core.World;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Extern;
+using Sacred.Engine.Graphics.Swapchain;
 using Sacred.Engine.Platform;
 using Sacred.Engine.Rendering;
 using Sacred.Engine.Scene;
@@ -45,11 +47,10 @@ public sealed class Dx12Renderer : IDisposable
     private const float PlayerDepthBias = 0.0005f;
     private const float ModelLocalDepthScale = 0.08f;
 
-    private const int ModelRootConstantCount = 40;
-    private const int ModelSceneRootConstantCount = 16;
+    private const int QuadRootConstantCount = 12;
     private static readonly int ModelVertexStride = Marshal.SizeOf<VertexPositionNormalTexture>();
-    private const Format BackBufferFormat = Format.R8G8B8A8_UNorm;
     private const Format DepthBufferFormat = Format.D32_Float;
+    private const SwapChainFlags SwapChainFlags = Vortice.DXGI.SwapChainFlags.AllowTearing;
 
     private readonly Win32Window _window;
     private readonly AssetManager _assets;
@@ -68,6 +69,7 @@ public sealed class Dx12Renderer : IDisposable
     private readonly List<SectorCoord> _sectorsToRemove = new(MaxSectorTextures);
     private readonly List<ID3D12Resource> _uploadResources = [];
     private readonly ID3D12Resource[] _backBuffers = new ID3D12Resource[FrameCount];
+    private readonly RootConstantUploadCache _modelConstantCache = new(ModelShaderLayout.RootParameterCount);
     private readonly Dx12TextureUploader _textureUploader;
 
     private Dx12DebugOverlay _debugOverlay = null!;
@@ -75,7 +77,7 @@ public sealed class Dx12Renderer : IDisposable
     private ID3D12Device _device = null!;
     private ID3D12CommandQueue _commandQueue = null!;
     private ID3D12CommandQueue _sectorUploadCommandQueue = null!;
-    private IDXGISwapChain3 _swapChain = null!;
+    private Dx12SwapChain _swapChain = null!;
     private ID3D12DescriptorHeap _rtvHeap = null!;
     private ID3D12DescriptorHeap _dsvHeap = null!;
     private ID3D12DescriptorHeap _srvHeap = null!;
@@ -104,6 +106,7 @@ public sealed class Dx12Renderer : IDisposable
     private bool _commandsInFlight;
     private long _releasedCpuTextureBytesSinceGc;
     private int _staticSpriteUploadsThisFrame;
+    private Dx12SwapChainMode _requestedSwapChainMode = Dx12SwapChainMode.Sdr;
 
     public Dx12Renderer(Win32Window window, AssetManager assets)
     {
@@ -138,8 +141,8 @@ public sealed class Dx12Renderer : IDisposable
         DisposeUploadResources();
         ResizeIfNeeded();
 
-        var sectorImages = _terrain.PrepareVisibleWorld(world, camera, _renderWidth, _renderHeight);
-        var staticSprites = _terrain.PrepareVisibleStaticSprites(camera, _renderWidth, _renderHeight);
+        var sectorImages = _terrain.PrepareVisibleWorld(world);
+        var staticSprites = _terrain.PrepareVisibleStaticSprites();
         CollectCompletedSectorUploads();
         PruneGpuSectorTextures(sectorImages);
         QueueMissingSectorUploads(sectorImages);
@@ -161,8 +164,18 @@ public sealed class Dx12Renderer : IDisposable
 
         _commandList.Close();
         ExecuteCommandList();
-        _swapChain.Present(0, PresentFlags.None);
+        _swapChain.Present();
         SignalFrameFence();
+    }
+
+    public bool ToggleHdr()
+    {
+        var nextMode = _swapChain is Dx12HdrSwapChain
+            ? Dx12SwapChainMode.Sdr
+            : Dx12SwapChainMode.Hdr;
+
+        RecreateSwapChain(nextMode);
+        return _swapChain is Dx12HdrSwapChain;
     }
 
     public void Dispose()
@@ -195,14 +208,8 @@ public sealed class Dx12Renderer : IDisposable
             texture.Resource.Dispose();
         _staticSpriteTextures.Clear();
 
-        foreach (var backBuffer in _backBuffers)
-            backBuffer?.Dispose();
-
-        _modelPipelineState.Dispose();
-        _modelRootSignature.Dispose();
-        _staticSpritePipelineState.Dispose();
-        _pipelineState.Dispose();
-        _rootSignature.Dispose();
+        DisposeBackBuffers();
+        DisposePipelineResources();
         _sectorUploadFence.Dispose();
         _fence.Dispose();
         _sectorUploadCommandList.Dispose();
@@ -236,7 +243,7 @@ public sealed class Dx12Renderer : IDisposable
         _factory = CreateDXGIFactory2<IDXGIFactory2>(false);
         _factory.MakeWindowAssociation(_window.Hwnd, WindowAssociationFlags.IgnoreAltEnter).CheckError();
 
-        _device = D3D12CreateDevice<ID3D12Device>(null, FeatureLevel.Level_11_0);
+        _device = D3D12CreateDevice<ID3D12Device>(null, FeatureLevel.Level_12_2);
         _commandQueue = _device.CreateCommandQueue(CommandListType.Direct);
     }
 
@@ -244,21 +251,16 @@ public sealed class Dx12Renderer : IDisposable
     {
         _renderWidth = _window.ClientWidth;
         _renderHeight = _window.ClientHeight;
-
-        var swapChainDescription = new SwapChainDescription1(
-            (uint)_renderWidth,
-            (uint)_renderHeight,
-            BackBufferFormat,
-            false,
-            Usage.RenderTargetOutput,
+        _swapChain = Dx12SwapChainFactory.Create(
+            _requestedSwapChainMode,
+            _factory,
+            _commandQueue,
+            _window.Hwnd,
+            _renderWidth,
+            _renderHeight,
             FrameCount,
-            Scaling.Stretch,
-            SwapEffect.FlipDiscard,
-            AlphaMode.Ignore,
-            SwapChainFlags.None);
-
-        using var swapChain1 = _factory.CreateSwapChainForHwnd(_commandQueue, _window.Hwnd, swapChainDescription, null, null);
-        _swapChain = swapChain1.QueryInterface<IDXGISwapChain3>();
+            SwapChainFlags);
+        _requestedSwapChainMode = _swapChain is Dx12HdrSwapChain ? Dx12SwapChainMode.Hdr : Dx12SwapChainMode.Sdr;
     }
 
     private void CreateDescriptorHeaps()
@@ -275,7 +277,7 @@ public sealed class Dx12Renderer : IDisposable
     {
         for (var i = 0; i < FrameCount; i++)
         {
-            _backBuffers[i] = _swapChain.GetBuffer<ID3D12Resource>((uint)i);
+            _backBuffers[i] = _swapChain.GetBuffer((uint)i);
             _device.CreateRenderTargetView(_backBuffers[i], null, RtvHandle(i));
         }
     }
@@ -358,7 +360,7 @@ public sealed class Dx12Renderer : IDisposable
     {
         var rootParameters = new[]
         {
-            new RootParameter(new RootConstants(0, 0, 8), ShaderVisibility.All),
+            new RootParameter(new RootConstants(0, 0, QuadRootConstantCount), ShaderVisibility.All),
             new RootParameter(
                 new RootDescriptorTable
                 {
@@ -392,8 +394,8 @@ public sealed class Dx12Renderer : IDisposable
 
         _rootSignature = _device.CreateRootSignature(in rootDescription, RootSignatureVersion.Version1);
 
-        var vertexShader = Dx12ShaderCompiler.CompileShader(Dx12Shaders.QuadWorldVertexShader);
-        var pixelShader = Dx12ShaderCompiler.CompileShader(Dx12Shaders.QuadWorldPixelShader);
+        var vertexShader = Dx12ShaderCompiler.CompileShader(_swapChain.Shaders.QuadWorldVertexShader);
+        var pixelShader = Dx12ShaderCompiler.CompileShader(_swapChain.Shaders.QuadWorldPixelShader);
 
         var pipelineDescription = new GraphicsPipelineStateDescription
         {
@@ -405,7 +407,7 @@ public sealed class Dx12Renderer : IDisposable
             DepthStencilState = DepthStencilDescription.None,
             SampleMask = uint.MaxValue,
             PrimitiveTopologyType = PrimitiveTopologyType.Triangle,
-            RenderTargetFormats = [BackBufferFormat],
+            RenderTargetFormats = [_swapChain.BackBufferFormat],
             DepthStencilFormat = Format.Unknown,
             SampleDescription = new SampleDescription(1, 0)
         };
@@ -415,8 +417,8 @@ public sealed class Dx12Renderer : IDisposable
 
     private void CreateStaticSpritePipeline()
     {
-        var vertexShader = Dx12ShaderCompiler.CompileShader(Dx12Shaders.StaticSpriteVertexShader);
-        var pixelShader = Dx12ShaderCompiler.CompileShader(Dx12Shaders.StaticSpritePixelShader);
+        var vertexShader = Dx12ShaderCompiler.CompileShader(_swapChain.Shaders.StaticSpriteVertexShader);
+        var pixelShader = Dx12ShaderCompiler.CompileShader(_swapChain.Shaders.StaticSpritePixelShader);
         var depthStencil = DepthStencilDescription.Default;
         depthStencil.DepthFunc = ComparisonFunction.LessEqual;
 
@@ -430,7 +432,7 @@ public sealed class Dx12Renderer : IDisposable
             DepthStencilState = depthStencil,
             SampleMask = uint.MaxValue,
             PrimitiveTopologyType = PrimitiveTopologyType.Triangle,
-            RenderTargetFormats = [BackBufferFormat],
+            RenderTargetFormats = [_swapChain.BackBufferFormat],
             DepthStencilFormat = DepthBufferFormat,
             SampleDescription = new SampleDescription(1, 0)
         };
@@ -442,20 +444,38 @@ public sealed class Dx12Renderer : IDisposable
     {
         var rootParameters = new[]
         {
-            new RootParameter(new RootConstants(0, 0, ModelRootConstantCount), ShaderVisibility.All),
+            new RootParameter(
+                new RootConstants(
+                    ModelShaderLayout.ModelConstantsRegister,
+                    0,
+                    ModelShaderLayout.ModelConstantsCount),
+                ShaderVisibility.All),
             new RootParameter(
                 new RootDescriptorTable
                 {
-                    Ranges = [new DescriptorRange(DescriptorRangeType.ShaderResourceView, 1, 0, 0, 0)]
+                    Ranges =
+                    [
+                        new DescriptorRange(
+                            DescriptorRangeType.ShaderResourceView,
+                            1,
+                            ModelShaderLayout.ModelTextureRegister,
+                            0,
+                            0)
+                    ]
                 },
                 ShaderVisibility.Pixel),
-            new RootParameter(new RootConstants(1, 0, ModelSceneRootConstantCount), ShaderVisibility.Pixel)
+            new RootParameter(
+                new RootConstants(
+                    ModelShaderLayout.SceneConstantsRegister,
+                    0,
+                    ModelShaderLayout.SceneConstantsCount),
+                ShaderVisibility.Pixel)
         };
 
         var samplers = new[]
         {
             new StaticSamplerDescription(
-                0,
+                ModelShaderLayout.ModelSamplerRegister,
                 Filter.MinMagMipLinear,
                 TextureAddressMode.Clamp,
                 TextureAddressMode.Clamp,
@@ -477,8 +497,8 @@ public sealed class Dx12Renderer : IDisposable
 
         _modelRootSignature = _device.CreateRootSignature(in rootDescription, RootSignatureVersion.Version1);
 
-        var vertexShader = Dx12ShaderCompiler.CompileShader(Dx12Shaders.ModelVertexShader);
-        var pixelShader = Dx12ShaderCompiler.CompileShader(Dx12Shaders.ModelPixelShader);
+        var vertexShader = Dx12ShaderCompiler.CompileShader(_swapChain.Shaders.ModelVertexShader);
+        var pixelShader = Dx12ShaderCompiler.CompileShader(_swapChain.Shaders.ModelPixelShader);
         var depthStencil = DepthStencilDescription.Default;
         depthStencil.DepthFunc = ComparisonFunction.LessEqual;
 
@@ -494,16 +514,56 @@ public sealed class Dx12Renderer : IDisposable
                 new InputElementDescription("TEXCOORD", 0, Format.R32G32_Float, 24, 0)
             },
             BlendState = BlendDescription.AlphaBlend,
-            RasterizerState = RasterizerDescription.CullNone,
+            RasterizerState = RasterizerDescription.CullCounterClockwise,
             DepthStencilState = depthStencil,
             SampleMask = uint.MaxValue,
             PrimitiveTopologyType = PrimitiveTopologyType.Triangle,
-            RenderTargetFormats = [BackBufferFormat],
+            RenderTargetFormats = [_swapChain.BackBufferFormat],
             DepthStencilFormat = DepthBufferFormat,
             SampleDescription = new SampleDescription(1, 0)
         };
 
         _modelPipelineState = _device.CreateGraphicsPipelineState(pipelineDescription);
+    }
+
+    private void RecreateSwapChain(Dx12SwapChainMode requestedMode)
+    {
+        WaitForGpu();
+        DisposeUploadResources();
+        DisposePipelineResources();
+        DisposeBackBuffers();
+        _depthBuffer?.Dispose();
+        _depthBuffer = null;
+        _swapChain.Dispose();
+
+        _requestedSwapChainMode = requestedMode;
+        CreateSwapChain();
+        CreateBackBuffers();
+        CreateDepthBuffer();
+        CreatePipeline();
+    }
+
+    private void DisposePipelineResources()
+    {
+        _modelPipelineState?.Dispose();
+        _modelPipelineState = null!;
+        _modelRootSignature?.Dispose();
+        _modelRootSignature = null!;
+        _staticSpritePipelineState?.Dispose();
+        _staticSpritePipelineState = null!;
+        _pipelineState?.Dispose();
+        _pipelineState = null!;
+        _rootSignature?.Dispose();
+        _rootSignature = null!;
+    }
+
+    private void DisposeBackBuffers()
+    {
+        for (var i = 0; i < _backBuffers.Length; i++)
+        {
+            _backBuffers[i]?.Dispose();
+            _backBuffers[i] = null!;
+        }
     }
 
     private void ResizeIfNeeded()
@@ -513,10 +573,9 @@ public sealed class Dx12Renderer : IDisposable
         if (width == _renderWidth && height == _renderHeight)
             return;
 
-        foreach (var backBuffer in _backBuffers)
-            backBuffer.Dispose();
+        DisposeBackBuffers();
 
-        _swapChain.ResizeBuffers(FrameCount, (uint)width, (uint)height, BackBufferFormat, SwapChainFlags.None).CheckError();
+        _swapChain.ResizeBuffers(FrameCount, width, height, SwapChainFlags);
         _renderWidth = width;
         _renderHeight = height;
         CreateBackBuffers();
@@ -656,7 +715,7 @@ public sealed class Dx12Renderer : IDisposable
     {
         try
         {
-            var asset = await _assets.LoadTextureAsync(textureName).ConfigureAwait(false);
+            var asset = await _assets.LoadTextureAsync(textureName);
             _completedModelTextureLoads.Enqueue(new CompletedModelTextureLoad(textureName, asset, null));
         }
         catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or NotSupportedException)
@@ -764,7 +823,7 @@ public sealed class Dx12Renderer : IDisposable
         var centerIsoX = (camera.WorldCenter.X - camera.WorldCenter.Y) * (IsoStepWidth * 0.5f);
         var centerIsoY = (camera.WorldCenter.X + camera.WorldCenter.Y) * (IsoStepHeight * 0.5f);
 
-        var constants = stackalloc float[8];
+        var constants = stackalloc float[QuadRootConstantCount];
         foreach (var image in sectorImages)
         {
             if (!_sectorTextures.TryGetValue(image.Coord, out var texture))
@@ -775,9 +834,6 @@ public sealed class Dx12Renderer : IDisposable
             var drawWidth = image.Width * camera.Zoom;
             var drawHeight = image.Height * camera.Zoom;
 
-            if (drawX >= _renderWidth || drawY >= _renderHeight || drawX + drawWidth <= 0 || drawY + drawHeight <= 0)
-                continue;
-
             constants[0] = drawX;
             constants[1] = drawY;
             constants[2] = drawWidth;
@@ -786,8 +842,12 @@ public sealed class Dx12Renderer : IDisposable
             constants[5] = _renderHeight;
             constants[6] = 0.0f;
             constants[7] = 0.0f;
+            constants[8] = _swapChain.DisplayProfile.ScenePaperWhiteNits;
+            constants[9] = _swapChain.DisplayProfile.UiPaperWhiteNits;
+            constants[10] = 0.0f;
+            constants[11] = 0.0f;
 
-            _commandList.SetGraphicsRoot32BitConstants(0, 8, constants, 0);
+            _commandList.SetGraphicsRoot32BitConstants(0, QuadRootConstantCount, constants, 0);
             _commandList.SetGraphicsRootDescriptorTable(1, SrvGpuHandle(texture.SrvSlot));
             _commandList.DrawInstanced(6, 1, 0, 0);
         }
@@ -799,7 +859,7 @@ public sealed class Dx12Renderer : IDisposable
         RecordModelPass(camera, scene.Models, scene.Lighting);
 
         _commandList.OMSetRenderTargets(rtv, null);
-        _debugOverlay.RecordDebugOverlay(_renderWidth, _renderHeight);
+        _debugOverlay.RecordDebugOverlay(_renderWidth, _renderHeight, _swapChain.DisplayProfile.UiPaperWhiteNits);
 
         Transition(backBuffer, ResourceStates.RenderTarget, ResourceStates.Present);
     }
@@ -817,7 +877,7 @@ public sealed class Dx12Renderer : IDisposable
 
         var centerIsoX = (camera.WorldCenter.X - camera.WorldCenter.Y) * (IsoStepWidth * 0.5f);
         var centerIsoY = (camera.WorldCenter.X + camera.WorldCenter.Y) * (IsoStepHeight * 0.5f);
-        var constants = stackalloc float[8];
+        var constants = stackalloc float[QuadRootConstantCount];
 
         for (var i = 0; i < sprites.Count; i++)
         {
@@ -831,9 +891,6 @@ public sealed class Dx12Renderer : IDisposable
             var drawWidth = sprite.Sprite.Width * camera.Zoom;
             var drawHeight = sprite.Sprite.Height * camera.Zoom;
 
-            if (drawX >= _renderWidth || drawY >= _renderHeight || drawX + drawWidth <= 0 || drawY + drawHeight <= 0)
-                continue;
-
             constants[0] = drawX;
             constants[1] = drawY;
             constants[2] = drawWidth;
@@ -842,8 +899,12 @@ public sealed class Dx12Renderer : IDisposable
             constants[5] = _renderHeight;
             constants[6] = CalculateStaticSpriteSceneDepth(camera, sprite);
             constants[7] = StaticSpriteAlphaCutoff;
+            constants[8] = _swapChain.DisplayProfile.ScenePaperWhiteNits;
+            constants[9] = _swapChain.DisplayProfile.UiPaperWhiteNits;
+            constants[10] = 0.0f;
+            constants[11] = 0.0f;
 
-            _commandList.SetGraphicsRoot32BitConstants(0, 8, constants, 0);
+            _commandList.SetGraphicsRoot32BitConstants(0, QuadRootConstantCount, constants, 0);
             _commandList.SetGraphicsRootDescriptorTable(1, SrvGpuHandle(texture.SrvSlot));
             _commandList.DrawInstanced(6, 1, 0, 0);
         }
@@ -881,12 +942,17 @@ public sealed class Dx12Renderer : IDisposable
         _commandList.SetGraphicsRootSignature(_modelRootSignature);
         _commandList.SetPipelineState(_modelPipelineState);
         _commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
+        _modelConstantCache.Reset();
 
-        var sceneConstants = stackalloc float[ModelSceneRootConstantCount];
-        WriteModelLighting(camera, lighting, sceneConstants);
-        _commandList.SetGraphicsRoot32BitConstants(2, ModelSceneRootConstantCount, sceneConstants, 0);
+        var sceneConstants = stackalloc float[ModelShaderLayout.SceneConstantsCount];
+        WriteModelLighting(camera, lighting, _swapChain.DisplayProfile, sceneConstants);
+        SetModelRootConstantsIfChanged(
+            ModelShaderLayout.SceneConstantsRootParameter,
+            sceneConstants,
+            ModelShaderLayout.SceneConstantsCount,
+            0);
 
-        var constants = stackalloc float[ModelRootConstantCount];
+        var constants = stackalloc float[ModelShaderLayout.ModelConstantsCount];
         foreach (var model in models)
         {
             if (model.Mesh.Vertices.Length == 0 || model.Mesh.Indices.Length == 0)
@@ -904,15 +970,28 @@ public sealed class Dx12Renderer : IDisposable
             var indexBufferView = mesh.IndexBufferView;
             _commandList.IASetVertexBuffers(0, 1, &vertexBufferView);
             _commandList.IASetIndexBuffer(&indexBufferView);
+            SetModelRootConstantsIfChanged(
+                ModelShaderLayout.ModelConstantsRootParameter,
+                constants,
+                ModelShaderLayout.ModelBaseConstantsCount,
+                ModelShaderLayout.ModelBaseConstantsOffset);
 
             if (model.Mesh.Surfaces.Count == 0)
             {
-                constants[36] = 0.0f;
-                constants[37] = ModelLocalDepthScale;
-                constants[38] = modelSceneDepth;
-                constants[39] = 0.0f;
-                _commandList.SetGraphicsRoot32BitConstants(0, ModelRootConstantCount, constants, 0);
-                _commandList.SetGraphicsRootDescriptorTable(1, SrvGpuHandle(DebugOverlaySrvSlot));
+                WriteModelTextureFlags(
+                    hasTexture: false,
+                    localDepthScale: ModelLocalDepthScale,
+                    painterDepth: modelSceneDepth,
+                    alphaCutoff: 0.0f,
+                    constants + ModelShaderLayout.TextureFlagsOffset);
+                SetModelRootConstantsIfChanged(
+                    ModelShaderLayout.ModelConstantsRootParameter,
+                    constants + ModelShaderLayout.TextureFlagsOffset,
+                    ModelShaderLayout.TextureFlagsConstantsCount,
+                    ModelShaderLayout.TextureFlagsOffset);
+                _commandList.SetGraphicsRootDescriptorTable(
+                    ModelShaderLayout.ModelTextureRootParameter,
+                    SrvGpuHandle(DebugOverlaySrvSlot));
                 _commandList.DrawIndexedInstanced((uint)mesh.IndexCount, 1, 0, 0, 0);
                 continue;
             }
@@ -924,16 +1003,27 @@ public sealed class Dx12Renderer : IDisposable
 
                 var drawCount = Math.Min(surface.IndexCount, mesh.IndexCount - surface.IndexStart);
                 var texture = GetOrRequestModelTexture(surface.TextureName);
-                constants[36] = texture is { Resource: not null, SrvSlot: >= 0 } ? 1.0f : 0.0f;
-                constants[37] = ModelLocalDepthScale;
-                constants[38] = modelSceneDepth;
-                constants[39] = 0.10f;
+                var hasTexture = texture is { Resource: not null, SrvSlot: >= 0 };
+                WriteModelTextureFlags(
+                    hasTexture,
+                    ModelLocalDepthScale,
+                    modelSceneDepth,
+                    0.10f,
+                    constants + ModelShaderLayout.TextureFlagsOffset);
 
-                _commandList.SetGraphicsRoot32BitConstants(0, ModelRootConstantCount, constants, 0);
-                if (constants[36] > 0.5f)
-                    _commandList.SetGraphicsRootDescriptorTable(1, SrvGpuHandle(texture!.SrvSlot));
+                SetModelRootConstantsIfChanged(
+                    ModelShaderLayout.ModelConstantsRootParameter,
+                    constants + ModelShaderLayout.TextureFlagsOffset,
+                    ModelShaderLayout.TextureFlagsConstantsCount,
+                    ModelShaderLayout.TextureFlagsOffset);
+                if (hasTexture)
+                    _commandList.SetGraphicsRootDescriptorTable(
+                        ModelShaderLayout.ModelTextureRootParameter,
+                        SrvGpuHandle(texture!.SrvSlot));
                 else
-                    _commandList.SetGraphicsRootDescriptorTable(1, SrvGpuHandle(DebugOverlaySrvSlot));
+                    _commandList.SetGraphicsRootDescriptorTable(
+                        ModelShaderLayout.ModelTextureRootParameter,
+                        SrvGpuHandle(DebugOverlaySrvSlot));
 
                 _commandList.DrawIndexedInstanced((uint)drawCount, 1, (uint)surface.IndexStart, 0, 0);
             }
@@ -941,6 +1031,23 @@ public sealed class Dx12Renderer : IDisposable
 
         _commandList.SetGraphicsRootSignature(_rootSignature);
         _commandList.SetPipelineState(_pipelineState);
+    }
+
+    private unsafe void SetModelRootConstantsIfChanged(
+        int rootParameterIndex,
+        float* constants,
+        int count,
+        int destinationOffset)
+    {
+        if (_modelConstantCache.Matches(rootParameterIndex, constants, count, destinationOffset))
+            return;
+
+        _commandList.SetGraphicsRoot32BitConstants(
+            (uint)rootParameterIndex,
+            (uint)count,
+            (nint)constants,
+            (uint)destinationOffset);
+        _modelConstantCache.Store(rootParameterIndex, constants, count, destinationOffset);
     }
 
     private void PruneUnusedModelTextures(IReadOnlyList<SceneModel> models)
@@ -1022,7 +1129,24 @@ public sealed class Dx12Renderer : IDisposable
         target[3] = 1.0f;
     }
 
-    private static unsafe void WriteModelLighting(SacredCamera camera, SceneLighting lighting, float* target)
+    private static unsafe void WriteModelTextureFlags(
+        bool hasTexture,
+        float localDepthScale,
+        float painterDepth,
+        float alphaCutoff,
+        float* target)
+    {
+        target[0] = hasTexture ? 1.0f : 0.0f;
+        target[1] = localDepthScale;
+        target[2] = painterDepth;
+        target[3] = alphaCutoff;
+    }
+
+    private static unsafe void WriteModelLighting(
+        SacredCamera camera,
+        SceneLighting lighting,
+        Dx12DisplayProfile display,
+        float* target)
     {
         target[0] = lighting.LightPosition.X;
         target[1] = lighting.LightPosition.Y;
@@ -1043,6 +1167,11 @@ public sealed class Dx12Renderer : IDisposable
         target[13] = lighting.LightColor.Y;
         target[14] = lighting.LightColor.Z;
         target[15] = Math.Max(0.0f, lighting.DiffuseIntensity);
+
+        target[16] = Math.Max(0.0f, display.ScenePaperWhiteNits);
+        target[17] = Math.Max(0.0f, display.UiPaperWhiteNits);
+        target[18] = Math.Max(0.0f, display.SunDiffuseNits);
+        target[19] = Math.Max(0.0f, display.SunSpecularNits);
     }
 
     private void PruneGpuSectorTextures(IReadOnlyList<TerrainSectorImage> sectorImages)
@@ -1165,6 +1294,98 @@ public sealed class Dx12Renderer : IDisposable
     private GpuDescriptorHandle SrvGpuHandle(int index) =>
         _srvHeap.GetGPUDescriptorHandleForHeapStart() + index * _srvDescriptorSize;
 
+    private static class ModelShaderLayout
+    {
+        public const int RootParameterCount = 3;
+
+        public const int ModelConstantsRegister = 0; // HLSL: register(b0)
+        public const int SceneConstantsRegister = 1; // HLSL: register(b1)
+        public const int ModelTextureRegister = 0; // HLSL: register(t0)
+        public const int ModelSamplerRegister = 0; // HLSL: register(s0)
+
+        public const int ModelConstantsRootParameter = 0;
+        public const int ModelTextureRootParameter = 1;
+        public const int SceneConstantsRootParameter = 2;
+
+        public const int ModelConstantsCount = 40;
+        public const int ModelBaseConstantsOffset = 0;
+        public const int ModelBaseConstantsCount = 36;
+        public const int TextureFlagsOffset = 36;
+        public const int TextureFlagsConstantsCount = 4;
+
+        public const int SceneConstantsCount = 20;
+    }
+
+    private sealed class RootConstantUploadCache
+    {
+        private readonly Slot[] _slots;
+
+        public RootConstantUploadCache(int rootParameterCount)
+        {
+            _slots = new Slot[rootParameterCount];
+            for (var i = 0; i < _slots.Length; i++)
+                _slots[i] = new Slot();
+        }
+
+        public void Reset()
+        {
+            foreach (var slot in _slots)
+                slot.Reset();
+        }
+
+        public unsafe bool Matches(int rootParameterIndex, float* values, int count, int destinationOffset) =>
+            _slots[rootParameterIndex].Matches(values, count, destinationOffset);
+
+        public unsafe void Store(int rootParameterIndex, float* values, int count, int destinationOffset) =>
+            _slots[rootParameterIndex].Store(values, count, destinationOffset);
+
+        private sealed class Slot
+        {
+            private int[] _bits = [];
+            private bool[] _known = [];
+
+            public void Reset()
+            {
+                Array.Clear(_known);
+            }
+
+            public unsafe bool Matches(float* values, int count, int destinationOffset)
+            {
+                if (destinationOffset < 0 || count < 0 || destinationOffset + count > _bits.Length)
+                    return false;
+
+                for (var i = 0; i < count; i++)
+                {
+                    var index = destinationOffset + i;
+                    if (!_known[index] || _bits[index] != BitConverter.SingleToInt32Bits(values[i]))
+                        return false;
+                }
+
+                return true;
+            }
+
+            public unsafe void Store(float* values, int count, int destinationOffset)
+            {
+                EnsureCapacity(destinationOffset + count);
+                for (var i = 0; i < count; i++)
+                {
+                    var index = destinationOffset + i;
+                    _bits[index] = BitConverter.SingleToInt32Bits(values[i]);
+                    _known[index] = true;
+                }
+            }
+
+            private void EnsureCapacity(int length)
+            {
+                if (_bits.Length >= length)
+                    return;
+
+                Array.Resize(ref _bits, length);
+                Array.Resize(ref _known, length);
+            }
+        }
+    }
+
     private sealed record SectorUploadRequest(TerrainSectorImage Image, int SrvSlot);
 
     private sealed record CompletedSectorUpload(SectorCoord Coord, ID3D12Resource? Resource, int SrvSlot, Exception? Error, int ReleasedCpuBytes);
@@ -1199,4 +1420,3 @@ public sealed class Dx12Renderer : IDisposable
     }
 
 }
-

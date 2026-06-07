@@ -8,7 +8,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\SacredItemSimulator\SacredItemSimulator.csproj" />
+      <ProjectReference Include="..\Sacred.Assets\Sacred.Assets.csproj" />
+      <ProjectReference Include="..\Sacred.Core\Sacred.Core.csproj" />
     </ItemGroup>
 
 </Project>

@@ -7,11 +7,11 @@ namespace Sacred.Core.Items;
 public readonly record struct ItemsPakEntryInfo(
     SacredPakLocation PakLocation, // location of the entry in the pak file, useful for debugging and lookup
     ushort ItemIndex,
-    
+
     uint ModelDescOffset, // 4 bytes at offset 14
     // rest is unknown, but we can read it as raw bytes for now
     bool Byte23 // 1 byte at offset 23
-    
+
     // rest of the bytes are always same, no need to parse
 )
 {

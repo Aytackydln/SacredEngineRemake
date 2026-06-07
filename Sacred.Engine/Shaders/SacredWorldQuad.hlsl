@@ -1,3 +1,7 @@
+// #pragma hlsl profile ps_5_0
+#pragma vertex vs_main
+#pragma fragment ps_main
+
 Texture2D texture0 : register(t0);
 SamplerState sampler0 : register(s0);
 

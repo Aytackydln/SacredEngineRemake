@@ -1,13 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.Compression;
 using System.Threading;
 using System.Threading.Tasks;
-using Sacred.Assets;
+using Sacred.Assets.World.Floor;
+using Sacred.Assets.World.Static;
 using Sacred.Core;
 using Sacred.Core.World;
-using Sacred.Engine.Assets;
 
 namespace Sacred.Engine.World;
 
@@ -15,6 +14,7 @@ public sealed class SacredWorldArchive : IDisposable
 {
     private const int SectorW = Sector.TileCount;
     private const int SectorH = Sector.TileCount;
+
     private const int KeyxAbsoluteBias = 0x19;
     private const byte LiquidSurfaceTypeMask = 0xF0;
     private const byte LiquidSurfaceType90 = 0x90;
@@ -28,14 +28,14 @@ public sealed class SacredWorldArchive : IDisposable
     private readonly Dictionary<uint, KeyxSectorRecord> _entriesById = new();
     private readonly Dictionary<SectorCoord, uint> _sectorIdByGrid = new();
 
-    private readonly SemaphoreSlim _wldxLock = new(1, 1);
-    private readonly FileStream _wldxStream;
+    private readonly WldxLoader _wldxLoader;
+    private readonly SemaphoreSlim _sectorLoadLock = new(1, 1);
 
     public SectorCoord StartSector { get; private set; }
 
     private SacredWorldArchive(string keyxPath, FileStream wldxStream, FloorPakArchive floorPak, StaticPakArchive staticPak)
     {
-        _wldxStream = wldxStream;
+        _wldxLoader = new WldxLoader(wldxStream);
         _floorPak = floorPak;
         _staticPak = staticPak;
         LoadKeyx(keyxPath);
@@ -68,30 +68,9 @@ public sealed class SacredWorldArchive : IDisposable
 
         var entry = _entriesById[sectorId];
 
-        await _wldxLock.WaitAsync();
-        _wldxStream.Position = entry.CompressedOffset;
+        var decompressed = await _wldxLoader.ReadWldx(entry, sectorId);
 
-        if (entry.CompressedSize > int.MaxValue)
-            throw new InvalidDataException($"Sector {sectorId} compressed block is too large.");
-
-        var compressed = new byte[(int)entry.CompressedSize];
-        await _wldxStream.ReadExactlyAsync(compressed);
-        _wldxLock.Release();
-        
-        byte[] decompressed;
-        using (var compressedStream = new MemoryStream(compressed, writable: false))
-        await using (var zlib = new ZLibStream(compressedStream, CompressionMode.Decompress))
-        using (var output = new MemoryStream())
-        {
-            await zlib.CopyToAsync(output);
-            decompressed = output.ToArray();
-        }
-
-        if (entry.TilesRelativeOffset < 0 ||
-            entry.TilesSize < SectorW * SectorH * WldxTileRecord.Size ||
-            entry.TilesRelativeOffset + entry.TilesSize > decompressed.Length)
-            throw new InvalidDataException($"Sector {sectorId} has an invalid tile block.");
-
+        await _sectorLoadLock.WaitAsync();
         var ground = new TileLayer(SectorW, SectorH);
         var floorOverlays = new FloorOverlayLayer(SectorW, SectorH);
         var liquidSurfaces = new LiquidSurfaceLayer();
@@ -116,6 +95,7 @@ public sealed class SacredWorldArchive : IDisposable
         }
 
         LoadStaticObjectChains(staticObjects, staticTileVisits);
+        _sectorLoadLock.Release();
         return new Sector(coord, ground, floorOverlays, liquidSurfaces, staticObjects);
     }
 
@@ -312,6 +292,6 @@ public sealed class SacredWorldArchive : IDisposable
 
     public void Dispose()
     {
-        _wldxStream.Dispose();
+        _wldxLoader.Dispose();
     }
 }

@@ -7,7 +7,13 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\Sacred.Core\Sacred.Core.csproj" />
       <ProjectReference Include="..\Sacred.Granny\Sacred.Granny.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="World\Sectors\" />
+      <Folder Include="World\Triggers\" />
     </ItemGroup>
 
 </Project>

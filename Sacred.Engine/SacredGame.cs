@@ -19,8 +19,9 @@ namespace Sacred.Engine;
 public sealed class SacredGame : IDisposable
 {
     private const uint FirstPlayerModelSlotId = 1;
+    private const float PlayerModelUprightPitch = 90.0f;
 
-    public static FramePacingMode Mode = FramePacingMode.VSync;
+    private static FramePacingMode Mode = FramePacingMode.VSync;
 
     private readonly Win32Window _window;
     private readonly Dx12Renderer _renderer;
@@ -33,6 +34,7 @@ public sealed class SacredGame : IDisposable
 
     private Vector3 _playerPosition;
     private Vector3 _playerRotation;
+    private float _playerMovementRotationZ = MathF.PI * 0.25f;
 
     private uint _activePlayerModelEntryId = FirstPlayerModelSlotId;
     private GamepadButtons _previousGamepadButtons;
@@ -59,7 +61,7 @@ public sealed class SacredGame : IDisposable
         _scene.Lighting.LightPosition = _camera.EyePosition + new Vector3(-320.0f, -180.0f, 260.0f);
 
         _playerPosition = new Vector3(_camera.WorldCenter.X, _camera.WorldCenter.Y, 0.0f);
-        _playerRotation = new Vector3(0.0f, 90.0f, 45.0f);
+        _playerRotation = BuildPlayerRotation();
 
         _scene.Models.Add(new SceneModel(
             Name: "Loading player model",
@@ -127,6 +129,9 @@ public sealed class SacredGame : IDisposable
             CyclePlayerModel();
         }
 
+        if (_window.Input.ConsumePressed(VirtualKey.F4))
+            _renderer.ToggleHdr();
+
         _clickToMove.Update(
             _window.Input,
             _camera,
@@ -141,9 +146,10 @@ public sealed class SacredGame : IDisposable
         if (_camera.CameraSpeedUnitVector != Vector2.Zero)
         {
             var angleRadians = MathF.Atan2(_camera.CameraSpeedUnitVector.Y, _camera.CameraSpeedUnitVector.X);
-            _playerRotation.Z = angleRadians + MathF.PI / 4; // 45 degree offset to match the isometric camera angle
+            _playerMovementRotationZ = angleRadians + MathF.PI / 4; // 45 degree offset to match the isometric camera angle
         }
 
+        _playerRotation = BuildPlayerRotation();
         _scene.Models[0] = _scene.Models[0] with { Position = _playerPosition, Rotation = _playerRotation };
 
         _worldStreamer.Update(_camera.WorldCenter);
@@ -160,15 +166,15 @@ public sealed class SacredGame : IDisposable
 
     private async Task SetPlayerModelAsync(uint entryId)
     {
-        var player = await _assets.LoadPlayerCharacterAsync(entryId).ConfigureAwait(false);
+        var player = await _assets.LoadPlayerCharacterAsync(entryId);
         _activePlayerModelEntryId = entryId;
+        _playerRotation = BuildPlayerRotation();
         
         var sceneModel = new SceneModel(
-            Name: $"{player.DisplayName}: {player.ModelName}",
+            Name: $"{player.DisplayName}: item {player.ItemId}, {player.ModelName}",
             Mesh: player.Model.Mesh ?? _playerProxyMesh,
             Position: _playerPosition,
-            Rotation: _playerRotation,
-            SourceModel: player.Model
+            Rotation: _playerRotation
         );
 
         if (_scene.Models.Count == 0)
@@ -176,6 +182,9 @@ public sealed class SacredGame : IDisposable
         else
             _scene.Models[0] = sceneModel;
     }
+
+    private Vector3 BuildPlayerRotation() =>
+        new(0.0f, PlayerModelUprightPitch, _playerMovementRotationZ);
 
     public void Dispose()
     {

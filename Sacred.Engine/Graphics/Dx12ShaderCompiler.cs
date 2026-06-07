@@ -8,7 +8,7 @@ public static class Dx12ShaderCompiler
 {
     internal static unsafe ReadOnlyMemory<byte> CompileShader(Dx12Shader shader)
     {
-        var sourceBytes = shader.Resource.ReadAllBytes();
+        var sourceBytes = shader.ReadAllBytes();
         var sourceName = shader.Name;
         var entryPoint = shader.ShaderEntry;
         var target = shader.ShaderTarget;
@@ -50,7 +50,6 @@ public static class Dx12ShaderCompiler
                 Marshal.Release(error);
         }
     }
-
 
     private static ReadOnlyMemory<byte> ReadBlobBytes(nint blob)
     {

@@ -1,4 +1,6 @@
-﻿namespace SacredItemSimulator.TerminalTests.Experiments;
+﻿using Sacred.Assets;
+
+namespace SacredItemSimulator.TerminalTests.Experiments;
 
 public class ExpHealingPotion : IExperiment
 {

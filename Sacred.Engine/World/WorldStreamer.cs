@@ -74,7 +74,7 @@ public sealed class WorldStreamer : IDisposable
         {
             while (true)
             {
-                await _wakeSignal.WaitAsync(cancellationToken).ConfigureAwait(false);
+                await _wakeSignal.WaitAsync(cancellationToken);
                 Interlocked.Exchange(ref _wakeSignaled, 0);
                 ProcessStreamingWork(cancellationToken);
             }
@@ -120,15 +120,19 @@ public sealed class WorldStreamer : IDisposable
     private void Ensure3x3Loaded(SectorCoord center, CancellationToken cancellationToken)
     {
         _needed.Clear();
-        for (var y = -1; y <= 1; y++)
+        var coords = new int[][]
         {
-            for (var x = -1; x <= 1; x++)
-            {
-                var c = new SectorCoord(center.X + x, center.Y + y);
-                _needed.Add(c);
-                if (!_loaded.ContainsKey(c) && _loading.Add(c))
-                    _ = Task.Run(() => LoadSectorAsync(c, cancellationToken));
-            }
+            [0, 0], [0, -1],  [1, 1], [-1, 0], [1, 0], [0, 1], [1, -1], [-1, 1], [-1, -1]
+        };
+        foreach (var coord in coords)
+        {
+            var x = coord[0];
+            var y = coord[1];
+            
+            var c = new SectorCoord(center.X + x, center.Y + y);
+            _needed.Add(c);
+            if (!_loaded.ContainsKey(c) && _loading.Add(c))
+                _ = Task.Run(() => LoadSectorAsync(c, cancellationToken), CancellationToken.None);
         }
 
         _toRemove.Clear();
@@ -147,7 +151,7 @@ public sealed class WorldStreamer : IDisposable
         Sector? sector = null;
         try
         {
-            sector = await _worldArchive.TryLoadSector(coord).ConfigureAwait(false);
+            sector = await _worldArchive.TryLoadSector(coord);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

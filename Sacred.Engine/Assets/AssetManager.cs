@@ -1,11 +1,18 @@
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Core;
-using Sacred.Assets;
+using Sacred.Assets.Paks.Items;
+using Sacred.Assets.Paks.Mixed;
+using Sacred.Assets.Paks.Models;
+using Sacred.Assets.Paks.Texture;
+using Sacred.Assets.Paks.Tiles;
 using Sacred.Granny;
+using Sacred.Core.Items;
 
 namespace Sacred.Engine.Assets;
 
@@ -37,30 +44,33 @@ public sealed class AssetManager : IDisposable
 
     private static readonly PlayerCharacterDefinition[] PlayerCharacterDefinitions =
     [
-        new(1, "Gladiator", "GLADIATOR.GRN", GladAttachments, []),
-        new(2, "Seraphim", "SERAPHIM.GRN", SeraAttachments, []),
-        new(3, "Wood Elf", "WALDELFE.GRN", [], []),
-        new(4, "Dark Elf 1", "DARKELVE.GRN", Delf1Attachments, []),
-        new(4, "Dark Elf 2", "DARKELVE.GRN", Delf2Attachments, []),
-        new(5, "Battle Mage", "MAGICIAN.GRN", MageAttachments, []),
+        new(1, "Seraphim", null, SeraAttachments, []),
+        new(2, "Gladiator", null, GladAttachments, []),
+        new(108, "Wood Elf", "Waldelfe.grn", [], []),
+        new(4, "Dark Elf 1", null, Delf1Attachments, []),
+        new(4, "Dark Elf 2", null, Delf2Attachments, []),
+        new(3, "Battle Mage", null, MageAttachments, []),
         new(6, "Vampiress D", "VLADY_D.GRN", VampDAttachments, []),
         new(6, "Vampiress N", "VLADY_N.GRN", VampNAttachments, []),
-        new(7, "Dwarf", "DWARF.GRN", [], []),
-        new(8, "Daemon", "DAEMONIA.GRN", DaemonAttachments, [])
+        new(8, "Dwarf", null, [], []),
+        new(9, "Daemon", null, DaemonAttachments, [])
     ];
 
     private readonly TexturePakArchive _texturePak;
     private readonly TilesPakArchive _tilesPak;
-    private readonly ItemsPakTypeArchive _itemsPak;
+    private readonly FrozenDictionary<ushort, ItemsPakEntry> _items;
+    private readonly FrozenDictionary<uint, ItemsPakEntry[]> _playerCharacterItemsByItemId;
     private readonly MixedPakArchive _mixedPak;
     private readonly ModelsPakArchive _modelsPak;
     private readonly Dictionary<string, TextureCacheEntry> _textures = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Task<TextureAsset>> _textureLoads = new(StringComparer.OrdinalIgnoreCase);
     private readonly LinkedList<string> _textureLru = [];
     private readonly Lock _textureLock = new();
+
     private readonly Dictionary<uint, StaticSpriteAsset?> _staticSprites = new();
     private readonly Dictionary<uint, Task<StaticSpriteAsset?>> _staticSpriteLoads = new();
     private readonly Lock _staticSpriteLock = new();
+
     private readonly Dictionary<string, GrnAsset> _grnModels = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Task<GrnAsset>> _grnModelLoads = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<uint, PlayerCharacterAsset> _playerCharacters = new();
@@ -75,7 +85,12 @@ public sealed class AssetManager : IDisposable
             ?? throw new InvalidDataException("Cannot infer tiles.pak path from texture PAK path.");
         _texturePak = TexturePakArchive.LoadFromDirectory(pakDirectory);
         _tilesPak = TilesPakArchive.Load(Path.Combine(pakDirectory, "tiles.pak"));
-        _itemsPak = ItemsPakTypeArchive.Load(gameDirectories.ItemsPakPath);
+        var items = ItemsPakParser.Parse(gameDirectories.ItemsPakPath).ToArray();
+        _items = items.ToFrozenDictionary(item => item.ItemIndex);
+        _playerCharacterItemsByItemId = items
+            .Where(static item => !string.IsNullOrWhiteSpace(item.ModelDesc.ModelName))
+            .GroupBy(static item => item.ItemId)
+            .ToFrozenDictionary(static group => group.Key, static group => group.ToArray());
         _mixedPak = MixedPakArchive.Load(Path.Combine(pakDirectory, "mixed.pak"));
         _modelsPak = ModelsPakArchive.Load(Path.Combine(pakDirectory, "models.pak"));
     }
@@ -112,7 +127,7 @@ public sealed class AssetManager : IDisposable
     {
         try
         {
-            var asset = await _texturePak.LoadTextureAsync(textureName).ConfigureAwait(false);
+            var asset = await _texturePak.LoadTextureAsync(textureName);
 
             lock (_textureLock)
             {
@@ -145,11 +160,17 @@ public sealed class AssetManager : IDisposable
 
     public TileDefinition? GetTileDefinition(uint tileId) => _tilesPak.Get(tileId);
 
-    public ItemTypeRecord? GetItemType(uint typeId) => _itemsPak.Get(typeId);
+    public ItemsPakEntry? GetItem(uint typeId)
+    {
+        if (typeId > ushort.MaxValue)
+            return null;
+
+        return _items.TryGetValue((ushort)typeId, out var item) ? item : null;
+    }
 
     public Task<StaticSpriteAsset?> LoadStaticSpriteAsync(uint typeId, CancellationToken cancellationToken = default)
     {
-        var item = _itemsPak.Get(typeId);
+        var item = GetItem(typeId);
         if (item is null || item.Value.MixedBaseGroupId == 0)
             return Task.FromResult<StaticSpriteAsset?>(null);
 
@@ -181,7 +202,7 @@ public sealed class AssetManager : IDisposable
     {
         sprite = null;
 
-        var item = _itemsPak.Get(typeId);
+        var item = GetItem(typeId);
         if (item is null || item.Value.MixedBaseGroupId == 0)
             return true;
 
@@ -205,7 +226,7 @@ public sealed class AssetManager : IDisposable
     {
         try
         {
-            var sprite = await BuildStaticSpriteAsync(groupId).ConfigureAwait(false);
+            var sprite = await BuildStaticSpriteAsync(groupId);
             lock (_staticSpriteLock)
                 _staticSprites[groupId] = sprite;
 
@@ -238,7 +259,7 @@ public sealed class AssetManager : IDisposable
             TextureAsset atlas;
             try
             {
-                atlas = await LoadTextureAsync(piece.AtlasName).ConfigureAwait(false);
+                atlas = await LoadTextureAsync(piece.AtlasName);
             }
             catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or NotSupportedException)
             {
@@ -401,7 +422,7 @@ public sealed class AssetManager : IDisposable
     {
         try
         {
-            var asset = await _modelsPak.LoadModelAsync(key, meshExtractionMode).ConfigureAwait(false);
+            var asset = await _modelsPak.LoadModelAsync(key, meshExtractionMode);
             lock (_modelLock)
                 _grnModels.TryAdd(cacheKey, asset);
 
@@ -445,15 +466,25 @@ public sealed class AssetManager : IDisposable
                 throw new FileNotFoundException($"Player character slot {entryId} was not configured.");
 
             var definition = PlayerCharacterDefinitions[definitionIndex];
-            var model = definition.AttachmentModelNames.Length > 0
-                ? await _modelsPak.LoadCharacterModelAsync(
-                    definition.ModelName,
+            var item = ResolvePlayerCharacterItem(definition);
+            var modelName = item.ModelDesc.ModelName;
+            
+            GrnAsset model;
+            if (definition.AttachmentModelNames.Length > 0)
+                model = await _modelsPak.LoadCharacterModelAsync(
+                    modelName,
                     definition.AttachmentModelNames,
                     definition.HiddenBaseTextureNames.Length > 0
                         ? new HashSet<string>(definition.HiddenBaseTextureNames, StringComparer.OrdinalIgnoreCase)
-                        : null).ConfigureAwait(false)
-                : await LoadGrnModelAsync(definition.ModelName, GrnMeshExtractionMode.PrimarySlice).ConfigureAwait(false);
-            var asset = new PlayerCharacterAsset(definition.SlotId, definition.DisplayName, definition.ModelName, model);
+                        : null);
+            else
+                model = await LoadGrnModelAsync(modelName, GrnMeshExtractionMode.PrimarySlice);
+
+            var asset = new PlayerCharacterAsset(
+                item.ItemId,
+                definition.DisplayName,
+                modelName,
+                model);
 
             lock (_modelLock)
                 _playerCharacters.TryAdd(entryId, asset);
@@ -502,6 +533,23 @@ public sealed class AssetManager : IDisposable
     private static string ModelCacheKey(string modelName, GrnMeshExtractionMode meshExtractionMode) =>
         $"{meshExtractionMode}:{modelName}";
 
+    private ItemsPakEntry ResolvePlayerCharacterItem(PlayerCharacterDefinition definition)
+    {
+        if (!_playerCharacterItemsByItemId.TryGetValue(definition.ItemId, out var candidates))
+            throw new FileNotFoundException($"Player character item id {definition.ItemId} was not found in Items.pak.");
+
+        if (!string.IsNullOrWhiteSpace(definition.PreferredModelName))
+        {
+            foreach (var candidate in candidates)
+            {
+                if (candidate.ModelDesc.ModelName.Equals(definition.PreferredModelName, StringComparison.OrdinalIgnoreCase))
+                    return candidate;
+            }
+        }
+
+        return candidates[0];
+    }
+
     private sealed record StaticSpriteBlit(
         TextureAsset Atlas,
         int SourceLeft,
@@ -514,9 +562,9 @@ public sealed class AssetManager : IDisposable
         int DestBottom);
 
     private readonly record struct PlayerCharacterDefinition(
-        uint SlotId,
+        uint ItemId,
         string DisplayName,
-        string ModelName,
+        string? PreferredModelName,
         string[] AttachmentModelNames,
         string[] HiddenBaseTextureNames);
 }

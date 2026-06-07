@@ -31,6 +31,6 @@ public enum VirtualKey : uint
     F1 = 0x5D,
     F2 = 0x5E,
     F3 = 0x5F,
-    F4 = 0x60,
+    F4 = 0x73,
     F5 = 0x61,
 }
