@@ -41,13 +41,13 @@ jobs:
             -p:IncludeNativeLibrariesForSelfExtract=true \
             -r win-x64
 
-      # ==================== SacredItemSimulator.Avalonia ====================
+      # ==================== Sacred.ItemViewer.Avalonia ====================
       - name: Publish Project2
         shell: bash
         run: |
-          dotnet publish SacredItemSimulator.Avalonia/SacredItemSimulator.Avalonia.csproj \
+          dotnet publish Sacred.ItemViewer.Avalonia/Sacred.ItemViewer.Avalonia.csproj \
             --configuration Release \
-            --output ./publish/SacredItemSimulator.Avalonia \
+            --output ./publish/Sacred.ItemViewer.Avalonia \
             -p:Version=${{ env.VERSION }} \
             -p:PublishSingleFile=true \
             -p:SelfContained=true \
@@ -62,6 +62,6 @@ jobs:
           draft: true
           files: |
             ./publish/SacredEngineRemake/SacredEngineRemake.exe
-            ./publish/SacredItemSimulator.Avalonia/SacredItemSimulator.Avalonia.exe
+            ./publish/Sacred.ItemViewer.Avalonia/Sacred.ItemViewer.Avalonia.exe
           tag_name: ${{ github.ref_name }}
           allow_override: true
