@@ -5,7 +5,7 @@ using System.Linq;
 using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Sacred.Core.Weapon;
+using Sacred.Core.Pak.Weapon;
 
 namespace Sacred.ItemViewer.Avalonia.ItemViewer;
 

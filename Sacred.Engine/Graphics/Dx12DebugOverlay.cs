@@ -1,6 +1,6 @@
 using System;
-using System.Diagnostics;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Sacred.Core.World;
 using Sacred.Engine.Rendering;
 using Sacred.Engine.Scene;
@@ -15,8 +15,9 @@ public unsafe class Dx12DebugOverlay : IDisposable
     private const int ControlsOverlayX = 12;
     private const int ControlsOverlayBottomMargin = 12;
 
-    private readonly DebugTextOverlay _debugOverlay = new();
-    private readonly DebugTextOverlay _controlsOverlay = new();
+    private readonly DebugOverlayFontSet _fonts;
+    private readonly DebugTextOverlay _debugOverlay;
+    private readonly DebugTextOverlay _controlsOverlay;
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private readonly ID3D12GraphicsCommandList _commandList;
     private readonly Dx12TextureUploader _textureUploader;
@@ -42,6 +43,7 @@ public unsafe class Dx12DebugOverlay : IDisposable
         ID3D12GraphicsCommandList commandList,
         Dx12TextureUploader textureUploader,
         TerrainRenderer terrain,
+        string gameDirectory,
         CpuDescriptorHandle debugOverlayCpuHandle,
         GpuDescriptorHandle debugOverlayGpuHandle,
         CpuDescriptorHandle controlsOverlayCpuHandle,
@@ -50,6 +52,9 @@ public unsafe class Dx12DebugOverlay : IDisposable
         _commandList = commandList;
         _textureUploader = textureUploader;
         _terrain = terrain;
+        _fonts = DebugOverlayFontSet.Load(gameDirectory);
+        _debugOverlay = new DebugTextOverlay(_fonts);
+        _controlsOverlay = new DebugTextOverlay(_fonts);
         _debugOverlayCpuHandle = debugOverlayCpuHandle;
         _debugOverlayGpuHandle = debugOverlayGpuHandle;
         _controlsOverlayCpuHandle = controlsOverlayCpuHandle;
@@ -57,11 +62,12 @@ public unsafe class Dx12DebugOverlay : IDisposable
         _uploadResources = [];
         _controlsOverlay.SetLines(
         [
-            "CONTROLS",
-            "MOVE: WASD, ARROWS, LEFT STICK",
-            "FASTER: SHIFT OR GAMEPAD A",
-            "CYCLE: TAB, MOUSE4/5, GAMEPAD B",
-            "ZOOM: Q/E, WHEEL, RIGHT STICK"
+            DebugTextLine.CarolingTitle("CONTROLS"),
+            DebugTextLine.Default("MOVE: WASD, ARROWS, LEFT STICK"),
+            DebugTextLine.Default("FASTER: SHIFT OR GAMEPAD A"),
+            DebugTextLine.Default("CYCLE: TAB, MOUSE4/5, GAMEPAD B"),
+            DebugTextLine.Default("ZOOM: Q/E, WHEEL, RIGHT STICK"),
+            DebugTextLine.Default("TOGGLE HDR: F4")
         ]);
     }
 
@@ -238,6 +244,7 @@ public unsafe class Dx12DebugOverlay : IDisposable
         _debugOverlayTexture = null;
         _controlsOverlayTexture?.Dispose();
         _controlsOverlayTexture = null;
+        _fonts.Dispose();
     }
 }
 

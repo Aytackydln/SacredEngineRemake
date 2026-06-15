@@ -16,7 +16,7 @@ using Sacred.Assets;
 using Sacred.Assets.Paks.Models;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Core;
-using Sacred.Core.Weapon;
+using Sacred.Core.Pak.Weapon;
 using Sacred.Granny;
 
 namespace Sacred.ItemViewer.Avalonia.ItemViewer;

@@ -3,13 +3,11 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
-using System.Runtime.InteropServices;
 using System.Runtime;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Sacred.Assets;
 using Sacred.Assets.Paks.Texture;
-using Sacred.Granny;
 using Sacred.Core.World;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Extern;
@@ -17,11 +15,12 @@ using Sacred.Engine.Graphics.Swapchain;
 using Sacred.Engine.Platform;
 using Sacred.Engine.Rendering;
 using Sacred.Engine.Scene;
+using Sacred.Granny;
+using Vortice;
 using Vortice.Direct3D;
 using Vortice.Direct3D12;
 using Vortice.DXGI;
 using Vortice.Mathematics;
-using Vortice;
 using static Vortice.Direct3D12.D3D12;
 using static Vortice.DXGI.DXGI;
 
@@ -48,12 +47,15 @@ public sealed class Dx12Renderer : IDisposable
     private const float ModelLocalDepthScale = 0.08f;
 
     private const int QuadRootConstantCount = 12;
+    private const int StaticSpriteSceneRootConstantCount = 8;
     private static readonly int ModelVertexStride = Marshal.SizeOf<VertexPositionNormalTexture>();
+    private static readonly int StaticSpriteInstanceStride = Marshal.SizeOf<StaticSpriteInstance>();
     private const Format DepthBufferFormat = Format.D32_Float;
     private const SwapChainFlags SwapChainFlags = Vortice.DXGI.SwapChainFlags.AllowTearing;
 
     private readonly Win32Window _window;
     private readonly AssetManager _assets;
+    private readonly string _gameDirectory;
     private readonly TerrainRenderer _terrain;
     private readonly Dictionary<SectorCoord, SectorTexture> _sectorTextures = new();
     private readonly Dictionary<Mesh, ModelGpuMesh> _modelMeshes = new();
@@ -89,18 +91,22 @@ public sealed class Dx12Renderer : IDisposable
     private ID3D12Fence _sectorUploadFence = null!;
     private ID3D12RootSignature _rootSignature = null!;
     private ID3D12PipelineState _pipelineState = null!;
+    private ID3D12RootSignature _staticSpriteRootSignature = null!;
     private ID3D12PipelineState _staticSpritePipelineState = null!;
     private ID3D12RootSignature _modelRootSignature = null!;
     private ID3D12PipelineState _modelPipelineState = null!;
     private ID3D12Resource? _depthBuffer;
+    private ID3D12Resource? _staticSpriteInstanceBuffer;
     private Thread? _sectorUploadThread;
 
     private nint _fenceEvent;
     private nint _sectorUploadFenceEvent;
+    private nint _staticSpriteInstanceBufferMapped;
     private int _rtvDescriptorSize;
     private int _srvDescriptorSize;
     private int _renderWidth;
     private int _renderHeight;
+    private int _staticSpriteInstanceCapacity;
     private ulong _fenceValue;
     private ulong _sectorUploadFenceValue;
     private bool _commandsInFlight;
@@ -108,10 +114,11 @@ public sealed class Dx12Renderer : IDisposable
     private int _staticSpriteUploadsThisFrame;
     private Dx12SwapChainMode _requestedSwapChainMode = Dx12SwapChainMode.Sdr;
 
-    public Dx12Renderer(Win32Window window, AssetManager assets)
+    public Dx12Renderer(Win32Window window, AssetManager assets, string gameDirectory)
     {
         _window = window;
         _assets = assets;
+        _gameDirectory = gameDirectory;
         _terrain = new TerrainRenderer(assets);
 
         for (var i = MaxSectorTextures - 1; i >= 0; i--)
@@ -207,6 +214,7 @@ public sealed class Dx12Renderer : IDisposable
         foreach (var texture in _staticSpriteTextures.Values)
             texture.Resource.Dispose();
         _staticSpriteTextures.Clear();
+        DisposeStaticSpriteInstanceBuffer();
 
         DisposeBackBuffers();
         DisposePipelineResources();
@@ -343,6 +351,7 @@ public sealed class Dx12Renderer : IDisposable
             _commandList,
             _textureUploader,
             _terrain,
+            _gameDirectory,
             SrvCpuHandle(DebugOverlaySrvSlot),
             SrvGpuHandle(DebugOverlaySrvSlot),
             SrvCpuHandle(ControlsOverlaySrvSlot),
@@ -417,6 +426,59 @@ public sealed class Dx12Renderer : IDisposable
 
     private void CreateStaticSpritePipeline()
     {
+        var rootParameters = new[]
+        {
+            new RootParameter(
+                new RootConstants(
+                    StaticSpriteShaderLayout.SceneConstantsRegister,
+                    0,
+                    StaticSpriteSceneRootConstantCount),
+                ShaderVisibility.All),
+            new RootParameter(
+                RootParameterType.ShaderResourceView,
+                new RootDescriptor(StaticSpriteShaderLayout.InstanceBufferRegister, 0),
+                ShaderVisibility.Vertex),
+            new RootParameter(
+                new RootDescriptorTable
+                {
+                    Ranges =
+                    [
+                        new DescriptorRange(
+                            DescriptorRangeType.ShaderResourceView,
+                            MaxStaticSpriteTextures,
+                            StaticSpriteShaderLayout.FirstTextureRegister,
+                            0,
+                            0)
+                    ]
+                },
+                ShaderVisibility.Pixel)
+        };
+
+        var samplers = new[]
+        {
+            new StaticSamplerDescription(
+                0,
+                Filter.MinMagMipLinear,
+                TextureAddressMode.Clamp,
+                TextureAddressMode.Clamp,
+                TextureAddressMode.Clamp,
+                0.0f,
+                16,
+                ComparisonFunction.Never,
+                StaticBorderColor.TransparentBlack,
+                0.0f,
+                float.MaxValue,
+                ShaderVisibility.Pixel,
+                0)
+        };
+
+        var rootDescription = new RootSignatureDescription(
+            RootSignatureFlags.AllowInputAssemblerInputLayout,
+            rootParameters,
+            samplers);
+
+        _staticSpriteRootSignature = _device.CreateRootSignature(in rootDescription, RootSignatureVersion.Version1);
+
         var vertexShader = Dx12ShaderCompiler.CompileShader(_swapChain.Shaders.StaticSpriteVertexShader);
         var pixelShader = Dx12ShaderCompiler.CompileShader(_swapChain.Shaders.StaticSpritePixelShader);
         var depthStencil = DepthStencilDescription.Default;
@@ -424,7 +486,7 @@ public sealed class Dx12Renderer : IDisposable
 
         var pipelineDescription = new GraphicsPipelineStateDescription
         {
-            RootSignature = _rootSignature,
+            RootSignature = _staticSpriteRootSignature,
             VertexShader = vertexShader,
             PixelShader = pixelShader,
             BlendState = BlendDescription.AlphaBlend,
@@ -551,6 +613,8 @@ public sealed class Dx12Renderer : IDisposable
         _modelRootSignature = null!;
         _staticSpritePipelineState?.Dispose();
         _staticSpritePipelineState = null!;
+        _staticSpriteRootSignature?.Dispose();
+        _staticSpriteRootSignature = null!;
         _pipelineState?.Dispose();
         _pipelineState = null!;
         _rootSignature?.Dispose();
@@ -871,13 +935,12 @@ public sealed class Dx12Renderer : IDisposable
         if (sprites.Count == 0)
             return;
 
-        _commandList.SetGraphicsRootSignature(_rootSignature);
-        _commandList.SetPipelineState(_staticSpritePipelineState);
-        _commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
-
         var centerIsoX = (camera.WorldCenter.X - camera.WorldCenter.Y) * (IsoStepWidth * 0.5f);
         var centerIsoY = (camera.WorldCenter.X + camera.WorldCenter.Y) * (IsoStepHeight * 0.5f);
-        var constants = stackalloc float[QuadRootConstantCount];
+        EnsureStaticSpriteInstanceCapacity(sprites.Count);
+
+        var instances = (StaticSpriteInstance*)_staticSpriteInstanceBufferMapped;
+        var instanceCount = 0;
 
         for (var i = 0; i < sprites.Count; i++)
         {
@@ -890,24 +953,100 @@ public sealed class Dx12Renderer : IDisposable
             var drawY = _renderHeight * 0.5f + (sprite.IsoY - centerIsoY) * camera.Zoom;
             var drawWidth = sprite.Sprite.Width * camera.Zoom;
             var drawHeight = sprite.Sprite.Height * camera.Zoom;
+            var depth = CalculateStaticSpriteSceneDepth(camera, sprite);
 
-            constants[0] = drawX;
-            constants[1] = drawY;
-            constants[2] = drawWidth;
-            constants[3] = drawHeight;
-            constants[4] = _renderWidth;
-            constants[5] = _renderHeight;
-            constants[6] = CalculateStaticSpriteSceneDepth(camera, sprite);
-            constants[7] = StaticSpriteAlphaCutoff;
-            constants[8] = _swapChain.DisplayProfile.ScenePaperWhiteNits;
-            constants[9] = _swapChain.DisplayProfile.UiPaperWhiteNits;
-            constants[10] = 0.0f;
-            constants[11] = 0.0f;
-
-            _commandList.SetGraphicsRoot32BitConstants(0, QuadRootConstantCount, constants, 0);
-            _commandList.SetGraphicsRootDescriptorTable(1, SrvGpuHandle(texture.SrvSlot));
-            _commandList.DrawInstanced(6, 1, 0, 0);
+            instances[instanceCount++] = new StaticSpriteInstance(
+                drawX,
+                drawY,
+                drawWidth,
+                drawHeight,
+                depth,
+                (uint)(texture.SrvSlot - FirstStaticSpriteSrvSlot));
         }
+
+        if (instanceCount == 0)
+            return;
+
+        var sceneConstants = stackalloc float[StaticSpriteSceneRootConstantCount];
+        sceneConstants[0] = _renderWidth;
+        sceneConstants[1] = _renderHeight;
+        sceneConstants[2] = StaticSpriteAlphaCutoff;
+        sceneConstants[3] = _swapChain.DisplayProfile.ScenePaperWhiteNits;
+        sceneConstants[4] = _swapChain.DisplayProfile.UiPaperWhiteNits;
+        sceneConstants[5] = 0.0f;
+        sceneConstants[6] = 0.0f;
+        sceneConstants[7] = 0.0f;
+
+        _commandList.SetGraphicsRootSignature(_staticSpriteRootSignature);
+        _commandList.SetPipelineState(_staticSpritePipelineState);
+        _commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
+        _commandList.SetGraphicsRoot32BitConstants(
+            StaticSpriteShaderLayout.SceneConstantsRootParameter,
+            StaticSpriteSceneRootConstantCount,
+            sceneConstants,
+            0);
+        _commandList.SetGraphicsRootShaderResourceView(
+            StaticSpriteShaderLayout.InstanceBufferRootParameter,
+            _staticSpriteInstanceBuffer!.GPUVirtualAddress);
+        _commandList.SetGraphicsRootDescriptorTable(
+            StaticSpriteShaderLayout.TextureTableRootParameter,
+            SrvGpuHandle(FirstStaticSpriteSrvSlot));
+        _commandList.DrawInstanced(6, (uint)instanceCount, 0, 0);
+    }
+
+    private unsafe void EnsureStaticSpriteInstanceCapacity(int requiredCapacity)
+    {
+        if (_staticSpriteInstanceBuffer is not null && _staticSpriteInstanceCapacity >= requiredCapacity)
+            return;
+
+        DisposeStaticSpriteInstanceBuffer();
+
+        _staticSpriteInstanceCapacity = Math.Max(256, RoundUpToPowerOfTwo(requiredCapacity));
+        var bufferBytes = checked((ulong)(_staticSpriteInstanceCapacity * StaticSpriteInstanceStride));
+        var description = new ResourceDescription(
+            ResourceDimension.Buffer,
+            0,
+            bufferBytes,
+            1,
+            1,
+            1,
+            Format.Unknown,
+            1,
+            0,
+            TextureLayout.RowMajor,
+            ResourceFlags.None);
+
+        _staticSpriteInstanceBuffer = _device.CreateCommittedResource(
+            new HeapProperties(HeapType.Upload, 0, 0),
+            HeapFlags.None,
+            description,
+            ResourceStates.GenericRead,
+            null);
+
+        void* mapped;
+        _staticSpriteInstanceBuffer.Map(0, null, &mapped).CheckError();
+        _staticSpriteInstanceBufferMapped = (nint)mapped;
+    }
+
+    private void DisposeStaticSpriteInstanceBuffer()
+    {
+        if (_staticSpriteInstanceBuffer is null)
+            return;
+
+        _staticSpriteInstanceBuffer.Unmap(0, null);
+        _staticSpriteInstanceBuffer.Dispose();
+        _staticSpriteInstanceBuffer = null;
+        _staticSpriteInstanceBufferMapped = 0;
+        _staticSpriteInstanceCapacity = 0;
+    }
+
+    private static int RoundUpToPowerOfTwo(int value)
+    {
+        var result = 1;
+        while (result < value)
+            result <<= 1;
+
+        return result;
     }
 
     private static float CalculateStaticSpriteSceneDepth(SacredCamera camera, TerrainStaticSprite sprite)
@@ -1314,6 +1453,48 @@ public sealed class Dx12Renderer : IDisposable
         public const int TextureFlagsConstantsCount = 4;
 
         public const int SceneConstantsCount = 20;
+    }
+
+    private static class StaticSpriteShaderLayout
+    {
+        public const int SceneConstantsRegister = 0; // HLSL: register(b0)
+        public const int InstanceBufferRegister = 0; // HLSL: register(t0)
+        public const int FirstTextureRegister = 1; // HLSL: register(t1)
+
+        public const int SceneConstantsRootParameter = 0;
+        public const int InstanceBufferRootParameter = 1;
+        public const int TextureTableRootParameter = 2;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private readonly struct StaticSpriteInstance
+    {
+        private readonly float _x;
+        private readonly float _y;
+        private readonly float _width;
+        private readonly float _height;
+        private readonly float _depth;
+        private readonly uint _textureIndex;
+        private readonly float _padding0;
+        private readonly float _padding1;
+
+        public StaticSpriteInstance(
+            float x,
+            float y,
+            float width,
+            float height,
+            float depth,
+            uint textureIndex)
+        {
+            _x = x;
+            _y = y;
+            _width = width;
+            _height = height;
+            _depth = depth;
+            _textureIndex = textureIndex;
+            _padding0 = 0.0f;
+            _padding1 = 0.0f;
+        }
     }
 
     private sealed class RootConstantUploadCache

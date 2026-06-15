@@ -5,7 +5,6 @@ namespace Sacred.Assets.Paks.Tiles;
 public sealed class TilesPakData
 {
     private const int HeaderSize = 0x100;
-    private const int DescriptorSize = 0x0C;
     private static readonly Encoding NameEncoding = Encoding.ASCII;
 
     private readonly List<TileDefinition> _definitions = [];
@@ -15,15 +14,13 @@ public sealed class TilesPakData
         if (data.Length < HeaderSize)
             throw new InvalidDataException("tiles.pak is too small to contain a header.");
 
-        var count = PakDataHelpers.ReadEntryCount(data, HeaderSize, DescriptorSize, "tiles.pak");
+        var count = PakDataHelpers.ReadEntryCount(data, HeaderSize, PakDataHelpers.EntryDescriptorSize, "tiles.pak");
+        var descriptors = PakDataHelpers.ReadEntryDescriptors(data, HeaderSize, count, "tiles.pak");
         for (var i = 0; i < count; i++)
         {
-            var descriptorOffset = HeaderSize + i * DescriptorSize;
-            if (descriptorOffset + DescriptorSize > data.Length)
-                break;
-
-            var offset = BitConverter.ToUInt32(data.Slice(descriptorOffset + 4, 4));
-            var size = BitConverter.ToUInt32(data.Slice(descriptorOffset + 8, 4));
+            var descriptor = descriptors[i];
+            var offset = descriptor.Offset;
+            var size = descriptor.Size;
             if (offset <= 0 || size <= 0 || offset > int.MaxValue || size > int.MaxValue)
             {
                 _definitions.Add(TileDefinition.Empty);

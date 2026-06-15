@@ -1,12 +1,56 @@
 ﻿using System.Collections.Frozen;
 using System.Diagnostics;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using System.Text;
-using Sacred.Core.Items;
-using SacredItemSimulator.GamePak;
-using SacredItemSimulator.Utils;
+using Sacred.Core.Pak.Items;
 
-namespace Sacred.Core.Weapon;
+namespace Sacred.Core.Pak.Weapon;
+
+[StructLayout(LayoutKind.Explicit, Pack = 1, Size = Size)]
+internal readonly struct SacredEquipmentLayout
+{
+    public const int Size = 258;
+
+    [FieldOffset(0)]
+    public readonly ushort Short1;
+
+    [FieldOffset(2)]
+    public readonly float PreviewRotationX;
+
+    [FieldOffset(6)]
+    public readonly float PreviewRotationY;
+
+    [FieldOffset(8)]
+    public readonly ushort Short2;
+
+    [FieldOffset(10)]
+    public readonly float PreviewRotationZ;
+
+    [FieldOffset(26)]
+    public readonly byte Width;
+
+    [FieldOffset(27)]
+    public readonly byte Height;
+
+    [FieldOffset(28)]
+    public readonly byte UsageIdentifier;
+
+    [FieldOffset(37)]
+    public readonly byte TypeIdentifier;
+
+    [FieldOffset(126)]
+    public readonly ushort ItemId;
+
+    [FieldOffset(130)]
+    public readonly byte CharacterClassMaskCode;
+
+    [FieldOffset(131)]
+    public readonly byte EquipmentTypeCode;
+
+    [FieldOffset(132)]
+    public readonly byte RarityAndClassFlags;
+}
 
 // each entry is 258 bytes, with some fields at fixed offsets
 // debug view with ItemId, Name, Width, Height, TypeIdentifier
@@ -26,8 +70,6 @@ public readonly record struct SacredEquipment(
     SacredEquipmentClassification Classification
 )
 {
-    private const int Size = 258;
-
     // iso 8859-1 encoding for german text
     private static readonly Encoding SacredEncoding = Encoding.GetEncoding("iso-8859-1");
 
@@ -58,47 +100,39 @@ public readonly record struct SacredEquipment(
     )
     {
         var offset = br.BaseStream.Position;
-        var pakLocation = new SacredPakLocation(sacredFile, offset, 258);
+        var pakLocation = new SacredPakLocation(sacredFile, offset, SacredEquipmentLayout.Size);
 
-        // marshall to WeaponPackEntry struct
-        var bytes = br.ReadBytes(Size).AsSpan();
+        Span<byte> bytes = stackalloc byte[SacredEquipmentLayout.Size];
+        br.BaseStream.ReadExactly(bytes);
 
         var nameBytes = bytes[38..126];
         var nullIndex = nameBytes.IndexOf((byte)0);
 
         var name = SacredEncoding.GetString(nameBytes[..nullIndex]);
+        var layout = MemoryMarshal.Read<SacredEquipmentLayout>(bytes);
 
-        // TODO figure out
-        //if (GameResStore.ReverseIndexMap.TryGetValue(name, out var resId))
-        //{
-        //    name = GameResStore.Strings.GetValueOrDefault(resId, name);
-        //}
-
-        var width = bytes[26];
-        var height = bytes[27];
-        var usageIdentifier = bytes[28];
-        var itemId = BitConverter.ToUInt16(bytes[126..128]);
+        var itemId = layout.ItemId;
         var item = items[itemId];
         var classification = SacredEquipmentClassification.FromBytes(
-            characterClassMaskCode: bytes[130],
-            equipmentTypeCode: bytes[131],
-            rarityAndClassFlags: bytes[132]
+            characterClassMaskCode: layout.CharacterClassMaskCode,
+            equipmentTypeCode: layout.EquipmentTypeCode,
+            rarityAndClassFlags: layout.RarityAndClassFlags
         );
 
         return new SacredEquipment(
             PakLocation: pakLocation,
             Item: item,
-            Short1: BitConverter.ToUInt16(bytes[..2]),
+            Short1: layout.Short1,
             PreviewRotation: new Vector3(
-                BitConverter.ToSingle(bytes[2..6]),
-                BitConverter.ToSingle(bytes[6..10]),
-                BitConverter.ToSingle(bytes[10..14])    //This is absolutely correct
+                layout.PreviewRotationX,
+                layout.PreviewRotationY,
+                layout.PreviewRotationZ
             ),
-            Short2: BitConverter.ToUInt16(bytes[8..10]),
-            Width: width,
-            Height: height,
-            UsageIdentifier: usageIdentifier,
-            TypeIdentifier: bytes[37],
+            Short2: layout.Short2,
+            Width: layout.Width,
+            Height: layout.Height,
+            UsageIdentifier: layout.UsageIdentifier,
+            TypeIdentifier: layout.TypeIdentifier,
             Name: name,
             IdemId: itemId,
             Classification: classification

@@ -1,4 +1,4 @@
-﻿namespace Sacred.Core.Texture;
+﻿namespace Sacred.Core.Pak.Texture;
 
 public readonly record struct TextureImageInfo(
     string FileName,

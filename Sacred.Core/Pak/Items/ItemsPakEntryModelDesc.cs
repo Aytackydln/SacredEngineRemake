@@ -1,8 +1,7 @@
 ﻿using System.Text;
-using SacredItemSimulator.GamePak;
-using SacredItemSimulator.Utils;
+using Sacred.Core.Utils;
 
-namespace Sacred.Core.Items;
+namespace Sacred.Core.Pak.Items;
 
 public readonly record struct ItemsPakEntryModelDesc(
     SacredPakLocation PakLocation, // location of the entry in the pak file, useful for debugging and lookup

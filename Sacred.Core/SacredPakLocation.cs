@@ -1,4 +1,4 @@
-﻿namespace SacredItemSimulator.GamePak;
+﻿namespace Sacred.Core;
 
 public readonly record struct SacredPakLocation(
     SacredPakFile PakFile,

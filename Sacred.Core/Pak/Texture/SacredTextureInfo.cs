@@ -1,6 +1,4 @@
-﻿using SacredItemSimulator.GamePak;
-
-namespace Sacred.Core.Texture;
+﻿namespace Sacred.Core.Pak.Texture;
 
 public readonly record struct SacredTextureInfo(
     ulong TypeId,

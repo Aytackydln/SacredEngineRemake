@@ -5,7 +5,6 @@ namespace Sacred.Assets.Paks.Mixed;
 public sealed class MixedPakData
 {
     private const int HeaderSize = 0x100;
-    private const int DescriptorSize = 0x0C;
     private static readonly Encoding NameEncoding = Encoding.ASCII;
 
     private readonly Dictionary<uint, List<MixedCutoutRecord>> _groups = new();
@@ -16,15 +15,13 @@ public sealed class MixedPakData
         if (data.Length < HeaderSize)
             throw new InvalidDataException("Mixed.pak is too small to contain a header.");
 
-        var count = PakDataHelpers.ReadEntryCount(data, HeaderSize, DescriptorSize, "Mixed.pak");
+        var count = PakDataHelpers.ReadEntryCount(data, HeaderSize, PakDataHelpers.EntryDescriptorSize, "Mixed.pak");
+        var descriptors = PakDataHelpers.ReadEntryDescriptors(data, HeaderSize, count, "Mixed.pak");
         for (uint mixedId = 0; mixedId < count; mixedId++)
         {
-            var descriptorOffset = HeaderSize + (int)mixedId * DescriptorSize;
-            if (descriptorOffset + DescriptorSize > data.Length)
-                break;
-
-            var offset = BitConverter.ToUInt32(data.Slice(descriptorOffset + 4, 4));
-            var size = BitConverter.ToUInt32(data.Slice(descriptorOffset + 8, 4));
+            var descriptor = descriptors[(int)mixedId];
+            var offset = descriptor.Offset;
+            var size = descriptor.Size;
             if (offset == 0 || size <= 0x10 || offset > int.MaxValue || size > int.MaxValue)
                 continue;
 

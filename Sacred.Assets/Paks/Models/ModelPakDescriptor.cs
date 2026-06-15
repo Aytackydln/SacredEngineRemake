@@ -1,3 +1,9 @@
-﻿namespace Sacred.Assets.Paks.Models;
+using System.Runtime.InteropServices;
 
-public readonly record struct ModelPakDescriptor(uint EntryId, uint Offset);
+namespace Sacred.Assets.Paks.Models;
+
+[StructLayout(LayoutKind.Sequential, Pack = 1)]
+public readonly record struct ModelPakDescriptor(uint EntryId, uint Offset, uint PayloadSize)
+{
+    public const int SerializedSize = 0x0C;
+}

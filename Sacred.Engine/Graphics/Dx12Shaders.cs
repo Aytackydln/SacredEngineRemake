@@ -15,11 +15,11 @@ internal static class Dx12Shaders
         ),
         StaticSpriteVertexShader: new Dx12Shader(
             "SacredStaticSprite", EmbeddedResource_Shaders.SacredStaticSprite_hlsl,
-            "vs_main", "vs_5_0"
+            "vs_main", "vs_5_1"
         ),
         StaticSpritePixelShader: new Dx12Shader(
             "SacredStaticSprite", EmbeddedResource_Shaders.SacredStaticSprite_hlsl,
-            "ps_main", "ps_5_0"
+            "ps_main", "ps_5_1"
         ),
         ModelVertexShader: new Dx12Shader(
             "SacredModel", EmbeddedResource_Shaders.SacredModel_hlsl,
@@ -44,12 +44,12 @@ internal static class Dx12Shaders
         ),
         StaticSpriteVertexShader: new Dx12Shader(
             "SacredStaticSpriteHDR", EmbeddedResource_ShadersHdr.SacredStaticSpriteHDR_hlsl,
-            "vs_main", "vs_5_0",
+            "vs_main", "vs_5_1",
             HdrCommon
         ),
         StaticSpritePixelShader: new Dx12Shader(
             "SacredStaticSpriteHDR", EmbeddedResource_ShadersHdr.SacredStaticSpriteHDR_hlsl,
-            "ps_main", "ps_5_0",
+            "ps_main", "ps_5_1",
             HdrCommon
         ),
         ModelVertexShader: new Dx12Shader(

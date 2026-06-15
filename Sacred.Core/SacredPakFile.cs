@@ -1,4 +1,4 @@
-﻿namespace SacredItemSimulator.GamePak;
+﻿namespace Sacred.Core;
 
 public enum SacredPakFileType
 {

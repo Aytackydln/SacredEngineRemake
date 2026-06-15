@@ -1,6 +1,6 @@
 ﻿using System.Text;
-using Sacred.Core.Items;
-using SacredItemSimulator.GamePak;
+using Sacred.Core;
+using Sacred.Core.Pak.Items;
 
 namespace Sacred.Assets.Paks.Items;
 
@@ -30,15 +30,11 @@ public static class ItemsPakParser
 
         var entryInfos = new List<ItemsPakEntryInfo>(entryCount);
 
-        ushort entryIndex = 0;
-        while (entryIndex < entryCount)
+        for (var entryIndex = 0; entryIndex < entryCount; entryIndex++)
         {
-            // marshall to ItemsPakEntry struct
-            var entryInfo = ItemsPakEntryInfo.FromBytes(entryIndex, sacredFile, br);
+            var entryInfo = ItemsPakEntryInfo.FromBytes(checked((ushort)entryIndex), br);
 
             entryInfos.Add(entryInfo);
-            
-            entryIndex++;
         }
 
         foreach (var entryInfo in entryInfos)

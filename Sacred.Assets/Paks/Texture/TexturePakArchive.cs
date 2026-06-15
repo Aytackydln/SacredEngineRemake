@@ -96,16 +96,14 @@ public sealed class TexturePakArchive : IDisposable
             throw new InvalidDataException($"{Path.GetFileName(archive.Path)} is too small to contain a header.");
 
         var count = TexturePakDecoder.ReadEntryCount(header, stream.Length);
-        Span<byte> descriptor = stackalloc byte[TexturePakDecoder.DescriptorSize];
+        var descriptors = PakDataHelpers.ReadEntryDescriptors(stream, count, Path.GetFileName(archive.Path));
         Span<byte> textureHeader = stackalloc byte[TexturePakDecoder.TextureHeaderSize];
 
         for (var i = 0; i < count; i++)
         {
-            stream.Position = TexturePakDecoder.HeaderSize + i * TexturePakDecoder.DescriptorSize;
-            stream.ReadExactly(descriptor);
-
-            var offset = BitConverter.ToUInt32(descriptor[4..8]);
-            var size = BitConverter.ToUInt32(descriptor[8..12]);
+            var descriptor = descriptors[i];
+            var offset = descriptor.Offset;
+            var size = descriptor.Size;
             if (offset <= 0 || size <= 0 || offset > int.MaxValue || size > int.MaxValue)
                 continue;
 

@@ -1,8 +1,8 @@
 ﻿using System.Collections.Frozen;
 using System.Text;
-using Sacred.Core.Items;
-using Sacred.Core.Weapon;
-using SacredItemSimulator.GamePak;
+using Sacred.Core;
+using Sacred.Core.Pak.Items;
+using Sacred.Core.Pak.Weapon;
 
 namespace Sacred.Assets.GamePak.Loaders;
 

@@ -15,6 +15,6 @@ internal readonly record struct Dx12DisplayProfile(
     public static Dx12DisplayProfile Hdr { get; } = new(
         ScenePaperWhiteNits: 203.0f,
         UiPaperWhiteNits: 180.0f,
-        SunDiffuseNits: 360.0f,
-        SunSpecularNits: 1000.0f);
+        SunDiffuseNits: 250.0f,
+        SunSpecularNits: 600.0f);
 }

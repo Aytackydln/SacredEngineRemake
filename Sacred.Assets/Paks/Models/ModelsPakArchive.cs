@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.Runtime.InteropServices;
 using System.Text;
 using Sacred.Granny;
 
@@ -7,7 +8,6 @@ namespace Sacred.Assets.Paks.Models;
 public sealed class ModelsPakArchive : IDisposable
 {
     private const int HeaderSize = 0x100;
-    private const int DescriptorSize = 0x0C;
     private const int NameProbeLength = 0x40;
     private static readonly Encoding NameEncoding = Encoding.Latin1;
 
@@ -35,16 +35,13 @@ public sealed class ModelsPakArchive : IDisposable
         stream.ReadExactly(header);
 
         var count = ReadEntryCount(header, stream.Length);
-        var descriptors = new byte[count * DescriptorSize];
-        stream.ReadExactly(descriptors);
+        var descriptors = ReadDescriptors(stream, count);
 
         var modelDescriptors = new List<ModelPakDescriptor>(count);
-        for (uint i = 0; i < count; i++)
+        foreach (var descriptor in descriptors)
         {
-            var descriptorOffset = (int)i * DescriptorSize;
-            var offset = BitConverter.ToUInt32(descriptors.AsSpan(descriptorOffset + 4, 4));
-            if (offset > 0 && offset < stream.Length)
-                modelDescriptors.Add(new ModelPakDescriptor(i, offset));
+            if (descriptor.Offset > 0 && descriptor.Offset < stream.Length)
+                modelDescriptors.Add(descriptor);
         }
 
         var orderedOffsets = modelDescriptors
@@ -164,11 +161,23 @@ public sealed class ModelsPakArchive : IDisposable
         return NameEncoding.GetString(probe[..end]);
     }
 
+    private static ModelPakDescriptor[] ReadDescriptors(FileStream stream, int count)
+    {
+        var descriptors = new ModelPakDescriptor[count];
+        var descriptorBytes = MemoryMarshal.AsBytes(descriptors.AsSpan());
+        var expectedLength = count * ModelPakDescriptor.SerializedSize;
+        if (descriptorBytes.Length != expectedLength)
+            throw new InvalidDataException($"models.pak descriptor layout is {descriptorBytes.Length / Math.Max(1, count)} bytes, expected {ModelPakDescriptor.SerializedSize}.");
+
+        stream.ReadExactly(descriptorBytes);
+        return descriptors;
+    }
+
     private static int ReadEntryCount(ReadOnlySpan<byte> header, long archiveLength)
     {
         var count32 = BitConverter.ToUInt32(header.Slice(4, 4));
         var count16 = BitConverter.ToUInt16(header.Slice(4, 2));
-        var maxDescriptorCount = Math.Max(0, (archiveLength - HeaderSize) / DescriptorSize);
+        var maxDescriptorCount = Math.Max(0, (archiveLength - HeaderSize) / ModelPakDescriptor.SerializedSize);
 
         if (count32 <= maxDescriptorCount)
             return (int)count32;

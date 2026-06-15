@@ -5,14 +5,14 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Sacred.Core;
 using Sacred.Assets.Paks.Items;
 using Sacred.Assets.Paks.Mixed;
 using Sacred.Assets.Paks.Models;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Assets.Paks.Tiles;
+using Sacred.Core;
+using Sacred.Core.Pak.Items;
 using Sacred.Granny;
-using Sacred.Core.Items;
 
 namespace Sacred.Engine.Assets;
 

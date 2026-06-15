@@ -1,4 +1,4 @@
-﻿namespace SacredItemSimulator.Utils;
+﻿namespace Sacred.Core.Utils;
 
 public static class ByteArrayUtils
 {

@@ -1,6 +1,6 @@
 using Raiqub.Generators.EnumUtilities;
 
-namespace Sacred.Core.Weapon;
+namespace Sacred.Core.Pak.Weapon;
 
 [Flags]
 [EnumGenerator]

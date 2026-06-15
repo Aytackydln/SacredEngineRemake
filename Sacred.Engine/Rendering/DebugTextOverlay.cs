@@ -1,37 +1,73 @@
 using System;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.Drawing.Text;
+using System.IO;
+using System.Runtime.InteropServices;
 
 namespace Sacred.Engine.Rendering;
 
-public sealed class DebugTextOverlay
+public sealed class DebugTextOverlay(DebugOverlayFontSet fonts)
 {
     public const int Width = 660;
     public const int Height = 176;
 
     private const int Padding = 8;
-    private const int GlyphWidth = 5;
-    private const int GlyphHeight = 7;
-    private const int GlyphScale = 2;
-    private const int CharacterSpacing = 1;
-    private const int LineSpacing = 3;
-    private const int GlyphAdvance = (GlyphWidth + CharacterSpacing) * GlyphScale;
-    private const int LineAdvance = GlyphHeight * GlyphScale + LineSpacing;
+    private const int DefaultLineAdvance = 16;
+    private const int TitleLineAdvance = 31;
+
+    private static readonly StringFormat TextFormat = new(StringFormat.GenericTypographic)
+    {
+        FormatFlags = StringFormatFlags.NoClip | StringFormatFlags.NoWrap | StringFormatFlags.MeasureTrailingSpaces,
+        Trimming = StringTrimming.None
+    };
 
     public byte[] Rgba { get; } = new byte[Width * Height * 4];
 
     public void SetLines(string[] lines)
     {
+        var styledLines = new DebugTextLine[lines.Length];
+        for (var i = 0; i < lines.Length; i++)
+            styledLines[i] = DebugTextLine.Default(lines[i]);
+
+        SetLines(styledLines);
+    }
+
+    public void SetLines(ReadOnlySpan<DebugTextLine> lines)
+    {
         Array.Clear(Rgba, 0, Rgba.Length);
         FillPanel();
+
+        using var bitmap = new Bitmap(Width, Height, PixelFormat.Format32bppArgb);
+        using var graphics = System.Drawing.Graphics.FromImage(bitmap);
+        graphics.Clear(Color.Transparent);
+        graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+        graphics.PageUnit = GraphicsUnit.Pixel;
 
         var y = Padding;
         foreach (var line in lines)
         {
-            DrawString(line, Padding + 1, y + 1, 0, 0, 0, 190);
-            DrawString(line, Padding, y, 238, 246, 255, 245);
-            y += LineAdvance;
-            if (y + GlyphHeight * GlyphScale > Height - Padding)
+            var font = fonts.GetFont(line.Font);
+            DrawString(graphics, line.Text, font, Padding + 1, y + 1, 0, 0, 0, 190);
+            DrawString(graphics, line.Text, font, Padding, y, 238, 246, 255, 245);
+
+            y += line.Font == DebugTextFont.CarolingTitle ? TitleLineAdvance : DefaultLineAdvance;
+            if (y + DebugTextOverlayFontSizes.Default > Height - Padding)
                 break;
         }
+
+        BlendTextBitmap(bitmap);
+    }
+
+    private void DrawString(System.Drawing.Graphics graphics, string text, Font font, int x, int y, byte r, byte g, byte b, byte a)
+    {
+        using var brush = new SolidBrush(Color.FromArgb(a, r, g, b));
+        graphics.DrawString(
+            text,
+            font,
+            brush,
+            new RectangleF(x, y, Width - Padding - x, Height - Padding - y),
+            TextFormat);
     }
 
     private void FillPanel()
@@ -55,40 +91,62 @@ public sealed class DebugTextOverlay
             SetPixel(px, py, r, g, b, a);
     }
 
-    private void DrawString(string text, int x, int y, byte r, byte g, byte b, byte a)
+    private void BlendTextBitmap(Bitmap bitmap)
     {
-        var cursor = x;
-        foreach (var c in text)
+        var bounds = new Rectangle(0, 0, Width, Height);
+        var data = bitmap.LockBits(bounds, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        try
         {
-            if (cursor >= Width - Padding)
-                return;
+            var stride = Math.Abs(data.Stride);
+            var source = new byte[stride * Height];
+            Marshal.Copy(data.Scan0, source, 0, source.Length);
 
-            DrawGlyph(char.ToUpperInvariant(c), cursor, y, r, g, b, a);
-            cursor += GlyphAdvance;
+            for (var y = 0; y < Height; y++)
+            {
+                var sourceRow = data.Stride >= 0 ? y * stride : (Height - 1 - y) * stride;
+                var destRow = y * Width * 4;
+
+                for (var x = 0; x < Width; x++)
+                {
+                    var sourceOffset = sourceRow + x * 4;
+                    var sourceAlpha = source[sourceOffset + 3];
+                    if (sourceAlpha == 0)
+                        continue;
+
+                    var destOffset = destRow + x * 4;
+                    BlendPixel(
+                        destOffset,
+                        source[sourceOffset + 2],
+                        source[sourceOffset + 1],
+                        source[sourceOffset + 0],
+                        sourceAlpha);
+                }
+            }
+        }
+        finally
+        {
+            bitmap.UnlockBits(data);
         }
     }
 
-    private void DrawGlyph(char c, int x, int y, byte r, byte g, byte b, byte a)
+    private void BlendPixel(int offset, byte sourceR, byte sourceG, byte sourceB, byte sourceA)
     {
-        if (c == ' ')
-            return;
-
-        var rows = GlyphRows(c);
-        for (var gy = 0; gy < GlyphHeight; gy++)
+        var destA = Rgba[offset + 3];
+        if (destA == 0 || sourceA == 255)
         {
-            var row = rows[gy];
-            for (var gx = 0; gx < GlyphWidth; gx++)
-            {
-                if ((row & (1 << (GlyphWidth - 1 - gx))) == 0)
-                    continue;
-
-                var px = x + gx * GlyphScale;
-                var py = y + gy * GlyphScale;
-                for (var sy = 0; sy < GlyphScale; sy++)
-                for (var sx = 0; sx < GlyphScale; sx++)
-                    SetPixel(px + sx, py + sy, r, g, b, a);
-            }
+            Rgba[offset + 0] = sourceR;
+            Rgba[offset + 1] = sourceG;
+            Rgba[offset + 2] = sourceB;
+            Rgba[offset + 3] = sourceA;
+            return;
         }
+
+        var destFactor = destA * (255 - sourceA) / 255;
+        var outAlpha = sourceA + destFactor;
+        Rgba[offset + 0] = (byte)((sourceR * sourceA + Rgba[offset + 0] * destFactor) / outAlpha);
+        Rgba[offset + 1] = (byte)((sourceG * sourceA + Rgba[offset + 1] * destFactor) / outAlpha);
+        Rgba[offset + 2] = (byte)((sourceB * sourceA + Rgba[offset + 2] * destFactor) / outAlpha);
+        Rgba[offset + 3] = (byte)outAlpha;
     }
 
     private void SetPixel(int x, int y, byte r, byte g, byte b, byte a)
@@ -109,99 +167,86 @@ public sealed class DebugTextOverlay
             return min;
         return value > max ? max : value;
     }
+}
 
-    private static byte[] GlyphRows(char c) => c switch
+public sealed class DebugOverlayFontSet : IDisposable
+{
+    private readonly PrivateFontCollection? _defaultCollection;
+    private readonly PrivateFontCollection? _carolingCollection;
+    private readonly Font _defaultFont;
+    private readonly Font _carolingTitleFont;
+
+    private DebugOverlayFontSet(
+        PrivateFontCollection? defaultCollection,
+        PrivateFontCollection? carolingCollection,
+        Font defaultFont,
+        Font carolingTitleFont)
     {
-        'A' => A,
-        'B' => B,
-        'C' => C,
-        'D' => D,
-        'E' => E,
-        'F' => F,
-        'G' => G,
-        'H' => H,
-        'I' => I,
-        'J' => J,
-        'K' => K,
-        'L' => L,
-        'M' => M,
-        'N' => N,
-        'O' => O,
-        'P' => P,
-        'Q' => Q,
-        'R' => R,
-        'S' => S,
-        'T' => T,
-        'U' => U,
-        'V' => V,
-        'W' => W,
-        'X' => X,
-        'Y' => Y,
-        'Z' => Z,
-        '0' => Zero,
-        '1' => One,
-        '2' => Two,
-        '3' => Three,
-        '4' => Four,
-        '5' => Five,
-        '6' => Six,
-        '7' => Seven,
-        '8' => Eight,
-        '9' => Nine,
-        ':' => Colon,
-        '.' => Dot,
-        ',' => Comma,
-        '/' => Slash,
-        '-' => Dash,
-        '+' => Plus,
-        '(' => LeftParen,
-        ')' => RightParen,
-        _ => Unknown
-    };
+        _defaultCollection = defaultCollection;
+        _carolingCollection = carolingCollection;
+        _defaultFont = defaultFont;
+        _carolingTitleFont = carolingTitleFont;
+    }
 
-    private static readonly byte[] A = [0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001];
-    private static readonly byte[] B = [0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110];
-    private static readonly byte[] C = [0b01111, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b01111];
-    private static readonly byte[] D = [0b11110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b11110];
-    private static readonly byte[] E = [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111];
-    private static readonly byte[] F = [0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000];
-    private static readonly byte[] G = [0b01111, 0b10000, 0b10000, 0b10011, 0b10001, 0b10001, 0b01111];
-    private static readonly byte[] H = [0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001];
-    private static readonly byte[] I = [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b11111];
-    private static readonly byte[] J = [0b00111, 0b00010, 0b00010, 0b00010, 0b10010, 0b10010, 0b01100];
-    private static readonly byte[] K = [0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001];
-    private static readonly byte[] L = [0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111];
-    private static readonly byte[] M = [0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001];
-    private static readonly byte[] N = [0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001];
-    private static readonly byte[] O = [0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110];
-    private static readonly byte[] P = [0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000];
-    private static readonly byte[] Q = [0b01110, 0b10001, 0b10001, 0b10001, 0b10101, 0b10010, 0b01101];
-    private static readonly byte[] R = [0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001];
-    private static readonly byte[] S = [0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110];
-    private static readonly byte[] T = [0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100];
-    private static readonly byte[] U = [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110];
-    private static readonly byte[] V = [0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100];
-    private static readonly byte[] W = [0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b10101, 0b01010];
-    private static readonly byte[] X = [0b10001, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b10001];
-    private static readonly byte[] Y = [0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100];
-    private static readonly byte[] Z = [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b10000, 0b11111];
-    private static readonly byte[] Zero = [0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110];
-    private static readonly byte[] One = [0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110];
-    private static readonly byte[] Two = [0b01110, 0b10001, 0b00001, 0b00010, 0b00100, 0b01000, 0b11111];
-    private static readonly byte[] Three = [0b11110, 0b00001, 0b00001, 0b01110, 0b00001, 0b00001, 0b11110];
-    private static readonly byte[] Four = [0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010];
-    private static readonly byte[] Five = [0b11111, 0b10000, 0b10000, 0b11110, 0b00001, 0b00001, 0b11110];
-    private static readonly byte[] Six = [0b01110, 0b10000, 0b10000, 0b11110, 0b10001, 0b10001, 0b01110];
-    private static readonly byte[] Seven = [0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000];
-    private static readonly byte[] Eight = [0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110];
-    private static readonly byte[] Nine = [0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110];
-    private static readonly byte[] Colon = [0b00000, 0b00100, 0b00100, 0b00000, 0b00100, 0b00100, 0b00000];
-    private static readonly byte[] Dot = [0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b01100, 0b01100];
-    private static readonly byte[] Comma = [0b00000, 0b00000, 0b00000, 0b00000, 0b00110, 0b00100, 0b01000];
-    private static readonly byte[] Slash = [0b00001, 0b00010, 0b00010, 0b00100, 0b01000, 0b01000, 0b10000];
-    private static readonly byte[] Dash = [0b00000, 0b00000, 0b00000, 0b11111, 0b00000, 0b00000, 0b00000];
-    private static readonly byte[] Plus = [0b00000, 0b00100, 0b00100, 0b11111, 0b00100, 0b00100, 0b00000];
-    private static readonly byte[] LeftParen = [0b00010, 0b00100, 0b01000, 0b01000, 0b01000, 0b00100, 0b00010];
-    private static readonly byte[] RightParen = [0b01000, 0b00100, 0b00010, 0b00010, 0b00010, 0b00100, 0b01000];
-    private static readonly byte[] Unknown = [0b11111, 0b00001, 0b00010, 0b00100, 0b00100, 0b00000, 0b00100];
+    public static DebugOverlayFontSet Load(string gameDirectory)
+    {
+        var fontDirectory = Path.Combine(gameDirectory, "font");
+        var defaultCollection = LoadCollection(Path.Combine(fontDirectory, "ANTQS__.TTF"));
+        var carolingCollection = LoadCollection(Path.Combine(fontDirectory, "CAROLING.TTF"));
+
+        return new DebugOverlayFontSet(
+            defaultCollection,
+            carolingCollection,
+            CreateFont(defaultCollection, FontFamily.GenericSansSerif, DebugTextOverlayFontSizes.Default),
+            CreateFont(carolingCollection, FontFamily.GenericSerif, DebugTextOverlayFontSizes.Title));
+    }
+
+    public Font GetFont(DebugTextFont font) =>
+        font == DebugTextFont.CarolingTitle ? _carolingTitleFont : _defaultFont;
+
+    public void Dispose()
+    {
+        _defaultFont.Dispose();
+        _carolingTitleFont.Dispose();
+        _defaultCollection?.Dispose();
+        _carolingCollection?.Dispose();
+    }
+
+    private static PrivateFontCollection? LoadCollection(string path)
+    {
+        if (!File.Exists(path))
+        {
+            Console.WriteLine($"Debug overlay font not found: {path}");
+            return null;
+        }
+
+        var collection = new PrivateFontCollection();
+        collection.AddFontFile(path);
+        return collection;
+    }
+
+    private static Font CreateFont(PrivateFontCollection? collection, FontFamily fallback, float size)
+    {
+        var family = collection is { Families.Length: > 0 } ? collection.Families[0] : fallback;
+        return new Font(family, size, FontStyle.Regular, GraphicsUnit.Pixel);
+    }
+}
+
+public readonly record struct DebugTextLine(string Text, DebugTextFont Font)
+{
+    public static DebugTextLine Default(string text) => new(text, DebugTextFont.Default);
+
+    public static DebugTextLine CarolingTitle(string text) => new(text, DebugTextFont.CarolingTitle);
+}
+
+public enum DebugTextFont
+{
+    Default,
+    CarolingTitle
+}
+
+internal static class DebugTextOverlayFontSizes
+{
+    public const int Default = 20;
+    public const int Title = 27;
 }

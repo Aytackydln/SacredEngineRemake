@@ -1,4 +1,4 @@
-﻿namespace Sacred.Core.Items;
+﻿namespace Sacred.Core.Pak.Items;
 
 public readonly record struct ItemsPakEntry(
     ItemsPakEntryInfo EntryInfo,

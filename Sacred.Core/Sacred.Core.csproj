@@ -10,4 +10,8 @@
       <PackageReference Include="Raiqub.Generators.EnumUtilities" Version="1.13.4" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="Pak\" />
+    </ItemGroup>
+
 </Project>

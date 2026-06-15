@@ -2,7 +2,7 @@ using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Numerics;
-using Sacred.Core.Weapon;
+using Sacred.Core.Pak.Weapon;
 
 namespace Sacred.ItemViewer.Avalonia.ItemViewer;
 

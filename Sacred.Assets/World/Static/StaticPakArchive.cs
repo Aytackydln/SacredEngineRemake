@@ -1,3 +1,5 @@
+using Sacred.Core.World;
+
 namespace Sacred.Assets.World.Static;
 
 public sealed class StaticPakArchive

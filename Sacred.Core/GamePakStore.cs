@@ -1,7 +1,7 @@
 ﻿using System.Collections.Frozen;
-using Sacred.Core.Items;
-using Sacred.Core.Texture;
-using Sacred.Core.Weapon;
+using Sacred.Core.Pak.Items;
+using Sacred.Core.Pak.Texture;
+using Sacred.Core.Pak.Weapon;
 
 namespace Sacred.Core;
 

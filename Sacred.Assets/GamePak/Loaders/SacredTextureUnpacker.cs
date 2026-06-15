@@ -1,6 +1,6 @@
 ﻿using System.Text;
-using Sacred.Core.Texture;
-using SacredItemSimulator.GamePak;
+using Sacred.Core;
+using Sacred.Core.Pak.Texture;
 
 namespace Sacred.Assets.GamePak.Loaders;
 

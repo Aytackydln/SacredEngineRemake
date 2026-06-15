@@ -6,7 +6,7 @@ using System.Linq;
 using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Sacred.Core.Weapon;
+using Sacred.Core.Pak.Weapon;
 
 namespace Sacred.ItemViewer.Avalonia.ItemViewer;
 

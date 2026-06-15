@@ -1,18 +1,18 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Gaming.Input;
 using Sacred.Core;
-using Sacred.Assets;
-using Sacred.Granny;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Graphics;
 using Sacred.Engine.Platform;
 using Sacred.Engine.Scene;
 using Sacred.Engine.World;
+using Sacred.Granny;
 
 namespace Sacred.Engine;
 
@@ -46,7 +46,7 @@ public sealed class SacredGame : IDisposable
         _assets = new AssetManager(gameDirectories);
         _camera = SacredCamera.CreateDefault(1600, 900);
         _worldStreamer = new WorldStreamer(SacredWorldArchive.Load(gameDirectories));
-        _renderer = new Dx12Renderer(_window, _assets);
+        _renderer = new Dx12Renderer(_window, _assets, ResolveGameDirectory(gameDirectories));
 
         BootstrapScene();
     }
@@ -185,6 +185,12 @@ public sealed class SacredGame : IDisposable
 
     private Vector3 BuildPlayerRotation() =>
         new(0.0f, PlayerModelUprightPitch, _playerMovementRotationZ);
+
+    private static string ResolveGameDirectory(SacredGameDirectories gameDirectories)
+    {
+        var pakDirectory = Path.GetDirectoryName(gameDirectories.TexturesPakPath);
+        return Path.GetDirectoryName(pakDirectory) ?? ".";
+    }
 
     public void Dispose()
     {

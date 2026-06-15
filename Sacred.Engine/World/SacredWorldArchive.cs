@@ -158,7 +158,7 @@ public sealed class SacredWorldArchive : IDisposable
                     break;
 
                 staticObjects.Add(new StaticWorldObject(
-                    record.Value.StaticId,
+                    staticId,
                     record.Value.TypeId,
                     record.Value.Flags,
                     record.Value.SectorId,
