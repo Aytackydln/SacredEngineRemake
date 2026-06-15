@@ -1,3 +1,4 @@
+using Sacred.Assets.Utils;
 using Sacred.Core.World;
 
 namespace Sacred.Assets.World.Floor;
@@ -10,10 +11,13 @@ public sealed class FloorPakArchive
 
     public static FloorPakArchive Load(string path)
     {
+        using var stopwatch = new LoggingStopwatch("Loading Floor.pak... ");
+
         if (string.IsNullOrWhiteSpace(path))
             throw new ArgumentException("Floor PAK path cannot be empty.", nameof(path));
 
-        return new FloorPakArchive(FloorPakData.FromBytes(File.ReadAllBytes(path)));
+        var floorPakData = FloorPakData.FromBytes(File.ReadAllBytes(path));
+        return new FloorPakArchive(floorPakData);
     }
 
     public FloorOverlayRecord? Get(uint floorId) => _data.Get(floorId);

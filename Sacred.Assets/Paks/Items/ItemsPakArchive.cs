@@ -1,17 +1,21 @@
 ﻿using System.Text;
+using Sacred.Assets.Utils;
 using Sacred.Core;
 using Sacred.Core.Pak.Items;
 
 namespace Sacred.Assets.Paks.Items;
 
-public static class ItemsPakParser
+public static class ItemsPakArchive
 {
     private static readonly Encoding SacredEncoding = Encoding.GetEncoding("iso-8859-1");
 
-    public static IEnumerable<ItemsPakEntry> Parse(string filePath)
+    public static IEnumerable<ItemsPakEntry> Load(string filePath)
     {
-        using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read);
-        using var br = new BinaryReader(fs, SacredEncoding);
+        using var stopwatch = new LoggingStopwatch("Loading Items.pak... ");
+
+        var pakBytes = File.ReadAllBytes(filePath);
+        using var ms = new MemoryStream(pakBytes);
+        using var br = new BinaryReader(ms, SacredEncoding);
 
         const string firstBytes = "ITM";
         var headerBytes = br.ReadBytes(3);
@@ -37,14 +41,11 @@ public static class ItemsPakParser
             entryInfos.Add(entryInfo);
         }
 
-        foreach (var entryInfo in entryInfos)
+        var modelDescIndex = 0;
+        foreach (var modelDesc in ItemsPakEntryModelDesc.ReadMany(sacredFile, pakBytes, entryInfos))
         {
-            var pakOffset = entryInfo.ModelDescOffset;
-
-            var modelDesc = ItemsPakEntryModelDesc.FromBytes(sacredFile, pakOffset, br);
-
             yield return new ItemsPakEntry(
-                EntryInfo: entryInfo,
+                EntryInfo: entryInfos[modelDescIndex++],
                 ModelDesc: modelDesc
             );
         }

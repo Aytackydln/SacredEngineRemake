@@ -54,11 +54,13 @@ public sealed class SacredWorldArchive : IDisposable
         if (!Directory.Exists(worldDirectory))
             throw new DirectoryNotFoundException($"World directory not found at expected path: {worldDirectory}");
 
+        var floorPakArchive = FloorPakArchive.Load(Path.Combine(worldDirectory, "Floor.pak"));
+        var staticPakArchive = StaticPakArchive.Load(Path.Combine(worldDirectory, "Static.pak"));
         return new SacredWorldArchive(
             Path.Combine(worldDirectory, "sectors.keyx"),
             File.OpenRead(Path.Combine(worldDirectory, "sectors.wldx")),
-            FloorPakArchive.Load(Path.Combine(worldDirectory, "Floor.pak")),
-            StaticPakArchive.Load(Path.Combine(worldDirectory, "Static.pak")));
+            floorPakArchive,
+            staticPakArchive);
     }
 
     public async Task<Sector?> TryLoadSector(SectorCoord coord)

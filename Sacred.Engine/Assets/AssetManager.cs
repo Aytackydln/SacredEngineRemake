@@ -85,7 +85,7 @@ public sealed class AssetManager : IDisposable
             ?? throw new InvalidDataException("Cannot infer tiles.pak path from texture PAK path.");
         _texturePak = TexturePakArchive.LoadFromDirectory(pakDirectory);
         _tilesPak = TilesPakArchive.Load(Path.Combine(pakDirectory, "tiles.pak"));
-        var items = ItemsPakParser.Parse(gameDirectories.ItemsPakPath).ToArray();
+        var items = ItemsPakArchive.Load(gameDirectories.ItemsPakPath).ToArray();
         _items = items.ToFrozenDictionary(item => item.ItemIndex);
         _playerCharacterItemsByItemId = items
             .Where(static item => !string.IsNullOrWhiteSpace(item.ModelDesc.ModelName))

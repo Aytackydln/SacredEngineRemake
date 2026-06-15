@@ -1,3 +1,5 @@
+using Sacred.Assets.Utils;
+
 namespace Sacred.Assets.Paks.Tiles;
 
 public sealed class TilesPakArchive
@@ -8,10 +10,13 @@ public sealed class TilesPakArchive
 
     public static TilesPakArchive Load(string path)
     {
+        using var stopwatch = new LoggingStopwatch("Loading Tiles.pak... ");
+ 
         if (string.IsNullOrWhiteSpace(path))
             throw new ArgumentException("Tiles PAK path cannot be empty.", nameof(path));
 
-        return new TilesPakArchive(TilesPakData.FromBytes(File.ReadAllBytes(path)));
+        var tilesPakData = TilesPakData.FromBytes(File.ReadAllBytes(path));
+        return new TilesPakArchive(tilesPakData);
     }
 
     public TileDefinition? Get(uint tileId) => _data.Get(tileId);

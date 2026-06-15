@@ -1,6 +1,7 @@
 using System.Collections.Frozen;
 using System.Runtime.InteropServices;
 using System.Text;
+using Sacred.Assets.Utils;
 using Sacred.Granny;
 
 namespace Sacred.Assets.Paks.Models;
@@ -26,6 +27,8 @@ public sealed class ModelsPakArchive : IDisposable
 
     public static ModelsPakArchive Load(string path)
     {
+        using var stopwatch = new LoggingStopwatch("Loading Models.pak... ");
+
         if (!File.Exists(path))
             throw new FileNotFoundException("models.pak was not found.", path);
 

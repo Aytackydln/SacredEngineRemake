@@ -1,4 +1,5 @@
 using System.Text;
+using Sacred.Assets.Utils;
 
 namespace Sacred.Assets.Paks.Texture;
 
@@ -33,6 +34,8 @@ public sealed class TexturePakArchive : IDisposable
 
     public static TexturePakArchive LoadFromDirectory(string pakDirectory)
     {
+        using var stopwatch = new LoggingStopwatch("Loading Texture.pak... ");
+ 
         if (string.IsNullOrWhiteSpace(pakDirectory))
             throw new ArgumentException("PAK directory path cannot be empty.", nameof(pakDirectory));
         if (!Directory.Exists(pakDirectory))

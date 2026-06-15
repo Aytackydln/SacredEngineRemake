@@ -1,5 +1,5 @@
-﻿using System.Text;
-using Sacred.Core.Utils;
+using System.Runtime.InteropServices;
+using System.Text;
 
 namespace Sacred.Core.Pak.Items;
 
@@ -15,69 +15,84 @@ public readonly record struct ItemsPakEntryModelDesc(
     ushort ModelExtent, // 2 bytes at offset 50; character rows contain values like 120..200
     string ModelName, // null-terminated string at 55, max length 32 bytes (including null terminator)
     float ModelRotationDegrees, // unaligned 4-byte float at offset 87; character rows commonly contain 0 or 90
-    ushort SomeShort1, // 2 bytes at offset 112, purpose unknown
-
-    byte[] UnknownBytes
+    ushort SomeShort1 // 2 bytes at offset 112, purpose unknown
 )
 {
-    private const int TotalSize = 128;
-
     private static readonly Encoding SacredEncoding = Encoding.GetEncoding("iso-8859-1");
 
-    public static ItemsPakEntryModelDesc FromBytes(SacredPakFile pakFile, uint pakOffset, BinaryReader br)
+    public static IEnumerable<ItemsPakEntryModelDesc> ReadMany(
+        SacredPakFile pakFile,
+        byte[] pakBytes,
+        IReadOnlyList<ItemsPakEntryInfo> entryInfos
+    )
     {
-        var pakLocation = new SacredPakLocation(pakFile, pakOffset, TotalSize);
-        br.BaseStream.Seek(pakOffset, SeekOrigin.Begin);
+        if (entryInfos.Count == 0)
+            yield break;
 
-        var bytes = br.ReadBytes(TotalSize).AsSpan();
+        var firstOffset = entryInfos.Min(static entryInfo => entryInfo.ModelDescOffset);
+        var layouts = ReadLayouts(pakBytes, entryInfos, firstOffset);
 
-        var someShort2 = BitConverter.ToUInt16(bytes[9..11]);
+        foreach (var entryInfo in entryInfos)
+        {
+            var offsetDelta = entryInfo.ModelDescOffset - firstOffset;
+            if (offsetDelta % ItemsPakEntryModelDescLayout.Size != 0)
+                throw new InvalidDataException($"Items pak model descriptor offset {entryInfo.ModelDescOffset} is not aligned to {ItemsPakEntryModelDescLayout.Size} bytes.");
 
-        var graphicRenderFlags = BitConverter.ToUInt32(bytes[..4]);
-        var rawBytes1 = bytes[4..8];
-        var textureId = BitConverter.ToUInt32(bytes[8..12]);
-        var rawBytes2 = bytes[12..16];
-        var mixedBaseGroupId = BitConverter.ToUInt32(bytes[16..20]);
-        var rawBytes3 = bytes[20..32];
-        var itemId = BitConverter.ToUInt32(bytes[32..36]);
-        var rawBytes4 = bytes[36..46];
-        var renderClass = bytes[46];
-        var rawBytes5 = bytes[47..48];
-        var modelTransformFlags = BitConverter.ToUInt16(bytes[48..50]);
-        var modelExtent = BitConverter.ToUInt16(bytes[50..52]);
-        var rawBytes6 = bytes[52..55];
-        var modelName = ReadLocationString(bytes[55..87]);
-        var modelRotationDegrees = BitConverter.ToSingle(bytes[87..91]);
-        var rawBytes7 = bytes[91..112];
-        var someShort1 = BitConverter.ToUInt16(bytes[112..114]);
-        var rawBytes8 = bytes[114..128];
-        
-        var unknownBytes = ByteArrayUtils.Combine(
-            ByteArrayUtils.Combine(rawBytes1, rawBytes2, rawBytes3, rawBytes4),
-            ByteArrayUtils.Combine(
-                ByteArrayUtils.Combine(rawBytes5, rawBytes6, rawBytes7),
-                rawBytes8));
+            var layoutIndex = checked((int)(offsetDelta / ItemsPakEntryModelDescLayout.Size));
+            if ((uint)layoutIndex >= (uint)layouts.Length)
+                throw new InvalidDataException($"Items pak model descriptor offset {entryInfo.ModelDescOffset} is outside the marshalled descriptor table.");
+
+            yield return FromLayout(pakFile, entryInfo.ModelDescOffset, layouts[layoutIndex]);
+        }
+    }
+
+    private static ItemsPakEntryModelDescLayout[] ReadLayouts(
+        byte[] pakBytes,
+        IReadOnlyList<ItemsPakEntryInfo> entryInfos,
+        uint firstOffset
+    )
+    {
+        var lastOffset = entryInfos.Max(static entryInfo => entryInfo.ModelDescOffset);
+        var descriptorByteLength = checked((int)(lastOffset - firstOffset) + ItemsPakEntryModelDescLayout.Size);
+
+        if (firstOffset > int.MaxValue || firstOffset + descriptorByteLength > pakBytes.Length)
+            throw new InvalidDataException("Items pak model descriptor table is outside the file bounds.");
+
+        return MemoryMarshal
+            .Cast<byte, ItemsPakEntryModelDescLayout>(pakBytes.AsSpan((int)firstOffset, descriptorByteLength))
+            .ToArray();
+    }
+
+    private static ItemsPakEntryModelDesc FromLayout(
+        SacredPakFile pakFile,
+        uint pakOffset,
+        ItemsPakEntryModelDescLayout layout
+    )
+    {
+        var pakLocation = new SacredPakLocation(pakFile, pakOffset, ItemsPakEntryModelDescLayout.Size);
+        ReadOnlySpan<byte> modelNameBytes = layout.ModelNameBytes;
 
         return new ItemsPakEntryModelDesc(
             PakLocation: pakLocation,
-            SomeShort2: someShort2,
-            GraphicRenderFlags: graphicRenderFlags,
-            TextureId: textureId,
-            MixedBaseGroupId: mixedBaseGroupId,
-            ItemId: itemId,
-            RenderClass: renderClass,
-            ModelTransformFlags: modelTransformFlags,
-            ModelExtent: modelExtent,
-            ModelName: modelName,
-            ModelRotationDegrees: modelRotationDegrees,
-            SomeShort1: someShort1,
-            UnknownBytes: unknownBytes
+            SomeShort2: layout.SomeShort2,
+            GraphicRenderFlags: layout.GraphicRenderFlags,
+            TextureId: layout.TextureId,
+            MixedBaseGroupId: layout.MixedBaseGroupId,
+            ItemId: layout.ItemId,
+            RenderClass: layout.RenderClass,
+            ModelTransformFlags: layout.ModelTransformFlags,
+            ModelExtent: layout.ModelExtent,
+            ModelName: ReadLocationString(modelNameBytes),
+            ModelRotationDegrees: layout.ModelRotationDegrees,
+            SomeShort1: layout.SomeShort1
         );
     }
 
-    private static string ReadLocationString(Span<byte> stringBytes)
+    private static string ReadLocationString(ReadOnlySpan<byte> stringBytes)
     {
         var nullIndex = stringBytes.IndexOf((byte)0);
+        if (nullIndex < 0)
+            nullIndex = stringBytes.Length;
 
         return SacredEncoding.GetString(stringBytes[..nullIndex]);
     }

@@ -8,14 +8,4 @@ public enum SacredPakFileType
     Unknown
 }
 
-public readonly record struct SacredPakFile
-{
-    public SacredPakFile(string filePath, SacredPakFileType type)
-    {
-        FilePath = filePath;
-        Type = type;
-    }
-
-    public string FilePath { get; }
-    public SacredPakFileType Type { get; }
-}
+public readonly record struct SacredPakFile(string FilePath, SacredPakFileType Type);

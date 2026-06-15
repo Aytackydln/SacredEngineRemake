@@ -43,7 +43,7 @@ public class SacredGameData
             .DistinctBy(info => info.ImageInfo.FileName)
             .ToFrozenDictionary(info => info.ImageInfo.FileName, info => info);
 
-        var items = ItemsPakParser.Parse(gameDirectories.ItemsPakPath)
+        var items = ItemsPakArchive.Load(gameDirectories.ItemsPakPath)
             .ToFrozenDictionary(item => item.EntryInfo.ItemIndex);
         var weapons = WeaponPakParser.Parse(gameDirectories.WeaponsPakPath, items)
             .ToFrozenDictionary(item => item.IdemId);

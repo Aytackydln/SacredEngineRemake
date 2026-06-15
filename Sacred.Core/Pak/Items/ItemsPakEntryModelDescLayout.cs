@@ -1,0 +1,50 @@
+﻿using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+
+namespace Sacred.Core.Pak.Items;
+
+[InlineArray(ItemsPakEntryModelDescLayout.ModelNameLength)]
+internal struct ItemsPakEntryModelNameBytes
+{
+    private byte _element0;
+}
+
+[StructLayout(LayoutKind.Explicit, Pack = 1, Size = Size)]
+internal readonly struct ItemsPakEntryModelDescLayout
+{
+    public const int Size = 128;
+    public const int ModelNameLength = 32;
+
+    [FieldOffset(0)]
+    public readonly uint GraphicRenderFlags;
+
+    [FieldOffset(8)]
+    public readonly uint TextureId;
+
+    [FieldOffset(9)]
+    public readonly ushort SomeShort2;
+
+    [FieldOffset(16)]
+    public readonly uint MixedBaseGroupId;
+
+    [FieldOffset(32)]
+    public readonly uint ItemId;
+
+    [FieldOffset(46)]
+    public readonly byte RenderClass;
+
+    [FieldOffset(48)]
+    public readonly ushort ModelTransformFlags;
+
+    [FieldOffset(50)]
+    public readonly ushort ModelExtent;
+
+    [FieldOffset(55)]
+    public readonly ItemsPakEntryModelNameBytes ModelNameBytes;
+
+    [FieldOffset(87)]
+    public readonly float ModelRotationDegrees;
+
+    [FieldOffset(112)]
+    public readonly ushort SomeShort1;
+}
