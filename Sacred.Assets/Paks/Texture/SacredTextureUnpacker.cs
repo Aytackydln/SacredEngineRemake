@@ -2,7 +2,7 @@
 using Sacred.Core;
 using Sacred.Core.Pak.Texture;
 
-namespace Sacred.Assets.GamePak.Loaders;
+namespace Sacred.Assets.Paks.Texture;
 
 public static class SacredTextureUnpacker
 {

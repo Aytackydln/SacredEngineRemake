@@ -4,7 +4,7 @@ using Sacred.Core;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Pak.Weapon;
 
-namespace Sacred.Assets.GamePak.Loaders;
+namespace Sacred.Assets.Paks.Weapon;
 
 public static class WeaponPakParser
 {

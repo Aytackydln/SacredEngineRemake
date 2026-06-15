@@ -1,6 +1,7 @@
 ﻿using System.Collections.Frozen;
-using Sacred.Assets.GamePak.Loaders;
 using Sacred.Assets.Paks.Items;
+using Sacred.Assets.Paks.Texture;
+using Sacred.Assets.Paks.Weapon;
 using Sacred.Core;
 using Sacred.Core.GameRes;
 
