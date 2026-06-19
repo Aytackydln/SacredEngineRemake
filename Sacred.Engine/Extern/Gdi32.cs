@@ -8,4 +8,7 @@ internal static partial class Gdi32
 
     [LibraryImport(LibraryName)]
     internal static partial nint GetStockObject(int index);
+
+    [LibraryImport(LibraryName)]
+    internal static partial int GetDeviceCaps(nint hdc, int index);
 }

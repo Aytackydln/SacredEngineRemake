@@ -67,7 +67,9 @@ public unsafe class Dx12DebugOverlay : IDisposable
             DebugTextLine.Default("FASTER: SHIFT OR GAMEPAD A"),
             DebugTextLine.Default("CYCLE: TAB, MOUSE4/5, GAMEPAD B"),
             DebugTextLine.Default("ZOOM: Q/E, WHEEL, RIGHT STICK"),
-            DebugTextLine.Default("TOGGLE HDR: F4")
+            DebugTextLine.Default("TOGGLE HDR: F4"),
+            DebugTextLine.Default("FRAME PACING: F5"),
+            DebugTextLine.Default("LOW LATENCY: F6")
         ]);
     }
 
@@ -206,6 +208,7 @@ public unsafe class Dx12DebugOverlay : IDisposable
         var lines = new[]
         {
             $"FPS {_fps:0.0}",
+            $"PACING {rendererStats.FramePacingStatus}",
             $"SECTORS VISIBLE {stats.VisibleSectors} LOADING {world.LoadingSectors}",
             $"GPU SECTORS {rendererStats.GpuSectorTextureCount}/{rendererStats.MaxSectorTextureCount} UPLOADING {rendererStats.PendingSectorUploadCount}",
             $"IMAGES {stats.SectorImagesDrawn}/{stats.SectorImagesCached} BUILDING {stats.SectorImagesPending}",
@@ -251,4 +254,5 @@ public unsafe class Dx12DebugOverlay : IDisposable
 public readonly record struct Dx12DebugOverlayStats(
     int GpuSectorTextureCount,
     int MaxSectorTextureCount,
-    int PendingSectorUploadCount);
+    int PendingSectorUploadCount,
+    string FramePacingStatus);

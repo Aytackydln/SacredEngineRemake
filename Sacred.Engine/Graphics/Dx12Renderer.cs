@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Numerics;
 using System.Runtime;
@@ -12,6 +13,7 @@ using Sacred.Core.World;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Extern;
 using Sacred.Engine.Graphics.Swapchain;
+using Sacred.Engine.Latency;
 using Sacred.Engine.Platform;
 using Sacred.Engine.Rendering;
 using Sacred.Engine.Scene;
@@ -30,10 +32,10 @@ public sealed class Dx12Renderer : IDisposable
 {
     private const int FrameCount = 2;
     private const int MaxSectorTextures = 64;
-    private const int MaxModelTextures = 32;
+    private const int MaxModelTextures = 128;
     private const int MaxStaticSpriteTextures = 4096;
-    private const int MaxModelTextureUploadsPerFrame = 2;
-    private const int MaxStaticSpriteTextureUploadsPerFrame = 8;
+    private const int MaxModelTextureUploadsPerFrame = 8;
+    private const int MaxStaticSpriteTextureUploadsPerFrame = 4;
     private const int DebugOverlaySrvSlot = MaxSectorTextures;
     private const int ControlsOverlaySrvSlot = DebugOverlaySrvSlot + 1;
     private const int FirstModelTextureSrvSlot = ControlsOverlaySrvSlot + 1;
@@ -44,23 +46,23 @@ public sealed class Dx12Renderer : IDisposable
     private const float PainterDepthScale = 1.0f / 4096.0f;
     private const float StaticSpriteAlphaCutoff = 0.45f;
     private const float PlayerDepthBias = 0.0005f;
-    private const float ModelLocalDepthScale = 0.08f;
 
     private const int QuadRootConstantCount = 12;
     private const int StaticSpriteSceneRootConstantCount = 8;
     private static readonly int ModelVertexStride = Marshal.SizeOf<VertexPositionNormalTexture>();
     private static readonly int StaticSpriteInstanceStride = Marshal.SizeOf<StaticSpriteInstance>();
     private const Format DepthBufferFormat = Format.D32_Float;
-    private const SwapChainFlags SwapChainFlags = Vortice.DXGI.SwapChainFlags.AllowTearing;
 
     private readonly Win32Window _window;
     private readonly AssetManager _assets;
     private readonly string _gameDirectory;
+    private readonly LowLatencySystem _latency;
     private readonly TerrainRenderer _terrain;
     private readonly Dictionary<SectorCoord, SectorTexture> _sectorTextures = new();
     private readonly Dictionary<Mesh, ModelGpuMesh> _modelMeshes = new();
     private readonly Dictionary<string, ModelTexture> _modelTextures = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<uint, StaticSpriteTexture> _staticSpriteTextures = new();
+    private readonly long _startTimestamp = Stopwatch.GetTimestamp();
     private readonly Stack<int> _freeSrvSlots = new();
     private readonly Stack<int> _freeModelSrvSlots = new();
     private readonly Stack<int> _freeStaticSpriteSrvSlots = new();
@@ -70,6 +72,7 @@ public sealed class Dx12Renderer : IDisposable
     private readonly ConcurrentQueue<CompletedModelTextureLoad> _completedModelTextureLoads = new();
     private readonly List<SectorCoord> _sectorsToRemove = new(MaxSectorTextures);
     private readonly List<ID3D12Resource> _uploadResources = [];
+    private readonly List<ID3D12Resource> _deferredDisposeResources = [];
     private readonly ID3D12Resource[] _backBuffers = new ID3D12Resource[FrameCount];
     private readonly RootConstantUploadCache _modelConstantCache = new(ModelShaderLayout.RootParameterCount);
     private readonly Dx12TextureUploader _textureUploader;
@@ -95,6 +98,7 @@ public sealed class Dx12Renderer : IDisposable
     private ID3D12PipelineState _staticSpritePipelineState = null!;
     private ID3D12RootSignature _modelRootSignature = null!;
     private ID3D12PipelineState _modelPipelineState = null!;
+    private ID3D12PipelineState _modelAnimatedPipelineState = null!;
     private ID3D12Resource? _depthBuffer;
     private ID3D12Resource? _staticSpriteInstanceBuffer;
     private Thread? _sectorUploadThread;
@@ -113,12 +117,15 @@ public sealed class Dx12Renderer : IDisposable
     private long _releasedCpuTextureBytesSinceGc;
     private int _staticSpriteUploadsThisFrame;
     private Dx12SwapChainMode _requestedSwapChainMode = Dx12SwapChainMode.Sdr;
+    private SwapChainFlags _swapChainFlags;
+    private bool _allowTearing;
 
-    public Dx12Renderer(Win32Window window, AssetManager assets, string gameDirectory)
+    public Dx12Renderer(Win32Window window, AssetManager assets, string gameDirectory, LowLatencySystem latency)
     {
         _window = window;
         _assets = assets;
         _gameDirectory = gameDirectory;
+        _latency = latency;
         _terrain = new TerrainRenderer(assets);
 
         for (var i = MaxSectorTextures - 1; i >= 0; i--)
@@ -138,16 +145,23 @@ public sealed class Dx12Renderer : IDisposable
         CreatePipeline();
     }
 
+    public bool VariableRefreshRateSupported => _allowTearing;
+
     public async Task RenderFrameAsync(
         SacredCamera camera,
         VisibleWorld world,
         SceneState scene,
+        bool verticalSyncEnabled,
+        string framePacingStatus,
+        ulong frameId,
         CancellationToken cancellationToken = default)
     {
         await WaitForGpuAsync(cancellationToken);
         DisposeUploadResources();
+        DisposeDeferredResources();
         ResizeIfNeeded();
 
+        _latency.Mark(LatencyMarker.RenderSubmitStart, frameId);
         var sectorImages = _terrain.PrepareVisibleWorld(world);
         var staticSprites = _terrain.PrepareVisibleStaticSprites();
         CollectCompletedSectorUploads();
@@ -163,7 +177,11 @@ public sealed class Dx12Renderer : IDisposable
             camera,
             world,
             scene,
-            new Dx12DebugOverlayStats(_sectorTextures.Count, MaxSectorTextures, _pendingSectorUploads.Count));
+            new Dx12DebugOverlayStats(
+                _sectorTextures.Count,
+                MaxSectorTextures,
+                _pendingSectorUploads.Count,
+                framePacingStatus));
         unsafe
         {
             RecordWorldPass(camera, sectorImages, staticSprites, scene);
@@ -171,7 +189,10 @@ public sealed class Dx12Renderer : IDisposable
 
         _commandList.Close();
         ExecuteCommandList();
-        _swapChain.Present();
+        _latency.Mark(LatencyMarker.RenderSubmitEnd, frameId);
+        _latency.Mark(LatencyMarker.PresentStart, frameId);
+        _swapChain.Present(verticalSyncEnabled, _allowTearing);
+        _latency.Mark(LatencyMarker.PresentEnd, frameId);
         SignalFrameFence();
     }
 
@@ -190,6 +211,7 @@ public sealed class Dx12Renderer : IDisposable
         StopSectorUploadWorker();
         WaitForGpu();
         DisposeUploadResources();
+        DisposeDeferredResources();
 
         foreach (var texture in _sectorTextures.Values)
             texture.Resource.Dispose();
@@ -250,9 +272,18 @@ public sealed class Dx12Renderer : IDisposable
     {
         _factory = CreateDXGIFactory2<IDXGIFactory2>(false);
         _factory.MakeWindowAssociation(_window.Hwnd, WindowAssociationFlags.IgnoreAltEnter).CheckError();
+        _allowTearing = CheckTearingSupport(_factory);
+        _swapChainFlags = _allowTearing ? SwapChainFlags.AllowTearing : default;
 
         _device = D3D12CreateDevice<ID3D12Device>(null, FeatureLevel.Level_12_2);
         _commandQueue = _device.CreateCommandQueue(CommandListType.Direct);
+        _latency.AttachD3D12(_device.NativePointer, _commandQueue.NativePointer);
+    }
+
+    private static bool CheckTearingSupport(IDXGIFactory2 factory)
+    {
+        using var factory5 = factory.QueryInterfaceOrNull<IDXGIFactory5>();
+        return factory5?.PresentAllowTearing == true;
     }
 
     private void CreateSwapChain()
@@ -267,7 +298,7 @@ public sealed class Dx12Renderer : IDisposable
             _renderWidth,
             _renderHeight,
             FrameCount,
-            SwapChainFlags);
+            _swapChainFlags);
         _requestedSwapChainMode = _swapChain is Dx12HdrSwapChain ? Dx12SwapChainMode.Hdr : Dx12SwapChainMode.Sdr;
     }
 
@@ -527,6 +558,20 @@ public sealed class Dx12Renderer : IDisposable
                 },
                 ShaderVisibility.Pixel),
             new RootParameter(
+                new RootDescriptorTable
+                {
+                    Ranges =
+                    [
+                        new DescriptorRange(
+                            DescriptorRangeType.ShaderResourceView,
+                            1,
+                            ModelShaderLayout.ModelOverlayTextureRegister,
+                            0,
+                            0)
+                    ]
+                },
+                ShaderVisibility.Pixel),
+            new RootParameter(
                 new RootConstants(
                     ModelShaderLayout.SceneConstantsRegister,
                     0,
@@ -561,6 +606,7 @@ public sealed class Dx12Renderer : IDisposable
 
         var vertexShader = Dx12ShaderCompiler.CompileShader(_swapChain.Shaders.ModelVertexShader);
         var pixelShader = Dx12ShaderCompiler.CompileShader(_swapChain.Shaders.ModelPixelShader);
+        var animatedPixelShader = Dx12ShaderCompiler.CompileShader(_swapChain.Shaders.AnimatedModelPixelShader);
         var depthStencil = DepthStencilDescription.Default;
         depthStencil.DepthFunc = ComparisonFunction.LessEqual;
 
@@ -586,6 +632,8 @@ public sealed class Dx12Renderer : IDisposable
         };
 
         _modelPipelineState = _device.CreateGraphicsPipelineState(pipelineDescription);
+        pipelineDescription.PixelShader = animatedPixelShader;
+        _modelAnimatedPipelineState = _device.CreateGraphicsPipelineState(pipelineDescription);
     }
 
     private void RecreateSwapChain(Dx12SwapChainMode requestedMode)
@@ -609,6 +657,8 @@ public sealed class Dx12Renderer : IDisposable
     {
         _modelPipelineState?.Dispose();
         _modelPipelineState = null!;
+        _modelAnimatedPipelineState?.Dispose();
+        _modelAnimatedPipelineState = null!;
         _modelRootSignature?.Dispose();
         _modelRootSignature = null!;
         _staticSpritePipelineState?.Dispose();
@@ -639,7 +689,7 @@ public sealed class Dx12Renderer : IDisposable
 
         DisposeBackBuffers();
 
-        _swapChain.ResizeBuffers(FrameCount, width, height, SwapChainFlags);
+        _swapChain.ResizeBuffers(FrameCount, width, height, _swapChainFlags);
         _renderWidth = width;
         _renderHeight = height;
         CreateBackBuffers();
@@ -720,16 +770,16 @@ public sealed class Dx12Renderer : IDisposable
 
             if (_freeModelSrvSlots.Count == 0)
             {
-                texture.Failed = true;
                 continue;
             }
 
+            ID3D12Resource? resource = null;
             try
             {
                 var slot = _freeModelSrvSlots.Pop();
                 texture.SrvSlot = slot;
                 uploadsThisFrame++;
-                var resource = _textureUploader.UploadRgbaTexture(
+                resource = _textureUploader.UploadRgbaTexture(
                     _commandList,
                     completed.Asset.Width,
                     completed.Asset.Height,
@@ -740,7 +790,15 @@ public sealed class Dx12Renderer : IDisposable
             }
             catch
             {
-                texture.Resource?.Dispose();
+                if (texture.Resource is not null)
+                {
+                    DeferResourceDispose(texture.Resource);
+                    texture.Resource = null;
+                }
+
+                if (resource is not null)
+                    DeferResourceDispose(resource);
+
                 texture.Resource = null;
                 if (texture.SrvSlot >= 0)
                 {
@@ -762,24 +820,34 @@ public sealed class Dx12Renderer : IDisposable
             return null;
 
         if (_modelTextures.TryGetValue(textureName, out var existing))
-            return existing.Resource is not null ? existing : null;
-
-        var texture = new ModelTexture(textureName)
         {
-            Pending = true
-        };
-        _modelTextures.Add(textureName, texture);
+            if (existing.Resource is not null)
+                return existing;
 
-        _ = LoadModelTextureAsync(textureName);
+            if (!existing.Pending && !existing.Failed)
+                RequestModelTextureLoad(existing);
+
+            return null;
+        }
+
+        var texture = new ModelTexture(textureName);
+        _modelTextures.Add(textureName, texture);
+        RequestModelTextureLoad(texture);
 
         return null;
+    }
+
+    private void RequestModelTextureLoad(ModelTexture texture)
+    {
+        texture.Pending = true;
+        _ = LoadModelTextureAsync(texture.Name);
     }
 
     private async Task LoadModelTextureAsync(string textureName)
     {
         try
         {
-            var asset = await _assets.LoadTextureAsync(textureName);
+            var asset = await _assets.LoadModelTextureAsync(textureName);
             _completedModelTextureLoads.Enqueue(new CompletedModelTextureLoad(textureName, asset, null));
         }
         catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or NotSupportedException)
@@ -1092,6 +1160,7 @@ public sealed class Dx12Renderer : IDisposable
             0);
 
         var constants = stackalloc float[ModelShaderLayout.ModelConstantsCount];
+        var elapsedSeconds = (float)Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds;
         foreach (var model in models)
         {
             if (model.Mesh.Vertices.Length == 0 || model.Mesh.Indices.Length == 0)
@@ -1118,10 +1187,10 @@ public sealed class Dx12Renderer : IDisposable
             if (model.Mesh.Surfaces.Count == 0)
             {
                 WriteModelTextureFlags(
-                    hasTexture: false,
-                    localDepthScale: ModelLocalDepthScale,
+                    textureMode: 0.0f,
                     painterDepth: modelSceneDepth,
-                    alphaCutoff: 0.0f,
+                    animationValue: 1.0f,
+                    elapsedSeconds: 0.0f,
                     constants + ModelShaderLayout.TextureFlagsOffset);
                 SetModelRootConstantsIfChanged(
                     ModelShaderLayout.ModelConstantsRootParameter,
@@ -1131,40 +1200,113 @@ public sealed class Dx12Renderer : IDisposable
                 _commandList.SetGraphicsRootDescriptorTable(
                     ModelShaderLayout.ModelTextureRootParameter,
                     SrvGpuHandle(DebugOverlaySrvSlot));
+                _commandList.SetGraphicsRootDescriptorTable(
+                    ModelShaderLayout.ModelOverlayTextureRootParameter,
+                    SrvGpuHandle(DebugOverlaySrvSlot));
                 _commandList.DrawIndexedInstanced((uint)mesh.IndexCount, 1, 0, 0, 0);
                 continue;
             }
 
-            foreach (var surface in model.Mesh.Surfaces)
+            for (var animatedPass = 0; animatedPass < 2; animatedPass++)
             {
-                if (surface.IndexCount <= 0 || surface.IndexStart >= mesh.IndexCount)
-                    continue;
+                var drawAnimatedSurfaces = animatedPass != 0;
+                _commandList.SetPipelineState(drawAnimatedSurfaces ? _modelAnimatedPipelineState : _modelPipelineState);
+                foreach (var surface in model.Mesh.Surfaces)
+                {
+                    if (surface.IndexCount <= 0 || surface.IndexStart >= mesh.IndexCount)
+                        continue;
 
-                var drawCount = Math.Min(surface.IndexCount, mesh.IndexCount - surface.IndexStart);
-                var texture = GetOrRequestModelTexture(surface.TextureName);
-                var hasTexture = texture is { Resource: not null, SrvSlot: >= 0 };
-                WriteModelTextureFlags(
-                    hasTexture,
-                    ModelLocalDepthScale,
-                    modelSceneDepth,
-                    0.10f,
-                    constants + ModelShaderLayout.TextureFlagsOffset);
+                    var textureReference = model.ResolveTextureReference(surface.TextureName);
+                    var animatesBase = textureReference.Animation.IsAnimated;
+                    var animatesOverlay = textureReference.HasOverlay && textureReference.OverlayAnimation.IsAnimated;
+                    if (drawAnimatedSurfaces)
+                    {
+                        if (!animatesBase && !animatesOverlay)
+                            continue;
+                    }
+                    else if (animatesBase)
+                    {
+                        continue;
+                    }
 
-                SetModelRootConstantsIfChanged(
-                    ModelShaderLayout.ModelConstantsRootParameter,
-                    constants + ModelShaderLayout.TextureFlagsOffset,
-                    ModelShaderLayout.TextureFlagsConstantsCount,
-                    ModelShaderLayout.TextureFlagsOffset);
-                if (hasTexture)
-                    _commandList.SetGraphicsRootDescriptorTable(
-                        ModelShaderLayout.ModelTextureRootParameter,
-                        SrvGpuHandle(texture!.SrvSlot));
-                else
-                    _commandList.SetGraphicsRootDescriptorTable(
-                        ModelShaderLayout.ModelTextureRootParameter,
-                        SrvGpuHandle(DebugOverlaySrvSlot));
+                    var drawCount = Math.Min(surface.IndexCount, mesh.IndexCount - surface.IndexStart);
+                    var texture = GetOrRequestModelTexture(textureReference.TextureName);
+                    var hasTexture = texture is { Resource: not null, SrvSlot: >= 0 };
 
-                _commandList.DrawIndexedInstanced((uint)drawCount, 1, (uint)surface.IndexStart, 0, 0);
+                    ModelTexture? overlayTexture = null;
+                    var hasOverlay = false;
+                    var textureMode = PackModelTextureMode(hasTexture, hasOverlay, TextureOverlayMode.None);
+                    var animation = TextureAnimation.None;
+                    var animationTargetsOverlay = false;
+
+                    if (drawAnimatedSurfaces)
+                    {
+                        if (animatesBase)
+                        {
+                            if (!hasTexture)
+                                continue;
+
+                            animation = textureReference.Animation;
+                        }
+                        else
+                        {
+                            overlayTexture = GetOrRequestModelTexture(textureReference.OverlayTextureName);
+                            hasOverlay = overlayTexture is { Resource: not null, SrvSlot: >= 0 } &&
+                                         textureReference.OverlayMode != TextureOverlayMode.None;
+                            if (!hasTexture || !hasOverlay)
+                                continue;
+
+                            animation = textureReference.OverlayAnimation;
+                            animationTargetsOverlay = true;
+                            textureMode = PackModelTextureMode(hasTexture, hasOverlay, textureReference.OverlayMode);
+                        }
+                    }
+                    else
+                    {
+                        if (animatesBase)
+                            continue;
+
+                        if (textureReference.HasOverlay && !animatesOverlay)
+                        {
+                            overlayTexture = GetOrRequestModelTexture(textureReference.OverlayTextureName);
+                            hasOverlay = overlayTexture is { Resource: not null, SrvSlot: >= 0 } &&
+                                         textureReference.OverlayMode != TextureOverlayMode.None;
+                        }
+
+                        textureMode = PackModelTextureMode(hasTexture, hasOverlay, textureReference.OverlayMode);
+                    }
+
+                    WriteModelTextureFlags(
+                        textureMode,
+                        modelSceneDepth,
+                        PackModelTextureAnimation(animation, animationTargetsOverlay),
+                        animation.IsAnimated ? elapsedSeconds : 0.0f,
+                        constants + ModelShaderLayout.TextureFlagsOffset);
+
+                    SetModelRootConstantsIfChanged(
+                        ModelShaderLayout.ModelConstantsRootParameter,
+                        constants + ModelShaderLayout.TextureFlagsOffset,
+                        ModelShaderLayout.TextureFlagsConstantsCount,
+                        ModelShaderLayout.TextureFlagsOffset);
+                    if (hasTexture)
+                        _commandList.SetGraphicsRootDescriptorTable(
+                            ModelShaderLayout.ModelTextureRootParameter,
+                            SrvGpuHandle(texture!.SrvSlot));
+                    else
+                        _commandList.SetGraphicsRootDescriptorTable(
+                            ModelShaderLayout.ModelTextureRootParameter,
+                            SrvGpuHandle(DebugOverlaySrvSlot));
+                    if (hasOverlay)
+                        _commandList.SetGraphicsRootDescriptorTable(
+                            ModelShaderLayout.ModelOverlayTextureRootParameter,
+                            SrvGpuHandle(overlayTexture!.SrvSlot));
+                    else
+                        _commandList.SetGraphicsRootDescriptorTable(
+                            ModelShaderLayout.ModelOverlayTextureRootParameter,
+                            SrvGpuHandle(DebugOverlaySrvSlot));
+
+                    _commandList.DrawIndexedInstanced((uint)drawCount, 1, (uint)surface.IndexStart, 0, 0);
+                }
             }
         }
 
@@ -1196,8 +1338,12 @@ public sealed class Dx12Renderer : IDisposable
         {
             foreach (var surface in model.Mesh.Surfaces)
             {
-                if (!string.IsNullOrWhiteSpace(surface.TextureName))
-                    activeTextureNames.Add(surface.TextureName);
+                var textureName = model.ResolveTextureReference(surface.TextureName).TextureName;
+                if (!string.IsNullOrWhiteSpace(textureName))
+                    activeTextureNames.Add(textureName);
+                var overlayTextureName = model.ResolveTextureReference(surface.TextureName).OverlayTextureName;
+                if (!string.IsNullOrWhiteSpace(overlayTextureName))
+                    activeTextureNames.Add(overlayTextureName);
             }
         }
 
@@ -1209,9 +1355,16 @@ public sealed class Dx12Renderer : IDisposable
 
             textureNamesToRemove.Add(pair.Key);
             var texture = pair.Value;
-            texture.Resource?.Dispose();
+            if (texture.Resource is not null)
+            {
+                DeferResourceDispose(texture.Resource);
+                texture.Resource = null;
+            }
             if (texture.SrvSlot >= 0)
+            {
                 _freeModelSrvSlots.Push(texture.SrvSlot);
+                texture.SrvSlot = -1;
+            }
         }
 
         foreach (var textureName in textureNamesToRemove)
@@ -1269,16 +1422,48 @@ public sealed class Dx12Renderer : IDisposable
     }
 
     private static unsafe void WriteModelTextureFlags(
-        bool hasTexture,
-        float localDepthScale,
+        float textureMode,
         float painterDepth,
-        float alphaCutoff,
+        float animationValue,
+        float elapsedSeconds,
         float* target)
     {
-        target[0] = hasTexture ? 1.0f : 0.0f;
-        target[1] = localDepthScale;
+        target[0] = textureMode;
+        target[1] = animationValue;
         target[2] = painterDepth;
-        target[3] = alphaCutoff;
+        target[3] = elapsedSeconds;
+    }
+
+    private static float PackModelTextureAnimation(TextureAnimation animation, bool overlay)
+    {
+        if (!animation.IsAnimated)
+            return 1.0f;
+
+        var modeOffset = animation.Mode == TextureAnimationMode.VerticalScrollBlackKey ? 0.5f : 0.0f;
+        var value = Math.Max(1, animation.FrameCount) + modeOffset;
+        return overlay ? -value : value;
+    }
+
+    private static bool IsAnimatedTextureReference(ModelTextureReference reference) =>
+        reference.Animation.IsAnimated || reference.OverlayAnimation.IsAnimated;
+
+    private static float PackModelTextureMode(
+        bool hasTexture,
+        bool hasOverlay,
+        TextureOverlayMode overlayMode)
+    {
+        if (!hasTexture)
+            return 0.0f;
+
+        if (!hasOverlay)
+            return 1.0f;
+
+        return overlayMode switch
+        {
+            TextureOverlayMode.AlphaBlend => 2.0f,
+            TextureOverlayMode.MultiTextureFill => 3.0f,
+            _ => 1.0f
+        };
     }
 
     private static unsafe void WriteModelLighting(
@@ -1404,6 +1589,18 @@ public sealed class Dx12Renderer : IDisposable
         _uploadResources.Clear();
     }
 
+    private void DeferResourceDispose(ID3D12Resource resource)
+    {
+        _deferredDisposeResources.Add(resource);
+    }
+
+    private void DisposeDeferredResources()
+    {
+        foreach (var resource in _deferredDisposeResources)
+            resource.Dispose();
+        _deferredDisposeResources.Clear();
+    }
+
     private void StopSectorUploadWorker()
     {
         _sectorUploadRequests.CompleteAdding();
@@ -1435,16 +1632,18 @@ public sealed class Dx12Renderer : IDisposable
 
     private static class ModelShaderLayout
     {
-        public const int RootParameterCount = 3;
+        public const int RootParameterCount = 4;
 
         public const int ModelConstantsRegister = 0; // HLSL: register(b0)
         public const int SceneConstantsRegister = 1; // HLSL: register(b1)
         public const int ModelTextureRegister = 0; // HLSL: register(t0)
+        public const int ModelOverlayTextureRegister = 1; // HLSL: register(t1)
         public const int ModelSamplerRegister = 0; // HLSL: register(s0)
 
         public const int ModelConstantsRootParameter = 0;
         public const int ModelTextureRootParameter = 1;
-        public const int SceneConstantsRootParameter = 2;
+        public const int ModelOverlayTextureRootParameter = 2;
+        public const int SceneConstantsRootParameter = 3;
 
         public const int ModelConstantsCount = 40;
         public const int ModelBaseConstantsOffset = 0;

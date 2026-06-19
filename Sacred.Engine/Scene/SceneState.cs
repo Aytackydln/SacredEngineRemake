@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Numerics;
+using Sacred.Assets.Paks.Texture;
 using Sacred.Granny;
 
 namespace Sacred.Engine.Scene;
@@ -26,11 +27,22 @@ public sealed record SceneModel(
     Mesh Mesh,
     Vector3 Position,
     Vector3 Rotation,
-    float Scale = 1.0f
+    float Scale = 1.0f,
+    IReadOnlyDictionary<string, ModelTextureReference>? TextureAliases = null
 )
 {
     public Matrix4x4 Transform =>
         Matrix4x4.CreateScale(Scale) *
         Matrix4x4.CreateFromYawPitchRoll(Rotation.X, Rotation.Y, Rotation.Z) *
         Matrix4x4.CreateTranslation(Position);
+
+    public ModelTextureReference ResolveTextureReference(string? textureName)
+    {
+        if (string.IsNullOrWhiteSpace(textureName))
+            return new ModelTextureReference(string.Empty, TextureAnimation.None);
+
+        return TextureAliases is not null && TextureAliases.TryGetValue(textureName, out var alias)
+            ? alias
+            : ModelTextureReference.Static(textureName);
+    }
 }

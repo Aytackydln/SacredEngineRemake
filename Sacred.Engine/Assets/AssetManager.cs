@@ -19,53 +19,67 @@ namespace Sacred.Engine.Assets;
 public sealed class AssetManager : IDisposable
 {
     private const int MaxTextureCacheEntries = 64;
+    private const int MaxModelTextureCacheEntries = 128;
     
-    private const string SeraWings = "SeraWings01.grn";
-    private const string SeraHair = "SeraHair01.grn";
-    private const string SeraHelm = "Seraphim_christmas_helm.GRN";
+    // These are Items.pak entry ids used by game item references. The comments
+    // document the GRN model rows resolved at runtime, while the same item rows
+    // also supply texture/effect ids.
+    private const ushort Seraphim = 1; // SERAPHIM.GRN
+    private const ushort Gladiator = 2; // GLADIATOR.GRN
+    private const ushort BattleMage = 3; // MAGICIAN.GRN
+    private const ushort DarkElf = 4; // DARKELVE.GRN
+    private const ushort VampiressDay = 6; // VLADY_D.GRN
+    private const ushort VampiressNight = 7; // VLADY_N.GRN, shares character ItemId 6
+    private const ushort Dwarf = 8; // dwarf.grn
+    private const ushort Daemon = 9; // Daemonia.grn
+    private const ushort WoodElf = 108; // Waldelfe.grn
 
-    private const string DelfClothArmor = "ELVE_MAGICAN_CLOTH.GRN";
-    private const string DelfBreastplate = "DElve_sa5_body.grn";
+    private const ushort DaemonHelm = 1222; // Daemonia_Armor01_Helm.grn
+    private const ushort DarkElfBreastplate = 1251; // DElve_sa5_body.grn
+    private const ushort SeraphimHelm = 1840; // Seraphim_christmas_helm.GRN
+    private const ushort DarkElfClothArmor = 3160; // ELVE_MAGICAN_CLOTH.GRN
+    private const ushort BattleMageCowl = 3219; // magician_cowl.grn
+    private const ushort SeraphimWings = 4006; // SeraWings01.grn, animated wing effect row
+    private const ushort SeraphimHair = 4007; // SeraHair01.grn
+    private const ushort VampiressDayHair = 4028; // vlady_d_hair.grn
+    private const ushort VampiressNightHair = 4029; // vlady_n_hair.grn
+    private const ushort GladiatorBelt = 4054; // Gladiator_belt.grn
+    private const ushort ElvenBow = 1747;
 
-    private const string GladBelt = "Gladiator_belt.grn";
-    private const string MageCowl = "MAGICIAN_COWL.GRN";
-    private const string VampDHair = "vlady_d_hair.grn";
-    private const string VampNHair = "vlady_n_hair.grn";
-    private const string DaemonHelm = "Daemonia_Armor01_Helm.grn";
+    private static readonly ushort[] DalmarSet = [3271, 3272, 3273, 3274];
 
-    private static readonly string[] GladAttachments = [GladBelt];
-    private static readonly string[] SeraAttachments = [SeraWings, SeraHair, SeraHelm];
-    private static readonly string[] Delf1Attachments = [DelfClothArmor];
-    private static readonly string[] Delf2Attachments = [DelfBreastplate];
-    private static readonly string[] MageAttachments = [MageCowl];
-    private static readonly string[] VampDAttachments = [VampDHair];
-    private static readonly string[] VampNAttachments = [VampNHair];
-    private static readonly string[] DaemonAttachments = [DaemonHelm];
+    private static readonly IReadOnlyDictionary<string, ModelTextureReference> EmptyTextureAliases =
+        new Dictionary<string, ModelTextureReference>(StringComparer.OrdinalIgnoreCase);
 
     private static readonly PlayerCharacterDefinition[] PlayerCharacterDefinitions =
     [
-        new(1, "Seraphim", null, SeraAttachments, []),
-        new(2, "Gladiator", null, GladAttachments, []),
-        new(108, "Wood Elf", "Waldelfe.grn", [], []),
-        new(4, "Dark Elf 1", null, Delf1Attachments, []),
-        new(4, "Dark Elf 2", null, Delf2Attachments, []),
-        new(3, "Battle Mage", null, MageAttachments, []),
-        new(6, "Vampiress D", "VLADY_D.GRN", VampDAttachments, []),
-        new(6, "Vampiress N", "VLADY_N.GRN", VampNAttachments, []),
-        new(8, "Dwarf", null, [], []),
-        new(9, "Daemon", null, DaemonAttachments, [])
+        new(Seraphim, "Seraphim", [SeraphimWings, SeraphimHair, SeraphimHelm], []),
+        new(Gladiator, "Gladiator", [GladiatorBelt], []),
+        new(WoodElf, "Wood Elf", [ElvenBow], []),
+        new(DarkElf, "Dark Elf 1", [DarkElfClothArmor], []),
+        new(DarkElf, "Dark Elf 2", [DarkElfBreastplate], []),
+        new(BattleMage, "Battle Mage", [BattleMageCowl], []),
+        new(VampiressDay, "Vampiress D", DalmarSet, []),
+        new(VampiressDay, "Vampiress D (Dalmar)", [VampiressDayHair], []),
+        new(VampiressNight, "Vampiress N", [VampiressNightHair], []),
+        new(Dwarf, "Dwarf", [], []),
+        new(Daemon, "Daemon", [DaemonHelm], [])
     ];
 
     private readonly TexturePakArchive _texturePak;
     private readonly TilesPakArchive _tilesPak;
     private readonly FrozenDictionary<ushort, ItemsPakEntry> _items;
-    private readonly FrozenDictionary<uint, ItemsPakEntry[]> _playerCharacterItemsByItemId;
     private readonly MixedPakArchive _mixedPak;
     private readonly ModelsPakArchive _modelsPak;
     private readonly Dictionary<string, TextureCacheEntry> _textures = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Task<TextureAsset>> _textureLoads = new(StringComparer.OrdinalIgnoreCase);
     private readonly LinkedList<string> _textureLru = [];
     private readonly Lock _textureLock = new();
+
+    private readonly Dictionary<string, TextureCacheEntry> _modelTextures = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Task<TextureAsset>> _modelTextureLoads = new(StringComparer.OrdinalIgnoreCase);
+    private readonly LinkedList<string> _modelTextureLru = [];
+    private readonly Lock _modelTextureLock = new();
 
     private readonly Dictionary<uint, StaticSpriteAsset?> _staticSprites = new();
     private readonly Dictionary<uint, Task<StaticSpriteAsset?>> _staticSpriteLoads = new();
@@ -87,10 +101,6 @@ public sealed class AssetManager : IDisposable
         _tilesPak = TilesPakArchive.Load(Path.Combine(pakDirectory, "tiles.pak"));
         var items = ItemsPakArchive.Load(gameDirectories.ItemsPakPath).ToArray();
         _items = items.ToFrozenDictionary(item => item.ItemIndex);
-        _playerCharacterItemsByItemId = items
-            .Where(static item => !string.IsNullOrWhiteSpace(item.ModelDesc.ModelName))
-            .GroupBy(static item => item.ItemId)
-            .ToFrozenDictionary(static group => group.Key, static group => group.ToArray());
         _mixedPak = MixedPakArchive.Load(Path.Combine(pakDirectory, "mixed.pak"));
         _modelsPak = ModelsPakArchive.Load(Path.Combine(pakDirectory, "models.pak"));
     }
@@ -99,62 +109,108 @@ public sealed class AssetManager : IDisposable
 
     public Task<TextureAsset> LoadTextureAsync(string textureName, CancellationToken cancellationToken = default)
     {
+        return LoadTextureAsync(
+            textureName,
+            _textures,
+            _textureLoads,
+            _textureLru,
+            _textureLock,
+            MaxTextureCacheEntries,
+            cancellationToken);
+    }
+
+    public Task<TextureAsset> LoadModelTextureAsync(string textureName, CancellationToken cancellationToken = default)
+    {
+        return LoadTextureAsync(
+            textureName,
+            _modelTextures,
+            _modelTextureLoads,
+            _modelTextureLru,
+            _modelTextureLock,
+            MaxModelTextureCacheEntries,
+            cancellationToken);
+    }
+
+    private Task<TextureAsset> LoadTextureAsync(
+        string textureName,
+        Dictionary<string, TextureCacheEntry> cache,
+        Dictionary<string, Task<TextureAsset>> loads,
+        LinkedList<string> lru,
+        Lock cacheLock,
+        int maxCacheEntries,
+        CancellationToken cancellationToken)
+    {
         Task<TextureAsset> loadTask;
-        lock (_textureLock)
+        lock (cacheLock)
         {
-            if (_textures.TryGetValue(textureName, out var cached))
+            if (cache.TryGetValue(textureName, out var cached))
             {
-                _textureLru.Remove(cached.Node);
-                _textureLru.AddFirst(cached.Node);
+                lru.Remove(cached.Node);
+                lru.AddFirst(cached.Node);
                 return Task.FromResult(cached.Asset);
             }
 
-            if (_textureLoads.TryGetValue(textureName, out var existingLoadTask))
+            if (loads.TryGetValue(textureName, out var existingLoadTask))
             {
                 loadTask = existingLoadTask;
             }
             else
             {
-                loadTask = Task.Run(() => LoadAndCacheTextureAsync(textureName));
-                _textureLoads[textureName] = loadTask;
+                loadTask = Task.Run(() => LoadAndCacheTextureAsync(
+                    textureName,
+                    cache,
+                    loads,
+                    lru,
+                    cacheLock,
+                    maxCacheEntries));
+                loads[textureName] = loadTask;
             }
         }
 
         return cancellationToken.CanBeCanceled ? loadTask.WaitAsync(cancellationToken) : loadTask;
     }
 
-    private async Task<TextureAsset> LoadAndCacheTextureAsync(string textureName)
+    private async Task<TextureAsset> LoadAndCacheTextureAsync(
+        string textureName,
+        Dictionary<string, TextureCacheEntry> cache,
+        Dictionary<string, Task<TextureAsset>> loads,
+        LinkedList<string> lru,
+        Lock cacheLock,
+        int maxCacheEntries)
     {
         try
         {
             var asset = await _texturePak.LoadTextureAsync(textureName);
 
-            lock (_textureLock)
+            lock (cacheLock)
             {
-                if (_textures.TryGetValue(textureName, out var cached))
+                if (cache.TryGetValue(textureName, out var cached))
                     return cached.Asset;
 
                 var node = new LinkedListNode<string>(textureName);
-                _textureLru.AddFirst(node);
-                _textures[textureName] = new TextureCacheEntry(asset, node);
-                EvictOldTextures();
+                lru.AddFirst(node);
+                cache[textureName] = new TextureCacheEntry(asset, node);
+                EvictOldTextures(cache, lru, maxCacheEntries);
             }
 
             return asset;
         }
         finally
         {
-            lock (_textureLock)
-                _textureLoads.Remove(textureName);
+            lock (cacheLock)
+                loads.Remove(textureName);
         }
     }
 
-    private void EvictOldTextures()
+    private static void EvictOldTextures(
+        Dictionary<string, TextureCacheEntry> cache,
+        LinkedList<string> lru,
+        int maxCacheEntries)
     {
-        while (_textures.Count > MaxTextureCacheEntries && _textureLru.Last is { } last)
+        while (cache.Count > maxCacheEntries && lru.Last is { } last)
         {
-            _textures.Remove(last.Value);
-            _textureLru.RemoveLast();
+            cache.Remove(last.Value);
+            lru.RemoveLast();
         }
     }
 
@@ -467,13 +523,14 @@ public sealed class AssetManager : IDisposable
 
             var definition = PlayerCharacterDefinitions[definitionIndex];
             var item = ResolvePlayerCharacterItem(definition);
+            var attachmentItems = ResolvePlayerCharacterItems(definition.AttachmentItemIds);
             var modelName = item.ModelDesc.ModelName;
             
             GrnAsset model;
-            if (definition.AttachmentModelNames.Length > 0)
+            if (attachmentItems.Length > 0)
                 model = await _modelsPak.LoadCharacterModelAsync(
                     modelName,
-                    definition.AttachmentModelNames,
+                    attachmentItems.Select(static attachment => attachment.ModelDesc.ModelName).ToArray(),
                     definition.HiddenBaseTextureNames.Length > 0
                         ? new HashSet<string>(definition.HiddenBaseTextureNames, StringComparer.OrdinalIgnoreCase)
                         : null);
@@ -481,10 +538,11 @@ public sealed class AssetManager : IDisposable
                 model = await LoadGrnModelAsync(modelName, GrnMeshExtractionMode.PrimarySlice);
 
             var asset = new PlayerCharacterAsset(
-                item.ItemId,
+                item.ItemIndex,
                 definition.DisplayName,
                 modelName,
-                model);
+                model,
+                await CreatePlayerCharacterTextureAliasesAsync(model, item, attachmentItems));
 
             lock (_modelLock)
                 _playerCharacters.TryAdd(entryId, asset);
@@ -508,6 +566,13 @@ public sealed class AssetManager : IDisposable
             _textures.Clear();
             _textureLoads.Clear();
             _textureLru.Clear();
+        }
+
+        lock (_modelTextureLock)
+        {
+            _modelTextures.Clear();
+            _modelTextureLoads.Clear();
+            _modelTextureLru.Clear();
         }
 
         lock (_staticSpriteLock)
@@ -535,19 +600,78 @@ public sealed class AssetManager : IDisposable
 
     private ItemsPakEntry ResolvePlayerCharacterItem(PlayerCharacterDefinition definition)
     {
-        if (!_playerCharacterItemsByItemId.TryGetValue(definition.ItemId, out var candidates))
-            throw new FileNotFoundException($"Player character item id {definition.ItemId} was not found in Items.pak.");
+        return ResolvePlayerCharacterItem(definition.BaseItemId);
+    }
 
-        if (!string.IsNullOrWhiteSpace(definition.PreferredModelName))
+    private ItemsPakEntry ResolvePlayerCharacterItem(ushort itemId)
+    {
+        if (!_items.TryGetValue(itemId, out var item))
+            throw new FileNotFoundException($"Player character item id {itemId} was not found in Items.pak.");
+
+        if (string.IsNullOrWhiteSpace(item.ModelDesc.ModelName))
+            throw new FileNotFoundException($"Player character item id {itemId} does not reference a model in Items.pak.");
+
+        return item;
+    }
+
+    private ItemsPakEntry[] ResolvePlayerCharacterItems(IReadOnlyList<ushort> itemIds)
+    {
+        var items = new ItemsPakEntry[itemIds.Count];
+        for (var i = 0; i < itemIds.Count; i++)
+            items[i] = ResolvePlayerCharacterItem(itemIds[i]);
+
+        return items;
+    }
+
+    private async Task<IReadOnlyDictionary<string, ModelTextureReference>> CreatePlayerCharacterTextureAliasesAsync(
+        GrnAsset model,
+        ItemsPakEntry baseItem,
+        IReadOnlyList<ItemsPakEntry> attachmentItems)
+    {
+        if (model.Mesh is null)
+            return EmptyTextureAliases;
+
+        var aliases = new Dictionary<string, ModelTextureReference>(StringComparer.OrdinalIgnoreCase);
+        AddItemTextureAliases(aliases, model, baseItem);
+
+        foreach (var attachmentItem in attachmentItems)
         {
-            foreach (var candidate in candidates)
-            {
-                if (candidate.ModelDesc.ModelName.Equals(definition.PreferredModelName, StringComparison.OrdinalIgnoreCase))
-                    return candidate;
-            }
+            var attachmentModel = await LoadGrnModelAsync(
+                attachmentItem.ModelDesc.ModelName,
+                GrnMeshExtractionMode.PrimarySlice);
+            AddItemTextureAliases(aliases, attachmentModel, attachmentItem);
         }
 
-        return candidates[0];
+        return aliases.Count == 0 ? EmptyTextureAliases : aliases;
+    }
+
+    private void AddItemTextureAliases(
+        Dictionary<string, ModelTextureReference> aliases,
+        GrnAsset model,
+        ItemsPakEntry item)
+    {
+        if (model.Mesh is null)
+            return;
+
+        foreach (var surface in model.Mesh.Surfaces)
+        {
+            if (string.IsNullOrWhiteSpace(surface.TextureName))
+                continue;
+
+            var reference = ModelTextureResolver.Resolve(
+                _texturePak,
+                item.ModelDesc.TextureId,
+                item.EffectTextureId,
+                item.GraphicRenderFlags,
+                surface.TextureName);
+
+            if (!reference.Animation.IsAnimated &&
+                !reference.HasOverlay &&
+                string.Equals(reference.TextureName, surface.TextureName, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            aliases[surface.TextureName] = reference;
+        }
     }
 
     private sealed record StaticSpriteBlit(
@@ -562,9 +686,8 @@ public sealed class AssetManager : IDisposable
         int DestBottom);
 
     private readonly record struct PlayerCharacterDefinition(
-        uint ItemId,
+        ushort BaseItemId,
         string DisplayName,
-        string? PreferredModelName,
-        string[] AttachmentModelNames,
+        ushort[] AttachmentItemIds,
         string[] HiddenBaseTextureNames);
 }

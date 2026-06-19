@@ -88,6 +88,7 @@
                 GridLinesVisibility="All"
                 CanUserReorderColumns="True"
                 Sorting="DataGrid_OnSorting"
+                AutoGeneratingColumn="DataGrid_OnAutoGeneratingColumn"
                 IsReadOnly="True" AutoGenerateColumns="True" />
         </ScrollViewer>
 

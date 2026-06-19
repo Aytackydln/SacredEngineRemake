@@ -60,6 +60,42 @@ public sealed class TexturePakArchive : IDisposable
         return await LoadTextureAsync(indexedRecord, cancellationToken).ConfigureAwait(false);
     }
 
+    public bool TryResolveTextureName(string textureName, out string resolvedName)
+    {
+        if (TryFindTexture(textureName, out var indexedRecord))
+        {
+            resolvedName = indexedRecord.Record.Name;
+            return true;
+        }
+
+        resolvedName = string.Empty;
+        return false;
+    }
+
+    public bool TryGetTextureName(uint entryId, out string textureName)
+    {
+        if (_recordsByEntryId.TryGetValue(entryId, out var indexedRecord))
+        {
+            textureName = indexedRecord.Record.Name;
+            return true;
+        }
+
+        textureName = string.Empty;
+        return false;
+    }
+
+    public bool TryResolveTextureRecord(string textureName, out TexturePakRecord record)
+    {
+        if (TryFindTexture(textureName, out var indexedRecord))
+        {
+            record = indexedRecord.Record;
+            return true;
+        }
+
+        record = default;
+        return false;
+    }
+
     public Task<TextureAsset> LoadTextureAsync(uint entryId, CancellationToken cancellationToken = default)
     {
         if (!_recordsByEntryId.TryGetValue(entryId, out var indexedRecord))

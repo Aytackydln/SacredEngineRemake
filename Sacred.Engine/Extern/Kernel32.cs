@@ -11,6 +11,12 @@ internal static partial class Kernel32
     internal static extern IntPtr GetModuleHandle([MarshalAs(UnmanagedType.LPTStr)] string? lpModuleName);
 
     [LibraryImport(LibraryName, StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial nint GetModuleHandleA(string moduleName);
+
+    [LibraryImport(LibraryName, StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial nint GetProcAddress(nint module, string procName);
+
+    [LibraryImport(LibraryName, StringMarshalling = StringMarshalling.Utf8)]
     internal static partial nint CreateEventA(IntPtr attributes, [MarshalAs(UnmanagedType.Bool)] bool manualReset, [MarshalAs(UnmanagedType.Bool)] bool initialState, string? name);
 
     [LibraryImport(LibraryName)]

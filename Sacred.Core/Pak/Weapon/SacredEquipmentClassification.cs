@@ -25,6 +25,7 @@ public enum SacredEquipmentType : byte
     Sword = 0,
     Dagger = 1,
     TwoHandedSword = 4,
+    Axe = 5,
     TwoHandedAxe = 6,
     Shield = 7,
     Bow = 8,
@@ -42,9 +43,10 @@ public enum SacredEquipmentType : byte
     OneHandedAxeOrMace = 22,
     BattleStaff = 23,
     MageStaff = 24,
-    LongHandled25 = 25,
+    Briddle = 25,
     FootArmor = 26,
     Gloves = 27,
+    Wings = 28,
     Misc = 29,
     Pistol = 30,
     Musket = 31,
@@ -60,23 +62,8 @@ public enum SacredEquipmentLore
     Bow,
     Blade,
     Armor,
-    Unarmed
-}
-
-[EnumGenerator]
-public enum SacredEquipmentSlot
-{
-    Unknown,
-    MainHand,
-    Ring,
-    Head,
-    Arms,
-    Shoulders,
-    Chest,
-    Belt,
-    Legs,
-    Feet,
-    Hands
+    Unarmed,
+    Jewelry
 }
 
 [EnumGenerator]
@@ -86,6 +73,27 @@ public enum SacredEquipmentHandedness
     NotApplicable,
     OneHanded,
     TwoHanded
+}
+
+[EnumGenerator]
+public enum SacredEquipmentRarityTier : byte
+{
+    Tier0 = 0x0,
+    Tier1 = 0x1,
+    Tier2 = 0x2,
+    Tier3 = 0x3,
+    Tier4 = 0x4,
+    Tier5 = 0x5,
+    Tier6 = 0x6,
+    Tier7 = 0x7,
+    Tier8 = 0x8,
+    Tier9 = 0x9,
+    Tier10 = 0xA,
+    Tier11 = 0xB,
+    Tier12 = 0xC,
+    Tier13 = 0xD,
+    Tier14 = 0xE,
+    Tier15 = 0xF
 }
 
 public readonly record struct SacredEquipmentClassification(
@@ -99,8 +107,7 @@ public readonly record struct SacredEquipmentClassification(
     byte ClassFlagCode
 )
 {
-    // Observed on unique rows: 0x0f, 0x4f, 0x8f, 0xcf.
-    public bool IsUnique => RarityTierCode == 0x0F;
+    public SacredEquipmentRarityTier RarityTier => (SacredEquipmentRarityTier)RarityTierCode;
 
     public static SacredEquipmentClassification FromBytes(
         byte characterClassMaskCode,
@@ -123,7 +130,7 @@ public readonly record struct SacredEquipmentClassification(
         );
     }
 
-    public SacredEquipmentLore InferLore(ushort short2)
+    public SacredEquipmentLore InferLore()
     {
         return EquipmentType switch
         {
@@ -131,63 +138,45 @@ public readonly record struct SacredEquipmentClassification(
             SacredEquipmentType.TwoHandedAxe or SacredEquipmentType.OneHandedAxeOrMace => SacredEquipmentLore.Axe,
             SacredEquipmentType.Bow or SacredEquipmentType.Crossbow => SacredEquipmentLore.Bow,
             SacredEquipmentType.Blade => SacredEquipmentLore.Blade,
+            SacredEquipmentType.Ring or SacredEquipmentType.Amulet => SacredEquipmentLore.Jewelry,
             SacredEquipmentType.LongHandled21 or SacredEquipmentType.BattleStaff or SacredEquipmentType.MageStaff
-                or SacredEquipmentType.LongHandled25 => SacredEquipmentLore.LongHandled,
-            SacredEquipmentType.ChestArmor or SacredEquipmentType.Ring or SacredEquipmentType.HeadArmor or SacredEquipmentType.ArmArmor
+                or SacredEquipmentType.Briddle => SacredEquipmentLore.LongHandled,
+            SacredEquipmentType.ChestArmor or SacredEquipmentType.HeadArmor or SacredEquipmentType.ArmArmor
                 or SacredEquipmentType.LegArmor or SacredEquipmentType.Belt or SacredEquipmentType.FootArmor or SacredEquipmentType.Shoulder
                 or SacredEquipmentType.Misc => SacredEquipmentLore.Armor,
+            SacredEquipmentType.Gloves when IsUnarmedGloveWeapon() => SacredEquipmentLore.Unarmed,
             SacredEquipmentType.Gloves => SacredEquipmentLore.Armor,
             _ => SacredEquipmentLore.Unknown
         };
     }
 
-    public SacredEquipmentSlot InferSlot()
+    public SacredEquipmentHandedness InferHandedness(byte usageIdentifier)
     {
-        return EquipmentType switch
+        if (IsUnarmedGloveWeapon())
         {
-            SacredEquipmentType.Sword or SacredEquipmentType.TwoHandedSword or SacredEquipmentType.TwoHandedAxe
-                or SacredEquipmentType.Bow or SacredEquipmentType.Crossbow or SacredEquipmentType.Blade
-                or SacredEquipmentType.LongHandled21 or SacredEquipmentType.OneHandedAxeOrMace
-                or SacredEquipmentType.BattleStaff or SacredEquipmentType.MageStaff or SacredEquipmentType.LongHandled25
-                => SacredEquipmentSlot.MainHand,
-            SacredEquipmentType.Ring => SacredEquipmentSlot.Ring,
-            SacredEquipmentType.HeadArmor => SacredEquipmentSlot.Head,
-            SacredEquipmentType.ArmArmor => SacredEquipmentSlot.Arms,
-            SacredEquipmentType.Shoulder => SacredEquipmentSlot.Shoulders,
-            SacredEquipmentType.ChestArmor => SacredEquipmentSlot.Chest,
-            SacredEquipmentType.Belt => SacredEquipmentSlot.Belt,
-            SacredEquipmentType.LegArmor => SacredEquipmentSlot.Legs,
-            SacredEquipmentType.FootArmor => SacredEquipmentSlot.Feet,
-            SacredEquipmentType.Gloves => SacredEquipmentSlot.Hands,
-            _ => SacredEquipmentSlot.Unknown
-        };
-    }
-
-    public SacredEquipmentHandedness InferHandedness(byte usageIdentifier, ushort short2)
-    {
-        var slot = InferSlot();
-        if (slot != SacredEquipmentSlot.MainHand)
-        {
-            return SacredEquipmentHandedness.NotApplicable;
-        }
-
-        if (EquipmentType == SacredEquipmentType.Gloves)
-        {
-            return short2 switch
-            {
-                49225 => SacredEquipmentHandedness.TwoHanded,
-                16544 => SacredEquipmentHandedness.OneHanded,
-                _ => SacredEquipmentHandedness.Unknown
-            };
+            return SacredEquipmentHandedness.TwoHanded;
         }
 
         return usageIdentifier switch
         {
+            0 when EquipmentType == SacredEquipmentType.Blade => SacredEquipmentHandedness.OneHanded,
             1 => SacredEquipmentHandedness.OneHanded,
             2 or 3 or 4 or 7 or 12 => SacredEquipmentHandedness.TwoHanded,
             // Observed blade entries share usage code 10 while differing in handedness.
             _ => SacredEquipmentHandedness.Unknown
         };
+    }
+
+    private bool IsUnarmedGloveWeapon()
+    {
+        if (EquipmentType != SacredEquipmentType.Gloves)
+        {
+            return false;
+        }
+
+        return EffectiveCharacterClassMask is SacredCharacterClassMask.Gladiator
+            or SacredCharacterClassMask.AllBase
+            or SacredCharacterClassMask.AllKnown;
     }
 
     private static SacredCharacterClassMask InferEffectiveCharacterClassMask(
@@ -206,17 +195,6 @@ public readonly record struct SacredEquipmentClassification(
             0x80 => SacredCharacterClassMask.Daemon,
             0xC0 => SacredCharacterClassMask.AllBase,
             _ => SacredCharacterClassMask.None
-        };
-    }
-
-    private static SacredEquipmentLore InferHandsLore(ushort short2)
-    {
-        return short2 switch
-        {
-            0 => SacredEquipmentLore.Armor,
-            49225 => SacredEquipmentLore.Unarmed,
-            16544 => SacredEquipmentLore.Blade,
-            _ => SacredEquipmentLore.Unknown
         };
     }
 }

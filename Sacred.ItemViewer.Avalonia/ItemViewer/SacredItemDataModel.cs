@@ -11,15 +11,23 @@ public readonly record struct SacredItemDataModel(
     string ItemName,
     SacredCharacterClassMask CharacterClassMask,
     SacredEquipmentType EquipmentType,
+    SacredEquipmentRarityTier Rarity,
     string ModelName,
     uint TextureId,
+    uint EffectTextureId,
+    uint GraphicRenderFlags,
     Vector3 PreviewRotation,
     byte Width,
     byte Height,
     bool PreviewConfirmed = false,
-    DateTimeOffset? PreviewConfirmedAt = null
+    DateTimeOffset? PreviewConfirmedAt = null,
+    bool PreviewConfirmedUserRotationIsZero = false
 )
 {
+    public string PreviewConfirmedDisplay => PreviewConfirmed
+        ? (PreviewConfirmedUserRotationIsZero ? "✓" : "X")
+        : "";
+
     public string PreviewConfirmationStatus => PreviewConfirmed
         ? $"Confirmed {PreviewConfirmedAt:yyyy-MM-dd HH:mm}"
         : "Unconfirmed";
@@ -32,7 +40,10 @@ public readonly record struct SacredItemDataModel(
             CharacterClassMask: equipment.EffectiveCharacterClassMask,
             ModelName: equipment.Item.ModelDesc.ModelName,
             TextureId: equipment.Item.ModelDesc.TextureId,
+            EffectTextureId: equipment.Item.EffectTextureId,
+            GraphicRenderFlags: equipment.Item.GraphicRenderFlags,
             EquipmentType: equipment.EquipmentType,
+            Rarity: equipment.RarityTier,
             PreviewRotation: equipment.PreviewRotation,
             Width: equipment.Width,
             Height: equipment.Height

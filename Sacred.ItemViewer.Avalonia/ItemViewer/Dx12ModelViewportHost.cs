@@ -1,13 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform;
 using Avalonia.Threading;
-using Sacred.Assets;
-using Sacred.Assets.Paks.Texture;
 using Sacred.Granny;
 
 namespace Sacred.ItemViewer.Avalonia.ItemViewer;
@@ -23,7 +20,7 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
     private ItemPreviewPivotMode _pendingPivotMode;
     private int _pendingGridWidth = 1;
     private int _pendingGridHeight = 1;
-    private IReadOnlyDictionary<string, TextureAsset> _pendingTextures = new Dictionary<string, TextureAsset>(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyDictionary<string, ModelTextureBinding> _pendingTextures = new Dictionary<string, ModelTextureBinding>(StringComparer.OrdinalIgnoreCase);
     private float _pendingYaw;
     private float _pendingPitch;
     private float _pendingRoll;
@@ -41,7 +38,7 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
     public void ClearModel()
     {
         _pendingAsset = null;
-        _pendingTextures = new Dictionary<string, TextureAsset>(StringComparer.OrdinalIgnoreCase);
+        _pendingTextures = new Dictionary<string, ModelTextureBinding>(StringComparer.OrdinalIgnoreCase);
         _renderer?.ClearModel();
     }
 
@@ -59,7 +56,7 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
         _pendingPivotMode = pivotMode;
         _pendingGridWidth = gridWidth;
         _pendingGridHeight = gridHeight;
-        _pendingTextures = new Dictionary<string, TextureAsset>(StringComparer.OrdinalIgnoreCase);
+        _pendingTextures = new Dictionary<string, ModelTextureBinding>(StringComparer.OrdinalIgnoreCase);
         _renderer?.SetModel(asset, previewRotation, gridWidth, gridHeight, rotationMode, pivotMode);
         _renderer?.SetUserRotation(_pendingYaw, _pendingPitch, _pendingRoll);
     }
@@ -72,7 +69,7 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
         _renderer?.SetUserRotation(yaw, pitch, roll);
     }
 
-    public void ShowTextures(IReadOnlyDictionary<string, TextureAsset> textures)
+    public void ShowTextures(IReadOnlyDictionary<string, ModelTextureBinding> textures)
     {
         _pendingTextures = textures;
         _renderer?.SetTextures(textures);

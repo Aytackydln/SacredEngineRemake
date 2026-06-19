@@ -28,6 +28,10 @@ internal static class Dx12Shaders
         ModelPixelShader: new Dx12Shader(
             "SacredModel", EmbeddedResource_Shaders.SacredModel_hlsl,
             "ps_main", "ps_5_0"
+        ),
+        AnimatedModelPixelShader: new Dx12Shader(
+            "SacredModel", EmbeddedResource_Shaders.SacredModel_hlsl,
+            "ps_animated_main", "ps_5_0"
         )
     );
 
@@ -61,6 +65,11 @@ internal static class Dx12Shaders
             "SacredModelHDR", EmbeddedResource_ShadersHdr.SacredModelHDR_hlsl,
             "ps_main", "ps_5_0",
             HdrCommon
+        ),
+        AnimatedModelPixelShader: new Dx12Shader(
+            "SacredModelHDR", EmbeddedResource_ShadersHdr.SacredModelHDR_hlsl,
+            "ps_animated_main", "ps_5_0",
+            HdrCommon
         )
     );
 }
@@ -71,4 +80,5 @@ internal sealed record Dx12ShaderSet(
     Dx12Shader StaticSpriteVertexShader,
     Dx12Shader StaticSpritePixelShader,
     Dx12Shader ModelVertexShader,
-    Dx12Shader ModelPixelShader);
+    Dx12Shader ModelPixelShader,
+    Dx12Shader AnimatedModelPixelShader);

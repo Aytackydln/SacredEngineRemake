@@ -9,6 +9,7 @@ using Windows.Gaming.Input;
 using Sacred.Core;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Graphics;
+using Sacred.Engine.Latency;
 using Sacred.Engine.Platform;
 using Sacred.Engine.Scene;
 using Sacred.Engine.World;
@@ -21,9 +22,10 @@ public sealed class SacredGame : IDisposable
     private const uint FirstPlayerModelSlotId = 1;
     private const float PlayerModelUprightPitch = 90.0f;
 
-    private static FramePacingMode Mode = FramePacingMode.VSync;
+    private static FramePacingMode Mode = FramePacingMode.VariableRefreshRate;
 
     private readonly Win32Window _window;
+    private readonly LowLatencySystem _latency;
     private readonly Dx12Renderer _renderer;
     private readonly AssetManager _assets;
     private readonly WorldStreamer _worldStreamer;
@@ -35,6 +37,7 @@ public sealed class SacredGame : IDisposable
     private Vector3 _playerPosition;
     private Vector3 _playerRotation;
     private float _playerMovementRotationZ = MathF.PI * 0.25f;
+    private readonly uint _displayRefreshRateHz;
 
     private uint _activePlayerModelEntryId = FirstPlayerModelSlotId;
     private GamepadButtons _previousGamepadButtons;
@@ -42,11 +45,14 @@ public sealed class SacredGame : IDisposable
 
     public SacredGame(SacredGameDirectories gameDirectories)
     {
+        _latency = LowLatencySystem.CreateDefault();
         _window = new Win32Window("Sacred Remake DX12 Prototype", 1600, 900);
+        _displayRefreshRateHz = _window.DisplayRefreshRateHz;
         _assets = new AssetManager(gameDirectories);
-        _camera = SacredCamera.CreateDefault(1600, 900);
+        _camera = SacredCamera.CreateDefault(_window.ClientWidth, _window.ClientHeight);
         _worldStreamer = new WorldStreamer(SacredWorldArchive.Load(gameDirectories));
-        _renderer = new Dx12Renderer(_window, _assets, ResolveGameDirectory(gameDirectories));
+        _renderer = new Dx12Renderer(_window, _assets, ResolveGameDirectory(gameDirectories), _latency);
+        UpdateWindowTitle();
 
         BootstrapScene();
     }
@@ -78,20 +84,43 @@ public sealed class SacredGame : IDisposable
 
     private async Task RunCoreAsync(CancellationToken cancellationToken)
     {
-        var clock = new FrameClock();
-        while (!cancellationToken.IsCancellationRequested && _window.ProcessMessages())
+        var clock = new FrameClock(_displayRefreshRateHz);
+        var previousFrameWorkTime = TimeSpan.Zero;
+        var frameId = 0UL;
+
+        while (!cancellationToken.IsCancellationRequested)
         {
-            await clock.WaitForFrameStartAsync(Mode, cancellationToken);
+            await clock.WaitForFrameStartAsync(Mode, previousFrameWorkTime, cancellationToken);
+            _latency.SetMode(
+                _latency.Mode,
+                Mode == FramePacingMode.VSync ? 0 : clock.TargetFrameRate);
+
+            frameId++;
+            _latency.BeginFrame(frameId);
+            _latency.SleepBeforeInput(frameId);
+
             if (!_window.ProcessMessages())
                 break;
 
             var iterationStart = Stopwatch.GetTimestamp();
             var dt = clock.Tick();
-            Update(dt);
-            await _renderer.RenderFrameAsync(_camera, _worldStreamer.VisibleWorld, _scene, cancellationToken);
+            _latency.Mark(LatencyMarker.SimulationStart, frameId);
+            if (_window.Input.HasPendingLeftClick)
+                _latency.Mark(LatencyMarker.LeftMouseButtonClick, frameId);
 
-            var iterationTime = Stopwatch.GetElapsedTime(iterationStart);
-            await clock.WaitForFrameEndAsync(Mode, iterationTime, cancellationToken);
+            Update(dt);
+            _latency.Mark(LatencyMarker.SimulationEnd, frameId);
+
+            await _renderer.RenderFrameAsync(
+                _camera,
+                _worldStreamer.VisibleWorld,
+                _scene,
+                ShouldPresentWithVSync(),
+                FormatFramePacingMode(),
+                frameId,
+                cancellationToken);
+
+            previousFrameWorkTime = Stopwatch.GetElapsedTime(iterationStart);
         }
     }
 
@@ -131,6 +160,18 @@ public sealed class SacredGame : IDisposable
 
         if (_window.Input.ConsumePressed(VirtualKey.F4))
             _renderer.ToggleHdr();
+
+        if (_window.Input.ConsumePressed(VirtualKey.F5))
+        {
+            Mode = NextFramePacingMode(Mode);
+            UpdateWindowTitle();
+        }
+
+        if (_window.Input.ConsumePressed(VirtualKey.F6))
+        {
+            _latency.CycleMode();
+            UpdateWindowTitle();
+        }
 
         _clickToMove.Update(
             _window.Input,
@@ -174,7 +215,8 @@ public sealed class SacredGame : IDisposable
             Name: $"{player.DisplayName}: item {player.ItemId}, {player.ModelName}",
             Mesh: player.Model.Mesh ?? _playerProxyMesh,
             Position: _playerPosition,
-            Rotation: _playerRotation
+            Rotation: _playerRotation,
+            TextureAliases: player.TextureAliases
         );
 
         if (_scene.Models.Count == 0)
@@ -186,17 +228,52 @@ public sealed class SacredGame : IDisposable
     private Vector3 BuildPlayerRotation() =>
         new(0.0f, PlayerModelUprightPitch, _playerMovementRotationZ);
 
+    private bool ShouldPresentWithVSync() =>
+        Mode == FramePacingMode.VSync ||
+        (Mode == FramePacingMode.VariableRefreshRate && !_renderer.VariableRefreshRateSupported);
+
+    private static FramePacingMode NextFramePacingMode(FramePacingMode mode) => mode switch
+    {
+        FramePacingMode.VariableRefreshRate => FramePacingMode.VSync,
+        FramePacingMode.VSync => FramePacingMode.MonitorRefreshLimiter,
+        _ => FramePacingMode.VariableRefreshRate
+    };
+
     private static string ResolveGameDirectory(SacredGameDirectories gameDirectories)
     {
         var pakDirectory = Path.GetDirectoryName(gameDirectories.TexturesPakPath);
         return Path.GetDirectoryName(pakDirectory) ?? ".";
     }
 
+    private void UpdateWindowTitle()
+    {
+        var lowLatencyMode = _latency.Mode switch
+        {
+            LowLatencyMode.OnPlusBoost => "On + Boost",
+            LowLatencyMode.On => "On",
+            _ => "Off"
+        };
+
+        _window.SetTitle(
+            $"SacredEngineRemake - Pacing: {FormatFramePacingMode()} - Low Latency: {lowLatencyMode} ({_latency.ActiveBackendName})");
+    }
+
+    private string FormatFramePacingMode() => Mode switch
+    {
+        FramePacingMode.VariableRefreshRate => _renderer.VariableRefreshRateSupported
+            ? $"VRR, {_displayRefreshRateHz} FPS cap"
+            : "VRR unavailable, VSync fallback",
+        FramePacingMode.VSync => "VSync",
+        FramePacingMode.MonitorRefreshLimiter => $"{_displayRefreshRateHz} FPS limiter",
+        _ => Mode.ToString()
+    };
+
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
         _renderer.Dispose();
+        _latency.Dispose();
         _worldStreamer.Dispose();
         _assets.Dispose();
         _window.Dispose();

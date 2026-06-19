@@ -21,9 +21,6 @@ internal readonly struct SacredEquipmentLayout
     [FieldOffset(6)]
     public readonly float PreviewRotationY;
 
-    [FieldOffset(8)]
-    public readonly ushort Short2;
-
     [FieldOffset(10)]
     public readonly float PreviewRotationZ;
 
@@ -54,13 +51,12 @@ internal readonly struct SacredEquipmentLayout
 
 // each entry is 258 bytes, with some fields at fixed offsets
 // debug view with ItemId, Name, Width, Height, TypeIdentifier
-[DebuggerDisplay("{IdemId}: {Name}, Class = {EffectiveCharacterClassMask}, Type = {EquipmentType}, Unique = {IsUnique}")]
+[DebuggerDisplay("{IdemId}: {Name}, Class = {EffectiveCharacterClassMask}, Type = {EquipmentType}, RarityTier = {RarityTier}")]
 public readonly record struct SacredEquipment(
     SacredPakLocation PakLocation, // location of the entry in the pak file, useful for debugging and lookup
     ItemsPakEntry Item,
     ushort Short1, // 2 bytes at offset 0
     Vector3 PreviewRotation, // candidate item preview rotation: three unaligned floats at offsets 2, 6, and 10 in radians
-    ushort Short2, // legacy overlapping interpretation of bytes at offset 8
     byte Width, // 1 byte at offset 26
     byte Height, // 1 byte at offset 27
     byte UsageIdentifier, // 1 byte at offset 28; weapon/animation shape, partly tied to handedness
@@ -80,11 +76,10 @@ public readonly record struct SacredEquipment(
     public SacredEquipmentType EquipmentType => Classification.EquipmentType;
     public byte RarityAndClassFlags => Classification.RarityAndClassFlags;
     public byte RarityTierCode => Classification.RarityTierCode;
+    public SacredEquipmentRarityTier RarityTier => Classification.RarityTier;
     public byte ClassFlagCode => Classification.ClassFlagCode;
-    public bool IsUnique => Classification.IsUnique;
-    public SacredEquipmentLore InferredLore => Classification.InferLore(Short2);
-    public SacredEquipmentSlot InferredSlot => Classification.InferSlot();
-    public SacredEquipmentHandedness InferredHandedness => Classification.InferHandedness(UsageIdentifier, Short2);
+    public SacredEquipmentLore InferredLore => Classification.InferLore();
+    public SacredEquipmentHandedness InferredHandedness => Classification.InferHandedness(UsageIdentifier);
 
     public bool? InferredTwoHanded => InferredHandedness switch
     {
@@ -128,7 +123,6 @@ public readonly record struct SacredEquipment(
                 layout.PreviewRotationY,
                 layout.PreviewRotationZ
             ),
-            Short2: layout.Short2,
             Width: layout.Width,
             Height: layout.Height,
             UsageIdentifier: layout.UsageIdentifier,

@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.InteropServices;
-using Sacred.Assets;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Granny;
 using Vortice;
@@ -40,6 +40,7 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
     private readonly nint _hwnd;
     private readonly ID3D12Resource[] _backBuffers = new ID3D12Resource[FrameCount];
     private readonly Dictionary<string, ModelTexture> _textures = new(StringComparer.OrdinalIgnoreCase);
+    private readonly long _startTimestamp = Stopwatch.GetTimestamp();
 
     private IDXGIFactory2 _factory = null!;
     private ID3D12Device _device = null!;
@@ -152,7 +153,7 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         _userRoll = roll;
     }
 
-    public void SetTextures(IReadOnlyDictionary<string, TextureAsset> textures)
+    public void SetTextures(IReadOnlyDictionary<string, ModelTextureBinding> textures)
     {
         WaitForGpu();
         DisposeModelTextures();
@@ -163,10 +164,43 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
             if (slot >= MaxTextures)
                 break;
 
-            var resource = UploadTextureAndWait(pair.Value.Width, pair.Value.Height, pair.Value.Rgba8);
-            _device.CreateShaderResourceView(resource, null, SrvCpuHandle(slot));
-            _textures[pair.Key] = new ModelTexture(resource, slot);
-            slot++;
+            ID3D12Resource? resource = null;
+            ID3D12Resource? overlayResource = null;
+            try
+            {
+                var baseTexture = pair.Value.BaseTexture;
+                resource = UploadTextureAndWait(baseTexture.Width, baseTexture.Height, baseTexture.Rgba8);
+                _device.CreateShaderResourceView(resource, null, SrvCpuHandle(slot));
+                var srvSlot = slot++;
+
+                var overlaySrvSlot = FallbackTextureSlot;
+                var overlayAnimation = TextureAnimation.None;
+                var overlayMode = TextureOverlayMode.None;
+                if (pair.Value.OverlayTexture is { } overlayTexture && slot < MaxTextures)
+                {
+                    overlayResource = UploadTextureAndWait(overlayTexture.Width, overlayTexture.Height, overlayTexture.Rgba8);
+                    _device.CreateShaderResourceView(overlayResource, null, SrvCpuHandle(slot));
+                    overlaySrvSlot = slot++;
+                    overlayAnimation = overlayTexture.Animation;
+                    overlayMode = pair.Value.OverlayMode;
+                }
+
+                _textures[pair.Key] = new ModelTexture(
+                    resource,
+                    srvSlot,
+                    baseTexture.Animation,
+                    overlayResource,
+                    overlaySrvSlot,
+                    overlayAnimation,
+                    overlayMode);
+                resource = null;
+                overlayResource = null;
+            }
+            finally
+            {
+                resource?.Dispose();
+                overlayResource?.Dispose();
+            }
         }
     }
 
@@ -330,6 +364,12 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
                 {
                     Ranges = [new DescriptorRange(DescriptorRangeType.ShaderResourceView, 1, 0, 0, 0)]
                 },
+                ShaderVisibility.Pixel),
+            new RootParameter(
+                new RootDescriptorTable
+                {
+                    Ranges = [new DescriptorRange(DescriptorRangeType.ShaderResourceView, 1, 1, 0, 0)]
+                },
                 ShaderVisibility.Pixel)
         };
 
@@ -470,21 +510,42 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         WriteMatrix(wvp, constants);
         WriteMatrix(world, constants + 16);
         WriteModelColor(_modelName, constants + 32);
-        constants[37] = 0.0f;
-        constants[38] = 0.5f;
-        constants[39] = 0.10f;
+        constants[37] = 1.0f;
+        constants[38] = 0.0f;
+        constants[39] = 0.0f;
+        var elapsedSeconds = (float)Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds;
 
-        foreach (var surface in _surfaces)
+        for (var animatedPass = 0; animatedPass < 2; animatedPass++)
         {
-            if (surface.IndexCount <= 0 || surface.IndexStart >= mesh.IndexCount)
-                continue;
+            var drawAnimatedSurfaces = animatedPass != 0;
+            foreach (var surface in _surfaces)
+            {
+                if (surface.IndexCount <= 0 || surface.IndexStart >= mesh.IndexCount)
+                    continue;
 
-            var drawCount = Math.Min(surface.IndexCount, mesh.IndexCount - surface.IndexStart);
-            var texture = ResolveTexture(surface.TextureName);
-            constants[36] = texture is null ? 0.0f : 1.0f;
-            _commandList.SetGraphicsRoot32BitConstants(0, ModelRootConstantCount, constants, 0);
-            _commandList.SetGraphicsRootDescriptorTable(1, SrvGpuHandle(texture?.SrvSlot ?? FallbackTextureSlot));
-            _commandList.DrawIndexedInstanced((uint)drawCount, 1, (uint)surface.IndexStart, 0, 0);
+                var texture = ResolveTexture(surface.TextureName);
+                if (IsAnimatedTexture(texture) != drawAnimatedSurfaces)
+                    continue;
+
+                var drawCount = Math.Min(surface.IndexCount, mesh.IndexCount - surface.IndexStart);
+                var hasTexture = texture is not null;
+                var hasOverlay = texture?.OverlayResource is not null &&
+                                 texture.OverlayMode != TextureOverlayMode.None;
+                var animatesOverlay = hasOverlay && texture!.OverlayAnimation.IsAnimated;
+                var animation = animatesOverlay
+                    ? texture!.OverlayAnimation
+                    : hasTexture
+                        ? texture!.Animation
+                        : TextureAnimation.None;
+                constants[36] = PackTextureMode(hasTexture, hasOverlay, texture?.OverlayMode ?? TextureOverlayMode.None);
+                constants[37] = PackTextureAnimation(animation, animatesOverlay);
+                constants[38] = 0.0f;
+                constants[39] = animation.IsAnimated ? elapsedSeconds : 0.0f;
+                _commandList.SetGraphicsRoot32BitConstants(0, ModelRootConstantCount, constants, 0);
+                _commandList.SetGraphicsRootDescriptorTable(1, SrvGpuHandle(texture?.SrvSlot ?? FallbackTextureSlot));
+                _commandList.SetGraphicsRootDescriptorTable(2, SrvGpuHandle(hasOverlay ? texture!.OverlaySrvSlot : FallbackTextureSlot));
+                _commandList.DrawIndexedInstanced((uint)drawCount, 1, (uint)surface.IndexStart, 0, 0);
+            }
         }
     }
 
@@ -513,7 +574,7 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         {
             WriteColor(surface.Color, constants + 32);
             constants[36] = 0.0f;
-            constants[37] = 0.0f;
+            constants[37] = 1.0f;
             constants[38] = 0.0f;
             constants[39] = 0.0f;
             _commandList.SetGraphicsRoot32BitConstants(0, ModelRootConstantCount, constants, 0);
@@ -854,7 +915,11 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
     private void DisposeModelTextures()
     {
         foreach (var texture in _textures.Values)
+        {
             texture.Resource.Dispose();
+            texture.OverlayResource?.Dispose();
+        }
+
         _textures.Clear();
     }
 
@@ -965,9 +1030,48 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
                float.IsFinite(value.Z);
     }
 
+    private static float PackTextureAnimation(TextureAnimation animation, bool overlay)
+    {
+        if (!animation.IsAnimated)
+            return 1.0f;
+
+        var modeOffset = animation.Mode == TextureAnimationMode.VerticalScrollBlackKey ? 0.5f : 0.0f;
+        var value = Math.Max(1, animation.FrameCount) + modeOffset;
+        return overlay ? -value : value;
+    }
+
+    private static bool IsAnimatedTexture(ModelTexture? texture) =>
+        texture?.Animation.IsAnimated == true || texture?.OverlayAnimation.IsAnimated == true;
+
+    private static float PackTextureMode(
+        bool hasTexture,
+        bool hasOverlay,
+        TextureOverlayMode overlayMode)
+    {
+        if (!hasTexture)
+            return 0.0f;
+
+        if (!hasOverlay)
+            return 1.0f;
+
+        return overlayMode switch
+        {
+            TextureOverlayMode.AlphaBlend => 2.0f,
+            TextureOverlayMode.MultiTextureFill => 3.0f,
+            _ => 1.0f
+        };
+    }
+
     private static int Align(int value, int alignment) => (value + alignment - 1) & ~(alignment - 1);
 
-    private sealed record ModelTexture(ID3D12Resource Resource, int SrvSlot);
+    private sealed record ModelTexture(
+        ID3D12Resource Resource,
+        int SrvSlot,
+        TextureAnimation Animation,
+        ID3D12Resource? OverlayResource,
+        int OverlaySrvSlot,
+        TextureAnimation OverlayAnimation,
+        TextureOverlayMode OverlayMode);
 
     private readonly record struct InventoryUiSurface(int IndexStart, int IndexCount, Vector4 Color);
 

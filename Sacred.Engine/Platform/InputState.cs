@@ -24,6 +24,8 @@ public sealed class InputState
 
     public bool IsLeftMouseButtonDown { get; private set; }
 
+    public bool HasPendingLeftClick => _leftClickPosition.HasValue;
+
     public bool IsDown(VirtualKey key) => _down.Contains(key);
 
     public bool IsMoveFasterDown => IsDown(VirtualKey.Shift) || GamepadMoveFaster;

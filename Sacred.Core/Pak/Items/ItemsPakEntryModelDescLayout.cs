@@ -42,9 +42,6 @@ internal readonly struct ItemsPakEntryModelDescLayout
     [FieldOffset(55)]
     public readonly ItemsPakEntryModelNameBytes ModelNameBytes;
 
-    [FieldOffset(87)]
-    public readonly float ModelRotationDegrees;
-
-    [FieldOffset(112)]
-    public readonly ushort SomeShort1;
+    [FieldOffset(102)]
+    public readonly uint EffectTextureId;
 }

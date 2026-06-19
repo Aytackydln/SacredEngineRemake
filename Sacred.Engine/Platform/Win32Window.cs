@@ -8,8 +8,15 @@ namespace Sacred.Engine.Platform;
 public sealed class Win32Window : IDisposable
 {
     private const int BlackBrush = 4;
+    private const int ScreenWidthMetric = 0;
+    private const int ScreenHeightMetric = 1;
+    private const int VerticalRefreshCapsIndex = 116;
     private const int XButton1 = 1;
     private const int XButton2 = 2;
+    private const uint WindowStyleVisible = 0x10000000;
+    private const uint WindowStyleOverlappedWindow = 0x00CF0000;
+    private const uint WindowStylePopup = 0x80000000;
+    private const uint DefaultDisplayRefreshRate = 60;
 
     private readonly WndProc _wndProc;
     private readonly string _className;
@@ -19,6 +26,7 @@ public sealed class Win32Window : IDisposable
     public nint Hwnd { get; }
     public int Width { get; }
     public int Height { get; }
+    public uint DisplayRefreshRateHz { get; }
     public int ClientWidth
     {
         get
@@ -39,10 +47,8 @@ public sealed class Win32Window : IDisposable
 
     public InputState Input { get; } = new();
 
-    public Win32Window(string title, int width, int height)
+    public Win32Window(string title, int width, int height, bool borderlessFullscreen = false)
     {
-        Width = width;
-        Height = height;
         _className = "SacredRemakeWindow" + Environment.ProcessId;
         _wndProc = WindowProc;
 
@@ -63,12 +69,19 @@ public sealed class Win32Window : IDisposable
             }
         }
 
-        Hwnd = User32.CreateWindowEx(0, _className, title, 0x10CF0000, 100, 100, width, height, 0, 0, wc.hInstance, 0);
+        var windowStyle = WindowStyleVisible | (borderlessFullscreen ? WindowStylePopup : WindowStyleOverlappedWindow);
+        var windowX = borderlessFullscreen ? 0 : 100;
+        var windowY = borderlessFullscreen ? 0 : 100;
+        Width = borderlessFullscreen ? Math.Max(1, User32.GetSystemMetrics(ScreenWidthMetric)) : width;
+        Height = borderlessFullscreen ? Math.Max(1, User32.GetSystemMetrics(ScreenHeightMetric)) : height;
+
+        Hwnd = User32.CreateWindowEx(0, _className, title, windowStyle, windowX, windowY, Width, Height, 0, 0, wc.hInstance, 0);
         if (Hwnd == 0)
         {
             throw new Win32Exception(Marshal.GetLastPInvokeError(), $"CreateWindowExW failed for '{_className}'.");
         }
 
+        DisplayRefreshRateHz = QueryDisplayRefreshRate();
         User32.ShowWindow(Hwnd, 5);
         SetTitle("SacredEngineRemake");
     }
@@ -138,6 +151,23 @@ public sealed class Win32Window : IDisposable
     private static int GetSignedHighWord(nint value) => unchecked((short)((value.ToInt64() >> 16) & 0xFFFF));
 
     private static int GetUnsignedHighWord(nint value) => unchecked((ushort)((value.ToInt64() >> 16) & 0xFFFF));
+
+    private uint QueryDisplayRefreshRate()
+    {
+        var hdc = User32.GetDC(Hwnd);
+        if (hdc == 0)
+            return DefaultDisplayRefreshRate;
+
+        try
+        {
+            var refreshRate = Gdi32.GetDeviceCaps(hdc, VerticalRefreshCapsIndex);
+            return refreshRate > 1 ? (uint)refreshRate : DefaultDisplayRefreshRate;
+        }
+        finally
+        {
+            User32.ReleaseDC(Hwnd, hdc);
+        }
+    }
 
     public void Dispose()
     {

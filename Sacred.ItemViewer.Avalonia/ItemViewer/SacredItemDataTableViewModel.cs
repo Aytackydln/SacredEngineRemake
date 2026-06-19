@@ -85,14 +85,24 @@ public partial class SacredItemDataTableViewModel : ObservableObject
         LoadPage(0);
     }
 
-    public void SetConfirmedPreviewItems(IReadOnlyDictionary<uint, DateTimeOffset> confirmedItems)
+    public void SetConfirmedPreviewItems(IReadOnlyDictionary<uint, SacredItemPreviewConfirmationSummary> confirmedItems)
     {
         for (var i = 0; i < _allEquipments.Count; i++)
         {
             var item = _allEquipments[i];
-            _allEquipments[i] = confirmedItems.TryGetValue(item.ItemId, out var confirmedAt)
-                ? item with { PreviewConfirmed = true, PreviewConfirmedAt = confirmedAt }
-                : item with { PreviewConfirmed = false, PreviewConfirmedAt = null };
+            _allEquipments[i] = confirmedItems.TryGetValue(item.ItemId, out var confirmation)
+                ? item with
+                {
+                    PreviewConfirmed = true,
+                    PreviewConfirmedAt = confirmation.ConfirmedAt,
+                    PreviewConfirmedUserRotationIsZero = confirmation.UserRotationIsZero
+                }
+                : item with
+                {
+                    PreviewConfirmed = false,
+                    PreviewConfirmedAt = null,
+                    PreviewConfirmedUserRotationIsZero = false
+                };
         }
 
         RebuildFilteredEquipments();
@@ -243,3 +253,7 @@ public partial class SacredItemDataTableViewModel : ObservableObject
         HashSet<ulong> SelectedValues,
         PropertyInfo Property);
 }
+
+public readonly record struct SacredItemPreviewConfirmationSummary(
+    DateTimeOffset ConfirmedAt,
+    bool UserRotationIsZero);

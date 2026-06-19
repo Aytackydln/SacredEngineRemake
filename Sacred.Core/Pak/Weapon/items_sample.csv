@@ -1,0 +1,72 @@
+"id","Name","CharClass","ItemLore","ItemSlot","Rarity","TwoHanded"
+1,Agh'Ba's Dreadful Bone Staff of Death,All,Long-Handled,Main Hand,Unique,1
+2,Battle Staff of Thorwena,All,Long-Handled,Main Hand,Unique,1
+3,Bonebreaker Battle Staff,All,Long-Handled,Main Hand,Unique,1
+4,Chialux' Power,All,Long-Handled,Main Hand,Unique,1
+5,Claw of Gods,All,Long-Handled,Main Hand,Unique,1
+6,Bone Smasher,All,Axe,Main Hand,Unique,0
+7,Herasis' Fiery Spiked Mace,All,Axe,Main Hand,Unique,0
+8,Hera's Warhammer of Satisfaction,All,Axe,Main Hand,Unique,0
+9,Paternus' Argument,All,Axe,Main Hand,Unique,0
+10,Annihilator,All,Axe,Main Hand,Unique,1
+11,Biting Two-handed Axe,All,Axe,Main Hand,Unique,1
+12,Destroyer of Demons,All,Axe,Main Hand,Unique,1
+13,Dragon's Fright,All,Axe,Main Hand,Unique,1
+14,Albion,All,Sword,Main Hand,Unique,0
+15,Ambuscade,All,Sword,Main Hand,Unique,0
+16,Dragon Fright,All,Sword,Main Hand,Unique,0
+17,Elf Slayer,All,Sword,Main Hand,Unique,0
+18,Body Ripper,All,Sword,Main Hand,Unique,1
+19,Fiery Great Sword of Might,All,Sword,Main Hand,Unique,1
+20,Poisoned Two-hander,All,Sword,Main Hand,Unique,1
+21,Two-handed Sword of the Vampires,All,Sword,Main Hand,Unique,1
+22,Facile Crossbow of Lambency,All,Bow,Main Hand,Unique,1
+23,Hades' Deathblow,All,Bow,Main Hand,Unique,1
+24,Incisive Demon Affright,All,Bow,Main Hand,Unique,1
+25,Magical Longbow,All,Bow,Main Hand,Unique,1
+26,Niliss' Ferocious Claws,All,Blade,Main Hand,Unique,0
+27,Sylia's Dance of Obliteration,All,Blade,Main Hand,Unique,1
+28,Twirling Bladed Spear,All,Blade,Main Hand,Unique,0
+29,Amethyst of Agility,All,Jewelry,Ring,Unique,0
+30,Amethyst of Concentration,All,Jewelry,Ring,Unique,0
+31,Amethyst of Constitution,All,Jewelry,Ring,Unique,0
+32,Amethyst of Heavens,All,Jewelry,Ring,Unique,0
+33,Blessed Plate Gauntlets,All,Unarmed,Main Hand,Unique,1
+34,Borg's Gauntlets of Fortitude,All,Unarmed,Main Hand,Unique,1
+35,Lacerating Gauntlets,All,Unarmed,Main Hand,Unique,1
+36,Proficient Barbed Gauntlets,All,Unarmed,Main Hand,Unique,1
+37,Forkal's Enlightened War Axe,Gladiator,Axe,Main Hand,Unique,1
+38,Gauntlets of Exorcism,Gladiator,Unarmed,Main Hand,Unique,1
+39,Thoral's Plate Gauntlets of Embers,Gladiator,Unarmed,Main Hand,Unique,1
+40,Designer 'T-IXVMM' Shades,Gladiator,Armor,Head,Unique,0
+41,Hockey Mask,Gladiator,Armor,Head,Unique,0
+42,Dur Gratuk's Golden Armor,Gladiator,Armor,Chest,Unique,0
+43,Lonidra's Enlightened Belt of Might,Gladiator,Armor,Belt,Unique,0
+44,King of the Swallows,Gladiator,Armor,Legs,Unique,0
+45,Foul Feet,Gladiator,Armor,Feet,Unique,0
+46,Blood Harp,Wood Elf,Bow,Main Hand,Unique,1
+47,Designer 'Stranger in the Night' Shades,Wood Elf,Armor,Head,Unique,0
+48,Ranger's Padded Armor,Wood Elf,Armor,Chest,Unique,0
+49,Belt of the Forest Stalker,Wood Elf,Armor,Belt,Unique,0
+50,King of the Swallows,Wood Elf,Armor,Legs,Unique,0
+51,Golden Boots of Revenge,Wood Elf,Armor,Feet,Unique,0
+52,Designer 'Neo's Reallity' Shades,Dark Elf,Armor,Head,Unique,0
+53,Dug-Mar's Leather Belt,Dark Elf,Armor,Belt,Unique,0
+54,Frost Weaver's Elemental Staff,Battle Mage,Long-Handled,Main Hand,Unique,0
+55,Heridon's Ornate Staff,Battle Mage,Long-Handled,Main Hand,Unique,1
+56,Magical Longsword of the Elements,Battle Mage,Sword,Main Hand,Unique,0
+57,Magic Whirlwind Longbow,Battle Mage,Bow,Main Hand,Unique,1
+58,Designer 'Pest Control' Shades,Vampiress,Armor,Head,Unique,0
+59,Lady Magory's Gauntlets of Health,Vampiress,Armor,Hands,Unique,0
+60,Designer 'Danny's Style' Shades,Dwarf,Armor,Head,Unique,0
+61,Hood of Madness,Dwarf,Armor,Head,Unique,0
+62,Designer 'Annika's Collection Shades,Daemon,Armor,Head,Unique,0
+63,Hood of Madness,Daemon,Armor,Head,Unique,0
+64,Byleth's Pentacle,Battle Mage,Jewelry,Amulet,Set,0
+65,Dralkcib's Hips,Daemon,Jewelry,Belt,Set,0
+66,Pandora's Forrtified Bracers,Daemon,Armor,Arms,Set,0
+67,Bahamut's Dark Thought,Dark Elf,Armor,Head,Set,0
+68,Kabelrinte's Banishment,Dwarf,Armor,Head,Set,0
+69,Dalmar's Judge,Gladiator,Axe,Main Hand,Set,0
+70,Dagowit's Grip,Battle Mage,Armor,Belt,Set,0
+71,Blackstaff's Heel,Battle Mage,Armor,Feet,Set,0

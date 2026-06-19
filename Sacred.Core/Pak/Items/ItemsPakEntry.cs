@@ -10,4 +10,5 @@ public readonly record struct ItemsPakEntry(
     public uint GraphicRenderFlags => ModelDesc.GraphicRenderFlags;
     public byte RenderClass => ModelDesc.RenderClass;
     public uint ItemId => ModelDesc.ItemId;
+    public uint EffectTextureId => ModelDesc.EffectTextureId;
 }

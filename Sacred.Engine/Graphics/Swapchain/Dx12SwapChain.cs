@@ -23,7 +23,16 @@ internal abstract class Dx12SwapChain : IDisposable
 
     public uint CurrentBackBufferIndex => SwapChain.CurrentBackBufferIndex;
 
-    public void Present() => SwapChain.Present(0, PresentFlags.None);
+    public void Present(bool verticalSyncEnabled, bool allowTearing)
+    {
+        if (verticalSyncEnabled)
+        {
+            SwapChain.Present(1, PresentFlags.None);
+            return;
+        }
+
+        SwapChain.Present(0, allowTearing ? PresentFlags.AllowTearing : PresentFlags.None);
+    }
 
     public void ResizeBuffers(int frameCount, int width, int height, SwapChainFlags flags)
     {

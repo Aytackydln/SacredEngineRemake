@@ -13,9 +13,8 @@ public readonly record struct ItemsPakEntryModelDesc(
     byte RenderClass, // 1 byte at offset 46; affects static object draw ordering
     ushort ModelTransformFlags, // 2 bytes at offset 48
     ushort ModelExtent, // 2 bytes at offset 50; character rows contain values like 120..200
-    string ModelName, // null-terminated string at 55, max length 32 bytes (including null terminator)
-    float ModelRotationDegrees, // unaligned 4-byte float at offset 87; character rows commonly contain 0 or 90
-    ushort SomeShort1 // 2 bytes at offset 112, purpose unknown
+    string ModelName, // unaligned 4-byte float at offset 87; character rows commonly contain 0 or 90
+    uint EffectTextureId // 4 bytes at offset 102; texture.pak descriptor index for model effect/fill/animated texture
 )
 {
     private static readonly Encoding SacredEncoding = Encoding.GetEncoding("iso-8859-1");
@@ -83,8 +82,7 @@ public readonly record struct ItemsPakEntryModelDesc(
             ModelTransformFlags: layout.ModelTransformFlags,
             ModelExtent: layout.ModelExtent,
             ModelName: ReadLocationString(modelNameBytes),
-            ModelRotationDegrees: layout.ModelRotationDegrees,
-            SomeShort1: layout.SomeShort1
+            EffectTextureId: layout.EffectTextureId
         );
     }
 

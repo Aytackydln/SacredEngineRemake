@@ -4,12 +4,9 @@ using System.Linq;
 using System.Numerics;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
-using Sacred.Assets;
-using Sacred.Assets.Paks.Texture;
 using Sacred.Granny;
 
 namespace Sacred.ItemViewer.Avalonia.ItemViewer;
@@ -133,7 +130,7 @@ public sealed class ModelViewerControl : UserControl
         });
     }
 
-    public void ShowTextures(IReadOnlyDictionary<string, TextureAsset> textures, int failedCount)
+    public void ShowTextures(IReadOnlyDictionary<string, ModelTextureBinding> textures, int failedCount)
     {
         RunOnUiThread(() =>
         {

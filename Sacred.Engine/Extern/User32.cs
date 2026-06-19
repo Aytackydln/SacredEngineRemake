@@ -136,4 +136,7 @@ internal static partial class User32
 
     [LibraryImport(LibraryName)]
     internal static partial int FillRect(nint hdc, ref Rect rect, nint hBrush);
+
+    [LibraryImport(LibraryName)]
+    internal static partial int GetSystemMetrics(int index);
 }

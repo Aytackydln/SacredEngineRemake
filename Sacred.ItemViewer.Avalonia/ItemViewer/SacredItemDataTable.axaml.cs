@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Collections;
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Interactivity;
 using Sacred.Assets;
 using Sacred.Assets.Paks.Models;
@@ -266,6 +267,10 @@ public partial class SacredItemDataTable : UserControl
         {
             SetModelRotationSliders(ToVector3(confirmation.UserRotationYawPitchRoll));
         }
+        else
+        {
+            ResetModelRotationSliders();
+        }
 
         if (string.IsNullOrWhiteSpace(selectedItem.ModelName))
         {
@@ -278,6 +283,27 @@ public partial class SacredItemDataTable : UserControl
         var rotationMode = SelectedRotationMode;
         var pivotMode = SelectedPivotMode;
         _ = Task.Run(async () => await LoadModel(selectedItem, rotationMode, pivotMode));
+    }
+
+    private void DataGrid_OnAutoGeneratingColumn(object? sender, DataGridAutoGeneratingColumnEventArgs e)
+    {
+        if (e.PropertyName is nameof(SacredItemDataModel.PreviewConfirmedDisplay)
+            or nameof(SacredItemDataModel.PreviewConfirmedUserRotationIsZero))
+        {
+            e.Column.IsVisible = false;
+            return;
+        }
+
+        if (e.PropertyName != nameof(SacredItemDataModel.PreviewConfirmed))
+            return;
+
+        e.Column = new DataGridTextColumn
+        {
+            Header = nameof(SacredItemDataModel.PreviewConfirmed),
+            Binding = new Binding(nameof(SacredItemDataModel.PreviewConfirmedDisplay)),
+            SortMemberPath = nameof(SacredItemDataModel.PreviewConfirmed),
+            Width = new DataGridLength(120)
+        };
     }
 
     private async Task LoadModel(
@@ -356,39 +382,59 @@ public partial class SacredItemDataTable : UserControl
             .ToArray();
 
         var archive = _texturePakArchive;
-        var loaded = new Dictionary<string, TextureAsset>(StringComparer.OrdinalIgnoreCase);
+        var loaded = new Dictionary<string, ModelTextureBinding>(StringComparer.OrdinalIgnoreCase);
         var failedCount = 0;
 
-        if (selectedItem.TextureId > 0 && textureNames.Length <= 1)
+        if (textureNames.Length == 0)
         {
+            if (selectedItem.TextureId == 0)
+            {
+                _modelViewer.ShowTextureStatus("no textures referenced");
+                return;
+            }
+
             try
             {
                 var itemTexture = await archive.LoadTextureAsync(selectedItem.TextureId, cancellationToken);
-                loaded[textureNames.Length == 0 ? itemTexture.Name : textureNames[0]] = itemTexture;
+                loaded[itemTexture.Name] = new ModelTextureBinding(itemTexture);
             }
             catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or NotSupportedException)
             {
-                failedCount++;
+                _modelViewer.ShowTextureStatus("no textures referenced");
+                return;
             }
-        }
 
-        if (textureNames.Length == 0 && loaded.Count == 0)
-        {
-            _modelViewer.ShowTextureStatus("no textures referenced");
+            _modelViewer.ShowTextures(loaded, failedCount: 0);
             return;
         }
 
-        var remainingTextureNames = textureNames
-            .Where(textureName => !loaded.ContainsKey(textureName))
-            .ToArray();
-
-        _modelViewer.ShowTextureStatus($"loading {textureNames.Length + (selectedItem.TextureId > 0 && textureNames.Length <= 1 ? 1 : 0)} textures...");
-        foreach (var textureName in remainingTextureNames)
+        _modelViewer.ShowTextureStatus($"loading {textureNames.Length} textures...");
+        foreach (var textureName in textureNames)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var reference = ModelTextureResolver.Resolve(
+                archive,
+                selectedItem.TextureId,
+                selectedItem.EffectTextureId,
+                selectedItem.GraphicRenderFlags,
+                textureName);
+
             try
             {
-                loaded[textureName] = await archive.LoadTextureAsync(textureName, cancellationToken);
+                if (string.IsNullOrWhiteSpace(reference.TextureName))
+                    continue;
+
+                var baseTexture = await archive.LoadTextureAsync(reference.TextureName, cancellationToken);
+                baseTexture = baseTexture with { Animation = reference.Animation };
+
+                TextureAsset? overlayTexture = null;
+                if (!string.IsNullOrWhiteSpace(reference.OverlayTextureName))
+                {
+                    overlayTexture = await archive.LoadTextureAsync(reference.OverlayTextureName, cancellationToken);
+                    overlayTexture = overlayTexture with { Animation = reference.OverlayAnimation };
+                }
+
+                loaded[textureName] = new ModelTextureBinding(baseTexture, overlayTexture, reference.OverlayMode);
             }
             catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or NotSupportedException)
             {
@@ -492,7 +538,7 @@ public partial class SacredItemDataTable : UserControl
         _tableViewModel.LoadPage(_tableViewModel.TotalPages - 1);
     }
 
-    private sealed record TextureLoadResult(IReadOnlyDictionary<string, TextureAsset> Textures, int FailedCount);
+    private sealed record TextureLoadResult(IReadOnlyDictionary<string, ModelTextureBinding> Textures, int FailedCount);
 
     private ItemPreviewRotationMode SelectedRotationMode =>
         PreviewRotationModeComboBox.SelectedItem is ItemPreviewRotationMode mode
@@ -662,11 +708,13 @@ public partial class SacredItemDataTable : UserControl
         ConfirmPreviewStatusText.Text = status;
     }
 
-    private IReadOnlyDictionary<uint, DateTimeOffset> CreateConfirmedPreviewItems()
+    private IReadOnlyDictionary<uint, SacredItemPreviewConfirmationSummary> CreateConfirmedPreviewItems()
     {
         return _previewConfirmationsByItemId.ToDictionary(
             static pair => pair.Key,
-            static pair => pair.Value.ConfirmedAt);
+            static pair => new SacredItemPreviewConfirmationSummary(
+                pair.Value.ConfirmedAt,
+                IsZeroRotation(pair.Value.UserRotationYawPitchRoll)));
     }
 
     private string GetPreviewConfirmationStatus(SacredItemDataModel item, string fallback)
@@ -679,6 +727,11 @@ public partial class SacredItemDataTable : UserControl
     private static Vector3 ToVector3(RotationVectorData rotation)
     {
         return new Vector3(rotation.X, rotation.Y, rotation.Z);
+    }
+
+    private static bool IsZeroRotation(RotationVectorData rotation)
+    {
+        return rotation is { X: 0.0f, Y: 0.0f, Z: 0.0f };
     }
 
     private static string FormatRotationDegrees(RotationVectorData rotation)
