@@ -7,6 +7,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Numerics;
 using System.Reflection;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Collections;
@@ -29,10 +30,14 @@ public partial class SacredItemDataTable : UserControl
     private SacredItemDataTableViewModel _tableViewModel = new([], FrozenDictionary<string, string>.Empty);
     private readonly ModelViewerControl _modelViewer = new();
     private readonly SacredItemFilterSaveStore _filterSaveStore = SacredItemFilterSaveStore.CreateDefault();
+    private readonly SacredItemFavoriteStore _favoriteStore = SacredItemFavoriteStore.CreateDefault();
     private readonly SacredItemPreviewConfirmationStore _previewConfirmationStore = SacredItemPreviewConfirmationStore.CreateDefault();
     private Dictionary<string, HashSet<ulong>> _savedEnumFilters = [];
+    private HashSet<uint> _favoriteItemIds = [];
     private IReadOnlyDictionary<uint, SacredItemPreviewConfirmation> _previewConfirmationsByItemId =
         new Dictionary<uint, SacredItemPreviewConfirmation>();
+    private string? _selectedPivotBoneName;
+    private bool _updatingBoneSelector;
     private string _gameDir = DefaultGameDir;
     private ModelsPakArchive _modelsPakArchive = null!;
     private TexturePakArchive _texturePakArchive = null!;
@@ -44,10 +49,10 @@ public partial class SacredItemDataTable : UserControl
     {
         InitializeComponent();
         ModelViewerPanel.Children.Add(_modelViewer);
-        PreviewRotationModeComboBox.ItemsSource = Enum.GetValues<ItemPreviewRotationMode>();
+        PreviewRotationModeComboBox.ItemsSource = ItemPreviewRotationModeFactory.GetValues();
         PreviewRotationModeComboBox.SelectedItem = ItemPreviewRotationMode.LegacyCurrent;
         PreviewRotationModeComboBox.SelectionChanged += ExperimentModeComboBox_OnSelectionChanged;
-        PreviewPivotModeComboBox.ItemsSource = Enum.GetValues<ItemPreviewPivotMode>();
+        PreviewPivotModeComboBox.ItemsSource = ItemPreviewPivotModeFactory.GetValues();
         PreviewPivotModeComboBox.SelectedItem = ItemPreviewPivotMode.BoundsCenter;
         PreviewPivotModeComboBox.SelectionChanged += ExperimentModeComboBox_OnSelectionChanged;
         ModelYawSlider.ValueChanged += (_, _) => UpdateModelRotationFromSliders();
@@ -100,6 +105,7 @@ public partial class SacredItemDataTable : UserControl
 
         var savedSettings = _filterSaveStore.Load();
         _savedEnumFilters = savedSettings.EnumFilters;
+        _favoriteItemIds = _favoriteStore.Load();
         _previewConfirmationsByItemId = _previewConfirmationStore.LoadByItemId();
         _gameDir = await PromptForGameDirectoryAsync(savedSettings.GameDirectory);
         SaveSettings(savedSettings.FilterHasModel);
@@ -110,6 +116,7 @@ public partial class SacredItemDataTable : UserControl
 
         _tableViewModel = new SacredItemDataTableViewModel(items, sacredGameData.GameResStore.TranslatedStrings);
         _tableViewModel.FilterHasModel = savedSettings.FilterHasModel;
+        _tableViewModel.SetFavoriteItems(_favoriteItemIds);
         _tableViewModel.SetConfirmedPreviewItems(CreateConfirmedPreviewItems());
         _tableViewModel.FilterHasModelChanged += OnFilterHasModelChanged;
         DataContext = _tableViewModel;
@@ -254,6 +261,7 @@ public partial class SacredItemDataTable : UserControl
     private void DataGrid_OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         _modelViewer.ShowStatus("...");
+        ClearModelData("no model selected");
         SetConfirmPreviewState(null, false, "");
 
         if (sender is not DataGrid { SelectedItem: SacredItemDataModel selectedItem })
@@ -275,6 +283,7 @@ public partial class SacredItemDataTable : UserControl
         if (string.IsNullOrWhiteSpace(selectedItem.ModelName))
         {
             _modelViewer.ShowStatus($"{selectedItem.ItemName}: no model name.");
+            ClearModelData("item has no model");
             SetConfirmPreviewState(null, false, GetPreviewConfirmationStatus(selectedItem, "No model to confirm."));
             return;
         }
@@ -287,7 +296,9 @@ public partial class SacredItemDataTable : UserControl
 
     private void DataGrid_OnAutoGeneratingColumn(object? sender, DataGridAutoGeneratingColumnEventArgs e)
     {
-        if (e.PropertyName is nameof(SacredItemDataModel.PreviewConfirmedDisplay)
+        if (e.PropertyName is nameof(SacredItemDataModel.IsFavorite)
+            or nameof(SacredItemDataModel.FavoriteDisplay)
+            or nameof(SacredItemDataModel.PreviewConfirmedDisplay)
             or nameof(SacredItemDataModel.PreviewConfirmedUserRotationIsZero))
         {
             e.Column.IsVisible = false;
@@ -304,6 +315,18 @@ public partial class SacredItemDataTable : UserControl
             SortMemberPath = nameof(SacredItemDataModel.PreviewConfirmed),
             Width = new DataGridLength(120)
         };
+    }
+
+    private void FavoriteButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: SacredItemDataModel item })
+            return;
+
+        if (!_favoriteItemIds.Add(item.ItemId))
+            _favoriteItemIds.Remove(item.ItemId);
+
+        _favoriteStore.Save(_favoriteItemIds);
+        _tableViewModel.SetFavoriteItems(_favoriteItemIds);
     }
 
     private async Task LoadModel(
@@ -328,18 +351,31 @@ public partial class SacredItemDataTable : UserControl
             var archive = _modelsPakArchive;
             var modelName = selectedItem.ModelName;
             var asset = await archive.LoadModelAsync(modelName, GrnMeshExtractionMode.PrimarySlice, cancellationToken);
-            var viewerPreviewRotation = CreateViewerPreviewRotation(selectedItem, rotationMode);
+            var viewerPreviewRotation = selectedItem.PreviewRotation;
+            var effectiveRotationMode = ResolveRotationMode(selectedItem, rotationMode);
+            var availableBoneNames = GetBoneNames(asset.Diagnostics);
+            if (_previewConfirmationsByItemId.TryGetValue(selectedItem.ItemId, out var savedConfirmation) &&
+                !string.IsNullOrWhiteSpace(savedConfirmation.PivotBoneName))
+                _selectedPivotBoneName = savedConfirmation.PivotBoneName;
+            if (_selectedPivotBoneName is null ||
+                !availableBoneNames.Contains(_selectedPivotBoneName, StringComparer.OrdinalIgnoreCase))
+                _selectedPivotBoneName = availableBoneNames.FirstOrDefault();
 
             if (cancellationToken.IsCancellationRequested)
                 return;
+
+            var effectScene = EquipmentEffectSceneFactory.Create(asset, selectedItem.Damage);
 
             _modelViewer.ShowModel(
                 asset,
                 viewerPreviewRotation,
                 selectedItem.Width,
                 selectedItem.Height,
-                rotationMode,
-                pivotMode);
+                effectiveRotationMode,
+                pivotMode,
+                _selectedPivotBoneName,
+                effectScene);
+            await _modelViewer.Dispatcher.InvokeAsync(() => ShowModelData(asset, selectedItem, effectScene));
             await _modelViewer.Dispatcher.InvokeAsync(UpdateModelRotationFromSliders);
             await _modelViewer.Dispatcher.InvokeAsync(() =>
             {
@@ -354,7 +390,7 @@ public partial class SacredItemDataTable : UserControl
                             : GetPreviewConfirmationStatus(selectedItem, "Loaded model has no mesh to confirm."));
                 }
             });
-            await LoadSelectedModelTexturesAsync(asset, selectedItem, cancellationToken);
+            await LoadSelectedModelTexturesAsync(asset, selectedItem, effectScene, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -363,12 +399,118 @@ public partial class SacredItemDataTable : UserControl
         catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or NotSupportedException)
         {
             _modelViewer.ShowStatus($"{selectedItem.ModelName}: {ex.Message}");
+            await _modelViewer.Dispatcher.InvokeAsync(() => ClearModelData("model failed to load"));
         }
     }
+
+    private void ClearModelData(string status)
+    {
+        ModelDataExpander.Header = $"Model data — {status}";
+        ModelDataExpander.IsEnabled = false;
+        ModelDataText.Text = "";
+    }
+
+    private void ShowModelData(
+        GrnAsset asset,
+        SacredItemDataModel item,
+        EquipmentEffectScene effectScene)
+    {
+        var diagnostics = asset.Diagnostics;
+        if (diagnostics is null)
+        {
+            ClearModelData("metadata unavailable");
+            return;
+        }
+
+        ModelDataExpander.Header =
+            $"Model data — {diagnostics.Slices.Count} slices, {diagnostics.PartCount} parts, {diagnostics.BoneCount} bones";
+        ModelDataExpander.IsEnabled = true;
+        var boneNames = GetBoneNames(diagnostics);
+        _updatingBoneSelector = true;
+        try
+        {
+            PreviewPivotBoneComboBox.ItemsSource = boneNames;
+            if (_selectedPivotBoneName is not null && boneNames.Contains(_selectedPivotBoneName, StringComparer.OrdinalIgnoreCase))
+                PreviewPivotBoneComboBox.SelectedItem = boneNames.First(name => name.Equals(_selectedPivotBoneName, StringComparison.OrdinalIgnoreCase));
+            else
+                PreviewPivotBoneComboBox.SelectedIndex = boneNames.Length > 0 ? 0 : -1;
+        }
+        finally
+        {
+            _updatingBoneSelector = false;
+        }
+
+        var text = new StringBuilder();
+        text.AppendLine($"Name: {asset.Name}");
+        text.AppendLine($"File size: {asset.RawBytes.Length:N0} bytes");
+        text.AppendLine($"Damage: physical {FormatRange(item.Damage.Physical)}, fire {FormatRange(item.Damage.Fire)}, magic {FormatRange(item.Damage.Magic)}, poison {FormatRange(item.Damage.Poison)}");
+        var effectAnchors = diagnostics.Slices
+            .SelectMany(static slice => slice.Bones)
+            .Select(static bone => SacredEquipmentEffectAnchor.TryParse(bone.Name, out var anchor) ? anchor : (SacredEquipmentEffectAnchor?)null)
+            .Where(static anchor => anchor.HasValue)
+            .Select(static anchor => anchor!.Value)
+            .DistinctBy(static anchor => anchor.BoneName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        text.AppendLine(effectAnchors.Length == 0
+            ? "Equipped effects: none"
+            : $"Equipped effects: {string.Join(", ", effectAnchors.Select(static anchor => $"{anchor.BoneName} ({anchor.Kind})"))}; {effectScene.Surfaces.Count} visual layers");
+        if (asset.Mesh is { } mesh)
+            text.AppendLine($"Rendered mesh: {mesh.Vertices.Length:N0} vertices, {mesh.Indices.Length / 3:N0} triangles, {mesh.Surfaces.Count} surfaces");
+        else
+            text.AppendLine("Rendered mesh: none");
+        if (diagnostics.WholeModelBounds is { } wholeBounds)
+            text.AppendLine($"Whole-model bounds: min {FormatVector(wholeBounds.Min)}, max {FormatVector(wholeBounds.Max)}, center {FormatVector(wholeBounds.Center)}");
+        if (diagnostics.SkeletonBounds is { } skeletonBounds)
+            text.AppendLine($"Whole-rig bounds: min {FormatVector(skeletonBounds.Min)}, max {FormatVector(skeletonBounds.Max)}, center {FormatVector(skeletonBounds.Center)}");
+
+        foreach (var slice in diagnostics.Slices)
+        {
+            text.AppendLine();
+            text.AppendLine($"SLICE {slice.Index}  parts={slice.Parts.Count}, texture groups={slice.TexturePolygonGroupCount}, texture polygons={slice.TexturePolygonCount}, bone ties={slice.BoneTieCount}");
+            text.AppendLine($"  Textures: {(slice.TextureNames.Count == 0 ? "(none)" : string.Join(", ", slice.TextureNames))}");
+            foreach (var part in slice.Parts)
+            {
+                text.AppendLine(
+                    $"  Part {part.Index}: vertices={part.VertexCount}, polygons={part.PolygonCount}, UVs={part.TextureCoordinateCount}, weighted vertices={part.WeightedVertexCount}, weights={part.WeightCount}");
+            }
+
+            if (slice.Bones.Count == 0)
+            {
+                text.AppendLine("  Bones: (none)");
+                continue;
+            }
+
+            text.AppendLine($"  Bones ({slice.Bones.Count}):");
+            foreach (var bone in slice.Bones)
+            {
+                var parent = bone.ParentIndex == bone.Index
+                    ? "root"
+                    : $"{bone.ParentIndex} {slice.Bones[bone.ParentIndex].Name}";
+                text.AppendLine($"    [{bone.Index}] {bone.Name}  parent={parent}");
+            }
+        }
+
+        ModelDataText.Text = text.ToString().TrimEnd();
+    }
+
+    private static string FormatVector(Vector3 value) =>
+        $"({value.X:0.##}, {value.Y:0.##}, {value.Z:0.##})";
+
+    private static string FormatRange(SacredDamageRange range) =>
+        range.IsPresent ? $"{range.Minimum}-{range.Maximum}" : "0";
+
+    private static string[] GetBoneNames(GrnModelDiagnostics? diagnostics) =>
+        diagnostics?.Slices
+            .SelectMany(static slice => slice.Bones)
+            .Select(static bone => bone.Name)
+            .Where(static name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray() ?? [];
 
     private async Task LoadSelectedModelTexturesAsync(
         GrnAsset asset,
         SacredItemDataModel selectedItem,
+        EquipmentEffectScene effectScene,
         CancellationToken cancellationToken)
     {
         if (asset.Mesh is null)
@@ -384,27 +526,32 @@ public partial class SacredItemDataTable : UserControl
         var archive = _texturePakArchive;
         var loaded = new Dictionary<string, ModelTextureBinding>(StringComparer.OrdinalIgnoreCase);
         var failedCount = 0;
+        var modelHasEffectTextureSurface = ModelHasEffectTextureSurface(asset, selectedItem, archive);
+        var preferItemTexture = textureNames.Length == 1;
 
         if (textureNames.Length == 0)
         {
-            if (selectedItem.TextureId == 0)
+            if (selectedItem.TextureId != 0)
+            {
+                try
+                {
+                    var itemTexture = await archive.LoadTextureAsync(selectedItem.TextureId, cancellationToken);
+                    loaded[itemTexture.Name] = new ModelTextureBinding(itemTexture);
+                }
+                catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or NotSupportedException)
+                {
+                    failedCount++;
+                }
+            }
+
+            failedCount += await LoadEquipmentEffectTexturesAsync(effectScene, archive, loaded, cancellationToken);
+            if (loaded.Count == 0)
             {
                 _modelViewer.ShowTextureStatus("no textures referenced");
                 return;
             }
 
-            try
-            {
-                var itemTexture = await archive.LoadTextureAsync(selectedItem.TextureId, cancellationToken);
-                loaded[itemTexture.Name] = new ModelTextureBinding(itemTexture);
-            }
-            catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or NotSupportedException)
-            {
-                _modelViewer.ShowTextureStatus("no textures referenced");
-                return;
-            }
-
-            _modelViewer.ShowTextures(loaded, failedCount: 0);
+            await _modelViewer.ShowTexturesAsync(loaded, failedCount, cancellationToken);
             return;
         }
 
@@ -417,6 +564,9 @@ public partial class SacredItemDataTable : UserControl
                 selectedItem.TextureId,
                 selectedItem.EffectTextureId,
                 selectedItem.GraphicRenderFlags,
+                selectedItem.EffectAnimationRate,
+                modelHasEffectTextureSurface,
+                preferItemTexture,
                 textureName);
 
             try
@@ -442,12 +592,65 @@ public partial class SacredItemDataTable : UserControl
             }
         }
 
+        failedCount += await LoadEquipmentEffectTexturesAsync(effectScene, archive, loaded, cancellationToken);
+
         var result = new TextureLoadResult(loaded, failedCount);
 
         if (cancellationToken.IsCancellationRequested)
             return;
 
-        _modelViewer.ShowTextures(result.Textures, result.FailedCount);
+        await _modelViewer.ShowTexturesAsync(result.Textures, result.FailedCount, cancellationToken);
+    }
+
+    private static async Task<int> LoadEquipmentEffectTexturesAsync(
+        EquipmentEffectScene effectScene,
+        TexturePakArchive archive,
+        IDictionary<string, ModelTextureBinding> loaded,
+        CancellationToken cancellationToken)
+    {
+        var failedCount = 0;
+        foreach (var textureName in effectScene.TextureNames)
+        {
+            if (loaded.ContainsKey(textureName))
+                continue;
+
+            try
+            {
+                var texture = await archive.LoadTextureAsync(textureName, cancellationToken);
+                loaded[textureName] = new ModelTextureBinding(texture);
+            }
+            catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or NotSupportedException)
+            {
+                failedCount++;
+            }
+        }
+
+        return failedCount;
+    }
+
+    private static bool ModelHasEffectTextureSurface(
+        GrnAsset asset,
+        SacredItemDataModel selectedItem,
+        TexturePakArchive archive)
+    {
+        if (asset.Mesh is null ||
+            selectedItem.EffectTextureId == 0 ||
+            !archive.TryGetTextureName(selectedItem.EffectTextureId, out var effectTextureName))
+        {
+            return false;
+        }
+
+        foreach (var surface in asset.Mesh.Surfaces)
+        {
+            if (!string.IsNullOrWhiteSpace(surface.TextureName) &&
+                archive.TryResolveTextureName(surface.TextureName, out var resolvedName) &&
+                string.Equals(resolvedName, effectTextureName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void DataGrid_OnSorting(object? sender, DataGridColumnEventArgs e)
@@ -545,6 +748,18 @@ public partial class SacredItemDataTable : UserControl
             ? mode
             : ItemPreviewRotationMode.LegacyCurrent;
 
+    private static ItemPreviewRotationMode ResolveRotationMode(
+        SacredItemDataModel item,
+        ItemPreviewRotationMode requestedMode)
+    {
+        if (requestedMode != ItemPreviewRotationMode.Auto)
+            return requestedMode;
+
+        return item.EquipmentType is SacredEquipmentType.Bow or SacredEquipmentType.Crossbow or SacredEquipmentType.Shield
+            ? ItemPreviewRotationMode.LegacyCurrent
+            : ItemPreviewRotationMode.DirectYawPitchRoll;
+    }
+
     private ItemPreviewPivotMode SelectedPivotMode =>
         PreviewPivotModeComboBox.SelectedItem is ItemPreviewPivotMode mode
             ? mode
@@ -552,6 +767,10 @@ public partial class SacredItemDataTable : UserControl
 
     private void ExperimentModeComboBox_OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
+        if (_updatingBoneSelector)
+            return;
+
+        _selectedPivotBoneName = PreviewPivotBoneComboBox.SelectedItem as string;
         if (!_hasLoaded || DataGrid.SelectedItem is not SacredItemDataModel selectedItem)
             return;
 
@@ -562,88 +781,6 @@ public partial class SacredItemDataTable : UserControl
         var rotationMode = SelectedRotationMode;
         var pivotMode = SelectedPivotMode;
         _ = Task.Run(async () => await LoadModel(selectedItem, rotationMode, pivotMode));
-    }
-
-    private static Vector3 CreateViewerPreviewRotation(
-        SacredItemDataModel item,
-        ItemPreviewRotationMode rotationMode)
-    {
-        return rotationMode == ItemPreviewRotationMode.LegacyCurrent
-            ? CreateLegacyViewerPreviewRotation(item)
-            : NormalizeRotation(item.PreviewRotation);
-    }
-
-    private static Vector3 CreateLegacyViewerPreviewRotation(SacredItemDataModel item)
-    {
-        if (item.EquipmentType == SacredEquipmentType.Shield)
-            return CreateShieldPreviewRotation(item);
-
-        var rotation = CanonicalizePreviewRotation(item.PreviewRotation);
-
-        // Weapon.pak armor rotations are authored in direct yaw/pitch/roll order, while weapon entries
-        // use the legacy item-viewer order that is already handled by Dx12ItemModelRenderer.
-        return IsArmorEquipment(item.EquipmentType)
-            ? new Vector3(rotation.Z, rotation.X, rotation.Y)
-            : rotation;
-    }
-
-    private static Vector3 CreateShieldPreviewRotation(SacredItemDataModel item)
-    {
-        var rotation = NormalizeRotation(item.PreviewRotation);
-        return item.ModelName.Equals("SHIELD_ROUND.GRN", StringComparison.OrdinalIgnoreCase)
-            ? rotation with { X = NormalizeAngle(rotation.X + MathF.PI * 0.5f) }
-            : rotation;
-    }
-
-    private static Vector3 CanonicalizePreviewRotation(Vector3 rotation)
-    {
-        var x = rotation.X;
-        var y = rotation.Y;
-        while (y > MathF.PI)
-        {
-            x -= MathF.PI;
-            y -= MathF.PI;
-        }
-
-        while (y < -MathF.PI)
-        {
-            x += MathF.PI;
-            y += MathF.PI;
-        }
-
-        return new Vector3(
-            NormalizeAngle(x),
-            NormalizeAngle(y),
-            NormalizeAngle(rotation.Z));
-    }
-
-    private static Vector3 NormalizeRotation(Vector3 rotation)
-    {
-        return new Vector3(
-            NormalizeAngle(rotation.X),
-            NormalizeAngle(rotation.Y),
-            NormalizeAngle(rotation.Z));
-    }
-
-    private static float NormalizeAngle(float angle)
-    {
-        while (angle > MathF.PI)
-            angle -= MathF.Tau;
-        while (angle < -MathF.PI)
-            angle += MathF.Tau;
-        return angle;
-    }
-
-    private static bool IsArmorEquipment(SacredEquipmentType equipmentType)
-    {
-        return equipmentType is SacredEquipmentType.ChestArmor
-            or SacredEquipmentType.HeadArmor
-            or SacredEquipmentType.ArmArmor
-            or SacredEquipmentType.LegArmor
-            or SacredEquipmentType.Belt
-            or SacredEquipmentType.Shoulder
-            or SacredEquipmentType.FootArmor
-            or SacredEquipmentType.Gloves;
     }
 
     private void ModelYawResetButton_OnClick(object? sender, RoutedEventArgs e)
@@ -669,9 +806,9 @@ public partial class SacredItemDataTable : UserControl
             return;
         }
 
-        var rotationMode = SelectedRotationMode;
+        var rotationMode = ResolveRotationMode(item, SelectedRotationMode);
         var pivotMode = SelectedPivotMode;
-        var viewerPreviewRotation = CreateViewerPreviewRotation(item, rotationMode);
+        var viewerPreviewRotation = item.PreviewRotation;
         var userRotationYawPitchRoll = new Vector3(
             (float)ModelYawSlider.Value,
             (float)ModelPitchSlider.Value,
@@ -682,6 +819,7 @@ public partial class SacredItemDataTable : UserControl
             userRotationYawPitchRoll,
             rotationMode,
             pivotMode,
+            _selectedPivotBoneName,
             DateTimeOffset.Now);
 
         var saved = _previewConfirmationStore.Save(confirmation);
@@ -720,9 +858,15 @@ public partial class SacredItemDataTable : UserControl
     private string GetPreviewConfirmationStatus(SacredItemDataModel item, string fallback)
     {
         return _previewConfirmationsByItemId.TryGetValue(item.ItemId, out var confirmation)
-            ? $"Previously confirmed {confirmation.ConfirmedAt:yyyy-MM-dd HH:mm}; {confirmation.RotationMode}/{confirmation.PivotMode}; saved user rot {FormatRotationDegrees(confirmation.UserRotationYawPitchRollDegrees)}. Confirm again to update."
+            ? $"Previously confirmed {confirmation.ConfirmedAt:yyyy-MM-dd HH:mm}; {confirmation.RotationMode}/{FormatPivot(confirmation)}; saved user rot {FormatRotationDegrees(confirmation.UserRotationYawPitchRollDegrees)}. Confirm again to update."
             : fallback;
     }
+
+    private static string FormatPivot(SacredItemPreviewConfirmation confirmation) =>
+        confirmation.PivotMode == ItemPreviewPivotMode.SelectedBone &&
+        !string.IsNullOrWhiteSpace(confirmation.PivotBoneName)
+            ? $"{confirmation.PivotMode} ({confirmation.PivotBoneName})"
+            : confirmation.PivotMode.ToString();
 
     private static Vector3 ToVector3(RotationVectorData rotation)
     {

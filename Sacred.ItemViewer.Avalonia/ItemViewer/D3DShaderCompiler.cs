@@ -1,14 +1,15 @@
 using System;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.Marshalling;
-using System.Text;
+using Sacred.Shaders;
 
 namespace Sacred.ItemViewer.Avalonia.ItemViewer;
 
 internal static partial class D3DShaderCompiler
 {
     [LibraryImport("d3dcompiler_47.dll", StringMarshalling = StringMarshalling.Custom, StringMarshallingCustomType = typeof(AnsiStringMarshaller))]
-    [UnmanagedCallConv(CallConvs = [typeof(System.Runtime.CompilerServices.CallConvStdcall)])]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvStdcall)])]
     private static partial int D3DCompile(
         nint sourceData,
         nuint sourceDataSize,
@@ -22,20 +23,20 @@ internal static partial class D3DShaderCompiler
         out nint code,
         out nint errorMessages);
 
-    public static ReadOnlyMemory<byte> Compile(string name, string source, string entryPoint, string target)
+    public static ReadOnlyMemory<byte> Compile(Dx12ShaderSource shader)
     {
-        var sourceBytes = Encoding.UTF8.GetBytes(source);
+        var sourceBytes = shader.ReadAllBytes();
         var sourceHandle = GCHandle.Alloc(sourceBytes, GCHandleType.Pinned);
         try
         {
             var result = D3DCompile(
                 sourceHandle.AddrOfPinnedObject(),
                 (nuint)sourceBytes.Length,
-                name,
+                shader.Name,
                 0,
                 0,
-                entryPoint,
-                target,
+                shader.EntryPoint,
+                shader.Target,
                 0,
                 0,
                 out var code,
@@ -46,7 +47,7 @@ internal static partial class D3DShaderCompiler
                 if (result < 0)
                 {
                     var message = error != 0 ? ReadBlobString(error) : $"HRESULT 0x{result:X8}";
-                    throw new InvalidOperationException($"Failed to compile {name}/{entryPoint}: {message}");
+                    throw new InvalidOperationException($"Failed to compile {shader.Name}/{shader.EntryPoint}: {message}");
                 }
 
                 return ReadBlobBytes(code);

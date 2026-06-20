@@ -47,6 +47,30 @@ internal readonly struct SacredEquipmentLayout
 
     [FieldOffset(132)]
     public readonly byte RarityAndClassFlags;
+
+    [FieldOffset(154)]
+    public readonly ushort PhysicalDamageMinimum;
+
+    [FieldOffset(156)]
+    public readonly ushort FireDamageMinimum;
+
+    [FieldOffset(158)]
+    public readonly ushort MagicDamageMinimum;
+
+    [FieldOffset(160)]
+    public readonly ushort PoisonDamageMinimum;
+
+    [FieldOffset(162)]
+    public readonly ushort PhysicalDamageMaximum;
+
+    [FieldOffset(164)]
+    public readonly ushort FireDamageMaximum;
+
+    [FieldOffset(166)]
+    public readonly ushort MagicDamageMaximum;
+
+    [FieldOffset(168)]
+    public readonly ushort PoisonDamageMaximum;
 }
 
 // each entry is 258 bytes, with some fields at fixed offsets
@@ -63,7 +87,8 @@ public readonly record struct SacredEquipment(
     byte TypeIdentifier, // 1 byte at offset 37; observed as 0 in sampled equipment
     string Name, // 88 bytes at offset 38-125, null-terminated string in iso 8859-1 encoding
     uint IdemId, // 2 bytes at offset 126, kept as uint for existing dictionary keys
-    SacredEquipmentClassification Classification
+    SacredEquipmentClassification Classification,
+    SacredEquipmentDamage Damage
 )
 {
     // iso 8859-1 encoding for german text
@@ -129,7 +154,12 @@ public readonly record struct SacredEquipment(
             TypeIdentifier: layout.TypeIdentifier,
             Name: name,
             IdemId: itemId,
-            Classification: classification
+            Classification: classification,
+            Damage: new SacredEquipmentDamage(
+                Physical: new SacredDamageRange(layout.PhysicalDamageMinimum, layout.PhysicalDamageMaximum),
+                Fire: new SacredDamageRange(layout.FireDamageMinimum, layout.FireDamageMaximum),
+                Magic: new SacredDamageRange(layout.MagicDamageMinimum, layout.MagicDamageMaximum),
+                Poison: new SacredDamageRange(layout.PoisonDamageMinimum, layout.PoisonDamageMaximum))
         );
     }
 }

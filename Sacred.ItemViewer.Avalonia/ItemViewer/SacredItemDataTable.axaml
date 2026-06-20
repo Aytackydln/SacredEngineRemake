@@ -60,6 +60,10 @@
                           IsChecked="{Binding FilterHasModel}"
                           VerticalAlignment="Top"
                           Margin="4,8,12,0" />
+                <CheckBox Content="Favorites only"
+                          IsChecked="{Binding FilterFavoritesOnly}"
+                          VerticalAlignment="Top"
+                          Margin="4,8,12,0" />
                 <StackPanel Margin="4,2,12,0"
                             MinWidth="150">
                     <TextBlock Text="Preview confirmation"
@@ -89,7 +93,25 @@
                 CanUserReorderColumns="True"
                 Sorting="DataGrid_OnSorting"
                 AutoGeneratingColumn="DataGrid_OnAutoGeneratingColumn"
-                IsReadOnly="True" AutoGenerateColumns="True" />
+                IsReadOnly="True" AutoGenerateColumns="True">
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Header="Favorite"
+                                        Width="72"
+                                        CanUserSort="True"
+                                        SortMemberPath="IsFavorite">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate x:DataType="vm:SacredItemDataModel">
+                            <Button Content="{Binding FavoriteDisplay}"
+                                    Click="FavoriteButton_OnClick"
+                                    HorizontalAlignment="Stretch"
+                                    Padding="4,0"
+                                    FontSize="18"
+                                    ToolTip.Tip="Toggle favorite" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+            </DataGrid>
         </ScrollViewer>
 
         <StackPanel Orientation="Horizontal" Grid.Row="2" Grid.Column="0" HorizontalAlignment="Center" Margin="10">
@@ -110,7 +132,27 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <Panel Name="ModelViewerPanel" Grid.Row="0" />
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                <Panel Name="ModelViewerPanel" Grid.Column="0" />
+                <Expander Name="ModelDataExpander"
+                          Grid.Column="1"
+                          Header="Model data — no model selected"
+                          Background="#F209110E"
+                          Foreground="#E8F4D6"
+                          Padding="10,6"
+                          Width="350"
+                          IsExpanded="True"
+                          IsEnabled="False">
+                    <TextBox Name="ModelDataText"
+                             IsReadOnly="True"
+                             AcceptsReturn="True"
+                             TextWrapping="NoWrap"
+                             FontFamily="Consolas"
+                             FontSize="12"
+                             ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                </Expander>
+            </Grid>
 
             <Border Grid.Row="1"
                     Background="#DD09110E"
@@ -209,6 +251,13 @@
                                    Margin="10,0,0,0" />
                         <ComboBox Name="PreviewPivotModeComboBox"
                                   MinWidth="150" />
+                        <TextBlock Text="Bone"
+                                   Foreground="#E8F4D6"
+                                   VerticalAlignment="Center"
+                                   Margin="10,0,0,0" />
+                        <ComboBox Name="PreviewPivotBoneComboBox"
+                                  MinWidth="180"
+                                  SelectionChanged="ExperimentModeComboBox_OnSelectionChanged" />
                     </StackPanel>
 
                     <StackPanel Grid.Row="4"
@@ -228,6 +277,7 @@
                     </StackPanel>
                 </Grid>
             </Border>
+
         </Grid>
     </Grid>
 </UserControl>

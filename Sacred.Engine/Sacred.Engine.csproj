@@ -8,7 +8,6 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Raffinert.EmbeddedResourceAccessGenerator" Version="1.0.10" />
     <PackageReference Include="System.Drawing.Common" Version="10.0.0" />
     <PackageReference Include="Vortice.Direct3D12" Version="3.8.3" />
     <PackageReference Include="Vortice.DXGI" Version="3.8.3" />
@@ -18,13 +17,6 @@
     <ProjectReference Include="..\Sacred.Core\Sacred.Core.csproj" />
     <ProjectReference Include="..\Sacred.Assets\Sacred.Assets.csproj" />
     <ProjectReference Include="..\Sacred.Granny\Sacred.Granny.csproj" />
-  </ItemGroup>
-  
-  <ItemGroup>
-    <EmbeddedResource Include="ShadersHdr\HdrCommon.hlsl" />
-    <EmbeddedResource Include="ShadersHdr\SacredModelHDR.hlsl" />
-    <EmbeddedResource Include="ShadersHdr\SacredStaticSpriteHDR.hlsl" />
-    <EmbeddedResource Include="ShadersHdr\SacredWorldQuadHDR.hlsl" />
-    <EmbeddedResource Include="Shaders\*.hlsl" />
+    <ProjectReference Include="..\Sacred.Shaders\Sacred.Shaders.csproj" />
   </ItemGroup>
 </Project>

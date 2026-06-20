@@ -45,10 +45,7 @@ public sealed class MixedPakData
 
                 var name = PakDataHelpers.ReadCString(data, pieceOffset, 0x20, NameEncoding);
                 var rec = pieceOffset + 0x20;
-                var piece = new MixedCutoutRecord(
-                    mixedId,
-                    pieceIndex,
-                    name,
+                var piece = new MixedCutoutRecord(name,
                     BitConverter.ToUInt32(data.Slice(rec, 4)),
                     BitConverter.ToUInt16(data.Slice(rec + 0x04, 2)),
                     BitConverter.ToUInt16(data.Slice(rec + 0x06, 2)),

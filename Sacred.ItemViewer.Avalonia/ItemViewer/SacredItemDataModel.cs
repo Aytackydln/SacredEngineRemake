@@ -11,19 +11,24 @@ public readonly record struct SacredItemDataModel(
     string ItemName,
     SacredCharacterClassMask CharacterClassMask,
     SacredEquipmentType EquipmentType,
-    SacredEquipmentRarityTier Rarity,
+    Vector3 PreviewRotation,
     string ModelName,
     uint TextureId,
     uint EffectTextureId,
     uint GraphicRenderFlags,
-    Vector3 PreviewRotation,
+    ushort EffectAnimationRate,
+    SacredEquipmentDamage Damage,
     byte Width,
     byte Height,
+    SacredEquipmentRarityTier Rarity,
+    bool IsFavorite = false,
     bool PreviewConfirmed = false,
     DateTimeOffset? PreviewConfirmedAt = null,
     bool PreviewConfirmedUserRotationIsZero = false
 )
 {
+    public string FavoriteDisplay => IsFavorite ? "★" : "☆";
+
     public string PreviewConfirmedDisplay => PreviewConfirmed
         ? (PreviewConfirmedUserRotationIsZero ? "✓" : "X")
         : "";
@@ -42,6 +47,8 @@ public readonly record struct SacredItemDataModel(
             TextureId: equipment.Item.ModelDesc.TextureId,
             EffectTextureId: equipment.Item.EffectTextureId,
             GraphicRenderFlags: equipment.Item.GraphicRenderFlags,
+            EffectAnimationRate: equipment.Item.ModelDesc.EffectAnimationRate,
+            Damage: equipment.Damage,
             EquipmentType: equipment.EquipmentType,
             Rarity: equipment.RarityTier,
             PreviewRotation: equipment.PreviewRotation,

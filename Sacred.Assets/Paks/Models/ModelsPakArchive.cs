@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
 using Sacred.Assets.Utils;
@@ -10,22 +11,28 @@ public sealed class ModelsPakArchive : IDisposable
 {
     private const int HeaderSize = 0x100;
     private const int NameProbeLength = 0x40;
+    private const int DefaultMotionReferenceOffset = 116;
+    private const int ModelScaleOffset = 1136;
+    private const int ModelScaleSize = 12;
     private static readonly Encoding NameEncoding = Encoding.Latin1;
 
-    private readonly string _path;
     private readonly FileStream _stream;
     private readonly SemaphoreSlim _streamLock = new(1, 1);
     private readonly FrozenDictionary<string, ModelPakRecord> _recordsByName;
+    private readonly ModelsMetadataTable _metadata;
     private bool _disposed;
 
-    private ModelsPakArchive(string path, FileStream stream, Dictionary<string, ModelPakRecord> recordsByName)
+    private ModelsPakArchive(
+        FileStream stream,
+        Dictionary<string, ModelPakRecord> recordsByName,
+        ModelsMetadataTable metadata)
     {
-        _path = path;
         _stream = stream;
         _recordsByName = recordsByName.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+        _metadata = metadata;
     }
 
-    public static ModelsPakArchive Load(string path)
+    public static ModelsPakArchive Load(string path, string? metadataPath = null)
     {
         using var stopwatch = new LoggingStopwatch("Loading Models.pak... ");
 
@@ -82,7 +89,10 @@ public sealed class ModelsPakArchive : IDisposable
             }
         }
 
-        return new ModelsPakArchive(path, stream, recordsByName);
+        var metadata = metadataPath is null
+            ? ModelsMetadataTable.Empty
+            : ModelsMetadataTable.Load(metadataPath);
+        return new ModelsPakArchive(stream, recordsByName, metadata);
     }
 
     public async Task<GrnAsset> LoadModelAsync(
@@ -90,61 +100,191 @@ public sealed class ModelsPakArchive : IDisposable
         GrnMeshExtractionMode meshExtractionMode = GrnMeshExtractionMode.PrimarySlice,
         CancellationToken cancellationToken = default)
     {
-        var record = await FindRecordAsync(modelName, cancellationToken).ConfigureAwait(false);
+        var record = FindRecord(modelName, cancellationToken);
         var payload = await ReadPayloadAsync(record, cancellationToken).ConfigureAwait(false);
-        return GrnAssetLoader.LoadFromBytes(Path.GetFileNameWithoutExtension(modelName), payload, meshExtractionMode);
+        cancellationToken.ThrowIfCancellationRequested();
+        var metadata = ReadModelPayloadMetadata(payload);
+        var asset = GrnAssetLoader.LoadFromBytes(
+            Path.GetFileNameWithoutExtension(modelName),
+            payload,
+            meshExtractionMode,
+            metadata.Scale);
+        cancellationToken.ThrowIfCancellationRequested();
+        return asset;
     }
 
-    public async Task<GrnAsset> LoadCharacterModelAsync(
+    public Task<GrnAsset> LoadCharacterModelAsync(
         string baseModelName,
-        IReadOnlyList<string> attachmentModelNames,
-        IReadOnlySet<string>? hiddenBaseTextureNames = null,
+        IReadOnlyList<ModelAttachmentReference> attachments,
+        CancellationToken cancellationToken = default) =>
+        LoadCharacterModelAsync(baseModelName, attachments, loadDefaultAnimation: true, cancellationToken);
+
+    public Task<GrnAsset> LoadCharacterBaseModelAsync(
+        string baseModelName,
+        IReadOnlyList<ModelAttachmentReference> attachments,
+        CancellationToken cancellationToken = default) =>
+        LoadCharacterModelAsync(baseModelName, attachments, loadDefaultAnimation: false, cancellationToken);
+
+    public async Task<GrnAnimationClip?> LoadDefaultCharacterAnimationAsync(
+        string baseModelName,
         CancellationToken cancellationToken = default)
     {
-        var basePayload = await ReadPayloadAsync(
-            await FindRecordAsync(baseModelName, cancellationToken).ConfigureAwait(false),
+        var baseRecord = FindRecord(baseModelName, cancellationToken);
+        var metadataPrefix = await ReadPayloadPrefixAsync(
+            _stream,
+            _streamLock,
+            baseRecord,
+            ModelScaleOffset + ModelScaleSize,
             cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        return await LoadDefaultCharacterAnimationAsync(
+            ReadModelPayloadMetadata(metadataPrefix),
+            cancellationToken).ConfigureAwait(false);
+    }
 
-        var attachmentPayloads = new byte[attachmentModelNames.Count][];
-        for (var i = 0; i < attachmentModelNames.Count; i++)
+    private async Task<GrnAsset> LoadCharacterModelAsync(
+        string baseModelName,
+        IReadOnlyList<ModelAttachmentReference> attachments,
+        bool loadDefaultAnimation,
+        CancellationToken cancellationToken)
+    {
+        var basePayload = await ReadPayloadAsync(
+            FindRecord(baseModelName, cancellationToken),
+            cancellationToken).ConfigureAwait(false);
+        var baseMetadata = ReadModelPayloadMetadata(basePayload);
+
+        var attachmentPayloads = new GrnCharacterAttachment[attachments.Count];
+        for (var i = 0; i < attachments.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var attachmentRecord = await FindRecordAsync(attachmentModelNames[i], cancellationToken).ConfigureAwait(false);
-            attachmentPayloads[i] = await ReadPayloadAsync(
+            var attachment = attachments[i];
+            var attachmentRecord = FindRecord(attachment.ModelName, cancellationToken);
+            var attachmentPayload = await ReadPayloadAsync(
                 attachmentRecord,
                 cancellationToken).ConfigureAwait(false);
+            attachmentPayloads[i] = new GrnCharacterAttachment(
+                attachmentPayload,
+                attachment.RigidAttachBoneName,
+                attachment.SourceAttachBoneName,
+                ReadModelPayloadMetadata(attachmentPayload).Scale);
         }
 
-        return GrnAssetLoader.LoadCharacterFromBytes(
+        cancellationToken.ThrowIfCancellationRequested();
+        var asset = GrnAssetLoader.LoadCharacterFromBytes(
             Path.GetFileNameWithoutExtension(baseModelName),
             basePayload,
             attachmentPayloads,
-            hiddenBaseTextureNames);
+            baseModelScale: baseMetadata.Scale);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!loadDefaultAnimation)
+            return asset;
+
+        return asset with
+        {
+            DefaultAnimation = await LoadDefaultCharacterAnimationAsync(baseMetadata, cancellationToken)
+        };
     }
 
-    private Task<ModelPakRecord> FindRecordAsync(string modelName, CancellationToken cancellationToken)
+    private async Task<GrnAnimationClip?> LoadDefaultCharacterAnimationAsync(
+        ModelPayloadMetadata baseMetadata,
+        CancellationToken cancellationToken)
+    {
+        if (baseMetadata.DefaultMotionIndex is not { } motionIndex || motionIndex == 0 ||
+            !_metadata.TryGetMotionName(motionIndex, out var motionName) ||
+            !_recordsByName.TryGetValue(motionName, out var animationRecord))
+        {
+            return null;
+        }
+
+        var animationPayload = await ReadPayloadAsync(
+            _stream,
+            _streamLock,
+            animationRecord,
+            cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        var animation = Granny1MeshExtractor.TryExtractAnimation(
+            animationPayload,
+            motionName,
+            baseMetadata.Scale);
+        cancellationToken.ThrowIfCancellationRequested();
+        return animation;
+    }
+
+    private static ModelPayloadMetadata ReadModelPayloadMetadata(ReadOnlySpan<byte> payload)
+    {
+        var scale = Vector3.One;
+        if (payload.Length >= ModelScaleOffset + ModelScaleSize)
+        {
+            scale = new Vector3(
+                BitConverter.ToSingle(payload.Slice(ModelScaleOffset, 4)),
+                BitConverter.ToSingle(payload.Slice(ModelScaleOffset + 4, 4)),
+                BitConverter.ToSingle(payload.Slice(ModelScaleOffset + 8, 4)));
+            if (!float.IsFinite(scale.X) || !float.IsFinite(scale.Y) || !float.IsFinite(scale.Z) ||
+                MathF.Abs(scale.X) <= 0.000001f || MathF.Abs(scale.Y) <= 0.000001f || MathF.Abs(scale.Z) <= 0.000001f)
+            {
+                scale = Vector3.One;
+            }
+        }
+
+        var motionIndex = payload.Length >= DefaultMotionReferenceOffset + 4
+            ? BitConverter.ToUInt32(payload.Slice(DefaultMotionReferenceOffset, 4))
+            : (uint?)null;
+        return new ModelPayloadMetadata(scale, motionIndex);
+    }
+
+    private ModelPakRecord FindRecord(string modelName, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         if (_recordsByName.TryGetValue(modelName, out var record))
-            return Task.FromResult(record);
+            return record;
 
         throw new FileNotFoundException($"Model '{modelName}' was not found in models.pak.");
     }
 
-    private async Task<byte[]> ReadPayloadAsync(ModelPakRecord record, CancellationToken cancellationToken)
+    private Task<byte[]> ReadPayloadAsync(ModelPakRecord record, CancellationToken cancellationToken) =>
+        ReadPayloadAsync(_stream, _streamLock, record, cancellationToken);
+
+    private static async Task<byte[]> ReadPayloadAsync(
+        FileStream stream,
+        SemaphoreSlim streamLock,
+        ModelPakRecord record,
+        CancellationToken cancellationToken)
     {
         var payload = new byte[record.Size];
 
-        await _streamLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await streamLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            _stream.Position = record.Offset;
-            await _stream.ReadExactlyAsync(payload, cancellationToken).ConfigureAwait(false);
+            stream.Position = record.Offset;
+            await stream.ReadExactlyAsync(payload, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
-            _streamLock.Release();
+            streamLock.Release();
+        }
+
+        return payload;
+    }
+
+    private static async Task<byte[]> ReadPayloadPrefixAsync(
+        FileStream stream,
+        SemaphoreSlim streamLock,
+        ModelPakRecord record,
+        int requestedLength,
+        CancellationToken cancellationToken)
+    {
+        var payload = new byte[Math.Min(record.Size, requestedLength)];
+
+        await streamLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            stream.Position = record.Offset;
+            await stream.ReadExactlyAsync(payload, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            streamLock.Release();
         }
 
         return payload;
@@ -203,3 +343,10 @@ public sealed class ModelsPakArchive : IDisposable
         _streamLock.Dispose();
     }
 }
+
+public readonly record struct ModelAttachmentReference(
+    string ModelName,
+    string? RigidAttachBoneName = null,
+    string? SourceAttachBoneName = null);
+
+internal readonly record struct ModelPayloadMetadata(Vector3 Scale, uint? DefaultMotionIndex);

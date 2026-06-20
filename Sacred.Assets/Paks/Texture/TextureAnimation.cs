@@ -3,23 +3,22 @@ namespace Sacred.Assets.Paks.Texture;
 public enum TextureAnimationMode
 {
     None = 0,
-    FrameStrip = 1,
-    VerticalScrollBlackKey = 2
+    VerticalScrollBlackKey = 2,
+    VerticalScrollClampBlackKey = 3
 }
 
 public readonly record struct TextureAnimation(
-    int FrameCount,
-    float FramesPerSecond,
-    TextureAnimationMode Mode = TextureAnimationMode.FrameStrip)
+    TextureAnimationMode Mode,
+    float ScrollSpeed = 0.0f)
 {
-    public static readonly TextureAnimation None = new(1, 0.0f, TextureAnimationMode.None);
+    public static readonly TextureAnimation None = new(TextureAnimationMode.None, 0.0f);
+
+    public float TimeScale => ScrollSpeed;
 
     public bool IsAnimated =>
-        FramesPerSecond > 0.0f &&
         Mode switch
         {
-            TextureAnimationMode.FrameStrip => FrameCount > 1,
-            TextureAnimationMode.VerticalScrollBlackKey => true,
+            TextureAnimationMode.VerticalScrollBlackKey or TextureAnimationMode.VerticalScrollClampBlackKey => ScrollSpeed > 0.0f,
             _ => false
         };
 }

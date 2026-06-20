@@ -1,0 +1,29 @@
+﻿3072 LIGHTSABER.GRN
+3073 LIGHTSABER.GRN
+Bouncy line particle effect from weapon_fx01 or Cylinder01, probably different colors
+
+1851 Seraphim_LongSword.grn
+Bluish circle on stdfx_bone01
+
+
+4010 SeraWings02.grn
+Bouncy line particle from:
+fx_streak01 
+fx_streak02 
+fx_streak03 
+fx_streak04 
+fx_streak05 
+fx_streak06 
+fx_streak07 
+all probably away from stdfx_bone01
+
+5633 TORCH_LARGE_ON.GRN
+5632 TORCH_SMALL_ON.GRN
+Fire on weapon_fx01
+
+3116 Magierstab_new2.grn
+Glowing circle on weapon_gl01
+
+
+1876 Magierstab_klein.grn
+One circle and one particle trail effect. weapon_gl01 & weapon_gl02

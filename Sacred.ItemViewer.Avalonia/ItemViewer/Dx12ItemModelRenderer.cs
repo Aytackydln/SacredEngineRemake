@@ -4,8 +4,11 @@ using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Granny;
+using Sacred.Shaders;
 using Vortice;
 using Vortice.Direct3D;
 using Vortice.Direct3D12;
@@ -16,13 +19,12 @@ using static Vortice.DXGI.DXGI;
 
 namespace Sacred.ItemViewer.Avalonia.ItemViewer;
 
-internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
+internal sealed class Dx12ItemModelRenderer : IDisposable
 {
     private const int FrameCount = 2;
     private const int MaxTextures = 128;
     private const int FallbackTextureSlot = 0;
     private const int FirstModelTextureSlot = 1;
-    private const int ModelRootConstantCount = 40;
     private const int GridColumns = 4;
     private const int GridRows = 5;
     private const float GridCellWorldSize = 36.0f;
@@ -35,12 +37,14 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
     private static readonly int VertexStride = Marshal.SizeOf<VertexPositionNormalTexture>();
     private const Format BackBufferFormat = Format.R8G8B8A8_UNorm;
     private const Format DepthBufferFormat = Format.D32_Float;
-    private const Format Rgba8Format = Format.R8G8B8A8_UNorm;
+    private static readonly TimeSpan ResizeDebounce = TimeSpan.FromMilliseconds(150);
 
     private readonly nint _hwnd;
     private readonly ID3D12Resource[] _backBuffers = new ID3D12Resource[FrameCount];
     private readonly Dictionary<string, ModelTexture> _textures = new(StringComparer.OrdinalIgnoreCase);
     private readonly long _startTimestamp = Stopwatch.GetTimestamp();
+    private readonly ModelShaderConstantsUpdater _modelShaderConstants = new();
+    private readonly Action _shaderReloadHandler;
 
     private IDXGIFactory2 _factory = null!;
     private ID3D12Device _device = null!;
@@ -54,18 +58,29 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
     private ID3D12Fence _fence = null!;
     private ID3D12RootSignature _rootSignature = null!;
     private ID3D12PipelineState _pipelineState = null!;
+    private ID3D12PipelineState _animatedPipelineState = null!;
+    private ID3D12PipelineState _effectPipelineState = null!;
+    private ID3D12PipelineState _itemParticlePipelineState = null!;
     private ID3D12PipelineState _inventoryUiPipelineState = null!;
     private ID3D12Resource? _depthBuffer;
     private ID3D12Resource? _fallbackTexture;
+    private Dx12TextureUploader _textureUploader = null!;
     private ModelGpuMesh? _inventoryUiMesh;
     private ModelGpuMesh? _mesh;
+    private ModelGpuMesh? _selectedBoneHighlightMesh;
+    private ModelGpuMesh? _equipmentEffectMesh;
     private InventoryUiSurface[] _inventoryUiSurfaces = [];
     private MeshBounds _meshBounds = new(Vector3.Zero, Vector3.Zero, Vector3.Zero, 1.0f);
     private MeshSurface[] _surfaces = [];
+    private EquipmentEffectSurface[] _equipmentEffectSurfaces = [];
     private string _modelName = string.Empty;
     private Vector3 _previewRotation;
     private ItemPreviewRotationMode _rotationMode;
     private ItemPreviewPivotMode _pivotMode;
+    private Vector3? _bonePivot;
+    private Vector3? _selectedBonePosition;
+    private GrnBoundsDiagnostics? _wholeModelBounds;
+    private GrnBoundsDiagnostics? _skeletonBounds;
     private Vector2 _itemGridCenter;
     private float _modelScale = 1.0f;
     private int _itemGridWidth = 1;
@@ -79,20 +94,27 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
     private int _srvDescriptorSize;
     private int _renderWidth;
     private int _renderHeight;
+    private int _pendingRenderWidth;
+    private int _pendingRenderHeight;
     private ulong _fenceValue;
     private bool _commandsInFlight;
     private bool _disposed;
+    private int _shaderReloadPending;
+    private long _lastResizeRequestTimestamp;
 
     public Dx12ItemModelRenderer(nint hwnd)
     {
         _hwnd = hwnd;
+        _shaderReloadHandler = RequestShaderReload;
         CreateDevice();
         CreateSwapChain();
         CreateDescriptorHeaps();
         CreateBackBuffers();
         CreateDepthBuffer();
         CreateCommands();
+        _textureUploader = new Dx12TextureUploader(_device);
         CreatePipeline();
+        Dx12ShaderCatalog.Reloaded += _shaderReloadHandler;
         RebuildInventoryUiMesh(includeOccupiedCells: false);
         CreateFallbackTexture();
     }
@@ -102,7 +124,13 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         WaitForGpu();
         _mesh?.Dispose();
         _mesh = null;
+        _selectedBoneHighlightMesh?.Dispose();
+        _selectedBoneHighlightMesh = null;
+        _equipmentEffectMesh?.Dispose();
+        _equipmentEffectMesh = null;
+        _selectedBonePosition = null;
         _surfaces = [];
+        _equipmentEffectSurfaces = [];
         _modelName = string.Empty;
         _itemGridWidth = 1;
         _itemGridHeight = 1;
@@ -118,16 +146,27 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         int gridWidth,
         int gridHeight,
         ItemPreviewRotationMode rotationMode,
-        ItemPreviewPivotMode pivotMode)
+        ItemPreviewPivotMode pivotMode,
+        string? pivotBoneName,
+        EquipmentEffectScene effectScene)
     {
         WaitForGpu();
         _mesh?.Dispose();
         _mesh = null;
+        _selectedBoneHighlightMesh?.Dispose();
+        _selectedBoneHighlightMesh = null;
+        _equipmentEffectMesh?.Dispose();
+        _equipmentEffectMesh = null;
         _surfaces = [];
+        _equipmentEffectSurfaces = [];
         _modelName = asset.Name;
         _previewRotation = IsFinite(previewRotation) ? previewRotation : Vector3.Zero;
         _rotationMode = rotationMode;
         _pivotMode = pivotMode;
+        _bonePivot = ResolveBonePivot(asset.Diagnostics, pivotMode, pivotBoneName);
+        _selectedBonePosition = ResolveBonePosition(asset.Diagnostics, pivotBoneName);
+        _wholeModelBounds = asset.Diagnostics?.WholeModelBounds;
+        _skeletonBounds = asset.Diagnostics?.SkeletonBounds;
         _itemGridWidth = Math.Clamp(gridWidth, 1, GridColumns);
         _itemGridHeight = Math.Clamp(gridHeight, 1, GridRows);
         _itemGridCenter = CalculateOccupiedCellCenter(_itemGridWidth, _itemGridHeight);
@@ -141,6 +180,12 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         _meshBounds = CalculateBounds(asset.Mesh.Vertices);
         _modelScale = CalculateGridFitScale(asset.Mesh.Vertices, GetPivotPoint(), CreateItemRotationMatrix(), _itemGridWidth, _itemGridHeight);
         _mesh = UploadMesh(asset.Mesh);
+        _selectedBoneHighlightMesh = CreateSelectedBoneHighlightMesh(_selectedBonePosition);
+        if (effectScene.Mesh is { Vertices.Length: > 0, Indices.Length: > 0 } effectMesh)
+        {
+            _equipmentEffectMesh = UploadMesh(effectMesh);
+            _equipmentEffectSurfaces = effectScene.Surfaces.ToArray();
+        }
         _surfaces = asset.Mesh.Surfaces.Count == 0
             ? [new MeshSurface(0, asset.Mesh.Indices.Length, null)]
             : asset.Mesh.Surfaces.ToArray();
@@ -153,53 +198,88 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         _userRoll = roll;
     }
 
-    public void SetTextures(IReadOnlyDictionary<string, ModelTextureBinding> textures)
+    public async Task SetTexturesAsync(
+        IReadOnlyDictionary<string, ModelTextureBinding> textures,
+        CancellationToken cancellationToken = default)
     {
-        WaitForGpu();
-        DisposeModelTextures();
-
+        var uploaded = new List<UploadedModelTexture>();
         var slot = FirstModelTextureSlot;
-        foreach (var pair in textures)
+        try
         {
-            if (slot >= MaxTextures)
-                break;
-
-            ID3D12Resource? resource = null;
-            ID3D12Resource? overlayResource = null;
-            try
+            foreach (var pair in textures)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (slot >= MaxTextures)
+                    break;
+
                 var baseTexture = pair.Value.BaseTexture;
-                resource = UploadTextureAndWait(baseTexture.Width, baseTexture.Height, baseTexture.Rgba8);
-                _device.CreateShaderResourceView(resource, null, SrvCpuHandle(slot));
-                var srvSlot = slot++;
-
-                var overlaySrvSlot = FallbackTextureSlot;
-                var overlayAnimation = TextureAnimation.None;
-                var overlayMode = TextureOverlayMode.None;
-                if (pair.Value.OverlayTexture is { } overlayTexture && slot < MaxTextures)
+                var resource = await _textureUploader.UploadAsync(
+                    baseTexture.Width,
+                    baseTexture.Height,
+                    baseTexture.Rgba8,
+                    cancellationToken);
+                ID3D12Resource? overlayResource = null;
+                try
                 {
-                    overlayResource = UploadTextureAndWait(overlayTexture.Width, overlayTexture.Height, overlayTexture.Rgba8);
-                    _device.CreateShaderResourceView(overlayResource, null, SrvCpuHandle(slot));
-                    overlaySrvSlot = slot++;
-                    overlayAnimation = overlayTexture.Animation;
-                    overlayMode = pair.Value.OverlayMode;
-                }
+                    var srvSlot = slot++;
+                    var overlaySrvSlot = FallbackTextureSlot;
+                    var overlayAnimation = TextureAnimation.None;
+                    var overlayMode = TextureOverlayMode.None;
+                    if (pair.Value.OverlayTexture is { } overlayTexture && slot < MaxTextures)
+                    {
+                        overlayResource = await _textureUploader.UploadAsync(
+                            overlayTexture.Width,
+                            overlayTexture.Height,
+                            overlayTexture.Rgba8,
+                            cancellationToken);
+                        overlaySrvSlot = slot++;
+                        overlayAnimation = overlayTexture.Animation;
+                        overlayMode = pair.Value.OverlayMode;
+                    }
 
-                _textures[pair.Key] = new ModelTexture(
-                    resource,
-                    srvSlot,
-                    baseTexture.Animation,
-                    overlayResource,
-                    overlaySrvSlot,
-                    overlayAnimation,
-                    overlayMode);
-                resource = null;
-                overlayResource = null;
+                    uploaded.Add(new UploadedModelTexture(
+                        pair.Key,
+                        resource,
+                        srvSlot,
+                        baseTexture.Animation,
+                        overlayResource,
+                        overlaySrvSlot,
+                        overlayAnimation,
+                        overlayMode));
+                }
+                catch
+                {
+                    overlayResource?.Dispose();
+                    resource.Dispose();
+                    throw;
+                }
             }
-            finally
+
+            cancellationToken.ThrowIfCancellationRequested();
+            WaitForGpu();
+            DisposeModelTextures();
+            foreach (var texture in uploaded)
             {
-                resource?.Dispose();
-                overlayResource?.Dispose();
+                _device.CreateShaderResourceView(texture.Resource, null, SrvCpuHandle(texture.SrvSlot));
+                if (texture.OverlayResource is not null)
+                    _device.CreateShaderResourceView(texture.OverlayResource, null, SrvCpuHandle(texture.OverlaySrvSlot));
+                _textures[texture.Name] = new ModelTexture(
+                    texture.Resource,
+                    texture.SrvSlot,
+                    texture.Animation,
+                    texture.OverlayResource,
+                    texture.OverlaySrvSlot,
+                    texture.OverlayAnimation,
+                    texture.OverlayMode);
+            }
+            uploaded.Clear();
+        }
+        finally
+        {
+            foreach (var texture in uploaded)
+            {
+                texture.Resource.Dispose();
+                texture.OverlayResource?.Dispose();
             }
         }
     }
@@ -218,6 +298,7 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
             return;
 
         WaitForGpu();
+        ReloadShadersIfRequested();
         ResizeIfNeeded();
 
         _commandAllocator.Reset();
@@ -236,22 +317,24 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
             return;
 
         _disposed = true;
+        Dx12ShaderCatalog.Reloaded -= _shaderReloadHandler;
         WaitForGpu();
         ClearModel();
 
         _fallbackTexture?.Dispose();
         _fallbackTexture = null;
+        _textureUploader.Dispose();
         _inventoryUiMesh?.Dispose();
         _inventoryUiMesh = null;
+        _selectedBoneHighlightMesh?.Dispose();
+        _selectedBoneHighlightMesh = null;
         _depthBuffer?.Dispose();
         _depthBuffer = null;
 
         foreach (var backBuffer in _backBuffers)
             backBuffer?.Dispose();
 
-        _inventoryUiPipelineState.Dispose();
-        _pipelineState.Dispose();
-        _rootSignature.Dispose();
+        DisposePipelineResources();
         _fence.Dispose();
         _commandList.Dispose();
         _commandAllocator.Dispose();
@@ -358,25 +441,52 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
     {
         var rootParameters = new[]
         {
-            new RootParameter(new RootConstants(0, 0, ModelRootConstantCount), ShaderVisibility.All),
+            new RootParameter(
+                new RootConstants(
+                    ModelShaderLayout.ModelConstantsRegister,
+                    0,
+                    ModelShaderLayout.ModelConstantsCount),
+                ShaderVisibility.All),
             new RootParameter(
                 new RootDescriptorTable
                 {
-                    Ranges = [new DescriptorRange(DescriptorRangeType.ShaderResourceView, 1, 0, 0, 0)]
+                    Ranges =
+                    [
+                        new DescriptorRange(
+                            DescriptorRangeType.ShaderResourceView,
+                            1,
+                            ModelShaderLayout.ModelTextureRegister,
+                            0,
+                            0)
+                    ]
                 },
                 ShaderVisibility.Pixel),
             new RootParameter(
                 new RootDescriptorTable
                 {
-                    Ranges = [new DescriptorRange(DescriptorRangeType.ShaderResourceView, 1, 1, 0, 0)]
+                    Ranges =
+                    [
+                        new DescriptorRange(
+                            DescriptorRangeType.ShaderResourceView,
+                            1,
+                            ModelShaderLayout.ModelOverlayTextureRegister,
+                            0,
+                            0)
+                    ]
                 },
-                ShaderVisibility.Pixel)
+                ShaderVisibility.Pixel),
+            new RootParameter(
+                new RootConstants(
+                    ModelShaderLayout.SceneConstantsRegister,
+                    0,
+                    ModelShaderLayout.SceneConstantsCount),
+                ShaderVisibility.All)
         };
 
         var samplers = new[]
         {
             new StaticSamplerDescription(
-                0,
+                ModelShaderLayout.ModelSamplerRegister,
                 Filter.MinMagMipLinear,
                 TextureAddressMode.Wrap,
                 TextureAddressMode.Wrap,
@@ -394,9 +504,15 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         var rootDescription = new RootSignatureDescription(RootSignatureFlags.AllowInputAssemblerInputLayout, rootParameters, samplers);
         _rootSignature = _device.CreateRootSignature(in rootDescription, RootSignatureVersion.Version1);
 
-        var shaderSource = EmbeddedResource_Shaders.SacredModel_hlsl.ReadAllText();
-        var vertexShader = D3DShaderCompiler.Compile("SacredItemViewer", shaderSource, "vs_main", "vs_5_0");
-        var pixelShader = D3DShaderCompiler.Compile("SacredItemViewer", shaderSource, "ps_main", "ps_5_0");
+        var shaders = Dx12ShaderCatalog.Sdr;
+        var vertexShader = D3DShaderCompiler.Compile(shaders.ModelVertexShader);
+        var pixelShader = D3DShaderCompiler.Compile(shaders.ModelPixelShader);
+        var animatedVertexShader = D3DShaderCompiler.Compile(shaders.AnimatedModelVertexShader);
+        var animatedPixelShader = D3DShaderCompiler.Compile(shaders.AnimatedModelPixelShader);
+        var effectVertexShader = D3DShaderCompiler.Compile(shaders.EffectModelVertexShader);
+        var effectPixelShader = D3DShaderCompiler.Compile(shaders.EffectModelPixelShader);
+        var itemParticleVertexShader = D3DShaderCompiler.Compile(shaders.ItemParticleVertexShader);
+        var itemParticlePixelShader = D3DShaderCompiler.Compile(shaders.ItemParticlePixelShader);
         var depthStencil = DepthStencilDescription.Default;
         depthStencil.DepthFunc = ComparisonFunction.LessEqual;
         var inputLayout = new[]
@@ -423,19 +539,58 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         };
 
         _pipelineState = _device.CreateGraphicsPipelineState(pipelineDescription);
+        pipelineDescription.VertexShader = animatedVertexShader;
+        pipelineDescription.PixelShader = animatedPixelShader;
+        _animatedPipelineState = _device.CreateGraphicsPipelineState(pipelineDescription);
+        pipelineDescription.VertexShader = effectVertexShader;
+        pipelineDescription.PixelShader = effectPixelShader;
+        _effectPipelineState = _device.CreateGraphicsPipelineState(pipelineDescription);
 
-        var inventoryUiShaderSource = EmbeddedResource_Shaders.SacredInventoryUi_hlsl.ReadAllText();
-        var inventoryUiVertexShader = D3DShaderCompiler.Compile("SacredInventoryUi", inventoryUiShaderSource, "vs_main", "vs_5_0");
-        var inventoryUiPixelShader = D3DShaderCompiler.Compile("SacredInventoryUi", inventoryUiShaderSource, "ps_main", "ps_5_0");
+        var particleDepthStencil = depthStencil;
+        particleDepthStencil.DepthWriteMask = DepthWriteMask.Zero;
+        pipelineDescription.VertexShader = itemParticleVertexShader;
+        pipelineDescription.PixelShader = itemParticlePixelShader;
+        var particleBlend = BlendDescription.AlphaBlend;
+        particleBlend.RenderTarget[0].DestinationBlend = Blend.One;
+        particleBlend.RenderTarget[0].DestinationBlendAlpha = Blend.One;
+        pipelineDescription.BlendState = particleBlend;
+        pipelineDescription.RasterizerState = RasterizerDescription.CullNone;
+        pipelineDescription.DepthStencilState = particleDepthStencil;
+        _itemParticlePipelineState = _device.CreateGraphicsPipelineState(pipelineDescription);
+
+        var inventoryUiVertexShader = D3DShaderCompiler.Compile(shaders.InventoryUiVertexShader);
+        var inventoryUiPixelShader = D3DShaderCompiler.Compile(shaders.InventoryUiPixelShader);
         var inventoryUiDepthStencil = DepthStencilDescription.Default;
         inventoryUiDepthStencil.DepthEnable = false;
         inventoryUiDepthStencil.DepthWriteMask = DepthWriteMask.Zero;
 
         pipelineDescription.VertexShader = inventoryUiVertexShader;
         pipelineDescription.PixelShader = inventoryUiPixelShader;
+        pipelineDescription.BlendState = BlendDescription.AlphaBlend;
         pipelineDescription.RasterizerState = RasterizerDescription.CullNone;
         pipelineDescription.DepthStencilState = inventoryUiDepthStencil;
         _inventoryUiPipelineState = _device.CreateGraphicsPipelineState(pipelineDescription);
+    }
+
+    private void RequestShaderReload() => Interlocked.Exchange(ref _shaderReloadPending, 1);
+
+    private void ReloadShadersIfRequested()
+    {
+        if (Interlocked.Exchange(ref _shaderReloadPending, 0) == 0)
+            return;
+
+        DisposePipelineResources();
+        CreatePipeline();
+    }
+
+    private void DisposePipelineResources()
+    {
+        _inventoryUiPipelineState?.Dispose();
+        _itemParticlePipelineState?.Dispose();
+        _effectPipelineState?.Dispose();
+        _animatedPipelineState?.Dispose();
+        _pipelineState?.Dispose();
+        _rootSignature?.Dispose();
     }
 
     private void CreateFallbackTexture()
@@ -447,22 +602,42 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
             95, 125, 88, 255,
             144, 174, 120, 255
         };
-        _fallbackTexture = UploadTextureAndWait(2, 2, rgba);
+        _fallbackTexture = _textureUploader.UploadAsync(2, 2, rgba).GetAwaiter().GetResult();
         _device.CreateShaderResourceView(_fallbackTexture, null, SrvCpuHandle(FallbackTextureSlot));
     }
 
     private void ResizeIfNeeded()
     {
         GetClientSize(out var width, out var height);
+        if (width <= 0 || height <= 0)
+            return;
+
         if (width == _renderWidth && height == _renderHeight)
+        {
+            _pendingRenderWidth = 0;
+            _pendingRenderHeight = 0;
+            return;
+        }
+
+        if (width != _pendingRenderWidth || height != _pendingRenderHeight)
+        {
+            _pendingRenderWidth = width;
+            _pendingRenderHeight = height;
+            _lastResizeRequestTimestamp = Stopwatch.GetTimestamp();
+            return;
+        }
+
+        if (Stopwatch.GetElapsedTime(_lastResizeRequestTimestamp) < ResizeDebounce)
             return;
 
         foreach (var backBuffer in _backBuffers)
             backBuffer.Dispose();
 
-        _swapChain.ResizeBuffers(FrameCount, (uint)width, (uint)height, BackBufferFormat, SwapChainFlags.None).CheckError();
-        _renderWidth = width;
-        _renderHeight = height;
+        _swapChain.ResizeBuffers(FrameCount, (uint)_pendingRenderWidth, (uint)_pendingRenderHeight, BackBufferFormat, SwapChainFlags.None).CheckError();
+        _renderWidth = _pendingRenderWidth;
+        _renderHeight = _pendingRenderHeight;
+        _pendingRenderWidth = 0;
+        _pendingRenderHeight = 0;
         CreateBackBuffers();
         CreateDepthBuffer();
     }
@@ -486,12 +661,16 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
 
         RecordInventoryUi();
         if (_mesh is not null)
+        {
             RecordModel();
+            RecordEquipmentEffects();
+            RecordSelectedBoneHighlight();
+        }
 
         Transition(backBuffer, ResourceStates.RenderTarget, ResourceStates.Present);
     }
 
-    private void RecordModel()
+    private unsafe void RecordModel()
     {
         var mesh = _mesh!;
         var vertexBufferView = mesh.VertexBufferView;
@@ -504,52 +683,172 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         _commandList.IASetVertexBuffers(0, 1, &vertexBufferView);
         _commandList.IASetIndexBuffer(&indexBufferView);
 
-        var constants = stackalloc float[ModelRootConstantCount];
+        var sceneConstants = stackalloc float[ModelShaderLayout.SceneConstantsCount];
+        WritePreviewSceneConstants(sceneConstants);
+        _commandList.SetGraphicsRoot32BitConstants(
+            ModelShaderLayout.SceneConstantsRootParameter,
+            ModelShaderLayout.SceneConstantsCount,
+            sceneConstants,
+            0);
+
+        var constants = stackalloc float[ModelShaderLayout.ModelConstantsCount];
         var world = CreateWorldMatrix();
         var wvp = world * CreateViewProjectionMatrix();
-        WriteMatrix(wvp, constants);
-        WriteMatrix(world, constants + 16);
-        WriteModelColor(_modelName, constants + 32);
-        constants[37] = 1.0f;
-        constants[38] = 0.0f;
-        constants[39] = 0.0f;
+        _modelShaderConstants.WriteModelBase(
+            constants,
+            wvp,
+            world,
+            ModelShaderVariables.ColorFromName(_modelName));
+        _modelShaderConstants.WriteTextureFlags(
+            constants + ModelShaderLayout.TextureFlagsOffset,
+            ModelShaderVariables.TextureModeNoTexture,
+            ModelShaderVariables.TextureAnimationNone,
+            ModelShaderLayout.PreserveProjectedDepth,
+            scaledAnimationTime: 0.0f);
         var elapsedSeconds = (float)Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds;
 
-        for (var animatedPass = 0; animatedPass < 2; animatedPass++)
+        for (var passIndex = 0; passIndex < 3; passIndex++)
         {
-            var drawAnimatedSurfaces = animatedPass != 0;
+            var pass = (ModelSurfacePass)passIndex;
+            _commandList.SetPipelineState(pass switch
+            {
+                ModelSurfacePass.AnimatedBase => _animatedPipelineState,
+                ModelSurfacePass.EffectOverlay => _effectPipelineState,
+                _ => _pipelineState
+            });
+
             foreach (var surface in _surfaces)
             {
                 if (surface.IndexCount <= 0 || surface.IndexStart >= mesh.IndexCount)
                     continue;
 
                 var texture = ResolveTexture(surface.TextureName);
-                if (IsAnimatedTexture(texture) != drawAnimatedSurfaces)
-                    continue;
-
-                var drawCount = Math.Min(surface.IndexCount, mesh.IndexCount - surface.IndexStart);
-                var hasTexture = texture is not null;
+                var animatesBase = texture?.Animation.IsAnimated == true;
                 var hasOverlay = texture?.OverlayResource is not null &&
                                  texture.OverlayMode != TextureOverlayMode.None;
                 var animatesOverlay = hasOverlay && texture!.OverlayAnimation.IsAnimated;
-                var animation = animatesOverlay
-                    ? texture!.OverlayAnimation
-                    : hasTexture
-                        ? texture!.Animation
-                        : TextureAnimation.None;
-                constants[36] = PackTextureMode(hasTexture, hasOverlay, texture?.OverlayMode ?? TextureOverlayMode.None);
-                constants[37] = PackTextureAnimation(animation, animatesOverlay);
-                constants[38] = 0.0f;
-                constants[39] = animation.IsAnimated ? elapsedSeconds : 0.0f;
-                _commandList.SetGraphicsRoot32BitConstants(0, ModelRootConstantCount, constants, 0);
-                _commandList.SetGraphicsRootDescriptorTable(1, SrvGpuHandle(texture?.SrvSlot ?? FallbackTextureSlot));
-                _commandList.SetGraphicsRootDescriptorTable(2, SrvGpuHandle(hasOverlay ? texture!.OverlaySrvSlot : FallbackTextureSlot));
+                var drawCount = Math.Min(surface.IndexCount, mesh.IndexCount - surface.IndexStart);
+                var hasTexture = texture is not null;
+                var animation = TextureAnimation.None;
+                var drawOverlay = false;
+                if (pass == ModelSurfacePass.AnimatedBase)
+                {
+                    if (!animatesBase || !hasTexture)
+                        continue;
+
+                    hasOverlay = false;
+                    animation = texture!.Animation;
+                }
+                else if (pass == ModelSurfacePass.EffectOverlay)
+                {
+                    if (animatesBase || !animatesOverlay || !hasTexture)
+                        continue;
+
+                    drawOverlay = true;
+                    animation = texture!.OverlayAnimation;
+                }
+                else
+                {
+                    if (animatesBase || (hasOverlay && animatesOverlay))
+                        continue;
+
+                    hasOverlay = hasOverlay && !animatesOverlay;
+                }
+
+                _modelShaderConstants.WriteTextureFlags(
+                    constants + ModelShaderLayout.TextureFlagsOffset,
+                    ModelShaderVariables.PackTextureMode(
+                        hasTexture,
+                        drawOverlay || hasOverlay,
+                        drawOverlay || texture?.OverlayMode == TextureOverlayMode.MultiTextureFill),
+                    ModelShaderVariables.PackTextureAnimation(
+                        animation.IsAnimated,
+                        animation.Mode == TextureAnimationMode.VerticalScrollClampBlackKey,
+                        overlay: false),
+                    ModelShaderLayout.PreserveProjectedDepth,
+                    animation.IsAnimated ? elapsedSeconds * animation.TimeScale : 0.0f);
+                _commandList.SetGraphicsRoot32BitConstants(
+                    ModelShaderLayout.ModelConstantsRootParameter,
+                    ModelShaderLayout.ModelConstantsCount,
+                    constants,
+                    0);
+                _commandList.SetGraphicsRootDescriptorTable(
+                    ModelShaderLayout.ModelTextureRootParameter,
+                    SrvGpuHandle(texture?.SrvSlot ?? FallbackTextureSlot));
+                _commandList.SetGraphicsRootDescriptorTable(
+                    ModelShaderLayout.ModelOverlayTextureRootParameter,
+                    SrvGpuHandle(drawOverlay || hasOverlay ? texture!.OverlaySrvSlot : FallbackTextureSlot));
                 _commandList.DrawIndexedInstanced((uint)drawCount, 1, (uint)surface.IndexStart, 0, 0);
             }
         }
     }
 
-    private void RecordInventoryUi()
+    private unsafe void RecordEquipmentEffects()
+    {
+        var mesh = _equipmentEffectMesh;
+        if (mesh is null || _equipmentEffectSurfaces.Length == 0)
+            return;
+
+        var vertexBufferView = mesh.VertexBufferView;
+        var indexBufferView = mesh.IndexBufferView;
+        _commandList.SetDescriptorHeaps([_srvHeap]);
+        _commandList.SetGraphicsRootSignature(_rootSignature);
+        _commandList.SetPipelineState(_itemParticlePipelineState);
+        _commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
+        _commandList.IASetVertexBuffers(0, 1, &vertexBufferView);
+        _commandList.IASetIndexBuffer(&indexBufferView);
+
+        var sceneConstants = stackalloc float[ModelShaderLayout.SceneConstantsCount];
+        WritePreviewSceneConstants(sceneConstants);
+        _commandList.SetGraphicsRoot32BitConstants(
+            ModelShaderLayout.SceneConstantsRootParameter,
+            ModelShaderLayout.SceneConstantsCount,
+            sceneConstants,
+            0);
+
+        var constants = stackalloc float[ModelShaderLayout.ModelConstantsCount];
+        var world = CreateWorldMatrix();
+        var viewProjection = CreateViewProjectionMatrix();
+        var elapsedSeconds = (float)Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds;
+
+        foreach (var surface in _equipmentEffectSurfaces)
+        {
+            var texture = ResolveTexture(surface.TextureName);
+            if (texture is null || surface.IndexCount <= 0 || surface.IndexStart >= mesh.IndexCount)
+                continue;
+
+            var effectWorld = world;
+            if (surface.TextureMode == EquipmentEffectTextureMode.PoisonFlow &&
+                surface.MotionVector.LengthSquared() > 0.0001f)
+            {
+                var progress = (elapsedSeconds * 0.42f + surface.Phase) % 1.0f;
+                effectWorld = Matrix4x4.CreateTranslation(surface.MotionVector * progress) * world;
+            }
+
+            _modelShaderConstants.WriteModelBase(constants, viewProjection, effectWorld, surface.Color);
+            _modelShaderConstants.WriteTextureFlags(
+                constants + ModelShaderLayout.TextureFlagsOffset,
+                ModelShaderVariables.TextureModeBaseTexture,
+                (float)surface.TextureMode,
+                surface.Phase,
+                elapsedSeconds);
+            _commandList.SetGraphicsRoot32BitConstants(
+                ModelShaderLayout.ModelConstantsRootParameter,
+                ModelShaderLayout.ModelConstantsCount,
+                constants,
+                0);
+            _commandList.SetGraphicsRootDescriptorTable(
+                ModelShaderLayout.ModelTextureRootParameter,
+                SrvGpuHandle(texture.SrvSlot));
+            _commandList.SetGraphicsRootDescriptorTable(
+                ModelShaderLayout.ModelOverlayTextureRootParameter,
+                SrvGpuHandle(FallbackTextureSlot));
+            var drawCount = Math.Min(surface.IndexCount, mesh.IndexCount - surface.IndexStart);
+            _commandList.DrawIndexedInstanced((uint)drawCount, 1, (uint)surface.IndexStart, 0, 0);
+        }
+    }
+
+    private unsafe void RecordInventoryUi()
     {
         var mesh = _inventoryUiMesh;
         if (mesh is null || _inventoryUiSurfaces.Length == 0)
@@ -564,22 +863,61 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         _commandList.IASetVertexBuffers(0, 1, &vertexBufferView);
         _commandList.IASetIndexBuffer(&indexBufferView);
 
-        var constants = stackalloc float[ModelRootConstantCount];
+        var constants = stackalloc float[ModelShaderLayout.ModelConstantsCount];
         var world = CreateGridWorldMatrix();
         var wvp = world * CreateViewProjectionMatrix();
-        WriteMatrix(wvp, constants);
-        WriteMatrix(world, constants + 16);
 
         foreach (var surface in _inventoryUiSurfaces)
         {
-            WriteColor(surface.Color, constants + 32);
-            constants[36] = 0.0f;
-            constants[37] = 1.0f;
-            constants[38] = 0.0f;
-            constants[39] = 0.0f;
-            _commandList.SetGraphicsRoot32BitConstants(0, ModelRootConstantCount, constants, 0);
+            _modelShaderConstants.WriteModelBase(constants, wvp, world, surface.Color);
+            _modelShaderConstants.WriteTextureFlags(
+                constants + ModelShaderLayout.TextureFlagsOffset,
+                ModelShaderVariables.TextureModeNoTexture,
+                ModelShaderVariables.TextureAnimationNone,
+                painterDepth: 0.0f,
+                scaledAnimationTime: 0.0f);
+            _commandList.SetGraphicsRoot32BitConstants(
+                ModelShaderLayout.ModelConstantsRootParameter,
+                ModelShaderLayout.ModelConstantsCount,
+                constants,
+                0);
             _commandList.DrawIndexedInstanced((uint)surface.IndexCount, 1, (uint)surface.IndexStart, 0, 0);
         }
+    }
+
+    private unsafe void RecordSelectedBoneHighlight()
+    {
+        var mesh = _selectedBoneHighlightMesh;
+        if (mesh is null)
+            return;
+
+        var vertexBufferView = mesh.VertexBufferView;
+        var indexBufferView = mesh.IndexBufferView;
+        _commandList.SetGraphicsRootSignature(_rootSignature);
+        _commandList.SetPipelineState(_inventoryUiPipelineState);
+        _commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
+        _commandList.IASetVertexBuffers(0, 1, &vertexBufferView);
+        _commandList.IASetIndexBuffer(&indexBufferView);
+
+        var constants = stackalloc float[ModelShaderLayout.ModelConstantsCount];
+        var world = CreateWorldMatrix();
+        _modelShaderConstants.WriteModelBase(
+            constants,
+            world * CreateViewProjectionMatrix(),
+            world,
+            new Vector4(1.0f, 0.88f, 0.08f, 1.0f));
+        _modelShaderConstants.WriteTextureFlags(
+            constants + ModelShaderLayout.TextureFlagsOffset,
+            ModelShaderVariables.TextureModeNoTexture,
+            ModelShaderVariables.TextureAnimationNone,
+            ModelShaderLayout.PreserveProjectedDepth,
+            scaledAnimationTime: 0.0f);
+        _commandList.SetGraphicsRoot32BitConstants(
+            ModelShaderLayout.ModelConstantsRootParameter,
+            ModelShaderLayout.ModelConstantsCount,
+            constants,
+            0);
+        _commandList.DrawIndexedInstanced((uint)mesh.IndexCount, 1, 0, 0, 0);
     }
 
     private Matrix4x4 CreateWorldMatrix()
@@ -597,13 +935,54 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         var rotation = _previewRotation;
         return _rotationMode switch
         {
+            ItemPreviewRotationMode.LegacyCurrent => CreateLegacyViewerPreviewRotation(rotation),
             ItemPreviewRotationMode.RawXyz => Matrix4x4.CreateRotationX(rotation.X) *
                                              Matrix4x4.CreateRotationY(rotation.Y) *
                                              Matrix4x4.CreateRotationZ(rotation.Z),
             ItemPreviewRotationMode.DirectYawPitchRoll => Matrix4x4.CreateFromYawPitchRoll(rotation.X, rotation.Y, rotation.Z),
             ItemPreviewRotationMode.GrnMatrix => CreateGrnRotationMatrix(rotation),
-            _ => Matrix4x4.CreateFromYawPitchRoll(rotation.Y, rotation.Z, rotation.X)
+            _ => Matrix4x4.CreateFromYawPitchRoll(0, 0, 0),
         };
+    }
+
+    private static Matrix4x4 CreateLegacyViewerPreviewRotation(Vector3 r)
+    {
+        var rotation = CanonicalizePreviewRotation(r);
+
+        // Weapon.pak armor rotations are authored in direct yaw/pitch/roll order, while weapon entries
+        // use the legacy item-viewer order that is already handled by Dx12ItemModelRenderer.
+        return Matrix4x4.CreateFromYawPitchRoll(rotation.Y, rotation.Z, rotation.X);
+    }
+
+    private static Vector3 CanonicalizePreviewRotation(Vector3 rotation)
+    {
+        var x = rotation.X;
+        var y = rotation.Y;
+        while (y > MathF.PI)
+        {
+            x -= MathF.PI;
+            y -= MathF.PI;
+        }
+
+        while (y < -MathF.PI)
+        {
+            x += MathF.PI;
+            y += MathF.PI;
+        }
+
+        return new Vector3(
+            NormalizeAngle(x),
+            NormalizeAngle(y),
+            NormalizeAngle(rotation.Z));
+    }
+
+    private static float NormalizeAngle(float angle)
+    {
+        while (angle > MathF.PI)
+            angle -= MathF.Tau;
+        while (angle < -MathF.PI)
+            angle += MathF.Tau;
+        return angle;
     }
 
     private Vector3 GetPivotPoint()
@@ -614,8 +993,39 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
             ItemPreviewPivotMode.BoundsBottomCenter => new Vector3(_meshBounds.Center.X, _meshBounds.Center.Y, _meshBounds.Min.Z),
             ItemPreviewPivotMode.BoundsTopCenter => new Vector3(_meshBounds.Center.X, _meshBounds.Center.Y, _meshBounds.Max.Z),
             ItemPreviewPivotMode.BoundsCenterGround => new Vector3(_meshBounds.Center.X, _meshBounds.Center.Y, 0.0f),
+            ItemPreviewPivotMode.WholeModelBoundsCenter when _wholeModelBounds is { } whole => whole.Center,
+            ItemPreviewPivotMode.WholeModelBoundsBottomCenter when _wholeModelBounds is { } whole => new Vector3(whole.Center.X, whole.Center.Y, whole.Min.Z),
+            ItemPreviewPivotMode.WholeModelBoundsTopCenter when _wholeModelBounds is { } whole => new Vector3(whole.Center.X, whole.Center.Y, whole.Max.Z),
+            ItemPreviewPivotMode.WholeRigCenter when _skeletonBounds is { } rig => rig.Center,
+            ItemPreviewPivotMode.WholeRigFeetCenter when _skeletonBounds is { } rig => new Vector3(rig.Center.X, rig.Center.Y, rig.Min.Z),
+            ItemPreviewPivotMode.WholeRigTopCenter when _skeletonBounds is { } rig => new Vector3(rig.Center.X, rig.Center.Y, rig.Max.Z),
+            ItemPreviewPivotMode.RootBone or ItemPreviewPivotMode.SelectedBone when _bonePivot is { } bonePivot => bonePivot,
             _ => _meshBounds.Center
         };
+    }
+
+    private static Vector3? ResolveBonePivot(
+        GrnModelDiagnostics? diagnostics,
+        ItemPreviewPivotMode pivotMode,
+        string? pivotBoneName)
+    {
+        var bones = diagnostics?.Slices.SelectMany(static slice => slice.Bones).ToArray() ?? [];
+        if (pivotMode == ItemPreviewPivotMode.RootBone)
+            return bones.FirstOrDefault(static bone => bone.ParentIndex == bone.Index)?.Position;
+        if (pivotMode == ItemPreviewPivotMode.SelectedBone && !string.IsNullOrWhiteSpace(pivotBoneName))
+            return bones.FirstOrDefault(bone => bone.Name.Equals(pivotBoneName, StringComparison.OrdinalIgnoreCase))?.Position;
+        return null;
+    }
+
+    private static Vector3? ResolveBonePosition(GrnModelDiagnostics? diagnostics, string? boneName)
+    {
+        if (string.IsNullOrWhiteSpace(boneName))
+            return null;
+
+        return diagnostics?.Slices
+            .SelectMany(static slice => slice.Bones)
+            .FirstOrDefault(bone => bone.Name.Equals(boneName, StringComparison.OrdinalIgnoreCase))
+            ?.Position;
     }
 
     private static Matrix4x4 CreateGrnRotationMatrix(Vector3 rotation)
@@ -743,6 +1153,15 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         indices.Add((ushort)(start + 3));
     }
 
+    private ModelGpuMesh? CreateSelectedBoneHighlightMesh(Vector3? bonePosition)
+    {
+        if (bonePosition is not { } position || !IsFinite(position))
+            return null;
+
+        var radius = Math.Clamp(GridCellWorldSize * 0.09f / Math.Max(_modelScale, 0.001f), 0.1f, 25.0f);
+        return UploadMesh(BoneHighlightMeshFactory.Create(position, radius));
+    }
+
     private static Vector2 CalculateOccupiedCellCenter(int gridWidth, int gridHeight)
     {
         var bounds = CalculateOccupiedCellBounds(gridWidth, gridHeight);
@@ -776,7 +1195,7 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
             mesh.Indices.Length);
     }
 
-    private ID3D12Resource CreateUploadBuffer(ReadOnlySpan<byte> bytes)
+    private unsafe ID3D12Resource CreateUploadBuffer(ReadOnlySpan<byte> bytes)
     {
         var description = new ResourceDescription(ResourceDimension.Buffer, 0, (ulong)bytes.Length, 1, 1, 1, Format.Unknown, 1, 0, TextureLayout.RowMajor, ResourceFlags.None);
         var resource = CreateCommittedResource(HeapType.Upload, description, ResourceStates.GenericRead);
@@ -796,92 +1215,10 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         return resource;
     }
 
-    private ID3D12Resource UploadTextureAndWait(int width, int height, byte[] rgba)
-    {
-        ID3D12Resource? texture = null;
-        ID3D12Resource? upload = null;
-        try
-        {
-            texture = CreateTexture2D(width, height, Rgba8Format, ResourceStates.CopyDest);
-            upload = CreateRgbaUploadBuffer(width, height, rgba);
-
-            _commandAllocator.Reset();
-            _commandList.Reset(_commandAllocator, null);
-            CopyUploadToTexture(_commandList, upload, texture, width, height);
-            Transition(_commandList, texture, ResourceStates.CopyDest, ResourceStates.PixelShaderResource);
-            _commandList.Close();
-            _commandQueue.ExecuteCommandLists([_commandList]);
-            SignalFrameFence();
-            WaitForGpu();
-
-            upload.Dispose();
-            upload = null;
-            return texture;
-        }
-        catch
-        {
-            upload?.Dispose();
-            texture?.Dispose();
-            throw;
-        }
-    }
-
-    private ID3D12Resource CreateRgbaUploadBuffer(int width, int height, byte[] rgba)
-    {
-        if (width <= 0 || height <= 0)
-            throw new ArgumentOutOfRangeException(nameof(width), "Texture dimensions must be positive.");
-
-        var rowBytes = width * 4;
-        var requiredBytes = rowBytes * height;
-        if (rgba.Length < requiredBytes)
-            throw new ArgumentException($"RGBA buffer is too small for {width}x{height} texture.", nameof(rgba));
-
-        var rowPitch = Align(rowBytes, 256);
-        var uploadSize = (ulong)(rowPitch * height);
-        var uploadDescription = new ResourceDescription(ResourceDimension.Buffer, 0, uploadSize, 1, 1, 1, Format.Unknown, 1, 0, TextureLayout.RowMajor, ResourceFlags.None);
-        var upload = CreateCommittedResource(HeapType.Upload, uploadDescription, ResourceStates.GenericRead);
-
-        void* mapped;
-        upload.Map(0, null, &mapped).CheckError();
-        try
-        {
-            for (var y = 0; y < height; y++)
-            {
-                var sourceOffset = y * rowBytes;
-                var destination = IntPtr.Add((nint)mapped, y * rowPitch);
-                Marshal.Copy(rgba, sourceOffset, destination, rowBytes);
-            }
-        }
-        finally
-        {
-            upload.Unmap(0, null);
-        }
-
-        return upload;
-    }
-
     private ID3D12Resource CreateCommittedResource(HeapType heapType, ResourceDescription description, ResourceStates initialState)
     {
         var heapProperties = new HeapProperties(heapType, 0, 0);
         return _device.CreateCommittedResource(heapProperties, HeapFlags.None, description, initialState, null);
-    }
-
-    private ID3D12Resource CreateTexture2D(int width, int height, Format format, ResourceStates initialState)
-    {
-        var description = new ResourceDescription(ResourceDimension.Texture2D, 0, (ulong)width, (uint)height, 1, 1, format, 1, 0, TextureLayout.Unknown, ResourceFlags.None);
-        return CreateCommittedResource(HeapType.Default, description, initialState);
-    }
-
-    private static void CopyUploadToTexture(ID3D12GraphicsCommandList commandList, ID3D12Resource upload, ID3D12Resource texture, int width, int height)
-    {
-        var rowPitch = Align(width * 4, 256);
-        var footprint = new PlacedSubresourceFootPrint
-        {
-            Offset = 0,
-            Footprint = new SubresourceFootPrint(Rgba8Format, (uint)width, (uint)height, 1, (uint)rowPitch)
-        };
-
-        commandList.CopyTextureRegion(new TextureCopyLocation(texture, 0), 0, 0, 0, new TextureCopyLocation(upload, footprint), null);
     }
 
     private static void Transition(ID3D12GraphicsCommandList commandList, ID3D12Resource resource, ResourceStates before, ResourceStates after)
@@ -986,41 +1323,20 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
         return float.IsFinite(scale) && scale > 0.0f ? scale : 1.0f;
     }
 
-    private static void WriteMatrix(Matrix4x4 matrix, float* target)
+    private unsafe void WritePreviewSceneConstants(float* target)
     {
-        target[0] = matrix.M11;
-        target[1] = matrix.M12;
-        target[2] = matrix.M13;
-        target[3] = matrix.M14;
-        target[4] = matrix.M21;
-        target[5] = matrix.M22;
-        target[6] = matrix.M23;
-        target[7] = matrix.M24;
-        target[8] = matrix.M31;
-        target[9] = matrix.M32;
-        target[10] = matrix.M33;
-        target[11] = matrix.M34;
-        target[12] = matrix.M41;
-        target[13] = matrix.M42;
-        target[14] = matrix.M43;
-        target[15] = matrix.M44;
-    }
+        var sceneRadius = Math.Max(GridCellWorldSize * 3.0f, _meshBounds.Radius * _modelScale * 2.0f);
+        var distance = Math.Max(120.0f, sceneRadius * 3.25f);
 
-    private static void WriteModelColor(string name, float* target)
-    {
-        var hash = (uint)StringComparer.OrdinalIgnoreCase.GetHashCode(name);
-        target[0] = 0.35f + ((hash & 0xFF) / 255.0f) * 0.55f;
-        target[1] = 0.35f + (((hash >> 8) & 0xFF) / 255.0f) * 0.55f;
-        target[2] = 0.35f + (((hash >> 16) & 0xFF) / 255.0f) * 0.55f;
-        target[3] = 1.0f;
-    }
-
-    private static void WriteColor(Vector4 color, float* target)
-    {
-        target[0] = color.X;
-        target[1] = color.Y;
-        target[2] = color.Z;
-        target[3] = color.W;
+        _modelShaderConstants.WriteSceneConstants(
+            target,
+            new Vector3(-sceneRadius * 0.35f, -distance * 0.55f, sceneRadius * 0.85f),
+            specularIntensity: 0.10f,
+            new Vector3(0.0f, -distance, sceneRadius * 0.18f),
+            shininess: 16.0f,
+            new Vector4(1.0f, 1.0f, 1.0f, 0.38f),
+            new Vector4(1.0f, 0.96f, 0.88f, 0.82f),
+            new Vector4(203.0f, 203.0f, 300.0f, 80.0f));
     }
 
     private static bool IsFinite(Vector3 value)
@@ -1030,41 +1346,24 @@ internal sealed unsafe class Dx12ItemModelRenderer : IDisposable
                float.IsFinite(value.Z);
     }
 
-    private static float PackTextureAnimation(TextureAnimation animation, bool overlay)
+    private enum ModelSurfacePass
     {
-        if (!animation.IsAnimated)
-            return 1.0f;
-
-        var modeOffset = animation.Mode == TextureAnimationMode.VerticalScrollBlackKey ? 0.5f : 0.0f;
-        var value = Math.Max(1, animation.FrameCount) + modeOffset;
-        return overlay ? -value : value;
+        Static = 0,
+        AnimatedBase = 1,
+        EffectOverlay = 2
     }
-
-    private static bool IsAnimatedTexture(ModelTexture? texture) =>
-        texture?.Animation.IsAnimated == true || texture?.OverlayAnimation.IsAnimated == true;
-
-    private static float PackTextureMode(
-        bool hasTexture,
-        bool hasOverlay,
-        TextureOverlayMode overlayMode)
-    {
-        if (!hasTexture)
-            return 0.0f;
-
-        if (!hasOverlay)
-            return 1.0f;
-
-        return overlayMode switch
-        {
-            TextureOverlayMode.AlphaBlend => 2.0f,
-            TextureOverlayMode.MultiTextureFill => 3.0f,
-            _ => 1.0f
-        };
-    }
-
-    private static int Align(int value, int alignment) => (value + alignment - 1) & ~(alignment - 1);
 
     private sealed record ModelTexture(
+        ID3D12Resource Resource,
+        int SrvSlot,
+        TextureAnimation Animation,
+        ID3D12Resource? OverlayResource,
+        int OverlaySrvSlot,
+        TextureAnimation OverlayAnimation,
+        TextureOverlayMode OverlayMode);
+
+    private sealed record UploadedModelTexture(
+        string Name,
         ID3D12Resource Resource,
         int SrvSlot,
         TextureAnimation Animation,

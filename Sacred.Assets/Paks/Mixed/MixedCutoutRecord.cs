@@ -1,8 +1,6 @@
 ﻿namespace Sacred.Assets.Paks.Mixed;
 
 public readonly record struct MixedCutoutRecord(
-    uint MixedId,
-    uint PieceIndex,
     string AtlasName,
     uint CutoutId,
     int Right,
@@ -12,4 +10,5 @@ public readonly record struct MixedCutoutRecord(
     float Uv0,
     float Uv1,
     float Uv2,
-    float Uv3);
+    float Uv3
+    );

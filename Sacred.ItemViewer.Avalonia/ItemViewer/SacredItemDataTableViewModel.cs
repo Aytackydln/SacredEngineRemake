@@ -64,6 +64,9 @@ public partial class SacredItemDataTableViewModel : ObservableObject
     public partial bool FilterHasModel { get; set; }
 
     [ObservableProperty]
+    public partial bool FilterFavoritesOnly { get; set; }
+
+    [ObservableProperty]
     public partial PreviewConfirmationFilterMode PreviewConfirmationFilter { get; set; }
 
     public event Action<bool>? FilterHasModelChanged;
@@ -76,6 +79,13 @@ public partial class SacredItemDataTableViewModel : ObservableObject
         NotifyPagingStateChanged();
         LoadPage(0);
         FilterHasModelChanged?.Invoke(value);
+    }
+
+    partial void OnFilterFavoritesOnlyChanged(bool value)
+    {
+        RebuildFilteredEquipments();
+        NotifyPagingStateChanged();
+        LoadPage(0);
     }
 
     partial void OnPreviewConfirmationFilterChanged(PreviewConfirmationFilterMode value)
@@ -103,6 +113,19 @@ public partial class SacredItemDataTableViewModel : ObservableObject
                     PreviewConfirmedAt = null,
                     PreviewConfirmedUserRotationIsZero = false
                 };
+        }
+
+        RebuildFilteredEquipments();
+        NotifyPagingStateChanged();
+        LoadPage(CurrentPage);
+    }
+
+    public void SetFavoriteItems(IReadOnlySet<uint> favoriteItemIds)
+    {
+        for (var i = 0; i < _allEquipments.Count; i++)
+        {
+            var item = _allEquipments[i];
+            _allEquipments[i] = item with { IsFavorite = favoriteItemIds.Contains(item.ItemId) };
         }
 
         RebuildFilteredEquipments();
@@ -219,6 +242,9 @@ public partial class SacredItemDataTableViewModel : ObservableObject
                 return false;
             }
         }
+
+        if (FilterFavoritesOnly && !item.IsFavorite)
+            return false;
 
         if (PreviewConfirmationFilter == PreviewConfirmationFilterMode.Confirmed && !item.PreviewConfirmed)
             return false;

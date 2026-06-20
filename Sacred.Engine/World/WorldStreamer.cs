@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
-using Sacred.Core.World;
+using Sacred.Core.World.Sector;
 
 namespace Sacred.Engine.World;
 

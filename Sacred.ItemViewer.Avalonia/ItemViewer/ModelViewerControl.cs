@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -18,10 +20,11 @@ public sealed class ModelViewerControl : UserControl
     private GrnAsset? _asset;
     private string _status = "Select an item to load its model.";
     private Vector3 _previewRotation;
-    private ItemPreviewRotationMode _rotationMode = ItemPreviewRotationMode.LegacyCurrent;
+    private ItemPreviewRotationMode _rotationMode = ItemPreviewRotationMode.DirectYawPitchRoll;
     private ItemPreviewPivotMode _pivotMode = ItemPreviewPivotMode.BoundsCenter;
     private int _gridWidth = 1;
     private int _gridHeight = 1;
+    private int _effectTextureCount;
     private float _userYaw;
     private float _userPitch;
     private float _userRoll;
@@ -73,10 +76,11 @@ public sealed class ModelViewerControl : UserControl
         {
             _asset = null;
             _previewRotation = Vector3.Zero;
-            _rotationMode = ItemPreviewRotationMode.LegacyCurrent;
+            _rotationMode = ItemPreviewRotationMode.DirectYawPitchRoll;
             _pivotMode = ItemPreviewPivotMode.BoundsCenter;
             _gridWidth = 1;
             _gridHeight = 1;
+            _effectTextureCount = 0;
             _viewport.ClearModel();
             SetStatusText("Select an item to load its model.");
         });
@@ -88,7 +92,9 @@ public sealed class ModelViewerControl : UserControl
         int gridWidth,
         int gridHeight,
         ItemPreviewRotationMode rotationMode,
-        ItemPreviewPivotMode pivotMode)
+        ItemPreviewPivotMode pivotMode,
+        string? pivotBoneName,
+        EquipmentEffectScene effectScene)
     {
         RunOnUiThread(() =>
         {
@@ -98,7 +104,8 @@ public sealed class ModelViewerControl : UserControl
             _pivotMode = pivotMode;
             _gridWidth = Math.Clamp(gridWidth, 1, 4);
             _gridHeight = Math.Clamp(gridHeight, 1, 5);
-            _viewport.ShowModel(asset, previewRotation, _gridWidth, _gridHeight, rotationMode, pivotMode);
+            _effectTextureCount = effectScene.TextureNames.Count;
+            _viewport.ShowModel(asset, previewRotation, _gridWidth, _gridHeight, rotationMode, pivotMode, pivotBoneName, effectScene);
             SetStatusText(asset.Mesh is null
                 ? $"{asset.Name}: GRN loaded, no mesh extracted."
                 : $"{asset.Name}: {asset.Mesh.Vertices.Length} vertices, {asset.Mesh.Indices.Length / 3} triangles | {_gridWidth}x{_gridHeight} cells | rot {FormatRotation(previewRotation)} | {rotationMode}/{pivotMode}");
@@ -130,16 +137,20 @@ public sealed class ModelViewerControl : UserControl
         });
     }
 
-    public void ShowTextures(IReadOnlyDictionary<string, ModelTextureBinding> textures, int failedCount)
+    public async Task ShowTexturesAsync(
+        IReadOnlyDictionary<string, ModelTextureBinding> textures,
+        int failedCount,
+        CancellationToken cancellationToken = default)
     {
+        await _viewport.ShowTexturesAsync(textures, cancellationToken);
         RunOnUiThread(() =>
         {
-            _viewport.ShowTextures(textures);
-            var total = _asset?.Mesh?.Surfaces
+            var total = (_asset?.Mesh?.Surfaces
                 .Select(static surface => surface.TextureName)
                 .Where(static name => !string.IsNullOrWhiteSpace(name))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Count() ?? textures.Count;
+                .Count() ?? 0) + _effectTextureCount;
+            total = Math.Max(total, textures.Count);
             var failedSuffix = failedCount > 0 ? $", {failedCount} failed" : string.Empty;
             ShowTextureStatus($"{textures.Count}/{total} textures{failedSuffix}");
         });
@@ -151,10 +162,11 @@ public sealed class ModelViewerControl : UserControl
         {
             _asset = null;
             _previewRotation = Vector3.Zero;
-            _rotationMode = ItemPreviewRotationMode.LegacyCurrent;
+            _rotationMode = ItemPreviewRotationMode.DirectYawPitchRoll;
             _pivotMode = ItemPreviewPivotMode.BoundsCenter;
             _gridWidth = 1;
             _gridHeight = 1;
+            _effectTextureCount = 0;
             _viewport.ClearModel();
             SetStatusText(status);
         });

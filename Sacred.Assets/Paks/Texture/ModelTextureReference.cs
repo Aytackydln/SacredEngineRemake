@@ -3,7 +3,6 @@ namespace Sacred.Assets.Paks.Texture;
 public enum TextureOverlayMode
 {
     None = 0,
-    AlphaBlend = 1,
     MultiTextureFill = 2
 }
 
@@ -21,3 +20,7 @@ public readonly record struct ModelTextureReference(
         !string.IsNullOrWhiteSpace(OverlayTextureName) &&
         OverlayMode != TextureOverlayMode.None;
 }
+
+public readonly record struct ModelTextureOverride(
+    string? EffectTextureName = null,
+    bool SuppressEffectOverlay = false);

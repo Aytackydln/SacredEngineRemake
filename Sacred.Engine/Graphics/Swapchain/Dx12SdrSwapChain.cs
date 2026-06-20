@@ -1,4 +1,5 @@
-﻿using Vortice.Direct3D12;
+﻿using Sacred.Shaders;
+using Vortice.Direct3D12;
 using Vortice.DXGI;
 
 namespace Sacred.Engine.Graphics.Swapchain;
@@ -25,7 +26,7 @@ internal sealed class Dx12SdrSwapChain : Dx12SwapChain
 
     public override ColorSpaceType ColorSpace => SdrColorSpace;
 
-    public override Dx12ShaderSet Shaders => Dx12Shaders.Sdr;
+    public override Dx12ShaderSet Shaders => Dx12ShaderCatalog.Sdr;
 
     public override Dx12DisplayProfile DisplayProfile => Dx12DisplayProfile.Sdr;
 }

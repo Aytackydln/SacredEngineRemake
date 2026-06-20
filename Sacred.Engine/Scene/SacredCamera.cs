@@ -14,24 +14,44 @@ public sealed class SacredCamera
 
     public Vector2 WorldCenter { get; private set; }
     public float Zoom { get; private set; } = 1.0f;
+    public float ViewportZoom => _viewportZoom;
     public Vector3 EyePosition { get; private set; }
     public Matrix4x4 View { get; private set; }
     public Matrix4x4 Projection { get; private set; }
 
-    private readonly int _width;
-    private readonly int _height;
+    private int _viewportWidth;
+    private int _viewportHeight;
+    private readonly float _worldViewHeight;
+    private float _viewportZoom;
     private Vector2? _movementTarget;
 
     public Vector2 CameraSpeedUnitVector { get; private set; } = Vector2.Zero;
 
     private SacredCamera(int width, int height)
     {
-        _width = width;
-        _height = height;
+        _viewportWidth = Math.Max(1, width);
+        _viewportHeight = Math.Max(1, height);
+        _worldViewHeight = _viewportHeight;
         RebuildMatrices();
     }
 
     public static SacredCamera CreateDefault(int width, int height) => new(width, height);
+
+    /// <summary>
+    /// Updates the aspect ratio used by the 3D projection. The vertical game-world span remains fixed,
+    /// so resizing changes only the horizontal extent of the 3D camera.
+    /// </summary>
+    public void SetViewportSize(int width, int height)
+    {
+        width = Math.Max(1, width);
+        height = Math.Max(1, height);
+        if (width == _viewportWidth && height == _viewportHeight)
+            return;
+
+        _viewportWidth = width;
+        _viewportHeight = height;
+        RebuildMatrices();
+    }
 
     public void CenterOnTile(float x, float y, float? zoom = null)
     {
@@ -42,7 +62,7 @@ public sealed class SacredCamera
     }
 
     public Vector2 ScreenToWorld(Vector2 screenPosition, int viewportWidth, int viewportHeight) =>
-        IsometricProjection.ScreenToWorld(screenPosition, WorldCenter, Zoom, viewportWidth, viewportHeight);
+        IsometricProjection.ScreenToWorld(screenPosition, WorldCenter, ViewportZoom, viewportWidth, viewportHeight);
 
     public void MoveTo(Vector2 worldTarget) => _movementTarget = worldTarget;
 
@@ -54,6 +74,8 @@ public sealed class SacredCamera
 
     public void UpdateFromKeyboard(InputState input, float dt)
     {
+        var previousWorldCenter = WorldCenter;
+        var previousZoom = Zoom;
         var speed = (input.IsMoveFasterDown ? FastMovementSpeed : NormalMovementSpeed) / Zoom;
         var delta = MovementDirection(input);
 
@@ -84,7 +106,8 @@ public sealed class SacredCamera
 
         Zoom = Math.Clamp(Zoom, 0.25f, 3.0f);
 
-        RebuildMatrices();
+        if (WorldCenter != previousWorldCenter || Zoom != previousZoom)
+            RebuildMatrices();
     }
 
     private void MoveInDirection(Vector2 direction, float speed, float dt)
@@ -163,14 +186,19 @@ public sealed class SacredCamera
 
     private void RebuildMatrices()
     {
+        _viewportZoom = Zoom * _viewportHeight / _worldViewHeight;
         // Original Sacred style: no map rotation; pre-rendered terrain determines the perspective.
         var eye = new Vector3(WorldCenter.X, WorldCenter.Y - 650f, 650f);
         var target = new Vector3(WorldCenter.X, WorldCenter.Y, 0f);
         EyePosition = eye;
         View = Matrix4x4.CreateLookAt(eye, target, Vector3.UnitZ);
 
-        var halfW = _width * 0.5f / Zoom;
-        var halfH = _height * 0.5f / Zoom;
-        Projection = Matrix4x4.CreateOrthographicOffCenter(-halfW, halfW, halfH, -halfH, 0.1f, 5000f);
+        // Preserve the original vertical game-world span. Deriving only the width from the current aspect
+        // ratio prevents both stretching and vertical camera zoom when the window is resized.
+        var halfH = _worldViewHeight * 0.5f / Zoom;
+        var halfW = halfH * _viewportWidth / _viewportHeight;
+        // Direct3D's viewport already maps positive clip-space Y toward the top of the screen.
+        // Reversing the orthographic top and bottom here inverted all Z-up model geometry.
+        Projection = Matrix4x4.CreateOrthographicOffCenter(-halfW, halfW, -halfH, halfH, 0.1f, 5000f);
     }
 }

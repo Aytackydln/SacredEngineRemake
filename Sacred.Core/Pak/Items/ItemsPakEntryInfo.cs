@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace Sacred.Core.Pak.Items;
 
 [StructLayout(LayoutKind.Explicit, Pack = 1, Size = Length)]
-internal readonly struct ItemsPakEntryInfoLayout
+public readonly struct ItemsPakEntryInfoLayout
 {
     public const int Length = 12;
 
@@ -14,7 +14,16 @@ internal readonly struct ItemsPakEntryInfoLayout
     public readonly uint ModelDescOffset;
 
     [FieldOffset(6)]
-    private readonly uint _unknown6;
+    private readonly byte _unknown6;
+
+    [FieldOffset(7)]
+    private readonly byte _unknown7;
+
+    [FieldOffset(8)]
+    private readonly byte _unknown8;
+
+    [FieldOffset(9)]
+    private readonly byte _unknown9;
 
     [FieldOffset(10)]
     public readonly byte Byte23;
@@ -26,7 +35,7 @@ internal readonly struct ItemsPakEntryInfoLayout
 public readonly record struct ItemsPakEntryInfo(
     ushort ItemIndex,
     uint ModelDescOffset,
-    bool Byte23
+    ItemsPakEntryInfoLayout Layout
 )
 {
     public static ItemsPakEntryInfo FromBytes(ushort entryIndex, BinaryReader br)
@@ -39,7 +48,7 @@ public readonly record struct ItemsPakEntryInfo(
         return new ItemsPakEntryInfo(
             ItemIndex: entryIndex,
             ModelDescOffset: layout.ModelDescOffset,
-            Byte23: layout.Byte23 == 0x02
+            Layout: layout
         );
     }
 }

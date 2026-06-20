@@ -126,6 +126,8 @@ internal sealed record SacredItemPreviewConfirmation
 
     public ItemPreviewPivotMode PivotMode { get; init; }
 
+    public string? PivotBoneName { get; init; }
+
     public DateTimeOffset ConfirmedAt { get; init; }
 
     public static SacredItemPreviewConfirmation Create(
@@ -134,6 +136,7 @@ internal sealed record SacredItemPreviewConfirmation
         Vector3 userRotationYawPitchRoll,
         ItemPreviewRotationMode rotationMode,
         ItemPreviewPivotMode pivotMode,
+        string? pivotBoneName,
         DateTimeOffset confirmedAt)
     {
         return new SacredItemPreviewConfirmation
@@ -156,6 +159,7 @@ internal sealed record SacredItemPreviewConfirmation
             UserRotationYawPitchRollDegrees = RotationVectorData.FromVector(RadiansToDegrees(userRotationYawPitchRoll)),
             RotationMode = rotationMode,
             PivotMode = pivotMode,
+            PivotBoneName = pivotBoneName,
             ConfirmedAt = confirmedAt
         };
     }

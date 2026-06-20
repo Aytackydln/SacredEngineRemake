@@ -23,6 +23,7 @@ public sealed class DebugTextOverlay(DebugOverlayFontSet fonts)
     };
 
     public byte[] Rgba { get; } = new byte[Width * Height * 4];
+    private byte[] _bitmapPixels = new byte[Width * Height * 4];
 
     public void SetLines(string[] lines)
     {
@@ -98,8 +99,10 @@ public sealed class DebugTextOverlay(DebugOverlayFontSet fonts)
         try
         {
             var stride = Math.Abs(data.Stride);
-            var source = new byte[stride * Height];
-            Marshal.Copy(data.Scan0, source, 0, source.Length);
+            var requiredLength = stride * Height;
+            if (_bitmapPixels.Length < requiredLength)
+                Array.Resize(ref _bitmapPixels, requiredLength);
+            Marshal.Copy(data.Scan0, _bitmapPixels, 0, requiredLength);
 
             for (var y = 0; y < Height; y++)
             {
@@ -109,16 +112,16 @@ public sealed class DebugTextOverlay(DebugOverlayFontSet fonts)
                 for (var x = 0; x < Width; x++)
                 {
                     var sourceOffset = sourceRow + x * 4;
-                    var sourceAlpha = source[sourceOffset + 3];
+                    var sourceAlpha = _bitmapPixels[sourceOffset + 3];
                     if (sourceAlpha == 0)
                         continue;
 
                     var destOffset = destRow + x * 4;
                     BlendPixel(
                         destOffset,
-                        source[sourceOffset + 2],
-                        source[sourceOffset + 1],
-                        source[sourceOffset + 0],
+                        _bitmapPixels[sourceOffset + 2],
+                        _bitmapPixels[sourceOffset + 1],
+                        _bitmapPixels[sourceOffset + 0],
                         sourceAlpha);
                 }
             }

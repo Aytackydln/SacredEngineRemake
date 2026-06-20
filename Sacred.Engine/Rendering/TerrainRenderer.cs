@@ -3,9 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
 using System.Threading.Tasks;
-using Sacred.Assets;
 using Sacred.Assets.Paks.Texture;
-using Sacred.Core.World;
+using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Scene;
 
@@ -31,8 +30,8 @@ public sealed class TerrainRenderer
     private const uint StaticFrontGraphicFlag = 0x00800000;
     private const float StaticObjectShiftX = 47.8f;
     private const float StaticObjectShiftY = -0.3f;
-    private const int LiquidRenderTileWidth = 96;
-    private const int LiquidRenderTileHeight = 48;
+    private const int LiquidRenderTileWidth = RenderTileWidth;
+    private const int LiquidRenderTileHeight = RenderTileHeight;
     private const int LiquidProjectedOffsetX = 2;
     private const int LiquidProjectedOffsetY = 1;
 
@@ -44,8 +43,11 @@ public sealed class TerrainRenderer
 
     private static readonly Vector2 DestLeft = new(0.0f, RenderTileHeight * 0.5f);
     private static readonly Vector2 DestTop = new(RenderTileWidth * 0.5f, 0.0f);
-    private static readonly Vector2 DestBottom = new(RenderTileWidth * 0.5f, RenderTileHeight - 1.0f);
-    private static readonly Vector2 DestRight = new(RenderTileWidth - 1.0f, RenderTileHeight * 0.5f);
+    // These vertices describe the outer texture boundary, rather than the
+    // last texel index. Rasterization evaluates pixel centres, so ending at
+    // 95/47 would leave the right/bottom edge texels uncovered.
+    private static readonly Vector2 DestBottom = new(RenderTileWidth * 0.5f, RenderTileHeight);
+    private static readonly Vector2 DestRight = new(RenderTileWidth, RenderTileHeight * 0.5f);
     private static readonly Vector2 DestCenter = new(RenderTileWidth * 0.5f, RenderTileHeight * 0.5f);
 
     private static readonly (int X, int Y)[] TilePositions =
@@ -60,18 +62,25 @@ public sealed class TerrainRenderer
     private readonly AssetManager _assets;
     private readonly Dictionary<uint, TileImage?> _tileCache = new();
     private readonly Dictionary<uint, TileImage?> _floorCache = new();
-    private readonly Dictionary<LiquidImageKey, TileImage?> _liquidCache = new();
     private readonly Dictionary<SectorCoord, TerrainSectorImage> _sectorCache = new();
     private readonly Dictionary<SectorCoord, Task<TerrainSectorImage>> _sectorBuildTasks = new();
     private readonly List<TerrainSectorImage> _visibleSectorImages = new(9);
+    private readonly List<TerrainLiquidSprite> _visibleLiquidSprites = new(4096);
     private readonly List<TerrainStaticSprite> _visibleStaticSprites = new(1024);
     private readonly List<Sector> _candidateSectors = new(9);
     private readonly HashSet<SectorCoord> _neededSectorCoords = new();
     private readonly List<SectorCoord> _sectorCoordsToRemove = new(9);
     private readonly List<SectorCoord> _completedSectorBuilds = new(9);
+    private readonly TextureFrameSequenceAsset?[] _liquidAnimationsByStyle = new TextureFrameSequenceAsset?[256];
+    private readonly byte[] _liquidAnimationStates = new byte[256];
     private readonly object _tileCacheLock = new();
+    private VisibleWorld? _preparedWorld;
+    private bool _worldChangedThisFrame;
+    private bool _staticAssetRequestsPending = true;
+    private bool _liquidAssetRequestsPending = true;
 
     public TerrainRenderStats LastStats { get; private set; }
+    public ulong WorldSpriteRevision { get; private set; }
 
     public TerrainRenderer(AssetManager assets)
     {
@@ -80,9 +89,18 @@ public sealed class TerrainRenderer
 
     public IReadOnlyList<TerrainSectorImage> PrepareVisibleWorld(VisibleWorld world)
     {
-        SelectCandidateSectors(world);
-        PruneSectorCache();
-        PumpCompletedSectorBuilds();
+        _worldChangedThisFrame = !ReferenceEquals(_preparedWorld, world);
+        if (_worldChangedThisFrame)
+        {
+            _preparedWorld = world;
+            SelectCandidateSectors(world);
+            PruneSectorCache();
+        }
+
+        var sectorBuildCompleted = PumpCompletedSectorBuilds();
+        if (!_worldChangedThisFrame && !sectorBuildCompleted)
+            return _visibleSectorImages;
+
         _visibleSectorImages.Clear();
 
         var candidateTiles = 0;
@@ -91,9 +109,6 @@ public sealed class TerrainRenderer
         var floorCandidateTiles = 0;
         var drawnFloorTiles = 0;
         var missingFloorTiles = 0;
-        var liquidCandidateTiles = 0;
-        var drawnLiquidTiles = 0;
-        var missingLiquidTiles = 0;
 
         foreach (var sector in _candidateSectors)
         {
@@ -107,9 +122,6 @@ public sealed class TerrainRenderer
             floorCandidateTiles += image.FloorCandidateTiles;
             drawnFloorTiles += image.FloorDrawnTiles;
             missingFloorTiles += image.FloorMissingTiles;
-            liquidCandidateTiles += image.LiquidCandidateTiles;
-            drawnLiquidTiles += image.LiquidDrawnTiles;
-            missingLiquidTiles += image.LiquidMissingTiles;
             _visibleSectorImages.Add(image);
         }
 
@@ -119,6 +131,7 @@ public sealed class TerrainRenderer
             return depth != 0 ? depth : left.Coord.Y.CompareTo(right.Coord.Y);
         });
 
+        var previousStats = LastStats;
         LastStats = new TerrainRenderStats(
             _candidateSectors.Count,
             candidateTiles,
@@ -129,13 +142,13 @@ public sealed class TerrainRenderer
             drawnFloorTiles,
             missingFloorTiles,
             _floorCache.Count,
-            liquidCandidateTiles,
-            drawnLiquidTiles,
-            missingLiquidTiles,
-            _liquidCache.Count,
-            0,
-            0,
-            0,
+            previousStats.LiquidCandidateTiles,
+            previousStats.LiquidDrawnTiles,
+            previousStats.LiquidMissingTiles,
+            previousStats.LiquidCachedTiles,
+            previousStats.StaticCandidateObjects,
+            previousStats.StaticDrawnObjects,
+            previousStats.StaticMissingObjects,
             _visibleSectorImages.Count,
             _sectorCache.Count,
             CountPendingSectorBuilds());
@@ -145,10 +158,14 @@ public sealed class TerrainRenderer
 
     public IReadOnlyList<TerrainStaticSprite> PrepareVisibleStaticSprites()
     {
+        if (!_worldChangedThisFrame && !_staticAssetRequestsPending)
+            return _visibleStaticSprites;
+
         _visibleStaticSprites.Clear();
 
         var staticCandidateObjects = 0;
         var staticMissingObjects = 0;
+        var requestsPending = false;
 
         foreach (var sector in _candidateSectors)
         {
@@ -164,8 +181,25 @@ public sealed class TerrainRenderer
 
                 if (!_assets.TryGetStaticSpriteOrRequest(staticObject.TypeId, out var sprite))
                 {
+                    requestsPending = true;
                     staticMissingObjects++;
                     continue;
+                }
+
+                if (sprite is null)
+                {
+                    var miniObjectReady = _assets.TryGetMiniObjectSpriteOrRequest(
+                        staticObject.TypeId,
+                        staticObject.SpriteParam2E,
+                        staticObject.SpriteParam2F,
+                        staticObject.OrientationOrFrame,
+                        out sprite);
+                    if (!miniObjectReady)
+                    {
+                        requestsPending = true;
+                        staticMissingObjects++;
+                        continue;
+                    }
                 }
 
                 if (sprite is null)
@@ -202,6 +236,8 @@ public sealed class TerrainRenderer
         }
 
         _visibleStaticSprites.Sort(CompareStaticSprites);
+        _staticAssetRequestsPending = requestsPending;
+        WorldSpriteRevision++;
         LastStats = LastStats with
         {
             StaticCandidateObjects = staticCandidateObjects,
@@ -210,6 +246,121 @@ public sealed class TerrainRenderer
         };
 
         return _visibleStaticSprites;
+    }
+
+    public IReadOnlyList<TerrainLiquidSprite> PrepareVisibleLiquidSprites()
+    {
+        if (!_worldChangedThisFrame && !_liquidAssetRequestsPending)
+            return _visibleLiquidSprites;
+
+        _visibleLiquidSprites.Clear();
+
+        var liquidCandidateTiles = 0;
+        var liquidMissingTiles = 0;
+        var requestsPending = false;
+        foreach (var sector in _candidateSectors)
+        {
+            liquidCandidateTiles += sector.LiquidSurfaces.Count;
+            var sectorOriginIso = WorldToIso(
+                sector.Coord.X * Sector.TileCount,
+                sector.Coord.Y * Sector.TileCount);
+            foreach (var liquid in sector.LiquidSurfaces.Surfaces)
+            {
+                var style = LiquidStyle.For(liquid.StyleId);
+                if (!TryGetLiquidAnimation(liquid.StyleId, style, out var animation, out var requestPending))
+                {
+                    requestsPending |= requestPending;
+                    liquidMissingTiles++;
+                    continue;
+                }
+
+                var localIso = WorldToIso(liquid.LocalX, liquid.LocalY);
+                var worldX = sector.Coord.X * Sector.TileCount + liquid.LocalX;
+                var worldY = sector.Coord.Y * Sector.TileCount + liquid.LocalY;
+                var alphas = LiquidCornerAlphas(liquid);
+                _visibleLiquidSprites.Add(new TerrainLiquidSprite(
+                    animation!,
+                    sector.Coord,
+                    sectorOriginIso.X + localIso.X + LiquidProjectedOffsetX,
+                    sectorOriginIso.Y + localIso.Y + LiquidProjectedOffsetY,
+                    LiquidRenderTileWidth,
+                    LiquidRenderTileHeight,
+                    alphas.Left,
+                    alphas.Top,
+                    alphas.Right,
+                    alphas.Bottom,
+                    (byte)((worldX & 3) | ((worldY & 3) << 2)),
+                    LiquidStyle.AnimationPeriodSeconds));
+            }
+        }
+
+        _visibleLiquidSprites.Sort(static (left, right) =>
+        {
+            var depth = (left.SectorCoord.X + left.SectorCoord.Y).CompareTo(
+                right.SectorCoord.X + right.SectorCoord.Y);
+            if (depth != 0)
+                return depth;
+
+            var sectorY = left.SectorCoord.Y.CompareTo(right.SectorCoord.Y);
+            if (sectorY != 0)
+                return sectorY;
+
+            var y = left.IsoY.CompareTo(right.IsoY);
+            return y != 0 ? y : left.IsoX.CompareTo(right.IsoX);
+        });
+        _liquidAssetRequestsPending = requestsPending;
+        WorldSpriteRevision++;
+        LastStats = LastStats with
+        {
+            LiquidCandidateTiles = liquidCandidateTiles,
+            LiquidDrawnTiles = _visibleLiquidSprites.Count,
+            LiquidMissingTiles = liquidMissingTiles
+        };
+
+        return _visibleLiquidSprites;
+    }
+
+    private bool TryGetLiquidAnimation(
+        byte styleId,
+        LiquidStyle style,
+        out TextureFrameSequenceAsset? animation,
+        out bool requestPending)
+    {
+        var state = _liquidAnimationStates[styleId];
+        if (state == 1)
+        {
+            animation = _liquidAnimationsByStyle[styleId];
+            requestPending = false;
+            return true;
+        }
+
+        if (state == 2)
+        {
+            animation = null;
+            requestPending = false;
+            return false;
+        }
+
+        var ready = _assets.TryGetTextureFrameSequenceOrRequest(
+            style.FrameNameFormat,
+            style.FrameCount,
+            out animation);
+        if (!ready)
+        {
+            requestPending = true;
+            return false;
+        }
+
+        requestPending = false;
+        if (animation is null)
+        {
+            _liquidAnimationStates[styleId] = 2;
+            return false;
+        }
+
+        _liquidAnimationsByStyle[styleId] = animation;
+        _liquidAnimationStates[styleId] = 1;
+        return true;
     }
 
     private void SelectCandidateSectors(VisibleWorld world)
@@ -235,12 +386,15 @@ public sealed class TerrainRenderer
             _sectorCache.Remove(coord);
     }
 
-    private void PumpCompletedSectorBuilds()
+    private bool PumpCompletedSectorBuilds()
     {
         _completedSectorBuilds.Clear();
         foreach (var (coord, task) in _sectorBuildTasks)
             if (task.IsCompleted)
                 _completedSectorBuilds.Add(coord);
+
+        if (_completedSectorBuilds.Count == 0)
+            return false;
 
         foreach (var coord in _completedSectorBuilds)
         {
@@ -249,6 +403,8 @@ public sealed class TerrainRenderer
             if (task.Status == TaskStatus.RanToCompletion && _neededSectorCoords.Contains(coord))
                 _sectorCache[coord] = task.Result;
         }
+
+        return true;
     }
 
     private TerrainSectorImage? GetSectorImageOrQueueBuild(Sector sector)
@@ -284,9 +440,6 @@ public sealed class TerrainRenderer
         var floorCandidateTiles = sector.FloorOverlays.Count;
         var floorDrawnTiles = 0;
         var floorMissingTiles = 0;
-        var liquidCandidateTiles = sector.LiquidSurfaces.Count;
-        var liquidDrawnTiles = 0;
-        var liquidMissingTiles = 0;
         var imageMinX = SectorImageOriginX;
         var imageMinY = SectorImageOriginY;
         var imageMaxX = SectorImageOriginX + SectorImageWidth;
@@ -295,6 +448,14 @@ public sealed class TerrainRenderer
         var imageWidth = Math.Max(1, imageMaxX - imageMinX);
         var imageHeight = Math.Max(1, imageMaxY - imageMinY);
         var rgba = new byte[imageWidth * imageHeight * 4];
+        var liquidCoverRgba = new byte[rgba.Length];
+        var liquidInsertionDepths = new byte[Sector.TileCount * Sector.TileCount];
+        Array.Fill(liquidInsertionDepths, byte.MaxValue);
+        foreach (var liquid in sector.LiquidSurfaces.Surfaces)
+        {
+            liquidInsertionDepths[liquid.LocalY * Sector.TileCount + liquid.LocalX] =
+                liquid.FloorInsertionDepth;
+        }
 
         var composeTiles = new List<DrawTile>(Sector.TileCount * Sector.TileCount);
         for (var ly = 0; ly < Sector.TileCount; ly++)
@@ -310,7 +471,8 @@ public sealed class TerrainRenderer
                 RenderTileHeight,
                 sector.Ground[lx, ly],
                 0,
-                0));
+                0,
+                false));
         }
 
         composeTiles.Sort(CompareDrawTiles);
@@ -343,7 +505,8 @@ public sealed class TerrainRenderer
                     RenderTileHeight,
                     overlay.PrimaryTileId,
                     overlay.SecondaryTileId,
-                    overlay.ChainDepth));
+                    overlay.ChainDepth,
+                    overlay.ChainDepth >= liquidInsertionDepths[ly * Sector.TileCount + lx]));
             }
         }
 
@@ -357,26 +520,12 @@ public sealed class TerrainRenderer
                 continue;
             }
 
-            DrawUnscaledRgba(rgba, imageWidth, imageHeight, tile.Rgba, tile.Width, tile.Height, item.ScreenX, item.ScreenY);
+            var destination = item.AboveLiquid ? liquidCoverRgba : rgba;
+            DrawUnscaledRgba(destination, imageWidth, imageHeight, tile.Rgba, tile.Width, tile.Height, item.ScreenX, item.ScreenY);
             floorDrawnTiles++;
         }
 
-        foreach (var liquid in sector.LiquidSurfaces.Surfaces)
-        {
-            var textureName = LiquidTextureName(liquid);
-            var liquidTile = await GetLiquidImageAsync(textureName, LiquidCornerAlphas(liquid));
-            if (liquidTile is null)
-            {
-                liquidMissingTiles++;
-                continue;
-            }
-
-            var iso = WorldToIso(liquid.LocalX, liquid.LocalY);
-            var x = (int)MathF.Round(iso.X + LiquidProjectedOffsetX - imageMinX);
-            var y = (int)MathF.Round(iso.Y + LiquidProjectedOffsetY - imageMinY);
-            DrawUnscaledRgba(rgba, imageWidth, imageHeight, liquidTile.Rgba, liquidTile.Width, liquidTile.Height, x, y);
-            liquidDrawnTiles++;
-        }
+        PremultiplyAlpha(liquidCoverRgba);
 
         return new TerrainSectorImage(
             sector.Coord,
@@ -385,6 +534,7 @@ public sealed class TerrainRenderer
             imageWidth,
             imageHeight,
             rgba,
+            liquidCoverRgba,
             sector.Coord.X + sector.Coord.Y,
             groundCandidateTiles,
             groundDrawnTiles,
@@ -392,9 +542,9 @@ public sealed class TerrainRenderer
             floorCandidateTiles,
             floorDrawnTiles,
             floorMissingTiles,
-            liquidCandidateTiles,
-            liquidDrawnTiles,
-            liquidMissingTiles,
+            0,
+            0,
+            0,
             0,
             0,
             0);
@@ -468,7 +618,7 @@ public sealed class TerrainRenderer
             if (_tileCache.TryGetValue(tileId, out var cached))
                 return cached;
 
-        var image = await BuildTileImageAsync(tileId, forceOpaque: false);
+        var image = await BuildTileImageAsync(tileId);
         lock (_tileCacheLock)
         {
             if (_tileCache.TryGetValue(tileId, out var cached))
@@ -485,14 +635,14 @@ public sealed class TerrainRenderer
             if (_floorCache.TryGetValue(packedRef, out var cached))
                 return cached;
 
-        var primary = await BuildTileImageAsync(primaryTileId, forceOpaque: false);
+        var primary = await BuildTileImageAsync(primaryTileId);
         if (primary is null)
             return CacheFloorImage(packedRef, null);
 
         if (secondaryTileId == 0)
             return CacheFloorImage(packedRef, primary);
 
-        var mask = await BuildTileImageAsync(secondaryTileId, forceOpaque: false);
+        var mask = await BuildTileImageAsync(secondaryTileId);
         if (mask is null)
             return CacheFloorImage(packedRef, primary);
 
@@ -519,55 +669,6 @@ public sealed class TerrainRenderer
         }
     }
 
-    private async Task<TileImage?> GetLiquidImageAsync(string textureName, LiquidAlphas alphas)
-    {
-        var key = new LiquidImageKey(textureName, alphas);
-        lock (_tileCacheLock)
-            if (_liquidCache.TryGetValue(key, out var cached))
-                return cached;
-
-        TextureAsset texture;
-        try
-        {
-            texture = await _assets.LoadTextureAsync(textureName);
-        }
-        catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or NotSupportedException)
-        {
-            return CacheLiquidImage(key, null);
-        }
-
-        return CacheLiquidImage(
-            key,
-            new TileImage(
-                LiquidRenderTileWidth,
-                LiquidRenderTileHeight,
-                BuildLiquidDiamond(texture, alphas)));
-    }
-
-    private TileImage? CacheLiquidImage(LiquidImageKey key, TileImage? image)
-    {
-        lock (_tileCacheLock)
-        {
-            if (_liquidCache.TryGetValue(key, out var cached))
-                return cached;
-
-            return _liquidCache[key] = image;
-        }
-    }
-
-    private static string LiquidTextureName(LiquidSurface surface)
-    {
-        var style = LiquidStyle.For(surface.StyleId);
-        var suffix = style.TextureKind switch
-        {
-            LiquidTextureKind.Lava => "LAVA",
-            LiquidTextureKind.Schwefel => "SCHWEFEL",
-            _ => "WATER"
-        };
-
-        return $"{style.Family}_{suffix}02.TGA";
-    }
-
     private static LiquidAlphas LiquidCornerAlphas(LiquidSurface surface)
     {
         var multiplier = LiquidStyle.For(surface.StyleId).MainAlphaMultiplier;
@@ -581,69 +682,7 @@ public sealed class TerrainRenderer
     private static byte LiquidAlpha(sbyte value, int multiplier) =>
         (byte)Math.Clamp(value * multiplier, 0, 255);
 
-    private static byte[] BuildLiquidDiamond(TextureAsset texture, LiquidAlphas alphas)
-    {
-        var rgba = new byte[LiquidRenderTileWidth * LiquidRenderTileHeight * 4];
-        var halfW = LiquidRenderTileWidth * 0.5f;
-        var halfH = LiquidRenderTileHeight * 0.5f;
-        var centerAlpha = (alphas.Left + alphas.Top + alphas.Right + alphas.Bottom) * 0.25f;
-        var center = new Vector2(halfW, halfH);
-        var top = new Vector2(halfW, 0.0f);
-        var right = new Vector2(LiquidRenderTileWidth, halfH);
-        var bottom = new Vector2(halfW, LiquidRenderTileHeight);
-        var left = new Vector2(0.0f, halfH);
-
-        for (var y = 0; y < LiquidRenderTileHeight; y++)
-        for (var x = 0; x < LiquidRenderTileWidth; x++)
-        {
-            var nx = MathF.Abs((x + 0.5f - halfW) / halfW);
-            var ny = MathF.Abs((y + 0.5f - halfH) / halfH);
-            if (nx + ny > 1.0f)
-                continue;
-
-            var sx = Math.Clamp(x * texture.Width / LiquidRenderTileWidth, 0, texture.Width - 1);
-            var sy = Math.Clamp(y * texture.Height / LiquidRenderTileHeight, 0, texture.Height - 1);
-            var sourceOffset = (sy * texture.Width + sx) * 4;
-            var destOffset = (y * LiquidRenderTileWidth + x) * 4;
-            var sourceAlpha = texture.Rgba8[sourceOffset + 3];
-            var point = new Vector2(x + 0.5f, y + 0.5f);
-            var vertexAlpha = point.Y < halfH
-                ? point.X < halfW
-                    ? InterpolateTriangleAlpha(point, center, left, top, centerAlpha, alphas.Left, alphas.Top)
-                    : InterpolateTriangleAlpha(point, center, top, right, centerAlpha, alphas.Top, alphas.Right)
-                : point.X < halfW
-                    ? InterpolateTriangleAlpha(point, center, bottom, left, centerAlpha, alphas.Bottom, alphas.Left)
-                    : InterpolateTriangleAlpha(point, center, right, bottom, centerAlpha, alphas.Right, alphas.Bottom);
-
-            rgba[destOffset + 0] = texture.Rgba8[sourceOffset + 0];
-            rgba[destOffset + 1] = texture.Rgba8[sourceOffset + 1];
-            rgba[destOffset + 2] = texture.Rgba8[sourceOffset + 2];
-            rgba[destOffset + 3] = (byte)(sourceAlpha * vertexAlpha / 255);
-        }
-
-        return rgba;
-    }
-
-    private static int InterpolateTriangleAlpha(
-        Vector2 point,
-        Vector2 a,
-        Vector2 b,
-        Vector2 c,
-        float alphaA,
-        float alphaB,
-        float alphaC)
-    {
-        var denom = (b.Y - c.Y) * (a.X - c.X) + (c.X - b.X) * (a.Y - c.Y);
-        if (MathF.Abs(denom) < 0.0001f)
-            return (int)MathF.Round(alphaA);
-
-        var wA = ((b.Y - c.Y) * (point.X - c.X) + (c.X - b.X) * (point.Y - c.Y)) / denom;
-        var wB = ((c.Y - a.Y) * (point.X - c.X) + (a.X - c.X) * (point.Y - c.Y)) / denom;
-        var wC = 1.0f - wA - wB;
-        return Math.Clamp((int)MathF.Round(alphaA * wA + alphaB * wB + alphaC * wC), 0, 255);
-    }
-
-    private async Task<TileImage?> BuildTileImageAsync(uint tileId, bool forceOpaque)
+    private async Task<TileImage?> BuildTileImageAsync(uint tileId)
     {
         var definition = _assets.GetTileDefinition(tileId);
         if (definition is null || string.IsNullOrWhiteSpace(definition.Value.FileName))
@@ -663,33 +702,20 @@ public sealed class TerrainRenderer
         if (position.X + SourceTileWidth > sheet.Width || position.Y + SourceTileHeight > sheet.Height)
             return null;
 
-        return new TileImage(RenderTileWidth, RenderTileHeight, BuildDiamondTile(sheet, position, forceOpaque));
+        return new TileImage(RenderTileWidth, RenderTileHeight, BuildDiamondTile(sheet, position));
     }
 
-    private static byte[] BuildDiamondTile(TextureAsset sheet, (int X, int Y) sheetOrigin, bool forceOpaque)
+    private static byte[] BuildDiamondTile(TextureAsset sheet, (int X, int Y) sheetOrigin)
     {
         var rgba = new byte[RenderTileWidth * RenderTileHeight * 4];
-        var halfW = RenderTileWidth * 0.5f;
-        var halfH = RenderTileHeight * 0.5f;
 
-        for (var y = 0; y < RenderTileHeight; y++)
-        for (var x = 0; x < RenderTileWidth; x++)
-        {
-            var nx = MathF.Abs((x + 0.5f - halfW) / halfW);
-            var ny = MathF.Abs((y + 0.5f - halfH) / halfH);
-            if (nx + ny > 1.0f)
-                continue;
-
-            var sx = sheetOrigin.X + Math.Clamp(x * SourceTileWidth / RenderTileWidth, 0, SourceTileWidth - 1);
-            var sy = sheetOrigin.Y + Math.Clamp(y * SourceTileHeight / RenderTileHeight, 0, SourceTileHeight - 1);
-            var sourceOffset = (sy * sheet.Width + sx) * 4;
-            var destOffset = (y * RenderTileWidth + x) * 4;
-
-            rgba[destOffset + 0] = sheet.Rgba8[sourceOffset + 0];
-            rgba[destOffset + 1] = sheet.Rgba8[sourceOffset + 1];
-            rgba[destOffset + 2] = sheet.Rgba8[sourceOffset + 2];
-            rgba[destOffset + 3] = forceOpaque ? (byte)255 : sheet.Rgba8[sourceOffset + 3];
-        }
+        // A tile occupies a diamond within its 100x50 atlas cell. Scaling the
+        // complete rectangular cell samples the matte/adjacent-tile pixels
+        // outside that diamond, which leak as dots along the diamond edges.
+        RasterizeTriangle(rgba, sheet, sheetOrigin, DestCenter, DestLeft, DestTop, SourceCenter, SourceLeft, SourceTop);
+        RasterizeTriangle(rgba, sheet, sheetOrigin, DestCenter, DestTop, DestRight, SourceCenter, SourceTop, SourceRight);
+        RasterizeTriangle(rgba, sheet, sheetOrigin, DestCenter, DestRight, DestBottom, SourceCenter, SourceRight, SourceBottom);
+        RasterizeTriangle(rgba, sheet, sheetOrigin, DestCenter, DestBottom, DestLeft, SourceCenter, SourceBottom, SourceLeft);
 
         return rgba;
     }
@@ -796,9 +822,21 @@ public sealed class TerrainRenderer
         }
     }
 
-    private sealed record TileImage(int Width, int Height, byte[] Rgba);
+    private static void PremultiplyAlpha(byte[] rgba)
+    {
+        for (var i = 0; i < rgba.Length; i += 4)
+        {
+            var alpha = rgba[i + 3];
+            if (alpha == 255)
+                continue;
 
-    private readonly record struct LiquidImageKey(string TextureName, LiquidAlphas Alphas);
+            rgba[i + 0] = (byte)(rgba[i + 0] * alpha / 255);
+            rgba[i + 1] = (byte)(rgba[i + 1] * alpha / 255);
+            rgba[i + 2] = (byte)(rgba[i + 2] * alpha / 255);
+        }
+    }
+
+    private sealed record TileImage(int Width, int Height, byte[] Rgba);
 
     private readonly record struct LiquidAlphas(byte Left, byte Top, byte Right, byte Bottom);
 
@@ -809,25 +847,40 @@ public sealed class TerrainRenderer
         Schwefel
     }
 
-    private readonly record struct LiquidStyle(LiquidTextureKind TextureKind, string Family, int MainAlphaMultiplier)
+    private readonly record struct LiquidStyle(
+        LiquidTextureKind TextureKind,
+        string Family,
+        int MainAlphaMultiplier,
+        int FrameCount)
     {
+        public const float AnimationPeriodSeconds = 2.048f;
+
+        public string FrameNameFormat => $"{Family}_{TextureKindName}{{0:00}}.TGA";
+
+        private string TextureKindName => TextureKind switch
+        {
+            LiquidTextureKind.Lava => "LAVA",
+            LiquidTextureKind.Schwefel => "SCHWEFEL",
+            _ => "WATER"
+        };
+
         public static LiquidStyle For(byte styleId) => styleId switch
         {
-            0 => new LiquidStyle(LiquidTextureKind.Water, "B", -12),
-            1 => new LiquidStyle(LiquidTextureKind.Water, "B", -12),
-            2 => new LiquidStyle(LiquidTextureKind.Water, "C", -12),
-            3 => new LiquidStyle(LiquidTextureKind.Water, "D", -12),
-            4 => new LiquidStyle(LiquidTextureKind.Lava, "A", -255),
-            5 => new LiquidStyle(LiquidTextureKind.Lava, "B", -255),
-            6 => new LiquidStyle(LiquidTextureKind.Lava, "C", -255),
-            7 => new LiquidStyle(LiquidTextureKind.Schwefel, "A", -255),
-            8 => new LiquidStyle(LiquidTextureKind.Lava, "D", -255),
-            9 => new LiquidStyle(LiquidTextureKind.Water, "E", -255),
-            10 => new LiquidStyle(LiquidTextureKind.Water, "F", -24),
-            11 => new LiquidStyle(LiquidTextureKind.Water, "G", -12),
-            12 => new LiquidStyle(LiquidTextureKind.Lava, "E", -255),
-            13 => new LiquidStyle(LiquidTextureKind.Water, "B", -12),
-            _ => new LiquidStyle(LiquidTextureKind.Water, "C", -12)
+            0 => new LiquidStyle(LiquidTextureKind.Water, "B", -12, 50),
+            1 => new LiquidStyle(LiquidTextureKind.Water, "B", -12, 50),
+            2 => new LiquidStyle(LiquidTextureKind.Water, "C", -12, 50),
+            3 => new LiquidStyle(LiquidTextureKind.Water, "D", -12, 50),
+            4 => new LiquidStyle(LiquidTextureKind.Lava, "A", -255, 50),
+            5 => new LiquidStyle(LiquidTextureKind.Lava, "B", -255, 50),
+            6 => new LiquidStyle(LiquidTextureKind.Lava, "C", -255, 20),
+            7 => new LiquidStyle(LiquidTextureKind.Schwefel, "A", -255, 20),
+            8 => new LiquidStyle(LiquidTextureKind.Lava, "D", -255, 50),
+            9 => new LiquidStyle(LiquidTextureKind.Water, "E", -255, 50),
+            10 => new LiquidStyle(LiquidTextureKind.Water, "F", -24, 50),
+            11 => new LiquidStyle(LiquidTextureKind.Water, "G", -12, 50),
+            12 => new LiquidStyle(LiquidTextureKind.Lava, "E", -255, 50),
+            13 => new LiquidStyle(LiquidTextureKind.Water, "B", -12, 50),
+            _ => new LiquidStyle(LiquidTextureKind.Water, "C", -12, 50)
         };
     }
 
@@ -840,7 +893,8 @@ public sealed class TerrainRenderer
         int Height,
         uint TileId,
         uint SecondaryTileId,
-        int ChainDepth);
+        int ChainDepth,
+        bool AboveLiquid);
 }
 
 public sealed class TerrainSectorImage
@@ -852,6 +906,7 @@ public sealed class TerrainSectorImage
         int width,
         int height,
         byte[] rgba,
+        byte[] liquidCoverRgba,
         int depth,
         int groundCandidateTiles,
         int groundDrawnTiles,
@@ -872,6 +927,7 @@ public sealed class TerrainSectorImage
         Width = width;
         Height = height;
         Rgba = rgba;
+        LiquidCoverRgba = liquidCoverRgba;
         Depth = depth;
         GroundCandidateTiles = groundCandidateTiles;
         GroundDrawnTiles = groundDrawnTiles;
@@ -893,6 +949,7 @@ public sealed class TerrainSectorImage
     public int Width { get; }
     public int Height { get; }
     public byte[]? Rgba { get; private set; }
+    public byte[]? LiquidCoverRgba { get; private set; }
     public int Depth { get; }
     public int GroundCandidateTiles { get; }
     public int GroundDrawnTiles { get; }
@@ -907,22 +964,29 @@ public sealed class TerrainSectorImage
     public int StaticDrawnObjects { get; }
     public int StaticMissingObjects { get; }
 
-    public bool HasCpuPixels => Rgba is not null;
+    public bool HasCpuPixels => Rgba is not null && LiquidCoverRgba is not null;
 
     public byte[] GetCpuPixels()
     {
         return Rgba ?? throw new InvalidOperationException($"CPU pixels for sector {Coord.X},{Coord.Y} have already been released.");
     }
 
+    public byte[] GetLiquidCoverCpuPixels()
+    {
+        return LiquidCoverRgba ?? throw new InvalidOperationException($"CPU liquid-cover pixels for sector {Coord.X},{Coord.Y} have already been released.");
+    }
+
     public int ReleaseCpuPixels()
     {
         var rgba = Rgba;
+        var liquidCoverRgba = LiquidCoverRgba;
         Rgba = null;
-        return rgba?.Length ?? 0;
+        LiquidCoverRgba = null;
+        return (rgba?.Length ?? 0) + (liquidCoverRgba?.Length ?? 0);
     }
 }
 
-public sealed record TerrainStaticSprite(
+public readonly record struct TerrainStaticSprite(
     StaticSpriteAsset Sprite,
     float IsoX,
     float IsoY,
@@ -935,6 +999,20 @@ public sealed record TerrainStaticSprite(
     int TileWorldX,
     int ChainDepth,
     int InsertionOrder);
+
+public readonly record struct TerrainLiquidSprite(
+    TextureFrameSequenceAsset Animation,
+    SectorCoord SectorCoord,
+    float IsoX,
+    float IsoY,
+    int Width,
+    int Height,
+    byte AlphaLeft,
+    byte AlphaTop,
+    byte AlphaRight,
+    byte AlphaBottom,
+    byte TextureVariant,
+    float AnimationPeriodSeconds);
 
 public readonly record struct TerrainRenderStats(
     int VisibleSectors,

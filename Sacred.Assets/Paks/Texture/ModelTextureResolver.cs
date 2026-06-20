@@ -2,8 +2,7 @@ namespace Sacred.Assets.Paks.Texture;
 
 public static class ModelTextureResolver
 {
-    private const int AnimatedFrameCount = 4;
-    private const float AnimatedFramesPerSecond = 4.0f;
+    private const float ScrollSpeedScale = 1000.0f;
     // Equipment multitexture rows use this flag for scrolling fill effects without a frame-strip texture.
     private const uint MultitextureScrollEffectFlag = 0x0010_0000;
     private const uint VerticalScrollEffectFlag = 0x0020_0000;
@@ -14,6 +13,9 @@ public static class ModelTextureResolver
         uint itemTextureId,
         uint effectTextureId,
         uint graphicRenderFlags,
+        ushort effectAnimationRate,
+        bool modelHasEffectTextureSurface,
+        bool preferItemTexture,
         string? surfaceTextureName)
     {
         var itemTextureName = string.Empty;
@@ -26,36 +28,52 @@ public static class ModelTextureResolver
         if (!string.IsNullOrWhiteSpace(surfaceTextureName) &&
             textureArchive.TryResolveTextureName(surfaceTextureName, out var resolvedSurfaceName))
         {
-            if (hasEffectTexture &&
-                string.Equals(resolvedSurfaceName, effectTextureName, StringComparison.OrdinalIgnoreCase))
+            if (hasEffectTexture && string.Equals(resolvedSurfaceName, effectTextureName, StringComparison.OrdinalIgnoreCase))
             {
                 return new ModelTextureReference(
                     resolvedSurfaceName,
-                    InferEffectAnimation(textureArchive, itemTextureName, resolvedSurfaceName, graphicRenderFlags));
+                    CreateEffectAnimation(
+                        textureArchive,
+                        resolvedSurfaceName,
+                        effectAnimationRate));
             }
 
-            if (hasEffectTexture)
+            // Single-material GRNs commonly embed an export-time default; Items.pak selects the item variant.
+            var baseTextureName = preferItemTexture && hasItemTexture
+                ? itemTextureName
+                : resolvedSurfaceName;
+            if (hasEffectTexture && !modelHasEffectTextureSurface)
+            {
                 return new ModelTextureReference(
-                    resolvedSurfaceName,
+                    baseTextureName,
                     TextureAnimation.None,
                     effectTextureName,
-                    InferEffectAnimation(textureArchive, resolvedSurfaceName, effectTextureName, graphicRenderFlags),
-                    InferOverlayMode(effectTextureId));
+                    CreateEffectAnimation(
+                        textureArchive,
+                        effectTextureName,
+                        effectAnimationRate),
+                    TextureOverlayMode.MultiTextureFill);
+            }
 
             return new ModelTextureReference(
-                resolvedSurfaceName,
+                baseTextureName,
                 TextureAnimation.None);
         }
 
         if (hasItemTexture)
         {
-            if (hasEffectTexture)
+            if (hasEffectTexture && !modelHasEffectTextureSurface)
+            {
                 return new ModelTextureReference(
                     itemTextureName,
                     TextureAnimation.None,
                     effectTextureName,
-                    InferEffectAnimation(textureArchive, itemTextureName, effectTextureName, graphicRenderFlags),
-                    InferOverlayMode(effectTextureId));
+                    CreateEffectAnimation(
+                        textureArchive,
+                        effectTextureName,
+                        effectAnimationRate),
+                    TextureOverlayMode.MultiTextureFill);
+            }
 
             return new ModelTextureReference(
                 itemTextureName,
@@ -65,43 +83,29 @@ public static class ModelTextureResolver
         if (hasEffectTexture)
             return new ModelTextureReference(
                 effectTextureName,
-                InferEffectAnimation(textureArchive, null, effectTextureName, graphicRenderFlags));
+                CreateEffectAnimation(
+                    textureArchive,
+                    effectTextureName,
+                    effectAnimationRate));
 
         return string.IsNullOrWhiteSpace(surfaceTextureName)
             ? new ModelTextureReference(string.Empty, TextureAnimation.None)
             : ModelTextureReference.Static(surfaceTextureName);
     }
 
-    private static TextureOverlayMode InferOverlayMode(uint effectTextureId) =>
-        effectTextureId <= PrimaryTextureTableLimit
-            ? TextureOverlayMode.MultiTextureFill
-            : TextureOverlayMode.AlphaBlend;
-
-    private static TextureAnimation InferEffectAnimation(
+    private static TextureAnimation CreateEffectAnimation(
         TexturePakArchive textureArchive,
-        string? baseTextureName,
         string effectTextureName,
-        uint graphicRenderFlags)
+        ushort effectAnimationRate)
     {
-        if (!textureArchive.TryResolveTextureRecord(effectTextureName, out var effectRecord))
+        if (effectAnimationRate == 0)
             return TextureAnimation.None;
 
-        if (!string.IsNullOrWhiteSpace(baseTextureName) &&
-            textureArchive.TryResolveTextureRecord(baseTextureName, out var baseRecord) &&
-            effectRecord.Height > baseRecord.Height)
-        {
-            return new TextureAnimation(
-                AnimatedFrameCount,
-                AnimatedFramesPerSecond,
-                TextureAnimationMode.FrameStrip);
-        }
+        if (!textureArchive.TryResolveTextureRecord(effectTextureName, out _))
+            return TextureAnimation.None;
 
-        if ((graphicRenderFlags & (MultitextureScrollEffectFlag | VerticalScrollEffectFlag)) != 0)
-            return new TextureAnimation(
-                1,
-                AnimatedFramesPerSecond,
-                TextureAnimationMode.VerticalScrollBlackKey);
-
-        return TextureAnimation.None;
+        return new TextureAnimation(
+            TextureAnimationMode.VerticalScrollBlackKey,
+            effectAnimationRate / ScrollSpeedScale);
     }
 }

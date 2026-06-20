@@ -36,10 +36,6 @@
             <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
         </PackageReference>
         <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2"/>
-        <PackageReference Include="Raffinert.EmbeddedResourceAccessGenerator" Version="1.0.10">
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-        </PackageReference>
         <PackageReference Include="Vortice.Direct3D12" Version="3.8.3"/>
         <PackageReference Include="Vortice.DXGI" Version="3.8.3"/>
     </ItemGroup>
@@ -47,10 +43,7 @@
     <ItemGroup>
         <ProjectReference Include="..\Sacred.Assets\Sacred.Assets.csproj"/>
         <ProjectReference Include="..\Sacred.Granny\Sacred.Granny.csproj"/>
-    </ItemGroup>
-
-    <ItemGroup>
-        <EmbeddedResource Include="Shaders\*.hlsl"/>
+        <ProjectReference Include="..\Sacred.Shaders\Sacred.Shaders.csproj"/>
     </ItemGroup>
 </Project>
 

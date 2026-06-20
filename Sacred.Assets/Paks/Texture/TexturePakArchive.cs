@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.Win32.SafeHandles;
 using Sacred.Assets.Utils;
 
 namespace Sacred.Assets.Paks.Texture;
@@ -111,19 +112,36 @@ public sealed class TexturePakArchive : IDisposable
         var archive = indexedRecord.Archive;
         var record = indexedRecord.Record;
         var payloadOffset = record.Offset + TexturePakDecoder.TextureHeaderSize;
-        var payloadLength = Math.Min(record.Size, Math.Max(0, archive.Stream.Length - payloadOffset));
+        var payload = new byte[record.Size];
+        await ReadExactlyAtAsync(
+                archive.Stream.SafeFileHandle,
+                payload,
+                payloadOffset,
+                cancellationToken)
+            .ConfigureAwait(false);
 
-        await archive.StreamLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
+        return TexturePakDecoder.Decode(record, payload);
+    }
+
+    private static async Task ReadExactlyAtAsync(
+        SafeFileHandle handle,
+        Memory<byte> destination,
+        long fileOffset,
+        CancellationToken cancellationToken)
+    {
+        var totalRead = 0;
+        while (totalRead < destination.Length)
         {
-            archive.Stream.Position = payloadOffset;
-            var payload = new byte[(int)payloadLength];
-            await archive.Stream.ReadExactlyAsync(payload, cancellationToken).ConfigureAwait(false);
-            return TexturePakDecoder.Decode(record, payload);
-        }
-        finally
-        {
-            archive.StreamLock.Release();
+            var bytesRead = await RandomAccess.ReadAsync(
+                    handle,
+                    destination[totalRead..],
+                    fileOffset + totalRead,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (bytesRead == 0)
+                throw new EndOfStreamException("The texture payload ended before its indexed size.");
+
+            totalRead += bytesRead;
         }
     }
 
@@ -284,13 +302,8 @@ public sealed class TexturePakArchive : IDisposable
     {
         public string Path { get; } = path;
         public FileStream Stream { get; } = stream;
-        public SemaphoreSlim StreamLock { get; } = new(1, 1);
 
-        public void Dispose()
-        {
-            Stream.Dispose();
-            StreamLock.Dispose();
-        }
+        public void Dispose() => Stream.Dispose();
     }
 
     private readonly record struct IndexedTexturePakRecord(PakStream Archive, TexturePakRecord Record);

@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using Sacred.Core.World;
+using System.Numerics;
+using System.Threading.Tasks;
+using Sacred.Core.World.Sector;
 using Sacred.Engine.Rendering;
 using Sacred.Engine.Scene;
+using Sacred.Shaders;
 using Vortice.Direct3D12;
 
 namespace Sacred.Engine.Graphics;
@@ -26,9 +29,9 @@ public unsafe class Dx12DebugOverlay : IDisposable
     private readonly GpuDescriptorHandle _debugOverlayGpuHandle;
     private readonly CpuDescriptorHandle _controlsOverlayCpuHandle;
     private readonly GpuDescriptorHandle _controlsOverlayGpuHandle;
-    private readonly List<ID3D12Resource> _uploadResources;
+    private readonly WorldQuadShaderConstantsUpdater _worldQuadShaderConstants = new();
 
-    private bool _debugOverlayDirty = true;
+    private bool _debugOverlayDirty;
     private bool _controlsOverlayDirty = true;
     private ID3D12Resource? _debugOverlayTexture;
     private ID3D12Resource? _controlsOverlayTexture;
@@ -38,6 +41,7 @@ public unsafe class Dx12DebugOverlay : IDisposable
     private int _framesSinceTitleUpdate;
     private double _lastTitleUpdateSeconds;
     private double _fps;
+    private Task? _debugRasterTask;
 
     public Dx12DebugOverlay(
         ID3D12GraphicsCommandList commandList,
@@ -59,7 +63,6 @@ public unsafe class Dx12DebugOverlay : IDisposable
         _debugOverlayGpuHandle = debugOverlayGpuHandle;
         _controlsOverlayCpuHandle = controlsOverlayCpuHandle;
         _controlsOverlayGpuHandle = controlsOverlayGpuHandle;
-        _uploadResources = [];
         _controlsOverlay.SetLines(
         [
             DebugTextLine.CarolingTitle("CONTROLS"),
@@ -69,26 +72,34 @@ public unsafe class Dx12DebugOverlay : IDisposable
             DebugTextLine.Default("ZOOM: Q/E, WHEEL, RIGHT STICK"),
             DebugTextLine.Default("TOGGLE HDR: F4"),
             DebugTextLine.Default("FRAME PACING: F5"),
-            DebugTextLine.Default("LOW LATENCY: F6")
+            DebugTextLine.Default("LOW LATENCY: F6"),
+            DebugTextLine.Default("WORLD LIGHT: F7")
         ]);
     }
 
-    public void Update(SacredCamera camera, VisibleWorld world, SceneState scene, Dx12DebugOverlayStats rendererStats)
+    public void Update(
+        SacredCamera camera,
+        VisibleWorld world,
+        SceneState scene,
+        Dx12DebugOverlayStats rendererStats,
+        List<ID3D12Resource> transientResources)
     {
-        DisposeUploadResources();
-        UpdateDebugInfo(camera, world, scene, rendererStats);
+        CompleteDebugRasterIfReady();
         UploadOverlayIfNeeded(
             _debugOverlay,
             ref _debugOverlayDirty,
             ref _debugOverlayTexture,
             ref _debugOverlayState,
-            _debugOverlayCpuHandle);
+            _debugOverlayCpuHandle,
+            transientResources);
         UploadOverlayIfNeeded(
             _controlsOverlay,
             ref _controlsOverlayDirty,
             ref _controlsOverlayTexture,
             ref _controlsOverlayState,
-            _controlsOverlayCpuHandle);
+            _controlsOverlayCpuHandle,
+            transientResources);
+        QueueDebugRaster(camera, world, scene, rendererStats);
     }
 
     private void UploadOverlayIfNeeded(
@@ -96,7 +107,8 @@ public unsafe class Dx12DebugOverlay : IDisposable
         ref bool dirty,
         ref ID3D12Resource? texture,
         ref ResourceStates state,
-        CpuDescriptorHandle cpuHandle)
+        CpuDescriptorHandle cpuHandle,
+        List<ID3D12Resource> transientResources)
     {
         if (!dirty)
             return;
@@ -108,7 +120,7 @@ public unsafe class Dx12DebugOverlay : IDisposable
                 DebugTextOverlay.Width,
                 DebugTextOverlay.Height,
                 overlay.Rgba,
-                _uploadResources);
+                transientResources);
             _textureUploader.CreateShaderResourceView(texture, cpuHandle);
             state = ResourceStates.PixelShaderResource;
         }
@@ -121,7 +133,7 @@ public unsafe class Dx12DebugOverlay : IDisposable
                 DebugTextOverlay.Height,
                 overlay.Rgba,
                 state,
-                _uploadResources);
+                transientResources);
         }
 
         dirty = false;
@@ -163,35 +175,41 @@ public unsafe class Dx12DebugOverlay : IDisposable
         if (texture is null || state != ResourceStates.PixelShaderResource)
             return;
 
-        var constants = stackalloc float[12];
-        constants[0] = x;
-        constants[1] = y;
-        constants[2] = Math.Min(DebugTextOverlay.Width, Math.Max(0, renderWidth - x - DebugOverlayX));
-        constants[3] = Math.Min(DebugTextOverlay.Height, Math.Max(0, renderHeight - y - DebugOverlayY));
-        constants[4] = renderWidth;
-        constants[5] = renderHeight;
-        constants[6] = 0.0f;
-        constants[7] = 0.0f;
-        constants[8] = uiPaperWhiteNits;
-        constants[9] = uiPaperWhiteNits;
-        constants[10] = 1.0f;
-        constants[11] = 0.0f;
+        var width = Math.Min(DebugTextOverlay.Width, Math.Max(0, renderWidth - x - DebugOverlayX));
+        var height = Math.Min(DebugTextOverlay.Height, Math.Max(0, renderHeight - y - DebugOverlayY));
 
-        if (constants[2] <= 0.0f || constants[3] <= 0.0f)
+        if (width <= 0.0f || height <= 0.0f)
             return;
 
-        _commandList.SetGraphicsRoot32BitConstants(0, 12, constants, 0);
-        _commandList.SetGraphicsRootDescriptorTable(1, gpuHandle);
+        var constants = stackalloc float[WorldQuadShaderLayout.RootConstantsCount];
+        _worldQuadShaderConstants.Write(
+            constants,
+            new WorldQuadShaderConstants(
+                new Vector4(x, y, width, height),
+                new Vector2(renderWidth, renderHeight),
+                AmbientIntensity: 1.0f,
+                IsPremultipliedAlpha: false,
+                PaperWhiteNits: uiPaperWhiteNits));
+
+        _commandList.SetGraphicsRoot32BitConstants(
+            WorldQuadShaderLayout.RootConstantsRootParameter,
+            WorldQuadShaderLayout.RootConstantsCount,
+            constants,
+            0);
+        _commandList.SetGraphicsRootDescriptorTable(WorldQuadShaderLayout.TextureRootParameter, gpuHandle);
         _commandList.DrawInstanced(6, 1, 0, 0);
     }
 
-    private void UpdateDebugInfo(
+    private void QueueDebugRaster(
         SacredCamera camera,
         VisibleWorld world,
         SceneState scene,
         Dx12DebugOverlayStats rendererStats)
     {
         _framesSinceTitleUpdate++;
+        if (_debugRasterTask is not null || _debugOverlayDirty)
+            return;
+
         var now = _clock.Elapsed.TotalSeconds;
         var elapsed = now - _lastTitleUpdateSeconds;
         if (elapsed < 0.5 && _debugOverlayTexture is not null)
@@ -215,12 +233,21 @@ public unsafe class Dx12DebugOverlay : IDisposable
             $"GROUND {stats.DrawnTiles}/{stats.CandidateTiles} MISSING {stats.MissingTiles} CACHE {stats.CachedTiles}",
             $"FLOOR {stats.FloorDrawnTiles}/{stats.FloorCandidateTiles} CACHE {stats.FloorCachedTiles}",
             $"LIQUID {stats.LiquidDrawnTiles}/{stats.LiquidCandidateTiles} CACHE {stats.LiquidCachedTiles}",
-            $"STATIC {stats.StaticDrawnObjects}/{stats.StaticCandidateObjects} MISSING {stats.StaticMissingObjects}",
+            $"STATIC {stats.StaticDrawnObjects}/{stats.StaticCandidateObjects} MISSING {stats.StaticMissingObjects}  MODEL TEX R{rendererStats.ReadyModelTextureCount} A{rendererStats.LoadingModelTextureCount} G{rendererStats.UploadingModelTextureCount} F{rendererStats.FailedModelTextureCount}",
             $"MODEL {FormatActiveModel(scene)}",
             $"CAMERA {camera.WorldCenter.X:0.0},{camera.WorldCenter.Y:0.0} SECTOR {world.CenterSector.X},{world.CenterSector.Y}"
         };
 
-        _debugOverlay.SetLines(lines);
+        _debugRasterTask = Task.Run(() => _debugOverlay.SetLines(lines));
+    }
+
+    private void CompleteDebugRasterIfReady()
+    {
+        if (_debugRasterTask is not { IsCompleted: true } completed)
+            return;
+
+        completed.GetAwaiter().GetResult();
+        _debugRasterTask = null;
         _debugOverlayDirty = true;
     }
 
@@ -233,16 +260,10 @@ public unsafe class Dx12DebugOverlay : IDisposable
         return $"{model.Name} V{model.Mesh.Vertices.Length} I{model.Mesh.Indices.Length}";
     }
 
-    private void DisposeUploadResources()
-    {
-        foreach (var resource in _uploadResources)
-            resource.Dispose();
-        _uploadResources.Clear();
-    }
-
     public void Dispose()
     {
-        DisposeUploadResources();
+        _debugRasterTask?.GetAwaiter().GetResult();
+        _debugRasterTask = null;
         _debugOverlayTexture?.Dispose();
         _debugOverlayTexture = null;
         _controlsOverlayTexture?.Dispose();
@@ -255,4 +276,8 @@ public readonly record struct Dx12DebugOverlayStats(
     int GpuSectorTextureCount,
     int MaxSectorTextureCount,
     int PendingSectorUploadCount,
+    int ReadyModelTextureCount,
+    int LoadingModelTextureCount,
+    int UploadingModelTextureCount,
+    int FailedModelTextureCount,
     string FramePacingStatus);

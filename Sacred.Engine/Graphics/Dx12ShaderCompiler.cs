@@ -1,17 +1,18 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 using Sacred.Engine.Extern;
+using Sacred.Shaders;
 
 namespace Sacred.Engine.Graphics;
 
 public static class Dx12ShaderCompiler
 {
-    internal static unsafe ReadOnlyMemory<byte> CompileShader(Dx12Shader shader)
+    internal static unsafe ReadOnlyMemory<byte> CompileShader(Dx12ShaderSource shader)
     {
         var sourceBytes = shader.ReadAllBytes();
         var sourceName = shader.Name;
-        var entryPoint = shader.ShaderEntry;
-        var target = shader.ShaderTarget;
+        var entryPoint = shader.EntryPoint;
+        var target = shader.Target;
 
         int result;
         nint code;

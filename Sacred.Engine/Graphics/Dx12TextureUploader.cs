@@ -7,14 +7,18 @@ using Vortice.DXGI;
 
 namespace Sacred.Engine.Graphics;
 
-public sealed unsafe class Dx12TextureUploader(ID3D12Device device)
+public sealed class Dx12TextureUploader
 {
     private const Format Rgba8Format = Format.R8G8B8A8_UNorm;
 
-    public void CreateShaderResourceView(ID3D12Resource texture, CpuDescriptorHandle descriptor) =>
-        device.CreateShaderResourceView(texture, null, descriptor);
+    private readonly ID3D12Device _device;
 
-    public ID3D12Resource CreateUploadBuffer(ReadOnlySpan<byte> bytes)
+    public Dx12TextureUploader(ID3D12Device device) => _device = device;
+
+    public void CreateShaderResourceView(ID3D12Resource texture, CpuDescriptorHandle descriptor) =>
+        _device.CreateShaderResourceView(texture, null, descriptor);
+
+    public unsafe ID3D12Resource CreateUploadBuffer(ReadOnlySpan<byte> bytes)
     {
         var description = new ResourceDescription(
             ResourceDimension.Buffer,
@@ -44,6 +48,24 @@ public sealed unsafe class Dx12TextureUploader(ID3D12Device device)
         }
 
         return resource;
+    }
+
+    public static unsafe void UpdateUploadBuffer(ID3D12Resource resource, ReadOnlySpan<byte> bytes)
+    {
+        if ((ulong)bytes.Length > resource.Description.Width)
+            throw new ArgumentException("The source data is larger than the upload buffer.", nameof(bytes));
+
+        void* mapped;
+        resource.Map(0, null, &mapped).CheckError();
+        try
+        {
+            fixed (byte* source = bytes)
+                Buffer.MemoryCopy(source, mapped, checked((long)resource.Description.Width), bytes.Length);
+        }
+        finally
+        {
+            resource.Unmap(0, null);
+        }
     }
 
     public ID3D12Resource UploadRgbaTexture(
@@ -83,13 +105,14 @@ public sealed unsafe class Dx12TextureUploader(ID3D12Device device)
         ICollection<ID3D12Resource> retainedUploadResources)
     {
         var upload = CreateRgbaUploadBuffer(width, height, rgba);
-        retainedUploadResources.Add(upload);
 
         if (currentState != ResourceStates.CopyDest)
             Transition(commandList, texture, currentState, ResourceStates.CopyDest);
 
         CopyUploadToTexture(commandList, upload, texture, width, height);
         Transition(commandList, texture, ResourceStates.CopyDest, ResourceStates.PixelShaderResource);
+
+        retainedUploadResources.Add(upload);
         return ResourceStates.PixelShaderResource;
     }
 
@@ -138,10 +161,68 @@ public sealed unsafe class Dx12TextureUploader(ID3D12Device device)
         }
     }
 
+    /// <summary>
+    /// Submits both terrain textures without waiting for the GPU. The returned upload owns every
+    /// object that must remain alive until its fence has completed.
+    /// </summary>
+    public Dx12SectorTextureUpload SubmitSectorTextures(
+        ID3D12CommandQueue commandQueue,
+        ID3D12Fence fence,
+        ref ulong fenceValue,
+        int width,
+        int height,
+        byte[] baseRgba,
+        byte[] liquidCoverRgba)
+    {
+        ID3D12CommandAllocator? commandAllocator = null;
+        ID3D12GraphicsCommandList? commandList = null;
+        ID3D12Resource? baseTexture = null;
+        ID3D12Resource? liquidCoverTexture = null;
+        ID3D12Resource? baseUpload = null;
+        ID3D12Resource? liquidCoverUpload = null;
+        try
+        {
+            commandAllocator = _device.CreateCommandAllocator(CommandListType.Direct);
+            commandList = _device.CreateCommandList<ID3D12GraphicsCommandList>(CommandListType.Direct, commandAllocator, null);
+            baseTexture = CreateTexture2D(width, height, Rgba8Format, ResourceStates.CopyDest);
+            liquidCoverTexture = CreateTexture2D(width, height, Rgba8Format, ResourceStates.CopyDest);
+            baseUpload = CreateRgbaUploadBuffer(width, height, baseRgba);
+            liquidCoverUpload = CreateRgbaUploadBuffer(width, height, liquidCoverRgba);
+
+            CopyUploadToTexture(commandList, baseUpload, baseTexture, width, height);
+            Transition(commandList, baseTexture, ResourceStates.CopyDest, ResourceStates.PixelShaderResource);
+            CopyUploadToTexture(commandList, liquidCoverUpload, liquidCoverTexture, width, height);
+            Transition(commandList, liquidCoverTexture, ResourceStates.CopyDest, ResourceStates.PixelShaderResource);
+            commandList.Close();
+            commandQueue.ExecuteCommandLists([commandList]);
+            fenceValue++;
+            commandQueue.Signal(fence, fenceValue).CheckError();
+
+            return new Dx12SectorTextureUpload(
+                baseTexture,
+                liquidCoverTexture,
+                baseUpload,
+                liquidCoverUpload,
+                commandAllocator,
+                commandList,
+                fenceValue);
+        }
+        catch
+        {
+            liquidCoverUpload?.Dispose();
+            baseUpload?.Dispose();
+            liquidCoverTexture?.Dispose();
+            baseTexture?.Dispose();
+            commandList?.Dispose();
+            commandAllocator?.Dispose();
+            throw;
+        }
+    }
+
     private ID3D12Resource CreateCommittedResource(HeapType heapType, ResourceDescription description, ResourceStates initialState)
     {
         var heapProperties = new HeapProperties(heapType, 0, 0);
-        return device.CreateCommittedResource(heapProperties, HeapFlags.None, description, initialState, null);
+        return _device.CreateCommittedResource(heapProperties, HeapFlags.None, description, initialState, null);
     }
 
     private ID3D12Resource CreateTexture2D(int width, int height, Format format, ResourceStates initialState)
@@ -162,7 +243,7 @@ public sealed unsafe class Dx12TextureUploader(ID3D12Device device)
         return CreateCommittedResource(HeapType.Default, textureDescription, initialState);
     }
 
-    private ID3D12Resource CreateRgbaUploadBuffer(int width, int height, byte[] rgba)
+    private unsafe ID3D12Resource CreateRgbaUploadBuffer(int width, int height, byte[] rgba)
     {
         if (width <= 0 || height <= 0)
             throw new ArgumentOutOfRangeException(nameof(width), "Texture dimensions must be positive.");
@@ -238,4 +319,53 @@ public sealed unsafe class Dx12TextureUploader(ID3D12Device device)
     }
 
     private static int Align(int value, int alignment) => (value + alignment - 1) & ~(alignment - 1);
+}
+
+public sealed class Dx12SectorTextureUpload : IDisposable
+{
+    private ID3D12Resource? _baseUpload;
+    private ID3D12Resource? _liquidCoverUpload;
+    private ID3D12CommandAllocator? _commandAllocator;
+    private ID3D12GraphicsCommandList? _commandList;
+
+    internal Dx12SectorTextureUpload(
+        ID3D12Resource baseTexture,
+        ID3D12Resource liquidCoverTexture,
+        ID3D12Resource baseUpload,
+        ID3D12Resource liquidCoverUpload,
+        ID3D12CommandAllocator commandAllocator,
+        ID3D12GraphicsCommandList commandList,
+        ulong fenceValue)
+    {
+        BaseTexture = baseTexture;
+        LiquidCoverTexture = liquidCoverTexture;
+        _baseUpload = baseUpload;
+        _liquidCoverUpload = liquidCoverUpload;
+        _commandAllocator = commandAllocator;
+        _commandList = commandList;
+        FenceValue = fenceValue;
+    }
+
+    public ID3D12Resource BaseTexture { get; }
+    public ID3D12Resource LiquidCoverTexture { get; }
+    public ulong FenceValue { get; }
+
+    public void ReleaseCompletedUploadResources()
+    {
+        _liquidCoverUpload?.Dispose();
+        _liquidCoverUpload = null;
+        _baseUpload?.Dispose();
+        _baseUpload = null;
+        _commandList?.Dispose();
+        _commandList = null;
+        _commandAllocator?.Dispose();
+        _commandAllocator = null;
+    }
+
+    public void Dispose()
+    {
+        ReleaseCompletedUploadResources();
+        BaseTexture.Dispose();
+        LiquidCoverTexture.Dispose();
+    }
 }

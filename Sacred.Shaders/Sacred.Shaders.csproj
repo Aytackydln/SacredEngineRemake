@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Raffinert.EmbeddedResourceAccessGenerator" Version="1.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="SacredShadersBuildOutput" Value="$(TargetDir)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Shaders\*.hlsl" />
+    <EmbeddedResource Include="ShadersHdr\*.hlsl" />
+  </ItemGroup>
+
+</Project>

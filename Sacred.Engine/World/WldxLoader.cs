@@ -4,6 +4,7 @@ using System.IO.Compression;
 using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Core.World;
+using Sacred.Core.World.Sector;
 
 namespace Sacred.Engine.World;
 
@@ -14,16 +15,19 @@ public sealed class WldxLoader(FileStream wldxStream) : IDisposable
 
     private readonly SemaphoreSlim _wldxLock = new(1, 1);
 
-    public async Task<byte[]> ReadWldx(KeyxSectorRecord entry, uint sectorId)
+    public async Task<byte[]> ReadWldx(
+        KeyxSectorRecord entry,
+        uint sectorId,
+        CancellationToken cancellationToken = default)
     {
-        var compressed = await ReadWldxCompressed(entry, sectorId);
+        var compressed = await ReadWldxCompressed(entry, sectorId, cancellationToken);
 
         byte[] decompressed;
         using (var compressedStream = new MemoryStream(compressed, writable: false))
         await using (var zlib = new ZLibStream(compressedStream, CompressionMode.Decompress))
         using (var output = new MemoryStream())
         {
-            await zlib.CopyToAsync(output);
+            await zlib.CopyToAsync(output, cancellationToken);
             decompressed = output.ToArray();
         }
 
@@ -35,18 +39,27 @@ public sealed class WldxLoader(FileStream wldxStream) : IDisposable
         return decompressed;
     }
 
-    private async Task<byte[]> ReadWldxCompressed(KeyxSectorRecord entry, uint sectorId)
+    private async Task<byte[]> ReadWldxCompressed(
+        KeyxSectorRecord entry,
+        uint sectorId,
+        CancellationToken cancellationToken)
     {
-        await _wldxLock.WaitAsync();
-        wldxStream.Position = entry.CompressedOffset;
+        await _wldxLock.WaitAsync(cancellationToken);
+        try
+        {
+            wldxStream.Position = entry.CompressedOffset;
 
-        if (entry.CompressedSize > int.MaxValue)
-            throw new InvalidDataException($"Sector {sectorId} compressed block is too large.");
+            if (entry.CompressedSize > int.MaxValue)
+                throw new InvalidDataException($"Sector {sectorId} compressed block is too large.");
 
-        var compressed = new byte[(int)entry.CompressedSize];
-        await wldxStream.ReadExactlyAsync(compressed);
-        _wldxLock.Release();
-        return compressed;
+            var compressed = new byte[(int)entry.CompressedSize];
+            await wldxStream.ReadExactlyAsync(compressed, cancellationToken);
+            return compressed;
+        }
+        finally
+        {
+            _wldxLock.Release();
+        }
     }
 
     public void Dispose()

@@ -37,4 +37,32 @@ public static class IsometricProjection
         var targetIso = WorldToIso(worldCenter) + (screenPosition - screenCenter) / zoom;
         return IsoToWorld(targetIso);
     }
+
+    /// <summary>
+    /// Captures the single world-to-screen transform used for an entire rendered frame.
+    /// Keeping its origin in double precision prevents separately drawn sector quads and
+    /// sprites from accumulating different float rounding while the camera moves.
+    /// </summary>
+    public static WorldScreenTransform CreateScreenTransform(
+        Vector2 worldCenter,
+        float zoom,
+        int viewportWidth,
+        int viewportHeight)
+    {
+        var centerIso = WorldToIso(worldCenter);
+        return new WorldScreenTransform(
+            viewportWidth * 0.5d - centerIso.X * zoom,
+            viewportHeight * 0.5d - centerIso.Y * zoom,
+            zoom);
+    }
+}
+
+/// <summary>Immutable frame-local conversion from isometric pixel coordinates to screen pixels.</summary>
+public readonly record struct WorldScreenTransform(double OriginX, double OriginY, float Zoom)
+{
+    public Vector2 ToScreen(float isoX, float isoY) => new(
+        (float)(OriginX + isoX * Zoom),
+        (float)(OriginY + isoY * Zoom));
+
+    public float Scale(float value) => value * Zoom;
 }

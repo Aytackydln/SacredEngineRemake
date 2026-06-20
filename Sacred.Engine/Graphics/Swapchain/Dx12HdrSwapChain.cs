@@ -1,4 +1,5 @@
 ﻿using System;
+using Sacred.Shaders;
 using Vortice.Direct3D12;
 using Vortice.DXGI;
 
@@ -26,7 +27,7 @@ internal sealed class Dx12HdrSwapChain : Dx12SwapChain
 
     public override ColorSpaceType ColorSpace => HdrColorSpace;
 
-    public override Dx12ShaderSet Shaders => Dx12Shaders.Hdr;
+    public override Dx12ShaderSet Shaders => Dx12ShaderCatalog.Hdr;
 
     public override Dx12DisplayProfile DisplayProfile => Dx12DisplayProfile.Hdr;
 

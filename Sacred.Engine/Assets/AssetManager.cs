@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Assets.Paks.Items;
@@ -10,86 +12,134 @@ using Sacred.Assets.Paks.Mixed;
 using Sacred.Assets.Paks.Models;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Assets.Paks.Tiles;
+using Sacred.Assets.Paks.Weapon;
 using Sacred.Core;
 using Sacred.Core.Pak.Items;
+using Sacred.Core.Pak.Weapon;
+using Sacred.Engine.Rendering.EquipmentEffects;
 using Sacred.Granny;
 
 namespace Sacred.Engine.Assets;
 
 public sealed class AssetManager : IDisposable
 {
+    // dictionaries should have fixed size to prevent resizing during game thus crash
     private const int MaxTextureCacheEntries = 64;
     private const int MaxModelTextureCacheEntries = 128;
+    private const int DefaultMaxCache = 256;
     
-    // These are Items.pak entry ids used by game item references. The comments
-    // document the GRN model rows resolved at runtime, while the same item rows
-    // also supply texture/effect ids.
-    private const ushort Seraphim = 1; // SERAPHIM.GRN
-    private const ushort Gladiator = 2; // GLADIATOR.GRN
-    private const ushort BattleMage = 3; // MAGICIAN.GRN
-    private const ushort DarkElf = 4; // DARKELVE.GRN
-    private const ushort VampiressDay = 6; // VLADY_D.GRN
-    private const ushort VampiressNight = 7; // VLADY_N.GRN, shares character ItemId 6
-    private const ushort Dwarf = 8; // dwarf.grn
-    private const ushort Daemon = 9; // Daemonia.grn
-    private const ushort WoodElf = 108; // Waldelfe.grn
+    // These are game item ids (the ItemId field in Items.pak), not descriptor row indexes.
+    private const uint Seraphim = 1; // SERAPHIM.GRN
+    private const uint Gladiator = 2; // GLADIATOR.GRN
+    private const uint BattleMage = 3; // MAGICIAN.GRN
+    private const uint DarkElf = 4; // DARKELVE.GRN
+    private const uint Vampiress = 6; // VLADY_D.GRN and VLADY_N.GRN
+    private const uint Dwarf = 8; // dwarf.grn
+    private const uint Daemon = 9; // Daemonia.grn
+    private const uint WoodElf = 108; // Waldelfe.grn
 
-    private const ushort DaemonHelm = 1222; // Daemonia_Armor01_Helm.grn
-    private const ushort DarkElfBreastplate = 1251; // DElve_sa5_body.grn
-    private const ushort SeraphimHelm = 1840; // Seraphim_christmas_helm.GRN
-    private const ushort DarkElfClothArmor = 3160; // ELVE_MAGICAN_CLOTH.GRN
-    private const ushort BattleMageCowl = 3219; // magician_cowl.grn
-    private const ushort SeraphimWings = 4006; // SeraWings01.grn, animated wing effect row
-    private const ushort SeraphimHair = 4007; // SeraHair01.grn
-    private const ushort VampiressDayHair = 4028; // vlady_d_hair.grn
-    private const ushort VampiressNightHair = 4029; // vlady_n_hair.grn
-    private const ushort GladiatorBelt = 4054; // Gladiator_belt.grn
-    private const ushort ElvenBow = 1747;
+    private const string ShieldAttachBone = "Bip01 L Forearm";
+    private const string LeftWeaponAttachBone = "Bip01 L Hand";
+    private const string RightWeaponAttachBone = "Bip01 R Hand";
+    private const string LeftWeaponAnchorBone = "Bone_weapon_01";
+    private const string RightWeaponAnchorBone = "Bone_weapon_02";
 
-    private static readonly ushort[] DalmarSet = [3271, 3272, 3273, 3274];
+    private const uint DaemonHelm = 1222; // Daemonia_Armor01_Helm.grn
+    private const uint DarkElfBreastplate = 1251; // DElve_sa5_body.grn
+    private const uint SeraphimHelm = 1840; // Seraphim_christmas_helm.GRN
+    private const uint SeraphimGodsShield = 4017;
+    private const uint DarkElfClothArmor = 3160; // ELVE_MAGICAN_CLOTH.GRN
+    private const uint BattleMageCowl = 3219; // magician_cowl.grn
+    private const uint SeraphimWings = 4006; // SeraWings01.grn, animated wing effect row
+    private const uint SeraphimHair = 4007; // SeraHair01.grn
+    private const uint SeraphimArms = 4082;
+    private const uint SeraphimBoots = 4083;
+    private const uint SeraphimShoulder = 4084;
+    private const uint VampiressDayHair = 4028; // vlady_d_hair.grn
+    private const uint VampiressNightHair = 4029; // vlady_n_hair.grn
+    private const uint GladiatorBelt = 4054; // Gladiator_belt.grn
+
+    private const uint SeraphimSword = 1851;
+    private const uint ElvenBow = 1747;
+    private const uint VampireSword = 1771;
+    private const uint BattleMageStaff = 1877;
+
+    private const uint LargeTorch = 5633;
+
+    private static readonly PlayerCharacterAttachment[] SeraphimAttachments = [
+        new(SeraphimSword, RightWeaponAttachBone, LeftWeaponAnchorBone),
+        new(SeraphimWings),
+        new(SeraphimHair),
+        new(SeraphimHelm),
+        new(SeraphimGodsShield, ShieldAttachBone, RightWeaponAnchorBone),
+        new(SeraphimArms),
+        new(SeraphimBoots),
+        new(SeraphimShoulder)
+    ];
+
+    private static readonly PlayerCharacterAttachment[] DalmarSet = [
+        new(3271),
+        new(3272),
+        new(3273),
+        new(3274),
+        new(VampireSword, RightWeaponAttachBone, LeftWeaponAnchorBone),
+    ];
 
     private static readonly IReadOnlyDictionary<string, ModelTextureReference> EmptyTextureAliases =
         new Dictionary<string, ModelTextureReference>(StringComparer.OrdinalIgnoreCase);
 
     private static readonly PlayerCharacterDefinition[] PlayerCharacterDefinitions =
     [
-        new(Seraphim, "Seraphim", [SeraphimWings, SeraphimHair, SeraphimHelm], []),
-        new(Gladiator, "Gladiator", [GladiatorBelt], []),
-        new(WoodElf, "Wood Elf", [ElvenBow], []),
-        new(DarkElf, "Dark Elf 1", [DarkElfClothArmor], []),
-        new(DarkElf, "Dark Elf 2", [DarkElfBreastplate], []),
-        new(BattleMage, "Battle Mage", [BattleMageCowl], []),
-        new(VampiressDay, "Vampiress D", DalmarSet, []),
-        new(VampiressDay, "Vampiress D (Dalmar)", [VampiressDayHair], []),
-        new(VampiressNight, "Vampiress N", [VampiressNightHair], []),
-        new(Dwarf, "Dwarf", [], []),
-        new(Daemon, "Daemon", [DaemonHelm], [])
+        new(Seraphim, "SERAPHIM.GRN", "Seraphim", SeraphimAttachments),
+        new(Gladiator, "GLADIATOR.GRN", "Gladiator", [new(GladiatorBelt)]),
+        new(WoodElf, "Waldelfe.grn", "Wood Elf", [new(ElvenBow, RightWeaponAttachBone, RightWeaponAnchorBone)]),
+        new(DarkElf, "DARKELVE.GRN", "Dark Elf 1", [new(DarkElfClothArmor)]),
+        new(DarkElf, "DARKELVE.GRN", "Dark Elf 2", [new(DarkElfBreastplate)]),
+        new(BattleMage, "MAGICIAN.GRN", "Battle Mage", [new(BattleMageCowl), new(BattleMageStaff, LeftWeaponAttachBone, RightWeaponAnchorBone)]),
+        new(Vampiress, "VLADY_D.GRN", "Vampiress D", DalmarSet),
+        new(Vampiress, "VLADY_D.GRN", "Vampiress D (Dalmar)", [new(VampiressDayHair), new (LargeTorch, RightWeaponAttachBone, LeftWeaponAnchorBone)]),
+        new(Vampiress, "VLADY_N.GRN", "Vampiress N", [new(VampiressNightHair)]),
+        new(Dwarf, "dwarf.grn", "Dwarf", []),
+        new(Daemon, "Daemonia.grn", "Daemon", [new(DaemonHelm)])
     ];
 
     private readonly TexturePakArchive _texturePak;
+    private readonly TexturePakArchive _modelTexturePak;
     private readonly TilesPakArchive _tilesPak;
-    private readonly FrozenDictionary<ushort, ItemsPakEntry> _items;
+    private readonly FrozenDictionary<ushort, ItemsPakEntry> _itemsByModelId;
+    private readonly FrozenDictionary<uint, ItemsPakEntry[]> _itemsByItemId;
+    private readonly FrozenDictionary<ushort, SacredEquipment> _equipmentByModelId;
     private readonly MixedPakArchive _mixedPak;
     private readonly ModelsPakArchive _modelsPak;
-    private readonly Dictionary<string, TextureCacheEntry> _textures = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, Task<TextureAsset>> _textureLoads = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, TextureCacheEntry> _textures = new(MaxTextureCacheEntries, StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Task<TextureAsset>> _textureLoads = new(MaxTextureCacheEntries, StringComparer.OrdinalIgnoreCase);
     private readonly LinkedList<string> _textureLru = [];
-    private readonly Lock _textureLock = new();
+    private readonly SemaphoreSlim _textureLock = new(1, 1);
 
-    private readonly Dictionary<string, TextureCacheEntry> _modelTextures = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, Task<TextureAsset>> _modelTextureLoads = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, TextureCacheEntry> _modelTextures = new(MaxModelTextureCacheEntries, StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Task<TextureAsset>> _modelTextureLoads = new(MaxModelTextureCacheEntries, StringComparer.OrdinalIgnoreCase);
     private readonly LinkedList<string> _modelTextureLru = [];
-    private readonly Lock _modelTextureLock = new();
+    private readonly SemaphoreSlim _modelTextureLock = new(1, 1);
 
-    private readonly Dictionary<uint, StaticSpriteAsset?> _staticSprites = new();
-    private readonly Dictionary<uint, Task<StaticSpriteAsset?>> _staticSpriteLoads = new();
-    private readonly Lock _staticSpriteLock = new();
+    private readonly Dictionary<StaticSpriteAssetKey, StaticSpriteAsset?> _staticSprites = new(DefaultMaxCache);
+    private readonly Dictionary<StaticSpriteAssetKey, Task<StaticSpriteAsset?>> _staticSpriteLoads = new(DefaultMaxCache);
+    private readonly SemaphoreSlim _staticSpriteLock = new(1, 1);
+    private readonly MiniObjectSpriteLoader _miniObjectSprites;
 
-    private readonly Dictionary<string, GrnAsset> _grnModels = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, Task<GrnAsset>> _grnModelLoads = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<uint, PlayerCharacterAsset> _playerCharacters = new();
-    private readonly Dictionary<uint, Task<PlayerCharacterAsset>> _playerCharacterLoads = new();
-    private readonly Lock _modelLock = new();
+    private readonly Dictionary<string, TextureFrameSequenceAsset?> _textureFrameSequences =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Task<TextureFrameSequenceAsset?>> _textureFrameSequenceLoads =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly SemaphoreSlim _textureFrameSequenceLock = new(1, 1);
+
+    private readonly Dictionary<string, GrnAsset> _grnModels = new(DefaultMaxCache, StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Task<GrnAsset>> _grnModelLoads = new(DefaultMaxCache, StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<uint, PlayerCharacterAsset> _playerCharacters = new(DefaultMaxCache);
+    private readonly SemaphoreSlim _modelLock = new(1, 1);
+
+    private readonly Dictionary<string, GrnAnimationClip?> _playerCharacterAnimations =
+        new(DefaultMaxCache, StringComparer.OrdinalIgnoreCase);
+    private readonly SemaphoreSlim _playerAnimationLock = new(1, 1);
     private bool _disposed;
 
     public AssetManager(SacredGameDirectories gameDirectories)
@@ -98,11 +148,22 @@ public sealed class AssetManager : IDisposable
         var pakDirectory = Path.GetDirectoryName(texturePakPath)
             ?? throw new InvalidDataException("Cannot infer tiles.pak path from texture PAK path.");
         _texturePak = TexturePakArchive.LoadFromDirectory(pakDirectory);
+        // World streaming can enqueue thousands of texture reads. Keep latency-sensitive model
+        // materials on independent PAK streams so they are never stuck behind that queue.
+        _modelTexturePak = TexturePakArchive.LoadFromDirectory(pakDirectory);
         _tilesPak = TilesPakArchive.Load(Path.Combine(pakDirectory, "tiles.pak"));
         var items = ItemsPakArchive.Load(gameDirectories.ItemsPakPath).ToArray();
-        _items = items.ToFrozenDictionary(item => item.ItemIndex);
+        _itemsByModelId = items.ToFrozenDictionary(static item => item.ItemIndex);
+        _itemsByItemId = items
+            .GroupBy(static item => item.ItemId)
+            .ToFrozenDictionary(static group => group.Key, static group => group.ToArray());
+        _equipmentByModelId = WeaponPakParser.Parse(gameDirectories.WeaponsPakPath, _itemsByModelId)
+            .ToFrozenDictionary(static equipment => checked((ushort)equipment.IdemId));
         _mixedPak = MixedPakArchive.Load(Path.Combine(pakDirectory, "mixed.pak"));
-        _modelsPak = ModelsPakArchive.Load(Path.Combine(pakDirectory, "models.pak"));
+        _miniObjectSprites = new MiniObjectSpriteLoader(textureName => LoadTextureAsync(textureName));
+        _modelsPak = ModelsPakArchive.Load(
+            Path.Combine(pakDirectory, "models.pak"),
+            Path.Combine(pakDirectory, "Models.tmp"));
     }
 
     public int PlayerCharacterCount => PlayerCharacterDefinitions.Length;
@@ -110,44 +171,51 @@ public sealed class AssetManager : IDisposable
     public Task<TextureAsset> LoadTextureAsync(string textureName, CancellationToken cancellationToken = default)
     {
         return LoadTextureAsync(
+            _texturePak,
             textureName,
             _textures,
             _textureLoads,
             _textureLru,
             _textureLock,
             MaxTextureCacheEntries,
+            runOnWorker: true,
             cancellationToken);
     }
 
     public Task<TextureAsset> LoadModelTextureAsync(string textureName, CancellationToken cancellationToken = default)
     {
         return LoadTextureAsync(
+            _modelTexturePak,
             textureName,
             _modelTextures,
             _modelTextureLoads,
             _modelTextureLru,
             _modelTextureLock,
             MaxModelTextureCacheEntries,
+            runOnWorker: true,
             cancellationToken);
     }
 
-    private Task<TextureAsset> LoadTextureAsync(
+    private async Task<TextureAsset> LoadTextureAsync(
+        TexturePakArchive archive,
         string textureName,
-        Dictionary<string, TextureCacheEntry> cache,
+        IDictionary<string, TextureCacheEntry> cache,
         Dictionary<string, Task<TextureAsset>> loads,
         LinkedList<string> lru,
-        Lock cacheLock,
+        SemaphoreSlim cacheLock,
         int maxCacheEntries,
+        bool runOnWorker,
         CancellationToken cancellationToken)
     {
         Task<TextureAsset> loadTask;
-        lock (cacheLock)
+        await cacheLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
             if (cache.TryGetValue(textureName, out var cached))
             {
                 lru.Remove(cached.Node);
                 lru.AddFirst(cached.Node);
-                return Task.FromResult(cached.Asset);
+                return cached.Asset;
             }
 
             if (loads.TryGetValue(textureName, out var existingLoadTask))
@@ -156,54 +224,86 @@ public sealed class AssetManager : IDisposable
             }
             else
             {
-                loadTask = Task.Run(() => LoadAndCacheTextureAsync(
-                    textureName,
-                    cache,
-                    loads,
-                    lru,
-                    cacheLock,
-                    maxCacheEntries));
+                loadTask = runOnWorker
+                    ? Task.Run(() => LoadAndCacheTextureAsync(
+                        archive,
+                        textureName,
+                        cache,
+                        loads,
+                        lru,
+                        cacheLock,
+                        maxCacheEntries), CancellationToken.None)
+                    : LoadAndCacheTextureAsync(
+                        archive,
+                        textureName,
+                        cache,
+                        loads,
+                        lru,
+                        cacheLock,
+                        maxCacheEntries);
                 loads[textureName] = loadTask;
             }
         }
+        finally
+        {
+            cacheLock.Release();
+        }
 
-        return cancellationToken.CanBeCanceled ? loadTask.WaitAsync(cancellationToken) : loadTask;
+        return await (cancellationToken.CanBeCanceled ? loadTask.WaitAsync(cancellationToken) : loadTask)
+            .ConfigureAwait(false);
     }
 
     private async Task<TextureAsset> LoadAndCacheTextureAsync(
+        TexturePakArchive archive,
         string textureName,
-        Dictionary<string, TextureCacheEntry> cache,
+        IDictionary<string, TextureCacheEntry> cache,
         Dictionary<string, Task<TextureAsset>> loads,
         LinkedList<string> lru,
-        Lock cacheLock,
+        SemaphoreSlim cacheLock,
         int maxCacheEntries)
     {
+        TextureAsset asset;
         try
         {
-            var asset = await _texturePak.LoadTextureAsync(textureName);
-
-            lock (cacheLock)
+            asset = await archive.LoadTextureAsync(textureName).ConfigureAwait(false);
+        }
+        catch
+        {
+            await cacheLock.WaitAsync().ConfigureAwait(false);
+            try
             {
-                if (cache.TryGetValue(textureName, out var cached))
-                    return cached.Asset;
-
-                var node = new LinkedListNode<string>(textureName);
-                lru.AddFirst(node);
-                cache[textureName] = new TextureCacheEntry(asset, node);
-                EvictOldTextures(cache, lru, maxCacheEntries);
+                loads.Remove(textureName);
             }
+            finally
+            {
+                cacheLock.Release();
+            }
+
+            throw;
+        }
+
+        await cacheLock.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (cache.TryGetValue(textureName, out var cached))
+                return cached.Asset;
+
+            var node = new LinkedListNode<string>(textureName);
+            lru.AddFirst(node);
+            cache[textureName] = new TextureCacheEntry(asset, node);
+            EvictOldTextures(cache, lru, maxCacheEntries);
 
             return asset;
         }
         finally
         {
-            lock (cacheLock)
-                loads.Remove(textureName);
+            loads.Remove(textureName);
+            cacheLock.Release();
         }
     }
 
     private static void EvictOldTextures(
-        Dictionary<string, TextureCacheEntry> cache,
+        IDictionary<string, TextureCacheEntry> cache,
         LinkedList<string> lru,
         int maxCacheEntries)
     {
@@ -221,37 +321,7 @@ public sealed class AssetManager : IDisposable
         if (typeId > ushort.MaxValue)
             return null;
 
-        return _items.TryGetValue((ushort)typeId, out var item) ? item : null;
-    }
-
-    public Task<StaticSpriteAsset?> LoadStaticSpriteAsync(uint typeId, CancellationToken cancellationToken = default)
-    {
-        var item = GetItem(typeId);
-        if (item is null || item.Value.MixedBaseGroupId == 0)
-            return Task.FromResult<StaticSpriteAsset?>(null);
-
-        var groupId = _mixedPak.ResolveGroupId(item.Value.MixedBaseGroupId);
-        if (groupId is null)
-            return Task.FromResult<StaticSpriteAsset?>(null);
-
-        Task<StaticSpriteAsset?> loadTask;
-        lock (_staticSpriteLock)
-        {
-            if (_staticSprites.TryGetValue(groupId.Value, out var cached))
-                return Task.FromResult(cached);
-
-            if (_staticSpriteLoads.TryGetValue(groupId.Value, out var existingLoadTask))
-            {
-                loadTask = existingLoadTask;
-            }
-            else
-            {
-                loadTask = Task.Run(() => LoadAndCacheStaticSpriteAsync(groupId.Value));
-                _staticSpriteLoads[groupId.Value] = loadTask;
-            }
-        }
-
-        return cancellationToken.CanBeCanceled ? loadTask.WaitAsync(cancellationToken) : loadTask;
+        return _itemsByModelId.TryGetValue((ushort)typeId, out var item) ? item : null;
     }
 
     public bool TryGetStaticSpriteOrRequest(uint typeId, out StaticSpriteAsset? sprite)
@@ -266,36 +336,259 @@ public sealed class AssetManager : IDisposable
         if (groupId is null)
             return true;
 
-        lock (_staticSpriteLock)
-        {
-            if (_staticSprites.TryGetValue(groupId.Value, out sprite))
-                return true;
+        var frameCount = Math.Max(1, (int)item.Value.StaticSpriteFrameCount);
+        var frameDuration10Ms = frameCount > 1 ? item.Value.StaticSpriteFrameDuration10Ms : (byte)0;
+        var key = new StaticSpriteAssetKey(groupId.Value, frameCount, frameDuration10Ms);
 
-            if (!_staticSpriteLoads.ContainsKey(groupId.Value))
-                _staticSpriteLoads[groupId.Value] = Task.Run(() => LoadAndCacheStaticSpriteAsync(groupId.Value));
-        }
+        // Render polling must never queue behind a loader publishing its result.
+        if (!_staticSpriteLock.Wait(0))
+            return false;
 
-        return false;
-    }
-
-    private async Task<StaticSpriteAsset?> LoadAndCacheStaticSpriteAsync(uint groupId)
-    {
         try
         {
-            var sprite = await BuildStaticSpriteAsync(groupId);
-            lock (_staticSpriteLock)
-                _staticSprites[groupId] = sprite;
+            if (_staticSprites.TryGetValue(key, out sprite))
+                return true;
 
-            return sprite;
+            if (!_staticSpriteLoads.ContainsKey(key))
+                _staticSpriteLoads[key] = Task.Run(() => LoadAndCacheStaticSpriteAsync(key));
+
+            return false;
         }
         finally
         {
-            lock (_staticSpriteLock)
-                _staticSpriteLoads.Remove(groupId);
+            _staticSpriteLock.Release();
         }
     }
 
-    private async Task<StaticSpriteAsset?> BuildStaticSpriteAsync(uint groupId)
+    public bool TryGetMiniObjectSpriteOrRequest(
+        uint typeId,
+        byte sourceX,
+        byte sourceY,
+        byte sourceSize,
+        out StaticSpriteAsset? sprite)
+    {
+        sprite = null;
+        var item = GetItem(typeId);
+        return item is null || _miniObjectSprites.TryGetOrRequest(item.Value, sourceX, sourceY, sourceSize, out sprite);
+    }
+
+    public bool TryGetTextureFrameSequenceOrRequest(
+        string frameNameFormat,
+        int frameCount,
+        out TextureFrameSequenceAsset? sequence)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(frameNameFormat);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(frameCount);
+
+        var key = TextureFrameSequenceCacheKey(frameNameFormat, frameCount);
+        sequence = null;
+        // A missed non-blocking poll is retried by the terrain snapshot builder next frame.
+        if (!_textureFrameSequenceLock.Wait(0))
+            return false;
+
+        try
+        {
+            if (_textureFrameSequences.TryGetValue(key, out sequence))
+                return true;
+
+            if (!_textureFrameSequenceLoads.ContainsKey(key))
+            {
+                _textureFrameSequenceLoads[key] = Task.Run(
+                    () => LoadAndCacheTextureFrameSequenceAsync(key, frameNameFormat, frameCount));
+            }
+
+            return false;
+        }
+        finally
+        {
+            _textureFrameSequenceLock.Release();
+        }
+    }
+
+    private async Task<TextureFrameSequenceAsset?> LoadAndCacheTextureFrameSequenceAsync(
+        string key,
+        string frameNameFormat,
+        int frameCount)
+    {
+        try
+        {
+            var sequence = await BuildTextureFrameSequenceAsync(frameNameFormat, frameCount).ConfigureAwait(false);
+            await _textureFrameSequenceLock.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                _textureFrameSequences[key] = sequence;
+            }
+            finally
+            {
+                _textureFrameSequenceLoads.Remove(key);
+                _textureFrameSequenceLock.Release();
+            }
+
+            return sequence;
+        }
+        catch
+        {
+            await _textureFrameSequenceLock.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                _textureFrameSequenceLoads.Remove(key);
+                _textureFrameSequences[key] = null;
+            }
+            finally
+            {
+                _textureFrameSequenceLock.Release();
+            }
+
+            return null;
+        }
+    }
+
+    private async Task<TextureFrameSequenceAsset> BuildTextureFrameSequenceAsync(
+        string frameNameFormat,
+        int frameCount)
+    {
+        TextureAsset? firstFrame = null;
+        byte[]? atlas = null;
+        var frameByteCount = 0;
+        var atlasWidth = 0;
+        var atlasColumns = 1;
+
+        for (var frameIndex = 0; frameIndex < frameCount; frameIndex++)
+        {
+            var frameName = string.Format(CultureInfo.InvariantCulture, frameNameFormat, frameIndex);
+            var frame = await LoadTextureAsync(frameName).ConfigureAwait(false);
+            if (firstFrame is null)
+            {
+                firstFrame = frame;
+                frameByteCount = checked(frame.Width * frame.Height * 4);
+                atlasColumns = TextureFrameAtlasLayout.CalculateColumns(frame.Width, frame.Height, frameCount);
+                var atlasRows = TextureFrameAtlasLayout.CalculateRows(frameCount, atlasColumns);
+                atlasWidth = checked(frame.Width * atlasColumns);
+                atlas = new byte[checked(atlasWidth * frame.Height * atlasRows * 4)];
+            }
+            else if (frame.Width != firstFrame.Width || frame.Height != firstFrame.Height)
+            {
+                throw new InvalidDataException(
+                    $"Texture frame '{frame.Name}' is {frame.Width}x{frame.Height}; " +
+                    $"sequence '{frameNameFormat}' starts at {firstFrame.Width}x{firstFrame.Height}.");
+            }
+
+            if (frame.Rgba8.Length != frameByteCount)
+                throw new InvalidDataException($"Texture frame '{frame.Name}' has an invalid decoded byte count.");
+
+            var frameColumn = frameIndex % atlasColumns;
+            var frameRow = frameIndex / atlasColumns;
+            for (var y = 0; y < frame.Height; y++)
+            {
+                frame.Rgba8.AsSpan(y * frame.Width * 4, frame.Width * 4).CopyTo(
+                    atlas!.AsSpan(
+                        ((frameRow * frame.Height + y) * atlasWidth + frameColumn * frame.Width) * 4,
+                        frame.Width * 4));
+            }
+        }
+
+        return new TextureFrameSequenceAsset(
+            TextureFrameSequenceCacheKey(frameNameFormat, frameCount),
+            firstFrame!.Width,
+            firstFrame.Height,
+            frameCount,
+            atlas!);
+    }
+
+    private static string TextureFrameSequenceCacheKey(string frameNameFormat, int frameCount) =>
+        $"{frameCount}:{frameNameFormat}";
+
+    private async Task<StaticSpriteAsset?> LoadAndCacheStaticSpriteAsync(StaticSpriteAssetKey key)
+    {
+        try
+        {
+            var sprite = await BuildStaticSpriteAsync(key);
+            await _staticSpriteLock.WaitAsync();
+            try
+            {
+                _staticSprites[key] = sprite;
+            }
+            finally
+            {
+                _staticSpriteLoads.Remove(key);
+                _staticSpriteLock.Release();
+            }
+
+            return sprite;
+        }
+        catch
+        {
+            await _staticSpriteLock.WaitAsync();
+            try
+            {
+                _staticSpriteLoads.Remove(key);
+                _staticSprites[key] = null;
+            }
+            finally
+            {
+                _staticSpriteLock.Release();
+            }
+
+            return null;
+        }
+    }
+
+    private async Task<StaticSpriteAsset?> BuildStaticSpriteAsync(StaticSpriteAssetKey key)
+    {
+        var frames = new StaticSpriteAsset[key.FrameCount];
+        for (var frameIndex = 0; frameIndex < frames.Length; frameIndex++)
+        {
+            var groupId = checked(key.GroupId + (uint)frameIndex);
+            var frame = await BuildStaticSpriteFrameAsync(groupId);
+            if (frame is null)
+                return null;
+
+            frames[frameIndex] = frame;
+        }
+
+        if (frames.Length == 1)
+            return frames[0];
+
+        var minX = frames.Min(static frame => -frame.AnchorX);
+        var minY = frames.Min(static frame => -frame.AnchorY);
+        var maxX = frames.Max(static frame => -frame.AnchorX + frame.Width);
+        var maxY = frames.Max(static frame => -frame.AnchorY + frame.Height);
+        var width = Math.Max(1, maxX - minX);
+        var height = Math.Max(1, maxY - minY);
+        var atlasColumns = TextureFrameAtlasLayout.CalculateColumns(width, height, frames.Length);
+        var atlasRows = TextureFrameAtlasLayout.CalculateRows(frames.Length, atlasColumns);
+        var atlasWidth = checked(width * atlasColumns);
+        var atlasHeight = checked(height * atlasRows);
+        var rgba = new byte[checked(atlasWidth * atlasHeight * 4)];
+
+        for (var frameIndex = 0; frameIndex < frames.Length; frameIndex++)
+        {
+            var frame = frames[frameIndex];
+            var destX = frameIndex % atlasColumns * width - frame.AnchorX - minX;
+            var destY = frameIndex / atlasColumns * height - frame.AnchorY - minY;
+            for (var y = 0; y < frame.Height; y++)
+            {
+                Buffer.BlockCopy(
+                    frame.Rgba,
+                    y * frame.Width * 4,
+                    rgba,
+                    ((destY + y) * atlasWidth + destX) * 4,
+                    frame.Width * 4);
+            }
+        }
+
+        return new StaticSpriteAsset(
+            key.GroupId,
+            width,
+            height,
+            -minX,
+            -minY,
+            rgba,
+            frames.Length,
+            key.FrameDuration10Ms * 0.01f);
+    }
+
+    private async Task<StaticSpriteAsset?> BuildStaticSpriteFrameAsync(uint groupId)
     {
         var pieces = _mixedPak.GetGroup(groupId);
         if (pieces is null || pieces.Count == 0)
@@ -443,7 +736,7 @@ public sealed class AssetManager : IDisposable
         return LoadGrnModelAsync(relativePath, GrnMeshExtractionMode.PrimarySlice, cancellationToken);
     }
 
-    private Task<GrnAsset> LoadGrnModelAsync(
+    private async Task<GrnAsset> LoadGrnModelAsync(
         string relativePath,
         GrnMeshExtractionMode meshExtractionMode,
         CancellationToken cancellationToken = default)
@@ -452,10 +745,11 @@ public sealed class AssetManager : IDisposable
         var cacheKey = ModelCacheKey(key, meshExtractionMode);
 
         Task<GrnAsset> loadTask;
-        lock (_modelLock)
+        await _modelLock.WaitAsync(cancellationToken);
+        try
         {
             if (_grnModels.TryGetValue(cacheKey, out var cached))
-                return Task.FromResult(cached);
+                return cached;
 
             if (_grnModelLoads.TryGetValue(cacheKey, out var existingLoadTask))
             {
@@ -463,12 +757,18 @@ public sealed class AssetManager : IDisposable
             }
             else
             {
-                loadTask = Task.Run(() => LoadAndCacheGrnModelAsync(key, cacheKey, meshExtractionMode));
+                loadTask = Task.Run(
+                    () => LoadAndCacheGrnModelAsync(key, cacheKey, meshExtractionMode),
+                    CancellationToken.None);
                 _grnModelLoads[cacheKey] = loadTask;
             }
         }
+        finally
+        {
+            _modelLock.Release();
+        }
 
-        return cancellationToken.CanBeCanceled ? loadTask.WaitAsync(cancellationToken) : loadTask;
+        return await (cancellationToken.CanBeCanceled ? loadTask.WaitAsync(cancellationToken) : loadTask);
     }
 
     private async Task<GrnAsset> LoadAndCacheGrnModelAsync(
@@ -476,84 +776,194 @@ public sealed class AssetManager : IDisposable
         string cacheKey,
         GrnMeshExtractionMode meshExtractionMode)
     {
+        GrnAsset asset;
         try
         {
-            var asset = await _modelsPak.LoadModelAsync(key, meshExtractionMode);
-            lock (_modelLock)
-                _grnModels.TryAdd(cacheKey, asset);
+            asset = await _modelsPak.LoadModelAsync(key, meshExtractionMode);
+        }
+        catch
+        {
+            await _modelLock.WaitAsync();
+            try
+            {
+                _grnModelLoads.Remove(cacheKey);
+            }
+            finally
+            {
+                _modelLock.Release();
+            }
 
+            throw;
+        }
+
+        await _modelLock.WaitAsync();
+        try
+        {
+            if (_grnModels.TryGetValue(cacheKey, out var cached))
+                return cached;
+
+            _grnModels.Add(cacheKey, asset);
             return asset;
         }
         finally
         {
-            lock (_modelLock)
-                _grnModelLoads.Remove(cacheKey);
+            _grnModelLoads.Remove(cacheKey);
+            _modelLock.Release();
         }
     }
 
-    public Task<PlayerCharacterAsset> LoadPlayerCharacterAsync(uint entryId, CancellationToken cancellationToken = default)
+    private async Task<GrnAsset> LoadPlayerAttachmentModelAsync(
+        string relativePath,
+        CancellationToken cancellationToken)
     {
-        Task<PlayerCharacterAsset> loadTask;
-        lock (_modelLock)
+        var key = Path.GetFileName(relativePath);
+        var cacheKey = ModelCacheKey(key, GrnMeshExtractionMode.PrimarySlice);
+
+        await _modelLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_grnModels.TryGetValue(cacheKey, out var cached))
+                return cached;
+        }
+        finally
+        {
+            _modelLock.Release();
+        }
+
+        var asset = await _modelsPak
+            .LoadModelAsync(key, GrnMeshExtractionMode.PrimarySlice, cancellationToken)
+            .ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await _modelLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_grnModels.TryGetValue(cacheKey, out var cached))
+                return cached;
+
+            _grnModels.Add(cacheKey, asset);
+            return asset;
+        }
+        finally
+        {
+            _modelLock.Release();
+        }
+    }
+
+    public async Task<PlayerCharacterAsset> LoadPlayerCharacterAsync(uint entryId, CancellationToken cancellationToken = default)
+    {
+        await _modelLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
             if (_playerCharacters.TryGetValue(entryId, out var cached))
-                return Task.FromResult(cached);
-
-            if (_playerCharacterLoads.TryGetValue(entryId, out var existingLoadTask))
-            {
-                loadTask = existingLoadTask;
-            }
-            else
-            {
-                loadTask = Task.Run(() => LoadAndCachePlayerCharacterAsync(entryId));
-                _playerCharacterLoads[entryId] = loadTask;
-            }
+                return cached;
+        }
+        finally
+        {
+            _modelLock.Release();
         }
 
-        return cancellationToken.CanBeCanceled ? loadTask.WaitAsync(cancellationToken) : loadTask;
-    }
+        var asset = await Task.Run(
+                () => LoadPlayerCharacterCoreAsync(entryId, cancellationToken),
+                cancellationToken)
+            .ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
 
-    private async Task<PlayerCharacterAsset> LoadAndCachePlayerCharacterAsync(uint entryId)
-    {
+        await _modelLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var definitionIndex = checked((int)entryId - 1);
-            if ((uint)definitionIndex >= (uint)PlayerCharacterDefinitions.Length)
-                throw new FileNotFoundException($"Player character slot {entryId} was not configured.");
+            if (_playerCharacters.TryGetValue(entryId, out var cached))
+                return cached;
 
-            var definition = PlayerCharacterDefinitions[definitionIndex];
-            var item = ResolvePlayerCharacterItem(definition);
-            var attachmentItems = ResolvePlayerCharacterItems(definition.AttachmentItemIds);
-            var modelName = item.ModelDesc.ModelName;
-            
-            GrnAsset model;
-            if (attachmentItems.Length > 0)
-                model = await _modelsPak.LoadCharacterModelAsync(
-                    modelName,
-                    attachmentItems.Select(static attachment => attachment.ModelDesc.ModelName).ToArray(),
-                    definition.HiddenBaseTextureNames.Length > 0
-                        ? new HashSet<string>(definition.HiddenBaseTextureNames, StringComparer.OrdinalIgnoreCase)
-                        : null);
-            else
-                model = await LoadGrnModelAsync(modelName, GrnMeshExtractionMode.PrimarySlice);
-
-            var asset = new PlayerCharacterAsset(
-                item.ItemIndex,
-                definition.DisplayName,
-                modelName,
-                model,
-                await CreatePlayerCharacterTextureAliasesAsync(model, item, attachmentItems));
-
-            lock (_modelLock)
-                _playerCharacters.TryAdd(entryId, asset);
-
+            _playerCharacters.Add(entryId, asset);
             return asset;
         }
         finally
         {
-            lock (_modelLock)
-                _playerCharacterLoads.Remove(entryId);
+            _modelLock.Release();
         }
+    }
+
+    private async Task<PlayerCharacterAsset> LoadPlayerCharacterCoreAsync(
+        uint entryId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var definition = GetPlayerCharacterDefinition(entryId);
+        var item = ResolvePlayerCharacterItem(definition);
+        var attachmentItems = ResolvePlayerCharacterItems(definition.Attachments);
+        var modelName = item.ModelDesc.ModelName;
+
+        var model = await _modelsPak.LoadCharacterBaseModelAsync(
+                modelName,
+                attachmentItems
+                    .Select(static attachment => new ModelAttachmentReference(
+                        attachment.Item.ModelDesc.ModelName,
+                        attachment.Attachment.RigidAttachBoneName,
+                        attachment.Attachment.SourceAttachBoneName))
+                    .ToArray(),
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        var attachmentModels = await Task.WhenAll(attachmentItems.Select(attachmentItem =>
+            LoadPlayerAttachmentModelAsync(
+                attachmentItem.Item.ModelDesc.ModelName,
+                cancellationToken))).ConfigureAwait(false);
+        var textureAliases = CreatePlayerCharacterTextureAliases(
+                model,
+                item,
+                attachmentItems,
+                attachmentModels);
+        var equipmentEffects = EquipmentEffectSceneFactory.Create(
+            model,
+            CreateEquipmentEffectAttachments(attachmentItems, attachmentModels));
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return new PlayerCharacterAsset(
+            item.ItemIndex,
+            definition.DisplayName,
+            modelName,
+            model,
+            textureAliases,
+            equipmentEffects);
+    }
+
+    public async Task<GrnAnimationClip?> LoadPlayerCharacterAnimationAsync(
+        uint entryId,
+        CancellationToken cancellationToken = default)
+    {
+        var modelName = GetPlayerCharacterDefinition(entryId).ModelName;
+        await _playerAnimationLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_playerCharacterAnimations.TryGetValue(modelName, out var cached))
+                return cached;
+        }
+        finally
+        {
+            _playerAnimationLock.Release();
+        }
+
+        var animation = await Task.Run(
+                () => _modelsPak.LoadDefaultCharacterAnimationAsync(modelName, cancellationToken),
+                cancellationToken)
+            .ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await _playerAnimationLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_playerCharacterAnimations.TryGetValue(modelName, out var cached))
+                return cached;
+
+            _playerCharacterAnimations.Add(modelName, animation);
+        }
+        finally
+        {
+            _playerAnimationLock.Release();
+        }
+
+        return animation;
     }
 
     public void Dispose()
@@ -561,35 +971,35 @@ public sealed class AssetManager : IDisposable
         if (_disposed) return;
         _disposed = true;
 
-        lock (_textureLock)
-        {
-            _textures.Clear();
-            _textureLoads.Clear();
-            _textureLru.Clear();
-        }
+        _textureLock.Wait();
+        _textures.Clear();
+        _textureLoads.Clear();
+        _textureLru.Clear();
 
-        lock (_modelTextureLock)
-        {
-            _modelTextures.Clear();
-            _modelTextureLoads.Clear();
-            _modelTextureLru.Clear();
-        }
+        _modelTextureLock.Wait();
+        _modelTextures.Clear();
+        _modelTextureLoads.Clear();
+        _modelTextureLru.Clear();
 
-        lock (_staticSpriteLock)
-        {
-            _staticSprites.Clear();
-            _staticSpriteLoads.Clear();
-        }
+        _staticSpriteLock.Wait();
+        _staticSprites.Clear();
+        _staticSpriteLoads.Clear();
+        _miniObjectSprites.Clear();
 
-        lock (_modelLock)
-        {
-            _grnModels.Clear();
-            _grnModelLoads.Clear();
-            _playerCharacters.Clear();
-            _playerCharacterLoads.Clear();
-        }
+        _textureFrameSequenceLock.Wait();
+        _textureFrameSequences.Clear();
+        _textureFrameSequenceLoads.Clear();
+
+        _playerAnimationLock.Wait();
+        _playerCharacterAnimations.Clear();
+
+        _modelLock.Wait();
+        _grnModels.Clear();
+        _grnModelLoads.Clear();
+        _playerCharacters.Clear();
 
         _texturePak.Dispose();
+        _modelTexturePak.Dispose();
         _modelsPak.Dispose();
     }
 
@@ -598,35 +1008,58 @@ public sealed class AssetManager : IDisposable
     private static string ModelCacheKey(string modelName, GrnMeshExtractionMode meshExtractionMode) =>
         $"{meshExtractionMode}:{modelName}";
 
-    private ItemsPakEntry ResolvePlayerCharacterItem(PlayerCharacterDefinition definition)
+    private static PlayerCharacterDefinition GetPlayerCharacterDefinition(uint entryId)
     {
-        return ResolvePlayerCharacterItem(definition.BaseItemId);
+        var definitionIndex = checked((int)entryId - 1);
+        if ((uint)definitionIndex >= (uint)PlayerCharacterDefinitions.Length)
+            throw new FileNotFoundException($"Player character slot {entryId} was not configured.");
+
+        return PlayerCharacterDefinitions[definitionIndex];
     }
 
-    private ItemsPakEntry ResolvePlayerCharacterItem(ushort itemId)
+    private ItemsPakEntry ResolvePlayerCharacterItem(PlayerCharacterDefinition definition)
     {
-        if (!_items.TryGetValue(itemId, out var item))
+        if (!_itemsByItemId.TryGetValue(definition.BaseItemId, out var items))
+            throw new FileNotFoundException($"Player character item id {definition.BaseItemId} was not found in Items.pak.");
+
+        foreach (var item in items)
+        {
+            if (string.Equals(item.ModelDesc.ModelName, definition.ModelName, StringComparison.OrdinalIgnoreCase))
+                return item;
+        }
+
+        throw new FileNotFoundException(
+            $"Player character item id {definition.BaseItemId} does not reference model {definition.ModelName} in Items.pak.");
+    }
+
+    private ItemsPakEntry ResolvePlayerCharacterItem(uint itemId)
+    {
+        if (!_itemsByItemId.TryGetValue(itemId, out var items))
             throw new FileNotFoundException($"Player character item id {itemId} was not found in Items.pak.");
 
+        var item = items[0];
         if (string.IsNullOrWhiteSpace(item.ModelDesc.ModelName))
             throw new FileNotFoundException($"Player character item id {itemId} does not reference a model in Items.pak.");
 
         return item;
     }
 
-    private ItemsPakEntry[] ResolvePlayerCharacterItems(IReadOnlyList<ushort> itemIds)
+    private PlayerCharacterAttachmentItem[] ResolvePlayerCharacterItems(IReadOnlyList<PlayerCharacterAttachment> attachments)
     {
-        var items = new ItemsPakEntry[itemIds.Count];
-        for (var i = 0; i < itemIds.Count; i++)
-            items[i] = ResolvePlayerCharacterItem(itemIds[i]);
+        var items = new PlayerCharacterAttachmentItem[attachments.Count];
+        for (var i = 0; i < attachments.Count; i++)
+            items[i] = new PlayerCharacterAttachmentItem(
+                attachments[i],
+                ResolvePlayerCharacterItem(attachments[i].ItemId));
 
         return items;
     }
 
-    private async Task<IReadOnlyDictionary<string, ModelTextureReference>> CreatePlayerCharacterTextureAliasesAsync(
+    private IReadOnlyDictionary<string, ModelTextureReference> CreatePlayerCharacterTextureAliases(
         GrnAsset model,
         ItemsPakEntry baseItem,
-        IReadOnlyList<ItemsPakEntry> attachmentItems)
+        IReadOnlyList<PlayerCharacterAttachmentItem> attachmentItems,
+        IReadOnlyList<GrnAsset> attachmentModels)
     {
         if (model.Mesh is null)
             return EmptyTextureAliases;
@@ -634,15 +1067,37 @@ public sealed class AssetManager : IDisposable
         var aliases = new Dictionary<string, ModelTextureReference>(StringComparer.OrdinalIgnoreCase);
         AddItemTextureAliases(aliases, model, baseItem);
 
-        foreach (var attachmentItem in attachmentItems)
+        for (var index = 0; index < attachmentItems.Count; index++)
         {
-            var attachmentModel = await LoadGrnModelAsync(
-                attachmentItem.ModelDesc.ModelName,
-                GrnMeshExtractionMode.PrimarySlice);
-            AddItemTextureAliases(aliases, attachmentModel, attachmentItem);
+            AddItemTextureAliases(aliases, attachmentModels[index], attachmentItems[index].Item);
         }
 
         return aliases.Count == 0 ? EmptyTextureAliases : aliases;
+    }
+
+    private EquipmentEffectAttachment[] CreateEquipmentEffectAttachments(
+        IReadOnlyList<PlayerCharacterAttachmentItem> attachmentItems,
+        IReadOnlyList<GrnAsset> attachmentModels)
+    {
+        var effects = new List<EquipmentEffectAttachment>();
+        for (var index = 0; index < attachmentItems.Count; index++)
+        {
+            var attachmentItem = attachmentItems[index];
+            if (!_equipmentByModelId.TryGetValue(attachmentItem.Item.ItemIndex, out var equipment))
+                continue;
+
+            var boundsSize = attachmentModels[index].Diagnostics?.WholeModelBounds is { } bounds
+                ? Vector3.Distance(bounds.Min, bounds.Max)
+                : 40.0f;
+            effects.Add(new EquipmentEffectAttachment(
+                index + 1,
+                attachmentItem.Item.ModelDesc.ModelName,
+                attachmentItem.Attachment.RigidAttachBoneName,
+                equipment.Damage,
+                boundsSize));
+        }
+
+        return effects.ToArray();
     }
 
     private void AddItemTextureAliases(
@@ -653,6 +1108,13 @@ public sealed class AssetManager : IDisposable
         if (model.Mesh is null)
             return;
 
+        var modelHasEffectTextureSurface = ModelHasEffectTextureSurface(model, item);
+        var preferItemTexture = model.Mesh.Surfaces
+            .Select(static surface => surface.TextureName)
+            .Where(static textureName => !string.IsNullOrWhiteSpace(textureName))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(2)
+            .Count() == 1;
         foreach (var surface in model.Mesh.Surfaces)
         {
             if (string.IsNullOrWhiteSpace(surface.TextureName))
@@ -663,6 +1125,9 @@ public sealed class AssetManager : IDisposable
                 item.ModelDesc.TextureId,
                 item.EffectTextureId,
                 item.GraphicRenderFlags,
+                item.ModelDesc.EffectAnimationRate,
+                modelHasEffectTextureSurface,
+                preferItemTexture,
                 surface.TextureName);
 
             if (!reference.Animation.IsAnimated &&
@@ -672,6 +1137,28 @@ public sealed class AssetManager : IDisposable
 
             aliases[surface.TextureName] = reference;
         }
+    }
+
+    private bool ModelHasEffectTextureSurface(GrnAsset model, ItemsPakEntry item)
+    {
+        if (model.Mesh is null ||
+            item.EffectTextureId == 0 ||
+            !_texturePak.TryGetTextureName(item.EffectTextureId, out var effectTextureName))
+        {
+            return false;
+        }
+
+        foreach (var surface in model.Mesh.Surfaces)
+        {
+            if (!string.IsNullOrWhiteSpace(surface.TextureName) &&
+                _texturePak.TryResolveTextureName(surface.TextureName, out var resolvedName) &&
+                string.Equals(resolvedName, effectTextureName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private sealed record StaticSpriteBlit(
@@ -686,8 +1173,22 @@ public sealed class AssetManager : IDisposable
         int DestBottom);
 
     private readonly record struct PlayerCharacterDefinition(
-        ushort BaseItemId,
+        uint BaseItemId,
+        string ModelName,
         string DisplayName,
-        ushort[] AttachmentItemIds,
-        string[] HiddenBaseTextureNames);
+        PlayerCharacterAttachment[] Attachments);
+
+    private readonly record struct PlayerCharacterAttachment(
+        uint ItemId,
+        string? RigidAttachBoneName = null,
+        string? SourceAttachBoneName = null);
+
+    private readonly record struct PlayerCharacterAttachmentItem(
+        PlayerCharacterAttachment Attachment,
+        ItemsPakEntry Item);
+
+    private readonly record struct StaticSpriteAssetKey(
+        uint GroupId,
+        int FrameCount,
+        byte FrameDuration10Ms);
 }

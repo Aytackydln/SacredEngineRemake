@@ -11,4 +11,6 @@ public readonly record struct ItemsPakEntry(
     public byte RenderClass => ModelDesc.RenderClass;
     public uint ItemId => ModelDesc.ItemId;
     public uint EffectTextureId => ModelDesc.EffectTextureId;
+    public ushort StaticSpriteFrameCount => ModelDesc.StaticSpriteFrameCount;
+    public byte StaticSpriteFrameDuration10Ms => (byte)ModelDesc.ModelTransformFlags;
 }

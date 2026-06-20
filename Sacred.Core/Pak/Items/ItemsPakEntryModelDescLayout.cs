@@ -30,6 +30,9 @@ internal readonly struct ItemsPakEntryModelDescLayout
     [FieldOffset(32)]
     public readonly uint ItemId;
 
+    [FieldOffset(44)]
+    public readonly ushort StaticSpriteFrameCount;
+
     [FieldOffset(46)]
     public readonly byte RenderClass;
 
@@ -44,4 +47,7 @@ internal readonly struct ItemsPakEntryModelDescLayout
 
     [FieldOffset(102)]
     public readonly uint EffectTextureId;
+
+    [FieldOffset(112)]
+    public readonly ushort EffectAnimationRate;
 }

@@ -8,12 +8,13 @@ namespace Sacred.Engine;
 public sealed class FrameClock
 {
     private long _last = Stopwatch.GetTimestamp();
-    private readonly TimeSpan _targetFramePeriod;
+    private readonly long _targetFramePeriodTicks;
+    private long _nextFrameTimestamp;
 
     public FrameClock(uint targetFrameRate)
     {
         TargetFrameRate = Math.Clamp(targetFrameRate, 30u, 1000u);
-        _targetFramePeriod = TimeSpan.FromSeconds(1.0 / TargetFrameRate);
+        _targetFramePeriodTicks = Math.Max(1, Stopwatch.Frequency / TargetFrameRate);
     }
 
     public uint TargetFrameRate { get; }
@@ -26,27 +27,37 @@ public sealed class FrameClock
         return Math.Clamp(dt, 0.0f, 0.1f);
     }
 
-    public async Task WaitForFrameStartAsync(
-        FramePacingMode mode,
-        TimeSpan previousFrameWorkTime,
-        CancellationToken cancellationToken)
+    public ValueTask WaitForFrameStartAsync(FramePacingMode mode, CancellationToken cancellationToken)
     {
-        if (mode != FramePacingMode.VSync)
-            await WaitForTargetFramePeriodAsync(previousFrameWorkTime, cancellationToken);
+        if (mode == FramePacingMode.VSync)
+        {
+            _nextFrameTimestamp = 0;
+            return ValueTask.CompletedTask;
+        }
+
+        var now = Stopwatch.GetTimestamp();
+        if (_nextFrameTimestamp == 0)
+        {
+            _nextFrameTimestamp = now;
+            return ValueTask.CompletedTask;
+        }
+
+        var deadline = _nextFrameTimestamp + _targetFramePeriodTicks;
+        if (now - deadline > _targetFramePeriodTicks)
+            deadline = now;
+
+        _nextFrameTimestamp = deadline;
+        return deadline <= now
+            ? ValueTask.CompletedTask
+            : DelayPreciselyAsync(deadline, cancellationToken);
     }
 
-    private async Task WaitForTargetFramePeriodAsync(TimeSpan previousFrameWorkTime, CancellationToken cancellationToken)
+    private static async ValueTask DelayPreciselyAsync(long targetTimestamp, CancellationToken cancellationToken)
     {
-        var delay = _targetFramePeriod - previousFrameWorkTime;
-        if (delay > TimeSpan.Zero)
-            await DelayPreciselyAsync(delay, cancellationToken);
-    }
-
-    private static async Task DelayPreciselyAsync(TimeSpan delay, CancellationToken cancellationToken)
-    {
-        var targetTimestamp = Stopwatch.GetTimestamp() +
-                              (long)(delay.TotalSeconds * Stopwatch.Frequency);
-        var spinThreshold = Stopwatch.Frequency / 1000;
+        // Leave only the final half millisecond to cooperative yielding/spinning. This keeps
+        // 240-1000 Hz caps precise without burning an entire core between frames.
+        var spinThreshold = Math.Max(1, Stopwatch.Frequency / 2000);
+        var minimumSchedulerDelay = Math.Max(1, Stopwatch.Frequency / 1000);
 
         while (true)
         {
@@ -56,7 +67,7 @@ public sealed class FrameClock
             if (remaining <= 0)
                 return;
 
-            if (remaining > spinThreshold * 2)
+            if (remaining > spinThreshold + minimumSchedulerDelay)
             {
                 var delayMilliseconds = Math.Max(1, (int)((remaining - spinThreshold) * 1000 / Stopwatch.Frequency));
                 await Task.Delay(delayMilliseconds, cancellationToken);

@@ -14,6 +14,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sacred.Granny", "Sacred.Gra
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sacred.Assets", "Sacred.Assets\Sacred.Assets.csproj", "{19ACAD73-137C-443E-B100-8D35A7503B8D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sacred.Shaders", "Sacred.Shaders\Sacred.Shaders.csproj", "{C63F2891-59DD-4AB7-8EBE-FAA7101FC456}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -108,6 +110,18 @@ Global
 		{19ACAD73-137C-443E-B100-8D35A7503B8D}.Release|x64.Build.0 = Release|Any CPU
 		{19ACAD73-137C-443E-B100-8D35A7503B8D}.Release|x86.ActiveCfg = Release|Any CPU
 		{19ACAD73-137C-443E-B100-8D35A7503B8D}.Release|x86.Build.0 = Release|Any CPU
+		{C63F2891-59DD-4AB7-8EBE-FAA7101FC456}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C63F2891-59DD-4AB7-8EBE-FAA7101FC456}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C63F2891-59DD-4AB7-8EBE-FAA7101FC456}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C63F2891-59DD-4AB7-8EBE-FAA7101FC456}.Debug|x64.Build.0 = Debug|Any CPU
+		{C63F2891-59DD-4AB7-8EBE-FAA7101FC456}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C63F2891-59DD-4AB7-8EBE-FAA7101FC456}.Debug|x86.Build.0 = Debug|Any CPU
+		{C63F2891-59DD-4AB7-8EBE-FAA7101FC456}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C63F2891-59DD-4AB7-8EBE-FAA7101FC456}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C63F2891-59DD-4AB7-8EBE-FAA7101FC456}.Release|x64.ActiveCfg = Release|Any CPU
+		{C63F2891-59DD-4AB7-8EBE-FAA7101FC456}.Release|x64.Build.0 = Release|Any CPU
+		{C63F2891-59DD-4AB7-8EBE-FAA7101FC456}.Release|x86.ActiveCfg = Release|Any CPU
+		{C63F2891-59DD-4AB7-8EBE-FAA7101FC456}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

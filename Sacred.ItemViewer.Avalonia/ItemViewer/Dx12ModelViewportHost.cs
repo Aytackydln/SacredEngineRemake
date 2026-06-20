@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform;
@@ -18,6 +20,8 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
     private Vector3 _pendingPreviewRotation;
     private ItemPreviewRotationMode _pendingRotationMode;
     private ItemPreviewPivotMode _pendingPivotMode;
+    private string? _pendingPivotBoneName;
+    private EquipmentEffectScene _pendingEffectScene = EquipmentEffectScene.Empty;
     private int _pendingGridWidth = 1;
     private int _pendingGridHeight = 1;
     private IReadOnlyDictionary<string, ModelTextureBinding> _pendingTextures = new Dictionary<string, ModelTextureBinding>(StringComparer.OrdinalIgnoreCase);
@@ -38,6 +42,7 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
     public void ClearModel()
     {
         _pendingAsset = null;
+        _pendingEffectScene = EquipmentEffectScene.Empty;
         _pendingTextures = new Dictionary<string, ModelTextureBinding>(StringComparer.OrdinalIgnoreCase);
         _renderer?.ClearModel();
     }
@@ -48,16 +53,20 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
         int gridWidth,
         int gridHeight,
         ItemPreviewRotationMode rotationMode,
-        ItemPreviewPivotMode pivotMode)
+        ItemPreviewPivotMode pivotMode,
+        string? pivotBoneName,
+        EquipmentEffectScene effectScene)
     {
         _pendingAsset = asset;
         _pendingPreviewRotation = previewRotation;
         _pendingRotationMode = rotationMode;
         _pendingPivotMode = pivotMode;
+        _pendingPivotBoneName = pivotBoneName;
+        _pendingEffectScene = effectScene;
         _pendingGridWidth = gridWidth;
         _pendingGridHeight = gridHeight;
         _pendingTextures = new Dictionary<string, ModelTextureBinding>(StringComparer.OrdinalIgnoreCase);
-        _renderer?.SetModel(asset, previewRotation, gridWidth, gridHeight, rotationMode, pivotMode);
+        _renderer?.SetModel(asset, previewRotation, gridWidth, gridHeight, rotationMode, pivotMode, pivotBoneName, effectScene);
         _renderer?.SetUserRotation(_pendingYaw, _pendingPitch, _pendingRoll);
     }
 
@@ -69,10 +78,13 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
         _renderer?.SetUserRotation(yaw, pitch, roll);
     }
 
-    public void ShowTextures(IReadOnlyDictionary<string, ModelTextureBinding> textures)
+    public async Task ShowTexturesAsync(
+        IReadOnlyDictionary<string, ModelTextureBinding> textures,
+        CancellationToken cancellationToken = default)
     {
         _pendingTextures = textures;
-        _renderer?.SetTextures(textures);
+        if (_renderer is not null)
+            await _renderer.SetTexturesAsync(textures, cancellationToken);
     }
 
     protected override IPlatformHandle CreateNativeControlCore(IPlatformHandle parent)
@@ -96,13 +108,13 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
             return;
 
         if (_pendingAsset is not null)
-            _renderer.SetModel(_pendingAsset, _pendingPreviewRotation, _pendingGridWidth, _pendingGridHeight, _pendingRotationMode, _pendingPivotMode);
+            _renderer.SetModel(_pendingAsset, _pendingPreviewRotation, _pendingGridWidth, _pendingGridHeight, _pendingRotationMode, _pendingPivotMode, _pendingPivotBoneName, _pendingEffectScene);
         else
             _renderer.ClearModel();
 
         _renderer.SetUserRotation(_pendingYaw, _pendingPitch, _pendingRoll);
         if (_pendingTextures.Count > 0)
-            _renderer.SetTextures(_pendingTextures);
+            _ = _renderer.SetTexturesAsync(_pendingTextures);
     }
 
     private void RenderFrame()

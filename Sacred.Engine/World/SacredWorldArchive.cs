@@ -7,6 +7,7 @@ using Sacred.Assets.World.Floor;
 using Sacred.Assets.World.Static;
 using Sacred.Core;
 using Sacred.Core.World;
+using Sacred.Core.World.Sector;
 
 namespace Sacred.Engine.World;
 
@@ -73,32 +74,38 @@ public sealed class SacredWorldArchive : IDisposable
         var decompressed = await _wldxLoader.ReadWldx(entry, sectorId);
 
         await _sectorLoadLock.WaitAsync();
-        var ground = new TileLayer(SectorW, SectorH);
-        var floorOverlays = new FloorOverlayLayer(SectorW, SectorH);
-        var liquidSurfaces = new LiquidSurfaceLayer();
-        var staticObjects = new StaticObjectLayer();
-        var staticTileVisits = new List<StaticTileVisit>();
-        var tiles = decompressed.AsSpan(entry.TilesRelativeOffset, SectorW * SectorH * WldxTileRecord.Size);
-        for (var y = 0; y < SectorH; y++)
-        for (var x = 0; x < SectorW; x++)
+        try
         {
-            var tileOffset = (y * SectorW + x) * WldxTileRecord.Size;
-            var tile = WldxTileRecord.FromBytes(tiles.Slice(tileOffset, WldxTileRecord.Size));
-            ground[x, y] = tile.GroundTileId;
-            if (tile.StaticChainHeadId != 0)
+            var ground = new TileLayer(SectorW, SectorH);
+            var floorOverlays = new FloorOverlayLayer(SectorW, SectorH);
+            var liquidSurfaces = new LiquidSurfaceLayer();
+            var staticObjects = new StaticObjectLayer();
+            var staticTileVisits = new List<StaticTileVisit>();
+            var tiles = decompressed.AsSpan(entry.TilesRelativeOffset, SectorW * SectorH * WldxTileRecord.Size);
+            for (var y = 0; y < SectorH; y++)
+            for (var x = 0; x < SectorW; x++)
             {
-                var worldX = coord.X * SectorW + x;
-                var worldY = coord.Y * SectorH + y;
-                staticTileVisits.Add(new StaticTileVisit(worldX + worldY, worldY, worldX, tile.StaticChainHeadId));
+                var tileOffset = (y * SectorW + x) * WldxTileRecord.Size;
+                var tile = WldxTileRecord.FromBytes(tiles.Slice(tileOffset, WldxTileRecord.Size));
+                ground[x, y] = tile.GroundTileId;
+                if (tile.StaticChainHeadId != 0)
+                {
+                    var worldX = coord.X * SectorW + x;
+                    var worldY = coord.Y * SectorH + y;
+                    staticTileVisits.Add(new StaticTileVisit(worldX + worldY, worldY, worldX, tile.StaticChainHeadId));
+                }
+
+                LoadFloorOverlayChain(floorOverlays, x, y, tile.FloorChainHeadId);
+                LoadLiquidSurface(liquidSurfaces, x, y, tile, entry);
             }
 
-            LoadFloorOverlayChain(floorOverlays, x, y, tile.FloorChainHeadId);
-            LoadLiquidSurface(liquidSurfaces, x, y, tile, entry);
+            LoadStaticObjectChains(staticObjects, staticTileVisits);
+            return new Sector(coord, ground, floorOverlays, liquidSurfaces, staticObjects);
         }
-
-        LoadStaticObjectChains(staticObjects, staticTileVisits);
-        _sectorLoadLock.Release();
-        return new Sector(coord, ground, floorOverlays, liquidSurfaces, staticObjects);
+        finally
+        {
+            _sectorLoadLock.Release();
+        }
     }
 
     private void LoadFloorOverlayChain(FloorOverlayLayer floorOverlays, int x, int y, uint floorId)
@@ -118,9 +125,11 @@ public sealed class SacredWorldArchive : IDisposable
             if (record.Value.PrimaryTileId != 0)
             {
                 floorOverlays.Add(x, y, new FloorOverlay(
+                    record.Value.Unknown0,
                     record.Value.TileOrBlendRef,
                     record.Value.PrimaryTileId,
                     record.Value.SecondaryTileId,
+                    record.Value.Unknown8,
                     depth));
             }
 
@@ -168,6 +177,9 @@ public sealed class SacredWorldArchive : IDisposable
                     record.Value.ProjectedY,
                     record.Value.NextStaticId,
                     record.Value.SurfaceRenderLayer,
+                    record.Value.SpriteParam2E,
+                    record.Value.SpriteParam2F,
+                    record.Value.OrientationOrFrame,
                     visit.Depth,
                     visit.WorldY,
                     visit.WorldX,
@@ -195,7 +207,7 @@ public sealed class SacredWorldArchive : IDisposable
         liquidSurfaces.Add(new LiquidSurface(
             x,
             y,
-            surfaceType,
+            tile.SurfaceType,
             styleId,
             tile.LiquidAlphaLeft,
             tile.LiquidAlphaTop,
