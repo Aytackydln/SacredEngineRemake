@@ -27,8 +27,6 @@ static const float texture_mode_has_texture_threshold = 0.15f;
 static const float texture_mode_multitexture_fill_threshold = 2.5f;
 static const float texture_animation_scroll_mode_threshold = 0.25f;
 static const float texture_animation_clamp_mode_threshold = 0.60f;
-static const float texture_animation_black_key_threshold = 0.03f;
-static const float texture_animation_black_key_scale = 12.0f;
 static const float effect_alpha_cutoff = 0.015f;
 static const float multitexture_fill_alpha_threshold = 0.85f;
 static const float multitexture_fill_alpha_scale = 8.0f;
@@ -106,22 +104,15 @@ float animated_tex_alpha_scale(float2 tex_coord)
     return y >= 0.0f && y <= 1.0f ? 1.0f : 0.0f;
 }
 
-float4 apply_animated_alpha(float4 color)
-{
-    if (uses_scroll_black_key_animation() && !uses_clamped_scroll_animation())
-    {
-        float brightness = max(max(color.r, color.g), color.b);
-        color.a *= saturate((brightness - texture_animation_black_key_threshold) * texture_animation_black_key_scale);
-    }
-
-    return color;
-}
-
 float4 sample_animated_overlay(float2 tex_coord)
 {
-    float4 color = model_overlay_texture.Sample(model_sampler, animated_tex_coord(tex_coord));
-    color.a *= animated_tex_alpha_scale(tex_coord);
-    return apply_animated_alpha(color);
+    return model_overlay_texture.Sample(model_sampler, animated_tex_coord(tex_coord));
+}
+
+float4 hdr_premultiplied_effect_color(float4 color)
+{
+    float3 hdr = SdrTextureToPremultipliedHdr10(color.rgb * color.a, color.a, hdr_display.x);
+    return float4(hdr, color.a);
 }
 
 float multitexture_fill_mask(float4 base_color)
@@ -140,7 +131,7 @@ vs_output vs_main(vs_input input)
     float4 projected_position = mul(float4(input.position, 1.0f), world_view_projection);
     output.position = projected_position;
     const float local_depth_scale = 0.08f;
-    if (texture_flags.z >= 0.0f && local_depth_scale > 0.0f)
+    if (texture_flags.z >= 0.0f)
     {
         float4 projected_origin = mul(float4(0.0f, 0.0f, 0.0f, 1.0f), world_view_projection);
         float vertex_depth = projected_position.z / max(projected_position.w, 0.000001f);
@@ -164,7 +155,7 @@ float4 ps_main(vs_output input) : SV_Target
     // "glow" effects should not be affected by light, immediately return
     if (base_color.a < effect_alpha_cutoff)
     {
-        return sample_animated_overlay(input.tex_coord);
+        return hdr_premultiplied_effect_color(sample_animated_overlay(input.tex_coord));
     }
 
     float3 normal = safe_normalize(input.normal, float3(0.0f, 0.0f, 1.0f));
@@ -184,16 +175,17 @@ float4 ps_main(vs_output input) : SV_Target
     float3 base_linear = SrgbToLinear(base_color.rgb);
     float3 ambient_nits =
         base_linear *
-        ambient_color_and_intensity.rgb *
-        (hdr_display.x * saturate(ambient_color_and_intensity.w));
+        ambient_color_and_intensity.rgb * hdr_display.x;
     float3 sun_diffuse_nits =
         base_linear *
         light_color_and_diffuse_intensity.rgb *
-        (hdr_display.z * diffuse_amount * max(light_color_and_diffuse_intensity.w, 0.0f));
+        (hdr_display.z * diffuse_amount * light_color_and_diffuse_intensity.w);
     float3 sun_specular_nits =
         light_color_and_diffuse_intensity.rgb *
-        (hdr_display.w * specular_amount * max(light_position_and_specular_strength.w, 0.0f));
+        (hdr_display.w * specular_amount * light_position_and_specular_strength.w);
 
-    float3 hdr = Linear709NitsToHdr10(ambient_nits + sun_diffuse_nits + sun_specular_nits);
+    float3 premultiplied_nits =
+        (ambient_nits + sun_diffuse_nits + sun_specular_nits) * base_color.a;
+    float3 hdr = Linear709NitsToHdr10(premultiplied_nits);
     return float4(hdr, base_color.a);
 }

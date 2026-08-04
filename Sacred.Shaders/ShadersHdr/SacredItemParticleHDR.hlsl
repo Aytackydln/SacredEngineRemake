@@ -86,5 +86,8 @@ float4 ps_main(vs_output input) : SV_Target
         discard;
     float3 source_color = uses_alpha ? 1.0f : sampled.rgb / max(brightness, 0.08f);
     float intensity = uses_alpha ? 1.0f : brightness * 1.75f;
-    return float4(source_color * model_color.rgb * intensity, alpha);
+    float3 color = saturate(source_color * model_color.rgb * intensity);
+    return float4(
+        SdrTextureToPremultipliedHdr10(color, alpha, hdr_display.x),
+        alpha);
 }

@@ -4,6 +4,13 @@ public static class Dx12ShaderCatalog
 {
     private const EmbeddedResource_ShadersHdr HdrCommon = EmbeddedResource_ShadersHdr.HdrCommon_hlsl;
 
+    // Sector composition is display-independent; SDR/HDR conversion happens later when the
+    // completed sector texture is sampled by the world-quad shader.
+    public static readonly Dx12ShaderSource TerrainComposeVertexShader =
+        Shader("SacredTerrainCompose", EmbeddedResource_Shaders.SacredTerrainCompose_hlsl, "vs_main", "vs_5_1");
+    public static readonly Dx12ShaderSource TerrainComposePixelShader =
+        Shader("SacredTerrainCompose", EmbeddedResource_Shaders.SacredTerrainCompose_hlsl, "ps_main", "ps_5_1");
+
     public static readonly Dx12ShaderSet Sdr = new(
         QuadWorldVertexShader: Shader("SacredWorldQuad", EmbeddedResource_Shaders.SacredWorldQuad_hlsl, "vs_main", "vs_5_0"),
         QuadWorldPixelShader: Shader("SacredWorldQuad", EmbeddedResource_Shaders.SacredWorldQuad_hlsl, "ps_main", "ps_5_0"),

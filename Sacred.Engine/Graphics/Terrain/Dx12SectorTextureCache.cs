@@ -3,31 +3,27 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using Sacred.Core.World.Sector;
-using Sacred.Engine.Extern;
 using Sacred.Engine.Graphics.Frames;
 using Sacred.Engine.Rendering;
 using Vortice.Direct3D12;
 
 namespace Sacred.Engine.Graphics.Terrain;
 
-/// <summary>Owns the bounded, fence-safe GPU cache and dedicated sector upload queue.</summary>
+/// <summary>Owns the bounded, fence-safe GPU cache and dedicated sector-composition queue.</summary>
 internal sealed class Dx12SectorTextureCache : IDisposable
 {
     private readonly int _maximumTextureCount;
     private readonly Dx12TextureUploader _uploader;
+    private readonly Dx12SectorComposer _composer;
     private readonly CpuDescriptorHandle _srvHeapStart;
     private readonly int _descriptorSize;
     private readonly Dictionary<SectorCoord, SectorTexture> _textures = new();
     private readonly HashSet<SectorCoord> _pendingUploads = [];
-    private readonly BlockingCollection<SectorUploadRequest> _uploadRequests = new();
-    private readonly ConcurrentQueue<SubmittedSectorUpload> _submittedUploads = new();
-    private readonly ID3D12CommandQueue _uploadCommandQueue;
-    private readonly ID3D12Fence _uploadFence;
+    private readonly BlockingCollection<SectorCompositionRequest> _compositionRequests = new();
+    private readonly ConcurrentQueue<SubmittedSectorComposition> _submittedCompositions = new();
     private readonly Stack<int> _freeSrvSlots;
 
     private Thread? _uploadThread;
-    private nint _uploadFenceEvent;
-    private ulong _uploadFenceValue;
     private int _retiringSrvSlotCount;
     private bool _stopped;
 
@@ -40,22 +36,17 @@ internal sealed class Dx12SectorTextureCache : IDisposable
     {
         _maximumTextureCount = maximumTextureCount;
         _uploader = uploader;
+        _composer = new Dx12SectorComposer(device, uploader);
         _srvHeapStart = srvHeap.GetCPUDescriptorHandleForHeapStart();
         _descriptorSize = descriptorSize;
         _freeSrvSlots = new Stack<int>(maximumTextureCount * 2);
         for (var index = maximumTextureCount * 2 - 1; index >= 0; index--)
             _freeSrvSlots.Push(index);
 
-        _uploadCommandQueue = device.CreateCommandQueue(CommandListType.Direct);
-        _uploadFence = device.CreateFence(0, FenceFlags.None);
-        _uploadFenceEvent = Kernel32.CreateEventA(IntPtr.Zero, false, false, null);
-        if (_uploadFenceEvent == 0)
-            throw new InvalidOperationException("Failed to create the sector-upload fence event.");
-
         _uploadThread = new Thread(UploadWorkerLoop)
         {
             IsBackground = true,
-            Name = "Sacred sector texture uploader"
+            Name = "Sacred GPU sector compositor"
         };
         _uploadThread.Start();
     }
@@ -71,7 +62,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
     }
 
     public void PrepareFrame(
-        IReadOnlyList<TerrainSectorImage> images,
+        IReadOnlyList<TerrainSectorComposition> images,
         Dx12FrameContext frame,
         ulong frameId)
     {
@@ -98,17 +89,16 @@ internal sealed class Dx12SectorTextureCache : IDisposable
             return;
 
         _stopped = true;
-        _uploadRequests.CompleteAdding();
+        _compositionRequests.CompleteAdding();
         _uploadThread?.Join();
         _uploadThread = null;
 
-        WaitForSubmittedUploads();
-        while (_submittedUploads.TryDequeue(out var upload))
+        while (_submittedCompositions.TryDequeue(out var composition))
         {
-            upload.Upload?.Dispose();
-            _pendingUploads.Remove(upload.Coord);
-            _freeSrvSlots.Push(upload.BaseSrvSlot);
-            _freeSrvSlots.Push(upload.LiquidCoverSrvSlot);
+            composition.Composed?.Dispose();
+            _pendingUploads.Remove(composition.Coord);
+            _freeSrvSlots.Push(composition.BaseSrvSlot);
+            _freeSrvSlots.Push(composition.LiquidCoverSrvSlot);
         }
 
         _pendingUploads.Clear();
@@ -124,70 +114,54 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         }
         _textures.Clear();
 
-        _uploadRequests.Dispose();
-        _uploadFence.Dispose();
-        _uploadCommandQueue.Dispose();
-        if (_uploadFenceEvent != 0)
-        {
-            Kernel32.CloseHandle(_uploadFenceEvent);
-            _uploadFenceEvent = 0;
-        }
+        _compositionRequests.Dispose();
+        _composer.Dispose();
     }
 
     private void CollectCompletedUploads(Dx12FrameContext frame, ulong frameId)
     {
-        while (_submittedUploads.TryPeek(out var pending))
+        while (_submittedCompositions.TryDequeue(out var composition))
         {
-            if (pending.Upload is { } pendingUpload && _uploadFence.CompletedValue < pendingUpload.FenceValue)
-                break;
-
-            if (!_submittedUploads.TryDequeue(out var upload))
-                break;
-            _pendingUploads.Remove(upload.Coord);
-            if (upload.Error is not null)
+            _pendingUploads.Remove(composition.Coord);
+            if (composition.Error is not null)
             {
-                _freeSrvSlots.Push(upload.BaseSrvSlot);
-                _freeSrvSlots.Push(upload.LiquidCoverSrvSlot);
+                _freeSrvSlots.Push(composition.BaseSrvSlot);
+                _freeSrvSlots.Push(composition.LiquidCoverSrvSlot);
                 throw new InvalidOperationException(
-                    $"Failed to upload sector texture {upload.Coord.X},{upload.Coord.Y}.",
-                    upload.Error);
+                    $"Failed to compose sector texture {composition.Coord.X},{composition.Coord.Y}.",
+                    composition.Error);
             }
 
-            if (upload.Upload is null)
+            if (composition.Composed is null)
             {
-                _freeSrvSlots.Push(upload.BaseSrvSlot);
-                _freeSrvSlots.Push(upload.LiquidCoverSrvSlot);
+                _freeSrvSlots.Push(composition.BaseSrvSlot);
+                _freeSrvSlots.Push(composition.LiquidCoverSrvSlot);
                 continue;
             }
 
-            var submitted = upload.Upload;
-            submitted.ReleaseCompletedUploadResources();
-            if (_textures.Remove(upload.Coord, out var existing))
+            var composed = composition.Composed;
+            if (_textures.Remove(composition.Coord, out var existing))
                 Retire(existing, frame);
 
-            _uploader.CreateShaderResourceView(submitted.BaseTexture, SrvCpuHandle(upload.BaseSrvSlot));
-            _uploader.CreateShaderResourceView(submitted.LiquidCoverTexture, SrvCpuHandle(upload.LiquidCoverSrvSlot));
-            _textures.Add(upload.Coord, new SectorTexture(
-                submitted.BaseTexture,
-                submitted.LiquidCoverTexture,
-                upload.BaseSrvSlot,
-                upload.LiquidCoverSrvSlot,
+            _uploader.CreateShaderResourceView(composed.BaseTexture, SrvCpuHandle(composition.BaseSrvSlot));
+            _uploader.CreateShaderResourceView(composed.LiquidCoverTexture, SrvCpuHandle(composition.LiquidCoverSrvSlot));
+            _textures.Add(composition.Coord, new SectorTexture(
+                composed.BaseTexture,
+                composed.LiquidCoverTexture,
+                composition.BaseSrvSlot,
+                composition.LiquidCoverSrvSlot,
                 frameId));
         }
     }
 
-    private void QueueMissingUploads(IReadOnlyList<TerrainSectorImage> images, Dx12FrameContext frame)
+    private void QueueMissingUploads(IReadOnlyList<TerrainSectorComposition> images, Dx12FrameContext frame)
     {
         foreach (var image in images)
         {
             if (_textures.ContainsKey(image.Coord))
-            {
-                if (image.HasCpuPixels)
-                    image.ReleaseCpuPixels();
                 continue;
-            }
 
-            if (_pendingUploads.Contains(image.Coord) || !image.HasCpuPixels)
+            if (_pendingUploads.Contains(image.Coord))
                 continue;
 
             if (_freeSrvSlots.Count < 2)
@@ -201,7 +175,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
             var baseSlot = _freeSrvSlots.Pop();
             var liquidCoverSlot = _freeSrvSlots.Pop();
             _pendingUploads.Add(image.Coord);
-            if (_uploadRequests.TryAdd(new SectorUploadRequest(image, baseSlot, liquidCoverSlot)))
+            if (_compositionRequests.TryAdd(new SectorCompositionRequest(image, baseSlot, liquidCoverSlot)))
                 continue;
 
             _pendingUploads.Remove(image.Coord);
@@ -211,14 +185,14 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         }
     }
 
-    private void TouchVisibleTextures(IReadOnlyList<TerrainSectorImage> images, ulong frameId)
+    private void TouchVisibleTextures(IReadOnlyList<TerrainSectorComposition> images, ulong frameId)
     {
         foreach (var image in images)
             if (_textures.TryGetValue(image.Coord, out var texture))
                 texture.LastUsedFrame = frameId;
     }
 
-    private void EvictLeastRecentlyUsed(IReadOnlyList<TerrainSectorImage> visibleImages, Dx12FrameContext frame)
+    private void EvictLeastRecentlyUsed(IReadOnlyList<TerrainSectorComposition> visibleImages, Dx12FrameContext frame)
     {
         SectorCoord? victimCoord = null;
         SectorTexture? victim = null;
@@ -258,35 +232,26 @@ internal sealed class Dx12SectorTextureCache : IDisposable
 
     private void UploadWorkerLoop()
     {
-        foreach (var request in _uploadRequests.GetConsumingEnumerable())
-            _submittedUploads.Enqueue(Upload(request));
+        foreach (var request in _compositionRequests.GetConsumingEnumerable())
+            _submittedCompositions.Enqueue(Compose(request));
     }
 
-    private SubmittedSectorUpload Upload(SectorUploadRequest request)
+    private SubmittedSectorComposition Compose(SectorCompositionRequest request)
     {
         try
         {
-            var image = request.Image;
-            var upload = _uploader.SubmitSectorTextures(
-                _uploadCommandQueue,
-                _uploadFence,
-                ref _uploadFenceValue,
-                image.Width,
-                image.Height,
-                image.GetCpuPixels(),
-                image.GetLiquidCoverCpuPixels());
-            image.ReleaseCpuPixels();
-            return new SubmittedSectorUpload(
-                image.Coord,
-                upload,
+            var composed = _composer.Compose(request.Composition);
+            return new SubmittedSectorComposition(
+                request.Composition.Coord,
+                composed,
                 request.BaseSrvSlot,
                 request.LiquidCoverSrvSlot,
                 null);
         }
         catch (Exception exception)
         {
-            return new SubmittedSectorUpload(
-                request.Image.Coord,
+            return new SubmittedSectorComposition(
+                request.Composition.Coord,
                 null,
                 request.BaseSrvSlot,
                 request.LiquidCoverSrvSlot,
@@ -296,21 +261,14 @@ internal sealed class Dx12SectorTextureCache : IDisposable
 
     private CpuDescriptorHandle SrvCpuHandle(int index) => _srvHeapStart + index * _descriptorSize;
 
-    private sealed record SectorUploadRequest(TerrainSectorImage Image, int BaseSrvSlot, int LiquidCoverSrvSlot);
+    private sealed record SectorCompositionRequest(
+        TerrainSectorComposition Composition,
+        int BaseSrvSlot,
+        int LiquidCoverSrvSlot);
 
-    private void WaitForSubmittedUploads()
-    {
-        var fenceValue = _uploadFenceValue;
-        if (fenceValue == 0 || _uploadFence.CompletedValue >= fenceValue)
-            return;
-
-        _uploadFence.SetEventOnCompletion(fenceValue, _uploadFenceEvent).CheckError();
-        Kernel32.WaitForSingleObject(_uploadFenceEvent, uint.MaxValue);
-    }
-
-    private sealed record SubmittedSectorUpload(
+    private sealed record SubmittedSectorComposition(
         SectorCoord Coord,
-        Dx12SectorTextureUpload? Upload,
+        Dx12ComposedSector? Composed,
         int BaseSrvSlot,
         int LiquidCoverSrvSlot,
         Exception? Error);

@@ -101,5 +101,5 @@ float4 ps_main(vs_output input) : SV_Target
     float3 source_color = uses_alpha ? 1.0f : sampled.rgb / max(brightness, 0.08f);
     float intensity = uses_alpha ? 1.0f : saturate(brightness * 1.75f);
     float3 color = source_color * model_color.rgb * intensity;
-    return float4(saturate(color), alpha);
+    return float4(color, alpha);
 }

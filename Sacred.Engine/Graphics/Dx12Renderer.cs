@@ -487,7 +487,7 @@ public sealed class Dx12Renderer : IDisposable
 
     private unsafe void RecordWorldPass(
         SacredCamera camera,
-        IReadOnlyList<TerrainSectorImage> sectorImages,
+        IReadOnlyList<TerrainSectorComposition> sectorImages,
         IReadOnlyList<TerrainLiquidSprite> liquidSprites,
         IReadOnlyList<TerrainStaticSprite> staticSprites,
         SceneState scene)

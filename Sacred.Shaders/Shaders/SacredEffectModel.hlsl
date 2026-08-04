@@ -26,8 +26,6 @@ static const float texture_mode_has_texture_threshold = 0.5f;
 static const float texture_mode_multitexture_fill_threshold = 2.5f;
 static const float texture_animation_scroll_mode_threshold = 0.25f;
 static const float texture_animation_clamp_mode_threshold = 0.60f;
-static const float texture_animation_black_key_threshold = 0.03f;
-static const float texture_animation_black_key_scale = 12.0f;
 static const float effect_alpha_cutoff = 0.015f;
 static const float multitexture_fill_alpha_threshold = 0.85f;
 static const float multitexture_fill_alpha_scale = 8.0f;
@@ -105,22 +103,14 @@ float animated_tex_alpha_scale(float2 tex_coord)
     return y >= 0.0f && y <= 1.0f ? 1.0f : 0.0f;
 }
 
-float4 apply_animated_alpha(float4 color)
-{
-    if (uses_scroll_black_key_animation() && !uses_clamped_scroll_animation())
-    {
-        float brightness = max(max(color.r, color.g), color.b);
-        color.a *= saturate((brightness - texture_animation_black_key_threshold) * texture_animation_black_key_scale);
-    }
-
-    return color;
-}
-
 float4 sample_animated_overlay(float2 tex_coord)
 {
-    float4 color = model_overlay_texture.Sample(model_sampler, animated_tex_coord(tex_coord));
-    color.a *= animated_tex_alpha_scale(tex_coord);
-    return apply_animated_alpha(color);
+    return model_overlay_texture.Sample(model_sampler, animated_tex_coord(tex_coord));
+}
+
+float4 visible_effect_color(float4 color)
+{
+    return float4(color.rgb * color.a, color.a);
 }
 
 float multitexture_fill_mask(float4 base_color)
@@ -163,7 +153,7 @@ float4 ps_main(vs_output input) : SV_Target
     // "glow" effects should not be affected by light, immediately return
     if (base_color.a < effect_alpha_cutoff)
     {
-        return sample_animated_overlay(input.tex_coord);
+        return visible_effect_color(sample_animated_overlay(input.tex_coord));
     }
 
     float3 normal = safe_normalize(input.normal, float3(0.0f, 0.0f, 1.0f));
@@ -185,5 +175,5 @@ float4 ps_main(vs_output input) : SV_Target
     float3 specular = light_color_and_diffuse_intensity.rgb * (specular_amount * light_position_and_specular_strength.w);
     float3 lit_color = base_color.rgb * (ambient + diffuse) + specular;
 
-    return float4(saturate(lit_color), base_color.a);
+    return float4(saturate(lit_color) * base_color.a, base_color.a);
 }

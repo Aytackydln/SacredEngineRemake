@@ -160,6 +160,12 @@ pixel_output ps_main(vertex_output input)
 {
     uint texture_index = NonUniformResourceIndex(input.texture_index);
     float4 tex = sample_sprite_texture(static_textures[texture_index], input);
+
+    if (tex.a == 0)
+    {
+        discard;
+    }
+
     bool is_liquid = (input.flags & 1) != 0;
     if (is_liquid)
         tex.a *= liquid_corner_alpha(input.tex_coord, input.corner_alpha);

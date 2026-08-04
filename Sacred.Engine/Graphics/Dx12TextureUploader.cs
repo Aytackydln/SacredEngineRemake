@@ -161,64 +161,6 @@ public sealed class Dx12TextureUploader
         }
     }
 
-    /// <summary>
-    /// Submits both terrain textures without waiting for the GPU. The returned upload owns every
-    /// object that must remain alive until its fence has completed.
-    /// </summary>
-    public Dx12SectorTextureUpload SubmitSectorTextures(
-        ID3D12CommandQueue commandQueue,
-        ID3D12Fence fence,
-        ref ulong fenceValue,
-        int width,
-        int height,
-        byte[] baseRgba,
-        byte[] liquidCoverRgba)
-    {
-        ID3D12CommandAllocator? commandAllocator = null;
-        ID3D12GraphicsCommandList? commandList = null;
-        ID3D12Resource? baseTexture = null;
-        ID3D12Resource? liquidCoverTexture = null;
-        ID3D12Resource? baseUpload = null;
-        ID3D12Resource? liquidCoverUpload = null;
-        try
-        {
-            commandAllocator = _device.CreateCommandAllocator(CommandListType.Direct);
-            commandList = _device.CreateCommandList<ID3D12GraphicsCommandList>(CommandListType.Direct, commandAllocator, null);
-            baseTexture = CreateTexture2D(width, height, Rgba8Format, ResourceStates.CopyDest);
-            liquidCoverTexture = CreateTexture2D(width, height, Rgba8Format, ResourceStates.CopyDest);
-            baseUpload = CreateRgbaUploadBuffer(width, height, baseRgba);
-            liquidCoverUpload = CreateRgbaUploadBuffer(width, height, liquidCoverRgba);
-
-            CopyUploadToTexture(commandList, baseUpload, baseTexture, width, height);
-            Transition(commandList, baseTexture, ResourceStates.CopyDest, ResourceStates.PixelShaderResource);
-            CopyUploadToTexture(commandList, liquidCoverUpload, liquidCoverTexture, width, height);
-            Transition(commandList, liquidCoverTexture, ResourceStates.CopyDest, ResourceStates.PixelShaderResource);
-            commandList.Close();
-            commandQueue.ExecuteCommandLists([commandList]);
-            fenceValue++;
-            commandQueue.Signal(fence, fenceValue).CheckError();
-
-            return new Dx12SectorTextureUpload(
-                baseTexture,
-                liquidCoverTexture,
-                baseUpload,
-                liquidCoverUpload,
-                commandAllocator,
-                commandList,
-                fenceValue);
-        }
-        catch
-        {
-            liquidCoverUpload?.Dispose();
-            baseUpload?.Dispose();
-            liquidCoverTexture?.Dispose();
-            baseTexture?.Dispose();
-            commandList?.Dispose();
-            commandAllocator?.Dispose();
-            throw;
-        }
-    }
-
     private ID3D12Resource CreateCommittedResource(HeapType heapType, ResourceDescription description, ResourceStates initialState)
     {
         var heapProperties = new HeapProperties(heapType, 0, 0);
@@ -319,53 +261,4 @@ public sealed class Dx12TextureUploader
     }
 
     private static int Align(int value, int alignment) => (value + alignment - 1) & ~(alignment - 1);
-}
-
-public sealed class Dx12SectorTextureUpload : IDisposable
-{
-    private ID3D12Resource? _baseUpload;
-    private ID3D12Resource? _liquidCoverUpload;
-    private ID3D12CommandAllocator? _commandAllocator;
-    private ID3D12GraphicsCommandList? _commandList;
-
-    internal Dx12SectorTextureUpload(
-        ID3D12Resource baseTexture,
-        ID3D12Resource liquidCoverTexture,
-        ID3D12Resource baseUpload,
-        ID3D12Resource liquidCoverUpload,
-        ID3D12CommandAllocator commandAllocator,
-        ID3D12GraphicsCommandList commandList,
-        ulong fenceValue)
-    {
-        BaseTexture = baseTexture;
-        LiquidCoverTexture = liquidCoverTexture;
-        _baseUpload = baseUpload;
-        _liquidCoverUpload = liquidCoverUpload;
-        _commandAllocator = commandAllocator;
-        _commandList = commandList;
-        FenceValue = fenceValue;
-    }
-
-    public ID3D12Resource BaseTexture { get; }
-    public ID3D12Resource LiquidCoverTexture { get; }
-    public ulong FenceValue { get; }
-
-    public void ReleaseCompletedUploadResources()
-    {
-        _liquidCoverUpload?.Dispose();
-        _liquidCoverUpload = null;
-        _baseUpload?.Dispose();
-        _baseUpload = null;
-        _commandList?.Dispose();
-        _commandList = null;
-        _commandAllocator?.Dispose();
-        _commandAllocator = null;
-    }
-
-    public void Dispose()
-    {
-        ReleaseCompletedUploadResources();
-        BaseTexture.Dispose();
-        LiquidCoverTexture.Dispose();
-    }
 }
