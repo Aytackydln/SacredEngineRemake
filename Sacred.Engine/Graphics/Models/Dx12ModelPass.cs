@@ -6,6 +6,7 @@ using Sacred.Assets.Paks.Texture;
 using Sacred.Engine.Graphics.Swapchain;
 using Sacred.Engine.Rendering.EquipmentEffects;
 using Sacred.Engine.Scene;
+using Sacred.Engine.Scene.InGame;
 using Sacred.Shaders;
 using Vortice.Direct3D;
 using Vortice.Direct3D12;
@@ -32,7 +33,8 @@ internal sealed class Dx12ModelPass
     private ID3D12PipelineState? _staticPipeline;
     private ID3D12PipelineState? _animatedPipeline;
     private ID3D12PipelineState? _effectPipeline;
-    private ID3D12PipelineState? _particlePipeline;
+    private ID3D12PipelineState? _transparentParticlePipeline;
+    private ID3D12PipelineState? _denseParticlePipeline;
 
     public Dx12ModelPass(
         ID3D12GraphicsCommandList commandList,
@@ -56,7 +58,8 @@ internal sealed class Dx12ModelPass
         _staticPipeline = pipeline.Static;
         _animatedPipeline = pipeline.Animated;
         _effectPipeline = pipeline.Effect;
-        _particlePipeline = pipeline.Particle;
+        _transparentParticlePipeline = pipeline.TransparentParticle;
+        _denseParticlePipeline = pipeline.DenseParticle;
     }
 
     public void DisposePipeline()
@@ -67,8 +70,10 @@ internal sealed class Dx12ModelPass
         _animatedPipeline = null;
         _effectPipeline?.Dispose();
         _effectPipeline = null;
-        _particlePipeline?.Dispose();
-        _particlePipeline = null;
+        _transparentParticlePipeline?.Dispose();
+        _transparentParticlePipeline = null;
+        _denseParticlePipeline?.Dispose();
+        _denseParticlePipeline = null;
         _rootSignature?.Dispose();
         _rootSignature = null;
     }
@@ -209,13 +214,12 @@ internal sealed class Dx12ModelPass
         float* constants)
     {
         var effects = model.EquipmentEffects;
-        if (effects is null || _particlePipeline is null)
+        if (effects is null || _transparentParticlePipeline is null || _denseParticlePipeline is null)
             return;
 
         var mesh = _geometryCache.GetOrCreate(effects.Mesh, frameIndex);
         var vertexBufferView = mesh.VertexBufferViews[frameIndex];
         var indexBufferView = mesh.IndexBufferView;
-        _commandList.SetPipelineState(_particlePipeline);
         _commandList.IASetVertexBuffers(0, 1, &vertexBufferView);
         _commandList.IASetIndexBuffer(&indexBufferView);
 
@@ -225,15 +229,15 @@ internal sealed class Dx12ModelPass
             if (texture is null || surface.IndexCount <= 0 || surface.IndexStart >= mesh.IndexCount)
                 continue;
 
-            var effectWorld = model.Transform;
-            if (surface.TextureMode == EquipmentEffectTextureMode.PoisonFlow &&
-                surface.MotionVector.LengthSquared() > 0.0001f)
-            {
-                var progress = (elapsedSeconds * 0.42f + surface.Phase) % 1.0f;
-                effectWorld = Matrix4x4.CreateTranslation(surface.MotionVector * progress) * effectWorld;
-            }
+            var usesDenseComposition = surface.TextureMode is
+                EquipmentEffectTextureMode.MagicOrb or
+                EquipmentEffectTextureMode.FirePop or
+                EquipmentEffectTextureMode.PoisonStatic;
+            _commandList.SetPipelineState(usesDenseComposition
+                ? _denseParticlePipeline
+                : _transparentParticlePipeline);
 
-            _shaderConstants.WriteModelBase(constants, viewProjection, effectWorld, surface.Color);
+            _shaderConstants.WriteModelBase(constants, viewProjection, model.Transform, surface.Color);
             _shaderConstants.WriteTextureFlags(
                 constants + ModelShaderLayout.TextureFlagsOffset,
                 ModelShaderVariables.TextureModeBaseTexture,

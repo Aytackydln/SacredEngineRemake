@@ -100,4 +100,14 @@ public sealed class InputState
             _down.Remove(key);
         }
     }
+
+    /// <summary>Discards one-shot events when input ownership moves to another scene.</summary>
+    public void ClearTransientEvents()
+    {
+        _pressed.Clear();
+        _leftClickPosition = null;
+        _leftMouseButtonReleased = false;
+        _xButtonCyclePressed = false;
+        _mouseWheelDelta = 0;
+    }
 }

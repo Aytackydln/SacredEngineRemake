@@ -18,6 +18,7 @@ public sealed class WorldStreamer : IDisposable
     private readonly HashSet<SectorCoord> _loading = [];
     private readonly HashSet<SectorCoord> _needed = [];
     private readonly List<SectorCoord> _toRemove = new(9);
+    private readonly List<Task> _sectorLoadTasks = new(16);
     private readonly CancellationTokenSource _shutdown = new();
     private readonly SemaphoreSlim _wakeSignal = new(0);
     private readonly Task _streamingTask;
@@ -119,6 +120,7 @@ public sealed class WorldStreamer : IDisposable
 
     private void Ensure3x3Loaded(SectorCoord center, CancellationToken cancellationToken)
     {
+        _sectorLoadTasks.RemoveAll(static task => task.IsCompleted);
         _needed.Clear();
         var coords = new int[][]
         {
@@ -132,7 +134,9 @@ public sealed class WorldStreamer : IDisposable
             var c = new SectorCoord(center.X + x, center.Y + y);
             _needed.Add(c);
             if (!_loaded.ContainsKey(c) && _loading.Add(c))
-                _ = Task.Run(() => LoadSectorAsync(c, cancellationToken), CancellationToken.None);
+                _sectorLoadTasks.Add(Task.Run(
+                    () => LoadSectorAsync(c, cancellationToken),
+                    CancellationToken.None));
         }
 
         _toRemove.Clear();
@@ -207,9 +211,11 @@ public sealed class WorldStreamer : IDisposable
 
         _disposed = true;
         _shutdown.Cancel();
-        _worldArchive.Dispose();
-
         _streamingTask.Wait();
+        Task.WhenAll(_sectorLoadTasks).GetAwaiter().GetResult();
+        _worldArchive.Dispose();
+        _wakeSignal.Dispose();
+        _shutdown.Dispose();
     }
 
     private sealed record StreamRequest(SectorCoord Center, int Version);

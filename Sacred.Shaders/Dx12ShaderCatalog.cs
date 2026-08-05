@@ -7,15 +7,15 @@ public static class Dx12ShaderCatalog
     // Sector composition is display-independent; SDR/HDR conversion happens later when the
     // completed sector texture is sampled by the world-quad shader.
     public static readonly Dx12ShaderSource TerrainComposeVertexShader =
-        Shader("SacredTerrainCompose", EmbeddedResource_Shaders.SacredTerrainCompose_hlsl, "vs_main", "vs_5_1");
+        Shader("SacredTerrainCompose", EmbeddedResource_Shaders.SacredTerrainCompose_hlsl, "vs_main", "vs_5_0");
     public static readonly Dx12ShaderSource TerrainComposePixelShader =
-        Shader("SacredTerrainCompose", EmbeddedResource_Shaders.SacredTerrainCompose_hlsl, "ps_main", "ps_5_1");
+        Shader("SacredTerrainCompose", EmbeddedResource_Shaders.SacredTerrainCompose_hlsl, "ps_main", "ps_5_0");
 
     public static readonly Dx12ShaderSet Sdr = new(
         QuadWorldVertexShader: Shader("SacredWorldQuad", EmbeddedResource_Shaders.SacredWorldQuad_hlsl, "vs_main", "vs_5_0"),
         QuadWorldPixelShader: Shader("SacredWorldQuad", EmbeddedResource_Shaders.SacredWorldQuad_hlsl, "ps_main", "ps_5_0"),
-        StaticSpriteVertexShader: Shader("SacredStaticSprite", EmbeddedResource_Shaders.SacredStaticSprite_hlsl, "vs_main", "vs_5_1"),
-        StaticSpritePixelShader: Shader("SacredStaticSprite", EmbeddedResource_Shaders.SacredStaticSprite_hlsl, "ps_main", "ps_5_1"),
+        StaticSpriteVertexShader: Shader("SacredStaticSprite", EmbeddedResource_Shaders.SacredStaticSprite_hlsl, "vs_main", "vs_5_0"),
+        StaticSpritePixelShader: Shader("SacredStaticSprite", EmbeddedResource_Shaders.SacredStaticSprite_hlsl, "ps_main", "ps_5_0"),
         ModelVertexShader: Shader("SacredModel", EmbeddedResource_Shaders.SacredModel_hlsl, "vs_main", "vs_5_0"),
         ModelPixelShader: Shader("SacredModel", EmbeddedResource_Shaders.SacredModel_hlsl, "ps_main", "ps_5_0"),
         AnimatedModelVertexShader: Shader("SacredAnimatedModel", EmbeddedResource_Shaders.SacredAnimatedModel_hlsl, "vs_main", "vs_5_0"),
@@ -31,8 +31,8 @@ public static class Dx12ShaderCatalog
     public static readonly Dx12ShaderSet Hdr = new(
         QuadWorldVertexShader: Shader("SacredWorldQuadHDR", EmbeddedResource_ShadersHdr.SacredWorldQuadHDR_hlsl, "vs_main", "vs_5_0", HdrCommon),
         QuadWorldPixelShader: Shader("SacredWorldQuadHDR", EmbeddedResource_ShadersHdr.SacredWorldQuadHDR_hlsl, "ps_main", "ps_5_0", HdrCommon),
-        StaticSpriteVertexShader: Shader("SacredStaticSpriteHDR", EmbeddedResource_ShadersHdr.SacredStaticSpriteHDR_hlsl, "vs_main", "vs_5_1", HdrCommon),
-        StaticSpritePixelShader: Shader("SacredStaticSpriteHDR", EmbeddedResource_ShadersHdr.SacredStaticSpriteHDR_hlsl, "ps_main", "ps_5_1", HdrCommon),
+        StaticSpriteVertexShader: Shader("SacredStaticSpriteHDR", EmbeddedResource_ShadersHdr.SacredStaticSpriteHDR_hlsl, "vs_main", "vs_5_0", HdrCommon),
+        StaticSpritePixelShader: Shader("SacredStaticSpriteHDR", EmbeddedResource_ShadersHdr.SacredStaticSpriteHDR_hlsl, "ps_main", "ps_5_0", HdrCommon),
         ModelVertexShader: Shader("SacredModelHDR", EmbeddedResource_ShadersHdr.SacredModelHDR_hlsl, "vs_main", "vs_5_0", HdrCommon),
         ModelPixelShader: Shader("SacredModelHDR", EmbeddedResource_ShadersHdr.SacredModelHDR_hlsl, "ps_main", "ps_5_0", HdrCommon),
         AnimatedModelVertexShader: Shader("SacredAnimatedModelHDR", EmbeddedResource_ShadersHdr.SacredAnimatedModelHDR_hlsl, "vs_main", "vs_5_0", HdrCommon),

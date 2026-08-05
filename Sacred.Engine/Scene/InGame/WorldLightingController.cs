@@ -1,7 +1,7 @@
 using System;
 using System.Numerics;
 
-namespace Sacred.Engine.Scene;
+namespace Sacred.Engine.Scene.InGame;
 
 public enum WorldLightingMode
 {
@@ -113,7 +113,7 @@ public sealed class WorldLightingController
         lighting.LightColor = Vector3.Lerp(new Vector3(1.0f, 0.93f, 0.82f), new Vector3(0.43f, 0.56f, 0.90f), blend);
         lighting.AmbientColor = Vector3.Lerp(new Vector3(0.76f, 0.84f, 1.0f), new Vector3(0.24f, 0.33f, 0.56f), blend);
         lighting.AmbientIntensity = Lerp(0.28f, 0.18f, blend);
-        lighting.DiffuseIntensity = Lerp(0.85f, 0.30f, blend);
+        lighting.DiffuseIntensity = Lerp(0.85f, 0.12f, blend);
         lighting.SpecularIntensity = Lerp(0.20f, 0.08f, blend);
         lighting.WorldQuadAmbientIntensity = Lerp(1.0f, 0.30f, blend);
     }

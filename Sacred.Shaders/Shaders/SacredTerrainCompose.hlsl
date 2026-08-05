@@ -1,5 +1,6 @@
 // One-time GPU composition of Sacred's 100x50 atlas cells into 96x48 terrain diamonds.
-// #pragma hlsl profile ps_5_1
+// This shader intentionally targets Shader Model 5.0.  In particular, it avoids
+// resource arrays, which Proton's D3DCompiler implementation cannot compile.
 #pragma vertex vs_main
 #pragma fragment ps_main
 
@@ -19,7 +20,8 @@ struct TerrainTileInstance
 };
 
 StructuredBuffer<TerrainTileInstance> tile_instances : register(t0);
-Texture2D tile_textures[4096] : register(t1);
+Texture2D primary_texture : register(t1);
+Texture2D secondary_texture : register(t2);
 
 cbuffer CompositionConstants : register(b0)
 {
@@ -31,9 +33,7 @@ struct vertex_output
     float4 position : SV_Position;
     float2 primary_source_pixel : TEXCOORD0;
     float2 secondary_source_pixel : TEXCOORD1;
-    nointerpolation uint primary_texture_index : TEXCOORD2;
-    nointerpolation uint secondary_texture_index : TEXCOORD3;
-    nointerpolation uint flags : TEXCOORD4;
+    nointerpolation uint flags : TEXCOORD2;
 };
 
 static const float2 destination_vertices[12] =
@@ -64,8 +64,6 @@ vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_Instan
     output.position = float4(clip, 0.0f, 1.0f);
     output.primary_source_pixel = instance.primary_source_origin + source_vertices[vertex_id];
     output.secondary_source_pixel = instance.secondary_source_origin + source_vertices[vertex_id];
-    output.primary_texture_index = instance.primary_texture_index;
-    output.secondary_texture_index = instance.secondary_texture_index;
     output.flags = instance.flags;
     return output;
 }
@@ -80,15 +78,13 @@ int2 clamp_source_pixel(Texture2D texture_to_sample, float2 source_pixel)
 
 float4 ps_main(vertex_output input) : SV_Target
 {
-    uint primary_index = NonUniformResourceIndex(input.primary_texture_index);
-    float4 color = tile_textures[primary_index].Load(int3(
-        clamp_source_pixel(tile_textures[primary_index], input.primary_source_pixel), 0));
+    float4 color = primary_texture.Load(int3(
+        clamp_source_pixel(primary_texture, input.primary_source_pixel), 0));
 
     if ((input.flags & tile_flag_has_secondary_mask) != 0)
     {
-        uint secondary_index = NonUniformResourceIndex(input.secondary_texture_index);
-        color.a = tile_textures[secondary_index].Load(int3(
-            clamp_source_pixel(tile_textures[secondary_index], input.secondary_source_pixel), 0)).a;
+        color.a = secondary_texture.Load(int3(
+            clamp_source_pixel(secondary_texture, input.secondary_source_pixel), 0)).a;
     }
 
     if ((input.flags & tile_flag_premultiplied_output) != 0)

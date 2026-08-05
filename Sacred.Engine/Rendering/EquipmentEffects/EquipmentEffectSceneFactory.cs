@@ -11,7 +11,6 @@ internal static class EquipmentEffectSceneFactory
 {
     private const string FireTexture = "PARTICLE_FIRE02.TGA";
     private const string OrbTexture = "PARTICLE_GLOW03.TGA";
-    private const string LineTexture = "PARTICLE_LINE01.TGA";
     private const string BouncyLineTexture = "FX_STREAKS01.TGA";
 
     public static EquipmentEffectScene? Create(
@@ -76,7 +75,12 @@ internal static class EquipmentEffectSceneFactory
         else if (primaryEmitter != default)
         {
             foreach (var element in elements)
-                AddElementParticleField(builder, emitters, element, unit);
+                ElementalEffectFieldBuilder.Add(
+                    builder,
+                    emitters[0].Position,
+                    emitters.Length > 1 ? emitters[1].Position : emitters[0].Position,
+                    element,
+                    unit);
         }
 
         var dominantColor = elements.FirstOrDefault().Color;
@@ -101,21 +105,13 @@ internal static class EquipmentEffectSceneFactory
         {
             var glows = OfKind(points, SacredEquipmentEffectAnchorKind.Glow);
             if (glows.Length > 0)
-                builder.AddBillboard(
-                    glows[0].Position,
-                    unit * 3.0f,
-                    unit * 3.0f,
-                    OrbTexture,
-                    dominantColor,
-                    EquipmentEffectTextureMode.Luminance);
+                WeaponGlowEffectBuilder.Add(builder, glows[0].Position, unit);
             for (var index = 1; index < glows.Length; index++)
-                builder.AddCrossedStrip(
+                WeaponGlowEffectBuilder.AddTrail(
+                    builder,
                     glows[index - 1].Position,
                     glows[index].Position,
-                    unit * 0.42f,
-                    LineTexture,
-                    dominantColor,
-                    EquipmentEffectTextureMode.Alpha);
+                    unit);
         }
 
         var streakOrigin = standardEffects.FirstOrDefault();
@@ -167,43 +163,6 @@ internal static class EquipmentEffectSceneFactory
             EquipmentEffectTextureMode.BouncyAlpha);
     }
 
-    private static void AddElementParticleField(
-        EffectMeshBuilder builder,
-        IReadOnlyList<EffectAnchorPoint> emitters,
-        ElementEffect element,
-        float unit)
-    {
-        var start = emitters[0].Position;
-        var end = emitters.Count > 1 ? emitters[1].Position : start;
-        var span = end - start;
-        var distance = span.Length();
-        var count = distance < 0.001f
-            ? 1
-            : Math.Clamp((int)MathF.Ceiling(distance / Math.Max(unit * 2.4f, 1.0f)), 3, 12);
-        var diameter = unit * (element.Kind == ElementKind.Magic ? 1.55f : 1.35f);
-
-        for (var index = 0; index < count; index++)
-        {
-            var phase = count == 1 ? 0.0f : index / (float)count;
-            builder.AddBillboard(
-                element.Kind == ElementKind.Poison
-                    ? start
-                    : Vector3.Lerp(start, end, count == 1 ? 0.0f : index / (float)(count - 1)),
-                diameter,
-                diameter,
-                OrbTexture,
-                element.Color,
-                element.Kind switch
-                {
-                    ElementKind.Magic => EquipmentEffectTextureMode.MagicOrb,
-                    ElementKind.Fire => EquipmentEffectTextureMode.FirePop,
-                    _ => EquipmentEffectTextureMode.PoisonFlow
-                },
-                element.Kind == ElementKind.Poison ? span : Vector3.Zero,
-                phase);
-        }
-    }
-
     private static EffectAnchorPoint[] OfKind(
         IEnumerable<EffectAnchorPoint> points,
         SacredEquipmentEffectAnchorKind kind) =>
@@ -233,7 +192,5 @@ internal static class EquipmentEffectSceneFactory
         return false;
     }
 
-    private enum ElementKind { Fire, Magic, Poison }
-    private readonly record struct ElementEffect(ElementKind Kind, Vector4 Color);
     private readonly record struct EffectAnchorPoint(SacredEquipmentEffectAnchor Anchor, Vector3 Position);
 }

@@ -7,6 +7,7 @@ using Sacred.Core.World.Sector;
 using Sacred.Engine.Graphics.Frames;
 using Sacred.Engine.Rendering;
 using Sacred.Engine.Scene;
+using Sacred.Engine.Scene.InGame;
 using Sacred.Shaders;
 using Vortice.Direct3D;
 using Vortice.Direct3D12;
@@ -88,6 +89,9 @@ internal sealed class Dx12SpritePass : IDisposable
     {
         _textureCache.Prepare(liquidSprites, staticSprites, frame, spriteRevision);
     }
+
+    public bool VisibleTexturesPrepared(ulong spriteRevision) =>
+        _textureCache.IsPrepared(spriteRevision);
 
     public unsafe WorldSpriteBatch PrepareInstances(
         SacredCamera camera,
@@ -290,13 +294,26 @@ internal sealed class Dx12SpritePass : IDisposable
             StaticSpriteShaderLayout.SceneConstantsCount,
             sceneConstants,
             0);
-        _commandList.SetGraphicsRootShaderResourceView(
-            StaticSpriteShaderLayout.InstanceBufferRootParameter,
-            frame.SpriteInstanceBuffer.GPUVirtualAddress + (ulong)(startInstance * InstanceStride));
-        _commandList.SetGraphicsRootDescriptorTable(
-            StaticSpriteShaderLayout.TextureTableRootParameter,
-            SrvGpuHandle(_firstTextureSrvSlot));
-        _commandList.DrawInstanced(6, (uint)instanceCount, 0, 0);
+        var instances = (StaticSpriteInstance*)frame.SpriteInstanceBufferMapped + startInstance;
+        var firstInstance = 0;
+        while (firstInstance < instanceCount)
+        {
+            var textureSlot = instances[firstInstance].TextureIndex;
+            var runLength = 1;
+            while (firstInstance + runLength < instanceCount &&
+                   instances[firstInstance + runLength].TextureIndex == textureSlot)
+                runLength++;
+
+            _commandList.SetGraphicsRootDescriptorTable(
+                StaticSpriteShaderLayout.TextureTableRootParameter,
+                SrvGpuHandle(_firstTextureSrvSlot + (int)textureSlot));
+            _commandList.SetGraphicsRootShaderResourceView(
+                StaticSpriteShaderLayout.InstanceBufferRootParameter,
+                frame.SpriteInstanceBuffer.GPUVirtualAddress +
+                (ulong)((startInstance + firstInstance) * InstanceStride));
+            _commandList.DrawInstanced(6, (uint)runLength, 0, 0);
+            firstInstance += runLength;
+        }
     }
 
     private static float CalculateSceneDepth(SacredCamera camera, TerrainStaticSprite sprite)

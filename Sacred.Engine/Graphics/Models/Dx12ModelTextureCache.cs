@@ -287,6 +287,7 @@ internal sealed class Dx12ModelTextureCache : IDisposable
                 _uploader.CreateShaderResourceView(resource, SrvCpuHandle(completed.SrvSlot));
                 texture.SrvSlot = completed.SrvSlot;
                 texture.Resource = resource;
+                _assets.ReleaseModelTexture(texture.Name, asset);
             }
             catch
             {

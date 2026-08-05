@@ -257,6 +257,12 @@ internal sealed class Dx12SectorTextureCache : IDisposable
                 request.LiquidCoverSrvSlot,
                 exception);
         }
+        finally
+        {
+            // Compose waits for its private GPU queue fence, so its thousands of CPU-side
+            // tile references are no longer needed once this method returns.
+            request.Composition.ReleaseSourceTiles();
+        }
     }
 
     private CpuDescriptorHandle SrvCpuHandle(int index) => _srvHeapStart + index * _descriptorSize;

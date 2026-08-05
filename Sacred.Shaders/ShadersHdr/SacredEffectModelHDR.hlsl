@@ -153,10 +153,11 @@ float4 ps_main(vs_output input) : SV_Target
         base_color = model_texture.Sample(model_sampler, input.tex_coord);
     }
 
+    float4 animated_overlay = sample_animated_overlay(input.tex_coord);
     // "glow" effects should not be affected by light, immediately return
     if (base_color.a < effect_alpha_cutoff)
     {
-        return hdr_premultiplied_effect_color(sample_animated_overlay(input.tex_coord));
+        return hdr_premultiplied_effect_color(animated_overlay);
     }
 
     float3 normal = safe_normalize(input.normal, float3(0.0f, 0.0f, 1.0f));
@@ -173,7 +174,8 @@ float4 ps_main(vs_output input) : SV_Target
         ? pow(saturate(dot(reflection_direction, view_direction)), max(camera_position_and_shininess.w, 1.0f))
         : 0.0f;
 
-    float3 base_linear = SrgbToLinear(base_color.rgb);
+    float4 lerped = lerp(animated_overlay, base_color, base_color.a) * base_color.a;
+    float3 base_linear = SrgbToLinear(lerped);
     float3 ambient_nits =
         base_linear *
         ambient_color_and_intensity.rgb * hdr_display.x;
@@ -185,8 +187,7 @@ float4 ps_main(vs_output input) : SV_Target
         light_color_and_diffuse_intensity.rgb *
         (hdr_display.w * specular_amount * light_position_and_specular_strength.w);
 
-    float3 premultiplied_nits =
-        (ambient_nits + sun_diffuse_nits + sun_specular_nits) * base_color.a;
+    float3 premultiplied_nits = (ambient_nits + sun_diffuse_nits + sun_specular_nits);
     float3 hdr = Linear709NitsToHdr10(premultiplied_nits);
     return float4(hdr, base_color.a);
 }

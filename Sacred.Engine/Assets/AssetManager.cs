@@ -48,7 +48,6 @@ public sealed class AssetManager : IDisposable
     private const uint DarkElfBreastplate = 1251; // DElve_sa5_body.grn
     private const uint SeraphimHelm = 1840; // Seraphim_christmas_helm.GRN
     private const uint SeraphimGodsShield = 4017;
-    private const uint DarkElfClothArmor = 3160; // ELVE_MAGICAN_CLOTH.GRN
     private const uint BattleMageCowl = 3219; // magician_cowl.grn
     private const uint SeraphimWings = 4006; // SeraWings01.grn, animated wing effect row
     private const uint SeraphimHair = 4007; // SeraHair01.grn
@@ -63,6 +62,9 @@ public sealed class AssetManager : IDisposable
     private const uint ElvenBow = 1747;
     private const uint VampireSword = 1771;
     private const uint BattleMageStaff = 1877;
+    private const uint GladSword = 1725;
+    private const uint DelfPoisonBlade = 1862;
+    private const uint DelfFireBlade = 1864;
 
     private const uint LargeTorch = 5633;
 
@@ -76,7 +78,24 @@ public sealed class AssetManager : IDisposable
         new(SeraphimBoots),
         new(SeraphimShoulder)
     ];
-
+    private static readonly PlayerCharacterAttachment[] GladiatorAttachments = [
+        new(GladiatorBelt), new(GladSword, RightWeaponAttachBone, LeftWeaponAnchorBone)
+    ];
+    private static readonly PlayerCharacterAttachment[] WoodElfAttachments = [
+        new(ElvenBow, RightWeaponAttachBone, LeftWeaponAnchorBone)
+    ];
+    private static readonly PlayerCharacterAttachment[] DarkElfAttachments = [
+        new(DarkElfBreastplate),
+        new(DelfPoisonBlade, RightWeaponAttachBone, LeftWeaponAnchorBone),
+        new(DelfFireBlade, LeftWeaponAttachBone, RightWeaponAnchorBone)
+    ];
+    private static readonly PlayerCharacterAttachment[] BattleMageAttachments = [
+        new(BattleMageCowl), new(BattleMageStaff, LeftWeaponAttachBone, RightWeaponAnchorBone)
+    ];
+    private static readonly PlayerCharacterAttachment[] VampiressKnightAttachments = [
+        new(VampiressDayHair),
+        new (LargeTorch, RightWeaponAttachBone, LeftWeaponAnchorBone)
+    ];
     private static readonly PlayerCharacterAttachment[] DalmarSet = [
         new(3271),
         new(3272),
@@ -91,20 +110,18 @@ public sealed class AssetManager : IDisposable
     private static readonly PlayerCharacterDefinition[] PlayerCharacterDefinitions =
     [
         new(Seraphim, "SERAPHIM.GRN", "Seraphim", SeraphimAttachments),
-        new(Gladiator, "GLADIATOR.GRN", "Gladiator", [new(GladiatorBelt)]),
-        new(WoodElf, "Waldelfe.grn", "Wood Elf", [new(ElvenBow, RightWeaponAttachBone, RightWeaponAnchorBone)]),
-        new(DarkElf, "DARKELVE.GRN", "Dark Elf 1", [new(DarkElfClothArmor)]),
-        new(DarkElf, "DARKELVE.GRN", "Dark Elf 2", [new(DarkElfBreastplate)]),
-        new(BattleMage, "MAGICIAN.GRN", "Battle Mage", [new(BattleMageCowl), new(BattleMageStaff, LeftWeaponAttachBone, RightWeaponAnchorBone)]),
+        new(Gladiator, "GLADIATOR.GRN", "Gladiator", GladiatorAttachments),
+        new(WoodElf, "Waldelfe.grn", "Wood Elf", WoodElfAttachments),
+        new(DarkElf, "DARKELVE.GRN", "Dark Elf", DarkElfAttachments),
+        new(BattleMage, "MAGICIAN.GRN", "Battle Mage", BattleMageAttachments),
         new(Vampiress, "VLADY_D.GRN", "Vampiress D", DalmarSet),
-        new(Vampiress, "VLADY_D.GRN", "Vampiress D (Dalmar)", [new(VampiressDayHair), new (LargeTorch, RightWeaponAttachBone, LeftWeaponAnchorBone)]),
+        new(Vampiress, "VLADY_D.GRN", "Vampiress D (Dalmar)", VampiressKnightAttachments),
         new(Vampiress, "VLADY_N.GRN", "Vampiress N", [new(VampiressNightHair)]),
         new(Dwarf, "dwarf.grn", "Dwarf", []),
         new(Daemon, "Daemonia.grn", "Daemon", [new(DaemonHelm)])
     ];
 
     private readonly TexturePakArchive _texturePak;
-    private readonly TexturePakArchive _modelTexturePak;
     private readonly TilesPakArchive _tilesPak;
     private readonly FrozenDictionary<ushort, ItemsPakEntry> _itemsByModelId;
     private readonly FrozenDictionary<uint, ItemsPakEntry[]> _itemsByItemId;
@@ -149,9 +166,6 @@ public sealed class AssetManager : IDisposable
         var pakDirectory = Path.GetDirectoryName(texturePakPath)
             ?? throw new InvalidDataException("Cannot infer tiles.pak path from texture PAK path.");
         _texturePak = TexturePakArchive.LoadFromDirectory(pakDirectory);
-        // World streaming can enqueue thousands of texture reads. Keep latency-sensitive model
-        // materials on independent PAK streams so they are never stuck behind that queue.
-        _modelTexturePak = TexturePakArchive.LoadFromDirectory(pakDirectory);
         _tilesPak = TilesPakArchive.Load(Path.Combine(pakDirectory, "tiles.pak"));
         var items = ItemsPakArchive.Load(gameDirectories.ItemsPakPath).ToArray();
         _itemsByModelId = items.ToFrozenDictionary(static item => item.ItemIndex);
@@ -167,6 +181,36 @@ public sealed class AssetManager : IDisposable
         _modelsPak = ModelsPakArchive.Load(
             Path.Combine(pakDirectory, "models.pak"),
             Path.Combine(pakDirectory, "Models.tmp"));
+    }
+
+    internal AssetManager(
+        TexturePakArchive texturePak,
+        TilesPakArchive tilesPak,
+        IReadOnlyList<ItemsPakEntry> items,
+        IReadOnlyList<SacredEquipment> equipment,
+        MixedPakArchive mixedPak,
+        ModelsPakArchive modelsPak)
+    {
+        ArgumentNullException.ThrowIfNull(texturePak);
+        ArgumentNullException.ThrowIfNull(tilesPak);
+        ArgumentNullException.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(equipment);
+        ArgumentNullException.ThrowIfNull(mixedPak);
+        ArgumentNullException.ThrowIfNull(modelsPak);
+
+        _texturePak = texturePak;
+        _tilesPak = tilesPak;
+        _itemsByModelId = items.ToFrozenDictionary(static item => item.ItemIndex);
+        _itemsByItemId = items
+            .GroupBy(static item => item.ItemId)
+            .ToFrozenDictionary(static group => group.Key, static group => group.ToArray());
+        _equipmentByModelId = equipment
+            .ToFrozenDictionary(static item => checked((ushort)item.IdemId));
+        _mixedPak = mixedPak;
+        _miniObjectSprites = new MiniObjectSpriteLoader(
+            textureName => LoadTextureAsync(textureName),
+            _worldSpriteLoadQueue);
+        _modelsPak = modelsPak;
     }
 
     public int PlayerCharacterCount => PlayerCharacterDefinitions.Length;
@@ -188,7 +232,7 @@ public sealed class AssetManager : IDisposable
     public Task<TextureAsset> LoadModelTextureAsync(string textureName, CancellationToken cancellationToken = default)
     {
         return LoadTextureAsync(
-            _modelTexturePak,
+            _texturePak,
             textureName,
             _modelTextures,
             _modelTextureLoads,
@@ -197,6 +241,26 @@ public sealed class AssetManager : IDisposable
             MaxModelTextureCacheEntries,
             runOnWorker: true,
             cancellationToken);
+    }
+
+    internal void ReleaseModelTexture(string textureName, TextureAsset asset)
+    {
+        _modelTextureLock.Wait();
+        try
+        {
+            if (!_modelTextures.TryGetValue(textureName, out var cached) ||
+                !ReferenceEquals(cached.Asset, asset))
+            {
+                return;
+            }
+
+            _modelTextures.Remove(textureName);
+            _modelTextureLru.Remove(cached.Node);
+        }
+        finally
+        {
+            _modelTextureLock.Release();
+        }
     }
 
     private async Task<TextureAsset> LoadTextureAsync(
@@ -1004,7 +1068,6 @@ public sealed class AssetManager : IDisposable
         _playerCharacters.Clear();
 
         _texturePak.Dispose();
-        _modelTexturePak.Dispose();
         _modelsPak.Dispose();
     }
 

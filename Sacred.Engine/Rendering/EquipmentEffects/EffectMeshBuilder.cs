@@ -23,12 +23,11 @@ internal sealed class EffectMeshBuilder
         string textureName,
         Vector4 color,
         EquipmentEffectTextureMode textureMode,
-        Vector3 motionVector = default,
         float phase = 0.0f)
     {
         var halfWidth = width * 0.5f;
         var halfHeight = height * 0.5f;
-        AddSurface(textureName, color, textureMode, motionVector, phase, () =>
+        AddSurface(textureName, color, textureMode, phase, () =>
         {
             EnsureVertexCapacity();
             var start = (ushort)_vertices.Count;
@@ -59,7 +58,7 @@ internal sealed class EffectMeshBuilder
         firstAxis = Vector3.Normalize(firstAxis) * (width * 0.5f);
         var secondAxis = Vector3.Normalize(Vector3.Cross(direction, firstAxis)) * (width * 0.5f);
 
-        AddSurface(textureName, color, textureMode, Vector3.Zero, 0.0f, () =>
+        AddSurface(textureName, color, textureMode, 0.0f, () =>
         {
             AddQuad(start - firstAxis, start + firstAxis, end + firstAxis, end - firstAxis);
             AddQuad(start - secondAxis, start + secondAxis, end + secondAxis, end - secondAxis);
@@ -83,7 +82,6 @@ internal sealed class EffectMeshBuilder
         string textureName,
         Vector4 color,
         EquipmentEffectTextureMode textureMode,
-        Vector3 motionVector,
         float phase,
         Action addGeometry)
     {
@@ -95,9 +93,7 @@ internal sealed class EffectMeshBuilder
             textureName,
             color,
             textureMode,
-            motionVector,
-            phase,
-            _attachmentBoneName));
+            phase));
     }
 
     private void AddQuad(Vector3 bottomLeft, Vector3 bottomRight, Vector3 topRight, Vector3 topLeft)

@@ -2,7 +2,7 @@ using System;
 using System.Numerics;
 using Sacred.Engine.Platform;
 
-namespace Sacred.Engine.Scene;
+namespace Sacred.Engine.Scene.InGame;
 
 public sealed class SacredCamera
 {

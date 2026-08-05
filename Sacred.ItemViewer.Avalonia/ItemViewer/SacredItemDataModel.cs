@@ -1,7 +1,7 @@
 using System;
-using System.Collections.Frozen;
-using System.Collections.Generic;
+using System.Globalization;
 using System.Numerics;
+using Sacred.Core.GameRes;
 using Sacred.Core.Pak.Weapon;
 
 namespace Sacred.ItemViewer.Avalonia.ItemViewer;
@@ -37,11 +37,13 @@ public readonly record struct SacredItemDataModel(
         ? $"Confirmed {PreviewConfirmedAt:yyyy-MM-dd HH:mm}"
         : "Unconfirmed";
 
-    public static SacredItemDataModel FromSacredEquipment(SacredEquipment equipment, FrozenDictionary<string, string> translationMap)
+    public static SacredItemDataModel FromSacredEquipment(SacredEquipment equipment, GameResStore resources)
     {
         return new SacredItemDataModel(
             ItemId: equipment.IdemId,
-            ItemName: translationMap.GetValueOrDefault(equipment.Name, equipment.Name),
+            ItemName: resources.GetString(
+                equipment.IdemId.ToString(CultureInfo.InvariantCulture),
+                equipment.Name),
             CharacterClassMask: equipment.EffectiveCharacterClassMask,
             ModelName: equipment.Item.ModelDesc.ModelName,
             TextureId: equipment.Item.ModelDesc.TextureId,

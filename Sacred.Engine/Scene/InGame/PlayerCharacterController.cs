@@ -8,7 +8,7 @@ using Sacred.Engine.Animation;
 using Sacred.Engine.Assets;
 using Sacred.Granny;
 
-namespace Sacred.Engine.Scene;
+namespace Sacred.Engine.Scene.InGame;
 
 /// <summary>Keeps player asset transitions and scene-instance mutation out of the frame orchestrator.</summary>
 internal sealed class PlayerCharacterController : IDisposable

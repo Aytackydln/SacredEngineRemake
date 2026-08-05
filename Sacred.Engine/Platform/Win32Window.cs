@@ -88,6 +88,8 @@ public sealed class Win32Window : IDisposable
 
     public void SetTitle(string title) => User32.SetWindowText(Hwnd, title);
 
+    public void RequestFocus() => User32.SetFocus(Hwnd);
+
     public bool ProcessMessages()
     {
         if (_quitRequested) return false;

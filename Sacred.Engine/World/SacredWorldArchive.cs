@@ -31,15 +31,16 @@ public sealed class SacredWorldArchive : IDisposable
 
     private readonly WldxLoader _wldxLoader;
     private readonly SemaphoreSlim _sectorLoadLock = new(1, 1);
+    private bool _disposed;
 
     public SectorCoord StartSector { get; private set; }
 
-    private SacredWorldArchive(string keyxPath, FileStream wldxStream, FloorPakArchive floorPak, StaticPakArchive staticPak)
+    private SacredWorldArchive(byte[] keyxData, FileStream wldxStream, FloorPakArchive floorPak, StaticPakArchive staticPak)
     {
         _wldxLoader = new WldxLoader(wldxStream);
         _floorPak = floorPak;
         _staticPak = staticPak;
-        LoadKeyx(keyxPath);
+        LoadKeyx(keyxData);
         StartSector = _sectorIdByGrid.ContainsKey(BellevueSector)
             ? BellevueSector
             : FirstSectorOrZero();
@@ -55,14 +56,38 @@ public sealed class SacredWorldArchive : IDisposable
         if (!Directory.Exists(worldDirectory))
             throw new DirectoryNotFoundException($"World directory not found at expected path: {worldDirectory}");
 
-        var floorPakArchive = FloorPakArchive.Load(Path.Combine(worldDirectory, "Floor.pak"));
-        var staticPakArchive = StaticPakArchive.Load(Path.Combine(worldDirectory, "Static.pak"));
-        return new SacredWorldArchive(
-            Path.Combine(worldDirectory, "sectors.keyx"),
-            File.OpenRead(Path.Combine(worldDirectory, "sectors.wldx")),
-            floorPakArchive,
-            staticPakArchive);
+        FloorPakArchive? floorPakArchive = null;
+        StaticPakArchive? staticPakArchive = null;
+        FileStream? wldxStream = null;
+        try
+        {
+            floorPakArchive = FloorPakArchive.Load(Path.Combine(worldDirectory, "Floor.pak"));
+            staticPakArchive = StaticPakArchive.Load(Path.Combine(worldDirectory, "Static.pak"));
+            wldxStream = File.OpenRead(Path.Combine(worldDirectory, "sectors.wldx"));
+            var archive = new SacredWorldArchive(
+                File.ReadAllBytes(Path.Combine(worldDirectory, "sectors.keyx")),
+                wldxStream,
+                floorPakArchive,
+                staticPakArchive);
+            wldxStream = null;
+            floorPakArchive = null;
+            staticPakArchive = null;
+            return archive;
+        }
+        finally
+        {
+            wldxStream?.Dispose();
+            floorPakArchive?.Dispose();
+            staticPakArchive?.Dispose();
+        }
     }
+
+    internal static SacredWorldArchive Create(
+        byte[] keyxData,
+        FileStream wldxStream,
+        FloorPakArchive floorPak,
+        StaticPakArchive staticPak) =>
+        new(keyxData, wldxStream, floorPak, staticPak);
 
     public async Task<Sector?> TryLoadSector(SectorCoord coord)
     {
@@ -71,22 +96,22 @@ public sealed class SacredWorldArchive : IDisposable
 
         var entry = _entriesById[sectorId];
 
-        var decompressed = await _wldxLoader.ReadWldx(entry, sectorId);
-
         await _sectorLoadLock.WaitAsync();
         try
         {
+            // Keep only the tile block in memory, and serialize extraction with parsing so
+            // queued sector loads cannot accumulate decompressed WLDX buffers.
+            var tiles = await _wldxLoader.ReadSectorTiles(entry, sectorId);
             var ground = new TileLayer(SectorW, SectorH);
             var floorOverlays = new FloorOverlayLayer(SectorW, SectorH);
             var liquidSurfaces = new LiquidSurfaceLayer();
             var staticObjects = new StaticObjectLayer();
             var staticTileVisits = new List<StaticTileVisit>();
-            var tiles = decompressed.AsSpan(entry.TilesRelativeOffset, SectorW * SectorH * WldxTileRecord.Size);
             for (var y = 0; y < SectorH; y++)
             for (var x = 0; x < SectorW; x++)
             {
                 var tileOffset = (y * SectorW + x) * WldxTileRecord.Size;
-                var tile = WldxTileRecord.FromBytes(tiles.Slice(tileOffset, WldxTileRecord.Size));
+                var tile = WldxTileRecord.FromBytes(tiles.AsSpan(tileOffset, WldxTileRecord.Size));
                 ground[x, y] = tile.GroundTileId;
                 if (tile.StaticChainHeadId != 0)
                 {
@@ -215,9 +240,8 @@ public sealed class SacredWorldArchive : IDisposable
             tile.LiquidAlphaBottom));
     }
 
-    private void LoadKeyx(string path)
+    private void LoadKeyx(byte[] data)
     {
-        var data = File.ReadAllBytes(path);
         if (data.Length < KeyxSectorRecord.FileHeaderSize)
             throw new InvalidDataException("sectors.keyx is too small to contain a header.");
 
@@ -306,6 +330,13 @@ public sealed class SacredWorldArchive : IDisposable
 
     public void Dispose()
     {
+        if (_disposed)
+            return;
+
+        _disposed = true;
         _wldxLoader.Dispose();
+        _floorPak.Dispose();
+        _staticPak.Dispose();
+        _sectorLoadLock.Dispose();
     }
 }

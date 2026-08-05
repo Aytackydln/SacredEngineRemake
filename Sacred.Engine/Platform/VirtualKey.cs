@@ -4,6 +4,7 @@ public enum VirtualKey : uint
 {
     Tab = 0x09,
     Shift = 0x10,
+    Escape = 0x1B,
 
     Left = 0x25,
     Up = 0x26,
@@ -13,6 +14,7 @@ public enum VirtualKey : uint
     A = 0x41,
     D = 0x44,
     E = 0x45,
+    M = 0x4D,
     Q = 0x51,
     S = 0x53,
     W = 0x57,

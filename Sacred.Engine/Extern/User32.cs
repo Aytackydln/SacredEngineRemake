@@ -95,6 +95,9 @@ internal static partial class User32
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool ShowWindow(nint hwnd, int nCmdShow);
 
+    [LibraryImport(LibraryName)]
+    internal static partial nint SetFocus(nint hwnd);
+
     [LibraryImport(LibraryName, EntryPoint = "PeekMessageW")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool PeekMessage(out Msg lpMsg, nint hWnd, uint min, uint max, uint remove);

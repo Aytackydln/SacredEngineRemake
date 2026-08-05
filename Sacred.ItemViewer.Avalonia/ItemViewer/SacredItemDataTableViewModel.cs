@@ -1,11 +1,11 @@
 using System;
-using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Sacred.Core.GameRes;
 using Sacred.Core.Pak.Weapon;
 
 namespace Sacred.ItemViewer.Avalonia.ItemViewer;
@@ -25,10 +25,10 @@ public partial class SacredItemDataTableViewModel : ObservableObject
 
     public SacredItemDataTableViewModel(
         List<SacredEquipment> allEquipments,
-        FrozenDictionary<string, string> translationMap)
+        GameResStore resources)
     {
         _allEquipments = allEquipments
-            .Select(equipment => SacredItemDataModel.FromSacredEquipment(equipment, translationMap))
+            .Select(equipment => SacredItemDataModel.FromSacredEquipment(equipment, resources))
             .ToList();
         _filteredEquipments = new List<SacredItemDataModel>(_allEquipments);
     }

@@ -7,34 +7,76 @@ public sealed record TextureAsset(
     byte[] Rgba8,
     TextureAnimation Animation = default);
 
-public sealed record StaticSpriteAsset(
-    uint GroupId,
-    int Width,
-    int Height,
-    int AnchorX,
-    int AnchorY,
-    byte[] Rgba,
-    int FrameCount = 1,
-    float FrameDurationSeconds = 0.0f)
+public sealed class StaticSpriteAsset
 {
+    private byte[] _rgba;
+
+    public StaticSpriteAsset(
+        uint groupId,
+        int width,
+        int height,
+        int anchorX,
+        int anchorY,
+        byte[] rgba,
+        int frameCount = 1,
+        float frameDurationSeconds = 0.0f)
+    {
+        GroupId = groupId;
+        Width = width;
+        Height = height;
+        AnchorX = anchorX;
+        AnchorY = anchorY;
+        _rgba = rgba;
+        FrameCount = frameCount;
+        FrameDurationSeconds = frameDurationSeconds;
+    }
+
+    public uint GroupId { get; }
+    public int Width { get; }
+    public int Height { get; }
+    public int AnchorX { get; }
+    public int AnchorY { get; }
+    public byte[] Rgba => Volatile.Read(ref _rgba);
+    public int FrameCount { get; }
+    public float FrameDurationSeconds { get; }
     public int AtlasColumns => TextureFrameAtlasLayout.CalculateColumns(Width, Height, FrameCount);
     public int AtlasRows => TextureFrameAtlasLayout.CalculateRows(FrameCount, AtlasColumns);
     public int AtlasWidth => checked(Width * AtlasColumns);
     public int AtlasHeight => checked(Height * AtlasRows);
     public float AnimationPeriodSeconds => FrameDurationSeconds * FrameCount;
+
+    public void ReleasePixelData() => Interlocked.Exchange(ref _rgba, []);
 }
 
-public sealed record TextureFrameSequenceAsset(
-    string Name,
-    int FrameWidth,
-    int FrameHeight,
-    int FrameCount,
-    byte[] Rgba8FrameAtlas)
+public sealed class TextureFrameSequenceAsset
 {
+    private byte[] _rgba8FrameAtlas;
+
+    public TextureFrameSequenceAsset(
+        string name,
+        int frameWidth,
+        int frameHeight,
+        int frameCount,
+        byte[] rgba8FrameAtlas)
+    {
+        Name = name;
+        FrameWidth = frameWidth;
+        FrameHeight = frameHeight;
+        FrameCount = frameCount;
+        _rgba8FrameAtlas = rgba8FrameAtlas;
+    }
+
+    public string Name { get; }
+    public int FrameWidth { get; }
+    public int FrameHeight { get; }
+    public int FrameCount { get; }
+    public byte[] Rgba8FrameAtlas => Volatile.Read(ref _rgba8FrameAtlas);
     public int AtlasColumns => TextureFrameAtlasLayout.CalculateColumns(FrameWidth, FrameHeight, FrameCount);
     public int AtlasRows => TextureFrameAtlasLayout.CalculateRows(FrameCount, AtlasColumns);
     public int AtlasWidth => checked(FrameWidth * AtlasColumns);
     public int AtlasHeight => checked(FrameHeight * AtlasRows);
+
+    public void ReleasePixelData() => Interlocked.Exchange(ref _rgba8FrameAtlas, []);
 }
 
 public static class TextureFrameAtlasLayout

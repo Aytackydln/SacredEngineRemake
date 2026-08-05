@@ -47,9 +47,6 @@ public sealed class EquipmentEffectScene
             changed = true;
         }
 
-        foreach (var surface in Surfaces)
-            surface.ApplyPose(animatedMesh);
-
         if (changed)
             Mesh.NotifyVerticesChanged();
     }
@@ -61,29 +58,14 @@ public sealed class EquipmentEffectSurface(
     string textureName,
     Vector4 color,
     EquipmentEffectTextureMode textureMode,
-    Vector3 motionVector,
-    float phase,
-    string? attachmentBoneName)
+    float phase)
 {
-    private readonly Vector3 _bindMotionVector = motionVector;
-
     public int IndexStart { get; } = indexStart;
     public int IndexCount { get; } = indexCount;
     public string TextureName { get; } = textureName;
     public Vector4 Color { get; } = color;
     public EquipmentEffectTextureMode TextureMode { get; } = textureMode;
-    public Vector3 MotionVector { get; private set; } = motionVector;
     public float Phase { get; } = phase;
-
-    internal void ApplyPose(GrnAnimatedMesh animatedMesh)
-    {
-        if (attachmentBoneName is not null &&
-            _bindMotionVector != Vector3.Zero &&
-            animatedMesh.TryTransformRigidDirection(attachmentBoneName, _bindMotionVector, out var direction))
-        {
-            MotionVector = direction;
-        }
-    }
 }
 
 public enum EquipmentEffectTextureMode
@@ -94,5 +76,6 @@ public enum EquipmentEffectTextureMode
     BouncyAlpha = 4,
     MagicOrb = 5,
     FirePop = 6,
-    PoisonFlow = 7
+    PoisonStatic = 7,
+    WeaponGlowFlare = 8
 }

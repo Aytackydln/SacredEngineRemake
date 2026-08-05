@@ -8,6 +8,10 @@ namespace Sacred.Engine.Graphics;
 /// <summary>Owns construction details for the renderer's shader-specific pipelines.</summary>
 internal static class Dx12RendererPipelineFactory
 {
+    public static Dx12CompiledTerrainShaderSet CompileTerrain(Dx12ShaderSet shaders) => new(
+        Dx12ShaderCompiler.CompileShader(shaders.QuadWorldVertexShader),
+        Dx12ShaderCompiler.CompileShader(shaders.QuadWorldPixelShader));
+
     public static Dx12CompiledShaderSet Compile(Dx12ShaderSet shaders) => new(
         Dx12ShaderCompiler.CompileShader(shaders.QuadWorldVertexShader),
         Dx12ShaderCompiler.CompileShader(shaders.QuadWorldPixelShader),
@@ -22,7 +26,7 @@ internal static class Dx12RendererPipelineFactory
         Dx12ShaderCompiler.CompileShader(shaders.ItemParticleVertexShader),
         Dx12ShaderCompiler.CompileShader(shaders.ItemParticlePixelShader));
 
-    public static TerrainPipelines CreateTerrain(ID3D12Device device, Dx12CompiledShaderSet shaders, Format backBufferFormat)
+    public static TerrainPipelines CreateTerrain(ID3D12Device device, Dx12CompiledTerrainShaderSet shaders, Format backBufferFormat)
     {
         var rootParameters = new[]
         {
@@ -60,13 +64,13 @@ internal static class Dx12RendererPipelineFactory
     }
 
     public static StaticSpritePipelines CreateStaticSprites(
-        ID3D12Device device, Dx12CompiledShaderSet shaders, Format backBufferFormat, Format depthBufferFormat, int maxTextures)
+        ID3D12Device device, Dx12CompiledShaderSet shaders, Format backBufferFormat, Format depthBufferFormat)
     {
         var rootParameters = new[]
         {
             new RootParameter(new RootConstants(StaticSpriteShaderLayout.SceneConstantsRegister, 0, StaticSpriteShaderLayout.SceneConstantsCount), ShaderVisibility.All),
             new RootParameter(RootParameterType.ShaderResourceView, new RootDescriptor(StaticSpriteShaderLayout.InstanceBufferRegister, 0), ShaderVisibility.Vertex),
-            new RootParameter(new RootDescriptorTable { Ranges = [new DescriptorRange(DescriptorRangeType.ShaderResourceView, (uint)maxTextures, StaticSpriteShaderLayout.FirstTextureRegister, 0, 0)] }, ShaderVisibility.Pixel)
+            new RootParameter(new RootDescriptorTable { Ranges = [new DescriptorRange(DescriptorRangeType.ShaderResourceView, 1, StaticSpriteShaderLayout.FirstTextureRegister, 0, 0)] }, ShaderVisibility.Pixel)
         };
         var samplers = new[] { CreateSampler(TextureAddressMode.Clamp, StaticBorderColor.TransparentBlack) };
         var rootDescription = new RootSignatureDescription(RootSignatureFlags.AllowInputAssemblerInputLayout, rootParameters, samplers);
@@ -96,7 +100,12 @@ internal static class Dx12RendererPipelineFactory
         return new StaticSpritePipelines(rootSignature, spritePipeline, device.CreateGraphicsPipelineState(description));
     }
 
-    public static ModelPipelines CreateModels(ID3D12Device device, Dx12CompiledShaderSet shaders, Format backBufferFormat, Format depthBufferFormat)
+    public static ModelPipelines CreateModels(
+        ID3D12Device device,
+        Dx12CompiledShaderSet shaders,
+        Format backBufferFormat,
+        Format depthBufferFormat,
+        bool hdrOutput)
     {
         var rootParameters = new[]
         {
@@ -140,25 +149,47 @@ internal static class Dx12RendererPipelineFactory
 
         var particleDepthStencil = depthStencil;
         particleDepthStencil.DepthWriteMask = DepthWriteMask.Zero;
-        var particleBlend = BlendDescription.AlphaBlend;
-        particleBlend.RenderTarget[0].DestinationBlend = Blend.One;
-        particleBlend.RenderTarget[0].DestinationBlendAlpha = Blend.One;
+        var transparentParticleBlend = BlendDescription.AlphaBlend;
+        if (!hdrOutput)
+        {
+            transparentParticleBlend.RenderTarget[0].DestinationBlend = Blend.One;
+            transparentParticleBlend.RenderTarget[0].DestinationBlendAlpha = Blend.One;
+        }
         description.VertexShader = shaders.ItemParticleVertexShader;
         description.PixelShader = shaders.ItemParticlePixelShader;
-        description.BlendState = particleBlend;
+        description.BlendState = transparentParticleBlend;
         description.RasterizerState = RasterizerDescription.CullNone;
         description.DepthStencilState = particleDepthStencil;
+        description.RenderTargetFormats = [backBufferFormat];
+        var transparentParticlePipeline = device.CreateGraphicsPipelineState(description);
+
+        var denseParticleBlend = transparentParticleBlend;
+        if (hdrOutput)
+        {
+            denseParticleBlend.RenderTarget[0].SourceBlend = Blend.One;
+            denseParticleBlend.RenderTarget[0].DestinationBlend = Blend.One;
+            denseParticleBlend.RenderTarget[0].BlendOperation = BlendOperation.Max;
+            denseParticleBlend.RenderTarget[0].SourceBlendAlpha = Blend.One;
+            denseParticleBlend.RenderTarget[0].DestinationBlendAlpha = Blend.One;
+            denseParticleBlend.RenderTarget[0].BlendOperationAlpha = BlendOperation.Max;
+        }
+        description.BlendState = denseParticleBlend;
         return new ModelPipelines(
             rootSignature,
             basePipeline,
             animatedPipeline,
             effectPipeline,
+            transparentParticlePipeline,
             device.CreateGraphicsPipelineState(description));
     }
 
     private static StaticSamplerDescription CreateSampler(TextureAddressMode addressMode, StaticBorderColor borderColor) =>
         new(0, Filter.MinMagMipLinear, addressMode, addressMode, addressMode, 0.0f, 16, ComparisonFunction.Never, borderColor, 0.0f, float.MaxValue, ShaderVisibility.Pixel, 0);
 }
+
+internal sealed record Dx12CompiledTerrainShaderSet(
+    ReadOnlyMemory<byte> QuadWorldVertexShader,
+    ReadOnlyMemory<byte> QuadWorldPixelShader);
 
 internal sealed record TerrainPipelines(ID3D12RootSignature RootSignature, ID3D12PipelineState Base, ID3D12PipelineState LiquidCover);
 internal sealed record StaticSpritePipelines(ID3D12RootSignature RootSignature, ID3D12PipelineState Static, ID3D12PipelineState Liquid);
@@ -167,7 +198,8 @@ internal sealed record ModelPipelines(
     ID3D12PipelineState Static,
     ID3D12PipelineState Animated,
     ID3D12PipelineState Effect,
-    ID3D12PipelineState Particle);
+    ID3D12PipelineState TransparentParticle,
+    ID3D12PipelineState DenseParticle);
 internal sealed record Dx12CompiledShaderSet(
     ReadOnlyMemory<byte> QuadWorldVertexShader,
     ReadOnlyMemory<byte> QuadWorldPixelShader,
@@ -180,4 +212,7 @@ internal sealed record Dx12CompiledShaderSet(
     ReadOnlyMemory<byte> EffectModelVertexShader,
     ReadOnlyMemory<byte> EffectModelPixelShader,
     ReadOnlyMemory<byte> ItemParticleVertexShader,
-    ReadOnlyMemory<byte> ItemParticlePixelShader);
+    ReadOnlyMemory<byte> ItemParticlePixelShader)
+{
+    public Dx12CompiledTerrainShaderSet Terrain => new(QuadWorldVertexShader, QuadWorldPixelShader);
+}

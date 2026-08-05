@@ -19,6 +19,8 @@ internal sealed class TerrainLiquidSpriteBuilder(AssetManager assets)
     private readonly byte[] _animationStates = new byte[256];
     private bool _assetRequestsPending = true;
 
+    public bool HasPendingAssetRequests => _assetRequestsPending;
+
     public TerrainLiquidPreparation Prepare(IReadOnlyList<Sector> sectors, bool worldChanged)
     {
         if (!worldChanged && !_assetRequestsPending)

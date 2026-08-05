@@ -50,6 +50,8 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
 
     public ulong ResidencyRevision { get; private set; }
 
+    public bool IsPrepared(ulong spriteRevision) => _preparedSpriteRevision == spriteRevision;
+
     public void Prepare(
         IReadOnlyList<TerrainLiquidSprite> liquidSprites,
         IReadOnlyList<TerrainStaticSprite> staticSprites,
@@ -109,8 +111,13 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
         foreach (var visibleSprite in sprites)
         {
             var animation = visibleSprite.Animation;
-            if (_liquidTextures.ContainsKey(animation.Name) ||
-                _failedLiquidUploads.Contains(animation.Name) ||
+            if (_liquidTextures.ContainsKey(animation.Name))
+            {
+                animation.ReleasePixelData();
+                continue;
+            }
+
+            if (_failedLiquidUploads.Contains(animation.Name) ||
                 _freeSrvSlots.Count == 0)
             {
                 continue;
@@ -128,6 +135,7 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
                     frame.TransientResources);
                 _uploader.CreateShaderResourceView(resource, SrvCpuHandle(slot));
                 _liquidTextures[animation.Name] = new SpriteTexture(resource, slot);
+                animation.ReleasePixelData();
                 ResidencyRevision++;
             }
             catch
@@ -172,6 +180,7 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
                     frame.TransientResources);
                 _uploader.CreateShaderResourceView(resource, SrvCpuHandle(slot));
                 _staticTextures[sprite] = new SpriteTexture(resource, slot);
+                sprite.ReleasePixelData();
                 ResidencyRevision++;
             }
             catch

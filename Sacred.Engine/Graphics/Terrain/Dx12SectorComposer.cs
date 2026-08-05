@@ -28,10 +28,6 @@ internal sealed class Dx12SectorComposer : IDisposable
     private readonly Dx12TextureUploader _uploader;
     private readonly ID3D12CommandQueue _commandQueue;
     private readonly ID3D12Fence _fence;
-    private readonly ID3D12DescriptorHeap _sourceSrvHeap;
-    private readonly CpuDescriptorHandle _sourceSrvCpuStart;
-    private readonly GpuDescriptorHandle _sourceSrvGpuStart;
-    private readonly int _sourceDescriptorSize;
     private readonly Dictionary<string, SourceTexture> _sourceTextures = new(StringComparer.OrdinalIgnoreCase);
     private readonly ID3D12RootSignature _rootSignature;
     private readonly ID3D12PipelineState _basePipeline;
@@ -39,7 +35,6 @@ internal sealed class Dx12SectorComposer : IDisposable
 
     private nint _fenceEvent;
     private ulong _fenceValue;
-    private int _nextSourceSlot;
 
     public Dx12SectorComposer(ID3D12Device device, Dx12TextureUploader uploader)
     {
@@ -51,17 +46,7 @@ internal sealed class Dx12SectorComposer : IDisposable
         if (_fenceEvent == 0)
             throw new InvalidOperationException("Failed to create the sector-composition fence event.");
 
-        _sourceSrvHeap = device.CreateDescriptorHeap(new DescriptorHeapDescription(
-            DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView,
-            MaximumTileSheetCount,
-            DescriptorHeapFlags.ShaderVisible,
-            0));
-        _sourceSrvCpuStart = _sourceSrvHeap.GetCPUDescriptorHandleForHeapStart();
-        _sourceSrvGpuStart = _sourceSrvHeap.GetGPUDescriptorHandleForHeapStart();
-        _sourceDescriptorSize = (int)device.GetDescriptorHandleIncrementSize(
-            DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView);
-
-        var pipeline = Dx12SectorCompositionPipeline.Create(device, MaximumTileSheetCount, OutputFormat);
+        var pipeline = Dx12SectorCompositionPipeline.Create(device, OutputFormat);
         _rootSignature = pipeline.RootSignature;
         _basePipeline = pipeline.Base;
         _coverPipeline = pipeline.Cover;
@@ -72,6 +57,7 @@ internal sealed class Dx12SectorComposer : IDisposable
         ID3D12CommandAllocator? commandAllocator = null;
         ID3D12GraphicsCommandList? commandList = null;
         ID3D12DescriptorHeap? rtvHeap = null;
+        ID3D12DescriptorHeap? sourceSrvHeap = null;
         ID3D12Resource? baseTexture = null;
         ID3D12Resource? coverTexture = null;
         var transientResources = new List<ID3D12Resource>();
@@ -99,39 +85,43 @@ internal sealed class Dx12SectorComposer : IDisposable
             _device.CreateRenderTargetView(baseTexture, null, baseRtv);
             _device.CreateRenderTargetView(coverTexture, null, coverRtv);
 
-            var baseInstances = CreateInstances(
+            var baseDraws = CreateDraws(
                 composition.BaseTiles,
                 false,
                 commandList,
                 transientResources,
                 addedSourceNames);
-            var coverInstances = CreateInstances(
+            var coverDraws = CreateDraws(
                 composition.CoverTiles,
                 true,
                 commandList,
                 transientResources,
                 addedSourceNames);
 
+            sourceSrvHeap = CreateSourceDescriptorHeap(baseDraws.Length + coverDraws.Length);
+            var nextSourceDescriptor = 0;
             RecordTarget(
                 commandList,
                 baseTexture,
                 baseRtv,
                 composition.Width,
                 composition.Height,
-                baseInstances,
-                composition.BaseTiles.Count,
+                baseDraws,
                 _basePipeline,
-                transientResources);
+                transientResources,
+                sourceSrvHeap,
+                ref nextSourceDescriptor);
             RecordTarget(
                 commandList,
                 coverTexture,
                 coverRtv,
                 composition.Width,
                 composition.Height,
-                coverInstances,
-                composition.CoverTiles.Count,
+                coverDraws,
                 _coverPipeline,
-                transientResources);
+                transientResources,
+                sourceSrvHeap,
+                ref nextSourceDescriptor);
 
             commandList.Close();
             _commandQueue.ExecuteCommandLists([commandList]);
@@ -148,6 +138,8 @@ internal sealed class Dx12SectorComposer : IDisposable
             commandAllocator = null;
             rtvHeap.Dispose();
             rtvHeap = null;
+            sourceSrvHeap.Dispose();
+            sourceSrvHeap = null;
 
             var result = new Dx12ComposedSector(baseTexture, coverTexture);
             baseTexture = null;
@@ -174,6 +166,7 @@ internal sealed class Dx12SectorComposer : IDisposable
             coverTexture?.Dispose();
             baseTexture?.Dispose();
             rtvHeap?.Dispose();
+            sourceSrvHeap?.Dispose();
             commandList?.Dispose();
             commandAllocator?.Dispose();
         }
@@ -189,7 +182,6 @@ internal sealed class Dx12SectorComposer : IDisposable
         _coverPipeline.Dispose();
         _basePipeline.Dispose();
         _rootSignature.Dispose();
-        _sourceSrvHeap.Dispose();
         _fence.Dispose();
         _commandQueue.Dispose();
         if (_fenceEvent != 0)
@@ -199,61 +191,63 @@ internal sealed class Dx12SectorComposer : IDisposable
         }
     }
 
-    private GpuTerrainTileInstance[] CreateInstances(
+    private GpuTerrainTileDraw[] CreateDraws(
         IReadOnlyList<TerrainCompositionTile> tiles,
         bool premultipliedOutput,
         ID3D12GraphicsCommandList commandList,
         ICollection<ID3D12Resource> transientResources,
         ICollection<string> addedSourceNames)
     {
-        var instances = new GpuTerrainTileInstance[tiles.Count];
+        var draws = new GpuTerrainTileDraw[tiles.Count];
         for (var index = 0; index < tiles.Count; index++)
         {
             var tile = tiles[index];
-            var primarySlot = EnsureSourceTexture(
+            var primary = EnsureSourceTexture(
                 tile.Primary.Texture,
                 commandList,
                 transientResources,
                 addedSourceNames);
-            var secondarySlot = primarySlot;
+            var secondary = primary;
             var flags = premultipliedOutput ? PremultipliedOutputFlag : 0u;
-            if (tile.Secondary is { } secondary)
+            if (tile.Secondary is { } secondaryTile)
             {
-                secondarySlot = EnsureSourceTexture(
-                    secondary.Texture,
+                secondary = EnsureSourceTexture(
+                    secondaryTile.Texture,
                     commandList,
                     transientResources,
                     addedSourceNames);
                 flags |= HasSecondaryMaskFlag;
             }
 
-            instances[index] = new GpuTerrainTileInstance(
-                tile.ScreenX,
-                tile.ScreenY,
-                tile.Primary.SourceX,
-                tile.Primary.SourceY,
-                tile.Secondary?.SourceX ?? tile.Primary.SourceX,
-                tile.Secondary?.SourceY ?? tile.Primary.SourceY,
-                (uint)primarySlot,
-                (uint)secondarySlot,
-                flags);
+            draws[index] = new GpuTerrainTileDraw(
+                new GpuTerrainTileInstance(
+                    tile.ScreenX,
+                    tile.ScreenY,
+                    tile.Primary.SourceX,
+                    tile.Primary.SourceY,
+                    tile.Secondary?.SourceX ?? tile.Primary.SourceX,
+                    tile.Secondary?.SourceY ?? tile.Primary.SourceY,
+                    0,
+                    0,
+                    flags),
+                primary,
+                secondary);
         }
 
-        return instances;
+        return draws;
     }
 
-    private int EnsureSourceTexture(
+    private SourceTexture EnsureSourceTexture(
         TextureAsset texture,
         ID3D12GraphicsCommandList commandList,
         ICollection<ID3D12Resource> transientResources,
         ICollection<string> addedSourceNames)
     {
         if (_sourceTextures.TryGetValue(texture.Name, out var cached))
-            return cached.Slot;
-        if (_nextSourceSlot >= MaximumTileSheetCount)
-            throw new InvalidOperationException($"The terrain tile-sheet cache exhausted its {MaximumTileSheetCount} descriptors.");
+            return cached;
+        if (_sourceTextures.Count >= MaximumTileSheetCount)
+            throw new InvalidOperationException($"The terrain tile-sheet cache exhausted its {MaximumTileSheetCount} textures.");
 
-        var slot = _nextSourceSlot++;
         ID3D12Resource? resource = null;
         try
         {
@@ -263,10 +257,10 @@ internal sealed class Dx12SectorComposer : IDisposable
                 texture.Height,
                 texture.Rgba8,
                 transientResources);
-            _uploader.CreateShaderResourceView(resource, SourceSrvCpuHandle(slot));
-            _sourceTextures.Add(texture.Name, new SourceTexture(resource, slot));
+            var source = new SourceTexture(resource);
+            _sourceTextures.Add(texture.Name, source);
             addedSourceNames.Add(texture.Name);
-            return slot;
+            return source;
         }
         catch
         {
@@ -281,30 +275,59 @@ internal sealed class Dx12SectorComposer : IDisposable
         CpuDescriptorHandle rtv,
         int width,
         int height,
-        GpuTerrainTileInstance[] instances,
-        int instanceCount,
+        GpuTerrainTileDraw[] draws,
         ID3D12PipelineState pipeline,
-        ICollection<ID3D12Resource> transientResources)
+        ICollection<ID3D12Resource> transientResources,
+        ID3D12DescriptorHeap sourceSrvHeap,
+        ref int nextSourceDescriptor)
     {
         commandList.OMSetRenderTargets(rtv, null);
         commandList.ClearRenderTargetView(rtv, new Color4(0.0f, 0.0f, 0.0f, 0.0f));
         commandList.RSSetViewports(new Viewport(0, 0, width, height, 0.0f, 1.0f));
         commandList.RSSetScissorRects(new RawRect(0, 0, width, height));
 
-        if (instanceCount != 0)
+        if (draws.Length != 0)
         {
+            var instances = new GpuTerrainTileInstance[draws.Length];
+            for (var index = 0; index < draws.Length; index++)
+                instances[index] = draws[index].Instance;
             var instanceBytes = MemoryMarshal.AsBytes(instances.AsSpan());
             var instanceBuffer = _uploader.CreateUploadBuffer(instanceBytes);
             transientResources.Add(instanceBuffer);
-            commandList.SetDescriptorHeaps(1, [_sourceSrvHeap]);
+            commandList.SetDescriptorHeaps(1, [sourceSrvHeap]);
             commandList.SetGraphicsRootSignature(_rootSignature);
             commandList.SetPipelineState(pipeline);
             commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
             var targetSize = stackalloc float[2] { width, height };
             commandList.SetGraphicsRoot32BitConstants(0, 2, targetSize, 0);
-            commandList.SetGraphicsRootShaderResourceView(1, instanceBuffer.GPUVirtualAddress);
-            commandList.SetGraphicsRootDescriptorTable(2, _sourceSrvGpuStart);
-            commandList.DrawInstanced(VerticesPerTile, (uint)instanceCount, 0, 0);
+            var sourceCpuStart = sourceSrvHeap.GetCPUDescriptorHandleForHeapStart();
+            var sourceGpuStart = sourceSrvHeap.GetGPUDescriptorHandleForHeapStart();
+            var sourceDescriptorSize = (int)_device.GetDescriptorHandleIncrementSize(
+                DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView);
+            var instanceStride = Marshal.SizeOf<GpuTerrainTileInstance>();
+            var firstInstance = 0;
+            while (firstInstance < draws.Length)
+            {
+                var draw = draws[firstInstance];
+                var instanceCount = 1;
+                while (firstInstance + instanceCount < draws.Length &&
+                       ReferenceEquals(draw.Primary, draws[firstInstance + instanceCount].Primary) &&
+                       ReferenceEquals(draw.Secondary, draws[firstInstance + instanceCount].Secondary))
+                    instanceCount++;
+
+                var primaryDescriptor = sourceCpuStart + nextSourceDescriptor * sourceDescriptorSize;
+                _uploader.CreateShaderResourceView(draw.Primary.Resource, primaryDescriptor);
+                _uploader.CreateShaderResourceView(draw.Secondary.Resource, primaryDescriptor + sourceDescriptorSize);
+                commandList.SetGraphicsRootDescriptorTable(
+                    2,
+                    sourceGpuStart + nextSourceDescriptor * sourceDescriptorSize);
+                commandList.SetGraphicsRootShaderResourceView(
+                    1,
+                    instanceBuffer.GPUVirtualAddress + (ulong)(firstInstance * instanceStride));
+                commandList.DrawInstanced(VerticesPerTile, (uint)instanceCount, 0, 0);
+                nextSourceDescriptor += 2;
+                firstInstance += instanceCount;
+            }
         }
 
         Dx12TextureUploader.Transition(
@@ -345,10 +368,19 @@ internal sealed class Dx12SectorComposer : IDisposable
         Kernel32.WaitForSingleObject(_fenceEvent, uint.MaxValue);
     }
 
-    private CpuDescriptorHandle SourceSrvCpuHandle(int slot) =>
-        _sourceSrvCpuStart + slot * _sourceDescriptorSize;
+    private ID3D12DescriptorHeap CreateSourceDescriptorHeap(int drawCount) =>
+        _device.CreateDescriptorHeap(new DescriptorHeapDescription(
+            DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView,
+            checked((uint)Math.Max(2, drawCount * 2)),
+            DescriptorHeapFlags.ShaderVisible,
+            0));
 
-    private sealed record SourceTexture(ID3D12Resource Resource, int Slot);
+    private sealed record SourceTexture(ID3D12Resource Resource);
+
+    private readonly record struct GpuTerrainTileDraw(
+        GpuTerrainTileInstance Instance,
+        SourceTexture Primary,
+        SourceTexture Secondary);
 }
 
 internal sealed record Dx12ComposedSector(ID3D12Resource BaseTexture, ID3D12Resource LiquidCoverTexture) : IDisposable

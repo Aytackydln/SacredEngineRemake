@@ -9,8 +9,8 @@ namespace Sacred.Engine.Rendering;
 
 public sealed class DebugTextOverlay(DebugOverlayFontSet fonts)
 {
-    public const int Width = 660;
-    public const int Height = 176;
+    public const int Width = 460;
+    public const int Height = 208;
 
     private const int Padding = 8;
     private const int DefaultLineAdvance = 16;

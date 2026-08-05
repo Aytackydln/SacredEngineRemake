@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Core.World.Sector;
@@ -236,18 +237,61 @@ public readonly record struct TerrainCompositionTile(
     TerrainTileSource Primary,
     TerrainTileSource? Secondary);
 
-public sealed record TerrainSectorComposition(
-    SectorCoord Coord,
-    float IsoX,
-    float IsoY,
-    int Width,
-    int Height,
-    int Depth,
-    IReadOnlyList<TerrainCompositionTile> BaseTiles,
-    IReadOnlyList<TerrainCompositionTile> CoverTiles,
-    int GroundCandidateTiles,
-    int GroundDrawnTiles,
-    int GroundMissingTiles,
-    int FloorCandidateTiles,
-    int FloorDrawnTiles,
-    int FloorMissingTiles);
+public sealed class TerrainSectorComposition
+{
+    private TerrainCompositionTile[] _baseTiles;
+    private TerrainCompositionTile[] _coverTiles;
+
+    public TerrainSectorComposition(
+        SectorCoord coord,
+        float isoX,
+        float isoY,
+        int width,
+        int height,
+        int depth,
+        TerrainCompositionTile[] baseTiles,
+        TerrainCompositionTile[] coverTiles,
+        int groundCandidateTiles,
+        int groundDrawnTiles,
+        int groundMissingTiles,
+        int floorCandidateTiles,
+        int floorDrawnTiles,
+        int floorMissingTiles)
+    {
+        Coord = coord;
+        IsoX = isoX;
+        IsoY = isoY;
+        Width = width;
+        Height = height;
+        Depth = depth;
+        _baseTiles = baseTiles;
+        _coverTiles = coverTiles;
+        GroundCandidateTiles = groundCandidateTiles;
+        GroundDrawnTiles = groundDrawnTiles;
+        GroundMissingTiles = groundMissingTiles;
+        FloorCandidateTiles = floorCandidateTiles;
+        FloorDrawnTiles = floorDrawnTiles;
+        FloorMissingTiles = floorMissingTiles;
+    }
+
+    public SectorCoord Coord { get; }
+    public float IsoX { get; }
+    public float IsoY { get; }
+    public int Width { get; }
+    public int Height { get; }
+    public int Depth { get; }
+    public IReadOnlyList<TerrainCompositionTile> BaseTiles => _baseTiles;
+    public IReadOnlyList<TerrainCompositionTile> CoverTiles => _coverTiles;
+    public int GroundCandidateTiles { get; }
+    public int GroundDrawnTiles { get; }
+    public int GroundMissingTiles { get; }
+    public int FloorCandidateTiles { get; }
+    public int FloorDrawnTiles { get; }
+    public int FloorMissingTiles { get; }
+
+    internal void ReleaseSourceTiles()
+    {
+        Interlocked.Exchange(ref _baseTiles, []);
+        Interlocked.Exchange(ref _coverTiles, []);
+    }
+}

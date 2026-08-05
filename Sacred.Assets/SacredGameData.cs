@@ -29,12 +29,8 @@ public class SacredGameData
 
     private static GameResStore LoadGameResStore(SacredGameDirectories gameDirectories)
     {
-        var reverseIndexMap = SacredResUnpack.Unpack(gameDirectories.ReferenceResourcesPath)
-            .DistinctBy(kv => kv.Value)
-            .ToFrozenDictionary(kv => kv.Value, kv => kv.Key);
-
-        var strings = SacredResUnpack.UnpackAsDictionary(gameDirectories.GlobalResourcesPath, gameDirectories.LocalResourcesPath);
-        var gameResStore = new GameResStore(strings, reverseIndexMap);
+        var strings = SacredResUnpack.UnpackAsDictionary(gameDirectories.GlobalResourcesPath);
+        var gameResStore = new GameResStore(strings);
         return gameResStore;
     }
 

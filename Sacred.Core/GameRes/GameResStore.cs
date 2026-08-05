@@ -1,29 +1,16 @@
-﻿using System.Collections.Frozen;
+using System.Collections.Frozen;
 
 namespace Sacred.Core.GameRes;
 
-public class GameResStore(FrozenDictionary<uint, string> strings, FrozenDictionary<string, uint> reverseIndexMap)
+public sealed class GameResStore(FrozenDictionary<uint, string> strings)
 {
-    public FrozenDictionary<uint, string> Strings { get;  } = strings;
+    public static GameResStore Empty { get; } = new(FrozenDictionary<uint, string>.Empty);
 
-    public FrozenDictionary<string, uint> ReverseIndexMap { get;  } = reverseIndexMap;
-    
-    // ReverseIndex string to Strings value
-    public FrozenDictionary<string, string> TranslatedStrings { get; } = reverseIndexMap
-        .ToFrozenDictionary(kv => kv.Key, kv =>
-        {
-            var baseString = kv.Key;
-            var resId = kv.Value;
-            return strings.GetValueOrDefault(resId, baseString);
-        });
+    public FrozenDictionary<uint, string> Strings { get; } = strings;
 
-    public string TranslateString(string baseString)
+    public string GetString(string resourceKey, string fallback)
     {
-        if (ReverseIndexMap.TryGetValue(baseString, out var resId))
-        {
-            return Strings.GetValueOrDefault(resId, baseString);
-        }
-
-        return baseString;
+        var resourceId = SacredResourceHash.Compute(resourceKey);
+        return Strings.GetValueOrDefault(resourceId, fallback);
     }
 }

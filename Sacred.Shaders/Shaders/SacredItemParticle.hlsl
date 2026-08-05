@@ -55,8 +55,9 @@ vs_output vs_main(vs_input input)
         if (texture_flags.y > 5.5f && texture_flags.y < 6.5f)
         {
             float cycle = frac(texture_flags.w * 1.8f + texture_flags.z);
-            output.opacity = saturate(sin(cycle * 3.14159265f));
-            size_scale = lerp(0.45f, 1.1f, output.opacity);
+            float pulse = saturate(sin(cycle * 3.14159265f));
+            output.opacity = smoothstep(0.08f, 0.42f, pulse);
+            size_scale = lerp(0.3f, 1.1f, pulse);
         }
         world_position += (right * input.normal.x + up * input.normal.y) * model_scale * size_scale;
     }
@@ -74,15 +75,17 @@ float2 animated_tex_coord(float2 tex_coord)
         return (tex_coord + cell) * 0.25f;
     }
 
-    if (texture_flags.y > 6.5f)
+    if (texture_flags.y > 7.5f && texture_flags.y < 8.5f)
     {
-        float angle = texture_flags.w * 1.6f + texture_flags.z * 6.2831853f;
+        float angle = texture_flags.w * 1.35f + texture_flags.z * 6.2831853f;
         float sine = sin(angle);
         float cosine = cos(angle);
         float2 centered = tex_coord - 0.5f;
-        return float2(centered.x * cosine - centered.y * sine,
-                      centered.x * sine + centered.y * cosine) + 0.5f;
+        return float2(
+            centered.x * cosine - centered.y * sine,
+            centered.x * sine + centered.y * cosine) + 0.5f;
     }
+
     if (texture_flags.y > 3.5f && texture_flags.y < 4.5f)
         tex_coord.x += sin(tex_coord.y * 11.0f + texture_flags.w * 7.0f) * 0.08f;
     return tex_coord;
@@ -101,5 +104,5 @@ float4 ps_main(vs_output input) : SV_Target
     float3 source_color = uses_alpha ? 1.0f : sampled.rgb / max(brightness, 0.08f);
     float intensity = uses_alpha ? 1.0f : saturate(brightness * 1.75f);
     float3 color = source_color * model_color.rgb * intensity;
-    return float4(color, alpha);
+    return float4(color * alpha, alpha);
 }

@@ -18,6 +18,8 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
     private readonly List<TerrainStaticSprite> _visibleSprites = new(1024);
     private bool _assetRequestsPending = true;
 
+    public bool HasPendingAssetRequests => _assetRequestsPending;
+
     public TerrainStaticPreparation Prepare(IReadOnlyList<Sector> sectors, bool worldChanged)
     {
         if (!worldChanged && !_assetRequestsPending)

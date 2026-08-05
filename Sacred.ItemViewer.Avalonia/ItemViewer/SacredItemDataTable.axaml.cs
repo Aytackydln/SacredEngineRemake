@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
@@ -18,6 +17,7 @@ using Sacred.Assets;
 using Sacred.Assets.Paks.Models;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Core;
+using Sacred.Core.GameRes;
 using Sacred.Core.Pak.Weapon;
 using Sacred.Granny;
 
@@ -27,7 +27,7 @@ public partial class SacredItemDataTable : UserControl
 {
     private const string DefaultGameDir = @"E:\SteamLibrary\steamapps\common\Sacred Gold";
 
-    private SacredItemDataTableViewModel _tableViewModel = new([], FrozenDictionary<string, string>.Empty);
+    private SacredItemDataTableViewModel _tableViewModel = new([], GameResStore.Empty);
     private readonly ModelViewerControl _modelViewer = new();
     private readonly SacredItemFilterSaveStore _filterSaveStore = SacredItemFilterSaveStore.CreateDefault();
     private readonly SacredItemFavoriteStore _favoriteStore = SacredItemFavoriteStore.CreateDefault();
@@ -114,7 +114,7 @@ public partial class SacredItemDataTable : UserControl
         var sacredGameData = SacredGameData.LoadFromGamePaks(gameDirectories);
         var items = sacredGameData.GamePakStore.Weapons.Values.ToList();
 
-        _tableViewModel = new SacredItemDataTableViewModel(items, sacredGameData.GameResStore.TranslatedStrings);
+        _tableViewModel = new SacredItemDataTableViewModel(items, sacredGameData.GameResStore);
         _tableViewModel.FilterHasModel = savedSettings.FilterHasModel;
         _tableViewModel.SetFavoriteItems(_favoriteItemIds);
         _tableViewModel.SetConfirmedPreviewItems(CreateConfirmedPreviewItems());
@@ -134,8 +134,6 @@ public partial class SacredItemDataTable : UserControl
         return new SacredGameDirectories
         {
             GlobalResourcesPath = Path.Combine(gameDir, "scripts", "us", "global.res"),
-            LocalResourcesPath = Path.Combine(gameDir, "scripts", "us", "SRglbl.res"),
-            ReferenceResourcesPath = Path.Combine(gameDir, "scripts", "de", "SRglbl.res"),
             WeaponsPakPath = Path.Combine(gameDir, "pak", "Weapon.pak"),
             ItemsPakPath = Path.Combine(gameDir, "pak", "Items.pak"),
             TexturesPakPath = Path.Combine(gameDir, "pak", "texture.pak"),

@@ -9,7 +9,6 @@ internal static class Dx12SectorCompositionPipeline
 {
     public static Dx12SectorCompositionPipelines Create(
         ID3D12Device device,
-        int maximumTileSheetCount,
         Format outputFormat)
     {
         var rootParameters = new[]
@@ -21,7 +20,7 @@ internal static class Dx12SectorCompositionPipeline
                 {
                     Ranges = [new DescriptorRange(
                         DescriptorRangeType.ShaderResourceView,
-                        (uint)maximumTileSheetCount,
+                        2,
                         1,
                         0,
                         0)]

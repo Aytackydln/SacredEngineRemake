@@ -1,4 +1,5 @@
-// #pragma hlsl profile ps_5_0
+// This shader intentionally targets Shader Model 5.0.  It avoids resource
+// arrays, which Proton's D3DCompiler implementation cannot compile.
 #pragma vertex vs_main
 #pragma fragment ps_main
 
@@ -17,7 +18,7 @@ struct SpriteInstance
 };
 
 StructuredBuffer<SpriteInstance> instances : register(t0);
-Texture2D static_textures[4096] : register(t1);
+Texture2D static_texture : register(t1);
 SamplerState sampler0 : register(s0);
 
 cbuffer StaticSpriteSceneConstants : register(b0)
@@ -33,14 +34,13 @@ struct vertex_output
 {
     float4 position : SV_Position;
     float2 tex_coord : TEXCOORD0;
-    nointerpolation uint texture_index : TEXCOORD1;
-    nointerpolation float depth : TEXCOORD2;
-    nointerpolation uint frame_count : TEXCOORD3;
-    nointerpolation uint flags : TEXCOORD4;
-    nointerpolation float animation_period_seconds : TEXCOORD5;
-    nointerpolation float4 corner_alpha : TEXCOORD6;
-    nointerpolation uint atlas_columns : TEXCOORD7;
-    nointerpolation uint atlas_rows : TEXCOORD8;
+    nointerpolation float depth : TEXCOORD1;
+    nointerpolation uint frame_count : TEXCOORD2;
+    nointerpolation uint flags : TEXCOORD3;
+    nointerpolation float animation_period_seconds : TEXCOORD4;
+    nointerpolation float4 corner_alpha : TEXCOORD5;
+    nointerpolation uint atlas_columns : TEXCOORD6;
+    nointerpolation uint atlas_rows : TEXCOORD7;
 };
 
 struct pixel_output
@@ -72,7 +72,6 @@ vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_Instan
     vertex_output output;
     output.position = float4(clip, instance.depth, 1.0f);
     output.tex_coord = uv;
-    output.texture_index = instance.texture_index;
     output.depth = instance.depth;
     output.frame_count = instance.frame_count;
     output.flags = instance.flags;
@@ -158,8 +157,7 @@ float4 sample_sprite_texture(Texture2D texture_to_sample, vertex_output input)
 
 pixel_output ps_main(vertex_output input)
 {
-    uint texture_index = NonUniformResourceIndex(input.texture_index);
-    float4 tex = sample_sprite_texture(static_textures[texture_index], input);
+    float4 tex = sample_sprite_texture(static_texture, input);
 
     if (tex.a == 0)
     {

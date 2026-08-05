@@ -1,20 +1,18 @@
 using System;
 using System.IO;
-using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
-using Windows.Gaming.Input;
 using Sacred.Core;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Graphics;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Platform;
 using Sacred.Engine.Scene;
-using Sacred.Engine.World;
+using Sacred.Engine.Scene.InGame;
 
 namespace Sacred.Engine;
 
-/// <summary>Owns engine lifetime and coordinates the latency-sensitive frame stages.</summary>
+/// <summary>Owns engine lifetime and coordinates the active scene's frame stages.</summary>
 public sealed class SacredGame : IDisposable
 {
     private static FramePacingMode _mode = FramePacingMode.VariableRefreshRate;
@@ -22,32 +20,37 @@ public sealed class SacredGame : IDisposable
     private readonly Win32Window _window;
     private readonly LowLatencySystem _latency;
     private readonly Dx12Renderer _renderer;
-    private readonly AssetManager _assets;
-    private readonly WorldStreamer _worldStreamer;
-    private readonly SacredCamera _camera;
-    private readonly ClickToMoveController _clickToMove = new();
-    private readonly SceneState _scene = new();
-    private readonly WorldLightingController _worldLighting = new();
-    private readonly PlayerCharacterController _player;
+    private readonly GameResourceLoader _resourceLoader;
+    private readonly SceneManager _scenes = new();
+    private readonly GamepadInputSource _gamepad = new();
+    private readonly EngineInputController _engineInput;
     private readonly uint _displayRefreshRateHz;
+    private readonly string _gameDirectory;
 
-    private GamepadButtons _previousGamepadButtons;
+    private InGameScene? _inGameScene;
     private string _framePacingStatus = string.Empty;
     private bool _disposed;
 
     public SacredGame(SacredGameDirectories gameDirectories)
     {
+        ArgumentNullException.ThrowIfNull(gameDirectories);
+        _gameDirectory = ResolveGameDirectory(gameDirectories);
         _latency = LowLatencySystem.CreateDefault();
-        _window = new Win32Window("Sacred Remake DX12 Prototype", 1600, 900);
+        _window = new Win32Window("Sacred Remake", 1600, 900);
         _displayRefreshRateHz = _window.DisplayRefreshRateHz;
-        _assets = new AssetManager(gameDirectories);
-        _camera = SacredCamera.CreateDefault(_window.ClientWidth, _window.ClientHeight);
-        _worldStreamer = new WorldStreamer(SacredWorldArchive.Load(gameDirectories));
-        _renderer = new Dx12Renderer(_window, _assets, ResolveGameDirectory(gameDirectories), _latency);
-        _player = new PlayerCharacterController(_assets, _scene);
+        _renderer = new Dx12Renderer(_window, _gameDirectory, _latency);
+        _resourceLoader = new GameResourceLoader(gameDirectories);
+        _engineInput = new EngineInputController(
+            _window.Input,
+            _renderer,
+            _latency,
+            CycleFramePacing,
+            UpdateWindowTitle);
 
-        UpdateWindowTitle();
-        BootstrapScene();
+        RegisterScenes();
+        _scenes.SceneChanged += UpdateWindowTitle;
+        _scenes.Start(GameSceneId.InitialLoading);
+        _window.RequestFocus();
     }
 
     public Task Run(CancellationToken cancellationToken = default) =>
@@ -59,23 +62,90 @@ public sealed class SacredGame : IDisposable
             return;
 
         _disposed = true;
-        _player.Dispose();
+        _scenes.SceneChanged -= UpdateWindowTitle;
+        // GPU caches can reference scene-owned assets, so retire them before disposing scenes.
         _renderer.Dispose();
+        _scenes.Dispose();
+        _resourceLoader.Dispose();
         _latency.Dispose();
-        _worldStreamer.Dispose();
-        _assets.Dispose();
         _window.Dispose();
     }
 
-    private void BootstrapScene()
+    private void RegisterScenes()
     {
-        _worldStreamer.CenterOnSector(_worldStreamer.StartSector.X, _worldStreamer.StartSector.Y);
-        _camera.CenterOnTile(
-            _worldStreamer.StartSector.X * WorldStreamer.SectorTileCount + WorldStreamer.SectorTileCount * 0.5f,
-            _worldStreamer.StartSector.Y * WorldStreamer.SectorTileCount + WorldStreamer.SectorTileCount * 0.5f,
-            0.75f);
-        _scene.Lighting.LightPosition = _camera.EyePosition + new Vector3(-320.0f, -180.0f, 260.0f);
-        _player.Initialize(_camera.WorldCenter);
+        _scenes.Register(
+            GameSceneId.InitialLoading,
+            () => new InitialLoadingScene(
+                _resourceLoader,
+                _gameDirectory,
+                () => _scenes.RequestSwitch(GameSceneId.GameLoading)),
+            preserveInMemory: false);
+        _scenes.Register(
+            GameSceneId.GameLoading,
+            () => new GameLoadingScene(
+                _resourceLoader,
+                _gameDirectory,
+                InitializeRuntime,
+                _scenes.RequestSwitch),
+            preserveInMemory: false);
+        _scenes.Register(
+            GameSceneId.MainMenu,
+            () => new PlaceholderScene(
+                GameSceneId.MainMenu,
+                "MAIN MENU",
+                "MAIN MENU SUPPORT IS READY FOR ITS FUTURE CONTENT",
+                _gameDirectory),
+            preserveInMemory: true);
+        _scenes.Register(
+            GameSceneId.CharacterViewer,
+            () => new PlaceholderScene(
+                GameSceneId.CharacterViewer,
+                "CHARACTER VIEWER",
+                "CHARACTER VIEWER WILL BE ADDED LATER",
+                _gameDirectory),
+            preserveInMemory: true);
+        _scenes.Register(
+            GameSceneId.SaveSelector,
+            () => new PlaceholderScene(
+                GameSceneId.SaveSelector,
+                "SAVE SELECTOR",
+                "SAVE SELECTOR WILL BE ADDED LATER",
+                _gameDirectory),
+            preserveInMemory: true);
+        _scenes.Register(
+            GameSceneId.WorldMap,
+            () => new WorldMapScene(
+                _window.Input,
+                _gamepad,
+                _scenes.RequestSwitch,
+                _gameDirectory),
+            preserveInMemory: true);
+    }
+
+    private InGameScene InitializeRuntime()
+    {
+        var resources = _resourceLoader.TransferToRuntime();
+        try
+        {
+            _renderer.InitializeWorld(resources.Assets);
+            var scene = new InGameScene(
+                resources,
+                _renderer,
+                _window,
+                _gamepad,
+                _scenes.RequestSwitch,
+                UpdateWindowTitle);
+            _scenes.RegisterInstance(scene);
+            _inGameScene = scene;
+            UpdateWindowTitle();
+            return scene;
+        }
+        catch
+        {
+            resources.WorldArchive.Dispose();
+            resources.Assets.Dispose();
+            throw;
+        }
     }
 
     private async Task RunCoreAsync(CancellationToken cancellationToken)
@@ -100,100 +170,25 @@ public sealed class SacredGame : IDisposable
             if (_window.Input.HasPendingLeftClick)
                 _latency.Mark(LatencyMarker.LeftMouseButtonClick, frameId);
 
-            Update(deltaSeconds);
+            _gamepad.Poll(_window.Input);
+            _engineInput.Update();
+            _scenes.Update(deltaSeconds);
             _latency.Mark(LatencyMarker.SimulationEnd, frameId);
 
-            await _renderer.RenderFrameAsync(
-                _camera,
-                _worldStreamer.VisibleWorld,
-                _scene,
+            await _scenes.ActiveScene.RenderAsync(new SceneRenderContext(
+                _renderer,
                 ShouldPresentWithVSync(),
                 _framePacingStatus,
                 frameId,
-                cancellationToken);
+                cancellationToken));
         }
-    }
-
-    private void Update(float deltaSeconds)
-    {
-        _player.ApplyPendingAssets();
-        PollGamepad();
-
-        if (_window.Input.ConsumePressed(VirtualKey.Tab) ||
-            _window.Input.ConsumeXButtonCyclePressed())
-        {
-            _player.CycleModel();
-        }
-
-        if (_window.Input.ConsumePressed(VirtualKey.F4))
-            _renderer.ToggleHdr();
-
-        if (_window.Input.ConsumePressed(VirtualKey.F5))
-        {
-            _mode = NextFramePacingMode(_mode);
-            UpdateWindowTitle();
-        }
-
-        if (_window.Input.ConsumePressed(VirtualKey.F6))
-        {
-            _latency.CycleMode();
-            UpdateWindowTitle();
-        }
-
-        if (_window.Input.ConsumePressed(VirtualKey.F7))
-        {
-            _worldLighting.CycleMode();
-            UpdateWindowTitle();
-        }
-
-        if (_worldLighting.Update(deltaSeconds, _scene.Lighting))
-            UpdateWindowTitle();
-
-        _clickToMove.Update(
-            _window.Input,
-            _camera,
-            _window.ClientWidth,
-            _window.ClientHeight,
-            deltaSeconds);
-
-        _camera.UpdateFromKeyboard(_window.Input, deltaSeconds);
-        _player.UpdatePose(_camera.WorldCenter, _camera.CameraSpeedUnitVector, deltaSeconds);
-        _worldStreamer.Update(_camera.WorldCenter);
-    }
-
-    private void PollGamepad()
-    {
-        var gamepads = Gamepad.Gamepads;
-        var gamepad = gamepads.Count == 0 ? null : gamepads[0];
-        if (gamepad is null)
-        {
-            _window.Input.LeftJoystickX = 0.0;
-            _window.Input.LeftJoystickY = 0.0;
-            _window.Input.RightJoystickY = 0.0;
-            _window.Input.GamepadMoveFaster = false;
-            _previousGamepadButtons = GamepadButtons.None;
-            return;
-        }
-
-        var reading = gamepad.GetCurrentReading();
-        var buttons = reading.Buttons;
-        _window.Input.LeftJoystickX = reading.LeftThumbstickX;
-        _window.Input.LeftJoystickY = reading.LeftThumbstickY;
-        _window.Input.RightJoystickY = reading.RightThumbstickY;
-        _window.Input.GamepadMoveFaster = (buttons & GamepadButtons.A) != 0;
-
-        if ((buttons & GamepadButtons.B) != 0 &&
-            (_previousGamepadButtons & GamepadButtons.B) == 0)
-        {
-            _player.CycleModel();
-        }
-
-        _previousGamepadButtons = buttons;
     }
 
     private bool ShouldPresentWithVSync() =>
         _mode == FramePacingMode.VSync ||
         (_mode == FramePacingMode.VariableRefreshRate && !_renderer.VariableRefreshRateSupported);
+
+    private void CycleFramePacing() => _mode = NextFramePacingMode(_mode);
 
     private static FramePacingMode NextFramePacingMode(FramePacingMode mode) => mode switch
     {
@@ -218,8 +213,9 @@ public sealed class SacredGame : IDisposable
         };
 
         _framePacingStatus = FormatFramePacingMode();
+        var lighting = _inGameScene?.LightingDisplayName ?? "not active";
         _window.SetTitle(
-            $"SacredEngineRemake - Pacing: {_framePacingStatus} - Lighting: {_worldLighting.DisplayName} - Low Latency: {lowLatencyMode} ({_latency.ActiveBackendName})");
+            $"SacredEngineRemake - Scene: {_scenes.ActiveSceneId} - Pacing: {_framePacingStatus} - Lighting: {lighting} - Low Latency: {lowLatencyMode} ({_latency.ActiveBackendName})");
     }
 
     private string FormatFramePacingMode() => _mode switch

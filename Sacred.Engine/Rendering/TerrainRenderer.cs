@@ -25,6 +25,8 @@ public sealed class TerrainRenderer
 
     public TerrainRenderStats LastStats { get; private set; }
     public ulong WorldSpriteRevision { get; private set; }
+    public bool HasPendingSpriteAssetRequests =>
+        _staticSpriteBuilder.HasPendingAssetRequests || _liquidSpriteBuilder.HasPendingAssetRequests;
 
     public TerrainRenderer(AssetManager assets)
     {

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Rendering;
 using Sacred.Engine.Scene;
+using Sacred.Engine.Scene.InGame;
 using Sacred.Shaders;
 using Vortice.Direct3D12;
 
@@ -70,6 +71,7 @@ public unsafe class Dx12DebugOverlay : IDisposable
             DebugTextLine.Default("FASTER: SHIFT OR GAMEPAD A"),
             DebugTextLine.Default("CYCLE: TAB, MOUSE4/5, GAMEPAD B"),
             DebugTextLine.Default("ZOOM: Q/E, WHEEL, RIGHT STICK"),
+            DebugTextLine.Default("WORLD MAP: M OR GAMEPAD SELECT"),
             DebugTextLine.Default("TOGGLE HDR: F4"),
             DebugTextLine.Default("FRAME PACING: F5"),
             DebugTextLine.Default("LOW LATENCY: F6"),

@@ -19,4 +19,11 @@
     <ProjectReference Include="..\Sacred.Granny\Sacred.Granny.csproj" />
     <ProjectReference Include="..\Sacred.Shaders\Sacred.Shaders.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Embeds\README.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <EmbeddedResource Include="Embeds\*.tga" />
+  </ItemGroup>
 </Project>

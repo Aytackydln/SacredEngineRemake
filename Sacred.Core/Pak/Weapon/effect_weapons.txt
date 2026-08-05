@@ -16,13 +16,14 @@ fx_streak05
 fx_streak06 
 fx_streak07 
 all probably away from stdfx_bone01
+PARTICLE_GLOW05 or PARTICLE_GLOW06 on stdfx_bone01
 
 5633 TORCH_LARGE_ON.GRN
 5632 TORCH_SMALL_ON.GRN
 Fire on weapon_fx01
 
 3116 Magierstab_new2.grn
-Glowing circle on weapon_gl01
+Glowing circle on weapon_gl01, PARTICLE_FLARE03.TGA
 
 
 1876 Magierstab_klein.grn
