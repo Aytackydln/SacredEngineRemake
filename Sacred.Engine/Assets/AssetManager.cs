@@ -122,8 +122,9 @@ public sealed class AssetManager : IDisposable
     private readonly SemaphoreSlim _modelTextureLock = new(1, 1);
 
     private readonly Dictionary<StaticSpriteAssetKey, StaticSpriteAsset?> _staticSprites = new(DefaultMaxCache);
-    private readonly Dictionary<StaticSpriteAssetKey, Task<StaticSpriteAsset?>> _staticSpriteLoads = new(DefaultMaxCache);
+    private readonly HashSet<StaticSpriteAssetKey> _staticSpriteLoads = new(DefaultMaxCache);
     private readonly SemaphoreSlim _staticSpriteLock = new(1, 1);
+    private readonly WorldSpriteLoadQueue _worldSpriteLoadQueue = new();
     private readonly MiniObjectSpriteLoader _miniObjectSprites;
 
     private readonly Dictionary<string, TextureFrameSequenceAsset?> _textureFrameSequences =
@@ -160,7 +161,9 @@ public sealed class AssetManager : IDisposable
         _equipmentByModelId = WeaponPakParser.Parse(gameDirectories.WeaponsPakPath, _itemsByModelId)
             .ToFrozenDictionary(static equipment => checked((ushort)equipment.IdemId));
         _mixedPak = MixedPakArchive.Load(Path.Combine(pakDirectory, "mixed.pak"));
-        _miniObjectSprites = new MiniObjectSpriteLoader(textureName => LoadTextureAsync(textureName));
+        _miniObjectSprites = new MiniObjectSpriteLoader(
+            textureName => LoadTextureAsync(textureName),
+            _worldSpriteLoadQueue);
         _modelsPak = ModelsPakArchive.Load(
             Path.Combine(pakDirectory, "models.pak"),
             Path.Combine(pakDirectory, "Models.tmp"));
@@ -349,8 +352,8 @@ public sealed class AssetManager : IDisposable
             if (_staticSprites.TryGetValue(key, out sprite))
                 return true;
 
-            if (!_staticSpriteLoads.ContainsKey(key))
-                _staticSpriteLoads[key] = Task.Run(() => LoadAndCacheStaticSpriteAsync(key));
+            if (_staticSpriteLoads.Add(key))
+                _worldSpriteLoadQueue.Enqueue(() => LoadAndCacheStaticSpriteAsync(key));
 
             return false;
         }
@@ -970,6 +973,8 @@ public sealed class AssetManager : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+
+        _worldSpriteLoadQueue.Dispose();
 
         _textureLock.Wait();
         _textures.Clear();

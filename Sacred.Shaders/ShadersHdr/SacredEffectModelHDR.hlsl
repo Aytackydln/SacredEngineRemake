@@ -111,7 +111,8 @@ float4 sample_animated_overlay(float2 tex_coord)
 
 float4 hdr_premultiplied_effect_color(float4 color)
 {
-    float3 hdr = SdrTextureToPremultipliedHdr10(color.rgb * color.a, color.a, hdr_display.x);
+    // Effects are emissive and use the HDR highlight target, not scene paper white.
+    float3 hdr = SdrTextureToPremultipliedHdr10(color.rgb * color.a, color.a, hdr_display.w);
     return float4(hdr, color.a);
 }
 

@@ -12,15 +12,24 @@ namespace Sacred.Engine.Assets;
 /// Loads the atlas-backed <c>MiniObjTex*</c> world decals. These use a static
 /// record's three sprite parameters instead of a mixed.pak sprite group.
 /// </summary>
-internal sealed class MiniObjectSpriteLoader(Func<string, Task<TextureAsset>> loadTextureAsync)
+internal sealed class MiniObjectSpriteLoader
 {
     private const int AtlasSize = 256;
     private const int SpriteAnchorX = 48;
 
-    private readonly Func<string, Task<TextureAsset>> _loadTextureAsync = loadTextureAsync;
+    private readonly Func<string, Task<TextureAsset>> _loadTextureAsync;
+    private readonly WorldSpriteLoadQueue _loadQueue;
     private readonly Dictionary<MiniObjectSpriteKey, StaticSpriteAsset?> _sprites = [];
-    private readonly Dictionary<MiniObjectSpriteKey, Task<StaticSpriteAsset?>> _loads = [];
+    private readonly HashSet<MiniObjectSpriteKey> _loads = [];
     private readonly SemaphoreSlim _lock = new(1, 1);
+
+    public MiniObjectSpriteLoader(
+        Func<string, Task<TextureAsset>> loadTextureAsync,
+        WorldSpriteLoadQueue loadQueue)
+    {
+        _loadTextureAsync = loadTextureAsync;
+        _loadQueue = loadQueue;
+    }
 
     public bool TryGetOrRequest(
         ItemsPakEntry item,
@@ -41,8 +50,8 @@ internal sealed class MiniObjectSpriteLoader(Func<string, Task<TextureAsset>> lo
             if (_sprites.TryGetValue(key, out sprite))
                 return true;
 
-            if (!_loads.ContainsKey(key))
-                _loads[key] = Task.Run(() => LoadAndCacheAsync(key));
+            if (_loads.Add(key))
+                _loadQueue.Enqueue(() => LoadAndCacheAsync(key));
 
             return false;
         }

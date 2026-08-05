@@ -49,7 +49,6 @@ float3 SdrTextureToPremultipliedHdr10(float3 color, float alpha, float paper_whi
 {
     // Apply coverage after decoding sRGB but before PQ encoding. Multiplying an
     // already PQ-encoded value would crush partially transparent highlights.
-    float3 premultiplied_nits709 =
-        SrgbToLinear(color) * paper_white_nits * saturate(alpha);
+    float3 premultiplied_nits709 = SrgbToLinear(color) * paper_white_nits * saturate(alpha);
     return Linear709NitsToHdr10(premultiplied_nits709);
 }
