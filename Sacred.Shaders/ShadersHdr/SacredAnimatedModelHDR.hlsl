@@ -147,5 +147,34 @@ float4 ps_main(vs_output input) : SV_Target
 {
     float4 color = sample_animated_texture(model_texture, input.tex_coord);
 
-    return float4(SdrTextureToHdr10(color.rgb, hdr_display.x), color.a);
+    float3 normal = safe_normalize(input.normal, float3(0.0f, 0.0f, 1.0f));
+    float3 light_direction = safe_normalize(
+        light_position_and_specular_strength.xyz - input.world_position,
+        float3(0.0f, -0.7071f, 0.7071f));
+    float3 view_direction = safe_normalize(
+        camera_position_and_shininess.xyz - input.world_position,
+        float3(0.0f, -0.7071f, 0.7071f));
+    float diffuse_amount = saturate(dot(normal, light_direction));
+    float3 reflection_direction = reflect(-light_direction, normal);
+    float specular_amount = diffuse_amount > 0.0f
+        ? pow(saturate(dot(reflection_direction, view_direction)), max(camera_position_and_shininess.w, 1.0f))
+        : 0.0f;
+
+    float3 ambient =
+        ambient_color_and_intensity.rgb * saturate(ambient_color_and_intensity.w);
+    float3 diffuse =
+        light_color_and_diffuse_intensity.rgb *
+        (diffuse_amount * max(light_color_and_diffuse_intensity.w, 0.0f));
+    float3 specular =
+        light_color_and_diffuse_intensity.rgb *
+        (specular_amount * max(light_position_and_specular_strength.w, 0.0f));
+    float3 hdr = SdrLitTextureToHdr10(
+        color.rgb,
+        ambient,
+        diffuse,
+        specular,
+        hdr_display.x,
+        hdr_display.z,
+        hdr_display.w);
+    return float4(hdr, color.a);
 }

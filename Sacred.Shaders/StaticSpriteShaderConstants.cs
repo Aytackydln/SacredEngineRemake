@@ -44,9 +44,10 @@ public readonly record struct StaticSpriteSceneConstants(
     float AlphaCutoff,
     float AmbientIntensity,
     float ScenePaperWhiteNits,
+    float UnlitWhiteNits,
     float AnimationTimeSeconds)
 {
-    public const int FloatCount = 6;
+    public const int FloatCount = 7;
 }
 
 /// <summary>Serializes static-sprite scene constants in the HLSL declaration order.</summary>
@@ -59,6 +60,7 @@ public sealed class StaticSpriteShaderConstantsUpdater
         target[2] = Math.Max(0.0f, constants.AlphaCutoff);
         target[3] = Math.Max(0.0f, constants.AmbientIntensity);
         target[4] = Math.Max(0.0f, constants.ScenePaperWhiteNits);
-        target[5] = Math.Max(0.0f, constants.AnimationTimeSeconds);
+        target[5] = Math.Max(0.0f, constants.UnlitWhiteNits);
+        target[6] = Math.Max(0.0f, constants.AnimationTimeSeconds);
     }
 }

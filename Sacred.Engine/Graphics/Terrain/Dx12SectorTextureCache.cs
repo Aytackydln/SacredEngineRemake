@@ -12,6 +12,8 @@ namespace Sacred.Engine.Graphics.Terrain;
 /// <summary>Owns the bounded, fence-safe GPU cache and dedicated sector-composition queue.</summary>
 internal sealed class Dx12SectorTextureCache : IDisposable
 {
+    private const int TexturesPerSector = 4;
+
     private readonly int _maximumTextureCount;
     private readonly Dx12TextureUploader _uploader;
     private readonly Dx12SectorComposer _composer;
@@ -39,8 +41,8 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         _composer = new Dx12SectorComposer(device, uploader);
         _srvHeapStart = srvHeap.GetCPUDescriptorHandleForHeapStart();
         _descriptorSize = descriptorSize;
-        _freeSrvSlots = new Stack<int>(maximumTextureCount * 2);
-        for (var index = maximumTextureCount * 2 - 1; index >= 0; index--)
+        _freeSrvSlots = new Stack<int>(maximumTextureCount * TexturesPerSector);
+        for (var index = maximumTextureCount * TexturesPerSector - 1; index >= 0; index--)
             _freeSrvSlots.Push(index);
 
         _uploadThread = new Thread(UploadWorkerLoop)
@@ -75,7 +77,11 @@ internal sealed class Dx12SectorTextureCache : IDisposable
     {
         if (_textures.TryGetValue(coord, out var cached))
         {
-            texture = new SectorTextureView(cached.BaseSrvSlot, cached.LiquidCoverSrvSlot);
+            texture = new SectorTextureView(
+                cached.BaseSrvSlot,
+                cached.LiquidCoverSrvSlot,
+                cached.StairsDebugSrvSlot,
+                cached.BlockedAreaDebugSrvSlot);
             return true;
         }
 
@@ -99,6 +105,8 @@ internal sealed class Dx12SectorTextureCache : IDisposable
             _pendingUploads.Remove(composition.Coord);
             _freeSrvSlots.Push(composition.BaseSrvSlot);
             _freeSrvSlots.Push(composition.LiquidCoverSrvSlot);
+            _freeSrvSlots.Push(composition.StairsDebugSrvSlot);
+            _freeSrvSlots.Push(composition.BlockedAreaDebugSrvSlot);
         }
 
         _pendingUploads.Clear();
@@ -111,6 +119,8 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         {
             texture.BaseResource.Dispose();
             texture.LiquidCoverResource.Dispose();
+            texture.StairsDebugResource.Dispose();
+            texture.BlockedAreaDebugResource.Dispose();
         }
         _textures.Clear();
 
@@ -127,6 +137,8 @@ internal sealed class Dx12SectorTextureCache : IDisposable
             {
                 _freeSrvSlots.Push(composition.BaseSrvSlot);
                 _freeSrvSlots.Push(composition.LiquidCoverSrvSlot);
+                _freeSrvSlots.Push(composition.StairsDebugSrvSlot);
+                _freeSrvSlots.Push(composition.BlockedAreaDebugSrvSlot);
                 throw new InvalidOperationException(
                     $"Failed to compose sector texture {composition.Coord.X},{composition.Coord.Y}.",
                     composition.Error);
@@ -136,6 +148,8 @@ internal sealed class Dx12SectorTextureCache : IDisposable
             {
                 _freeSrvSlots.Push(composition.BaseSrvSlot);
                 _freeSrvSlots.Push(composition.LiquidCoverSrvSlot);
+                _freeSrvSlots.Push(composition.StairsDebugSrvSlot);
+                _freeSrvSlots.Push(composition.BlockedAreaDebugSrvSlot);
                 continue;
             }
 
@@ -145,11 +159,21 @@ internal sealed class Dx12SectorTextureCache : IDisposable
 
             _uploader.CreateShaderResourceView(composed.BaseTexture, SrvCpuHandle(composition.BaseSrvSlot));
             _uploader.CreateShaderResourceView(composed.LiquidCoverTexture, SrvCpuHandle(composition.LiquidCoverSrvSlot));
+            _uploader.CreateShaderResourceView(
+                composed.StairsDebugTexture,
+                SrvCpuHandle(composition.StairsDebugSrvSlot));
+            _uploader.CreateShaderResourceView(
+                composed.BlockedAreaDebugTexture,
+                SrvCpuHandle(composition.BlockedAreaDebugSrvSlot));
             _textures.Add(composition.Coord, new SectorTexture(
                 composed.BaseTexture,
                 composed.LiquidCoverTexture,
+                composed.StairsDebugTexture,
+                composed.BlockedAreaDebugTexture,
                 composition.BaseSrvSlot,
                 composition.LiquidCoverSrvSlot,
+                composition.StairsDebugSrvSlot,
+                composition.BlockedAreaDebugSrvSlot,
                 frameId));
         }
     }
@@ -164,23 +188,32 @@ internal sealed class Dx12SectorTextureCache : IDisposable
             if (_pendingUploads.Contains(image.Coord))
                 continue;
 
-            if (_freeSrvSlots.Count < 2)
+            if (_freeSrvSlots.Count < TexturesPerSector)
             {
                 if (_retiringSrvSlotCount == 0)
                     EvictLeastRecentlyUsed(images, frame);
-                if (_freeSrvSlots.Count < 2)
+                if (_freeSrvSlots.Count < TexturesPerSector)
                     return;
             }
 
             var baseSlot = _freeSrvSlots.Pop();
             var liquidCoverSlot = _freeSrvSlots.Pop();
+            var stairsDebugSlot = _freeSrvSlots.Pop();
+            var blockedAreaDebugSlot = _freeSrvSlots.Pop();
             _pendingUploads.Add(image.Coord);
-            if (_compositionRequests.TryAdd(new SectorCompositionRequest(image, baseSlot, liquidCoverSlot)))
+            if (_compositionRequests.TryAdd(new SectorCompositionRequest(
+                    image,
+                    baseSlot,
+                    liquidCoverSlot,
+                    stairsDebugSlot,
+                    blockedAreaDebugSlot)))
                 continue;
 
             _pendingUploads.Remove(image.Coord);
             _freeSrvSlots.Push(baseSlot);
             _freeSrvSlots.Push(liquidCoverSlot);
+            _freeSrvSlots.Push(stairsDebugSlot);
+            _freeSrvSlots.Push(blockedAreaDebugSlot);
             return;
         }
     }
@@ -225,9 +258,13 @@ internal sealed class Dx12SectorTextureCache : IDisposable
     {
         frame.RetireResource(texture.BaseResource);
         frame.RetireResource(texture.LiquidCoverResource);
+        frame.RetireResource(texture.StairsDebugResource);
+        frame.RetireResource(texture.BlockedAreaDebugResource);
         frame.RetireSectorSrvSlot(texture.BaseSrvSlot);
         frame.RetireSectorSrvSlot(texture.LiquidCoverSrvSlot);
-        _retiringSrvSlotCount += 2;
+        frame.RetireSectorSrvSlot(texture.StairsDebugSrvSlot);
+        frame.RetireSectorSrvSlot(texture.BlockedAreaDebugSrvSlot);
+        _retiringSrvSlotCount += TexturesPerSector;
     }
 
     private void UploadWorkerLoop()
@@ -246,6 +283,8 @@ internal sealed class Dx12SectorTextureCache : IDisposable
                 composed,
                 request.BaseSrvSlot,
                 request.LiquidCoverSrvSlot,
+                request.StairsDebugSrvSlot,
+                request.BlockedAreaDebugSrvSlot,
                 null);
         }
         catch (Exception exception)
@@ -255,6 +294,8 @@ internal sealed class Dx12SectorTextureCache : IDisposable
                 null,
                 request.BaseSrvSlot,
                 request.LiquidCoverSrvSlot,
+                request.StairsDebugSrvSlot,
+                request.BlockedAreaDebugSrvSlot,
                 exception);
         }
         finally
@@ -270,28 +311,44 @@ internal sealed class Dx12SectorTextureCache : IDisposable
     private sealed record SectorCompositionRequest(
         TerrainSectorComposition Composition,
         int BaseSrvSlot,
-        int LiquidCoverSrvSlot);
+        int LiquidCoverSrvSlot,
+        int StairsDebugSrvSlot,
+        int BlockedAreaDebugSrvSlot);
 
     private sealed record SubmittedSectorComposition(
         SectorCoord Coord,
         Dx12ComposedSector? Composed,
         int BaseSrvSlot,
         int LiquidCoverSrvSlot,
+        int StairsDebugSrvSlot,
+        int BlockedAreaDebugSrvSlot,
         Exception? Error);
 
     private sealed class SectorTexture(
         ID3D12Resource baseResource,
         ID3D12Resource liquidCoverResource,
+        ID3D12Resource stairsDebugResource,
+        ID3D12Resource blockedAreaDebugResource,
         int baseSrvSlot,
         int liquidCoverSrvSlot,
+        int stairsDebugSrvSlot,
+        int blockedAreaDebugSrvSlot,
         ulong lastUsedFrame)
     {
         public ID3D12Resource BaseResource { get; } = baseResource;
         public ID3D12Resource LiquidCoverResource { get; } = liquidCoverResource;
+        public ID3D12Resource StairsDebugResource { get; } = stairsDebugResource;
+        public ID3D12Resource BlockedAreaDebugResource { get; } = blockedAreaDebugResource;
         public int BaseSrvSlot { get; } = baseSrvSlot;
         public int LiquidCoverSrvSlot { get; } = liquidCoverSrvSlot;
+        public int StairsDebugSrvSlot { get; } = stairsDebugSrvSlot;
+        public int BlockedAreaDebugSrvSlot { get; } = blockedAreaDebugSrvSlot;
         public ulong LastUsedFrame { get; set; } = lastUsedFrame;
     }
 }
 
-internal readonly record struct SectorTextureView(int BaseSrvSlot, int LiquidCoverSrvSlot);
+internal readonly record struct SectorTextureView(
+    int BaseSrvSlot,
+    int LiquidCoverSrvSlot,
+    int StairsDebugSrvSlot,
+    int BlockedAreaDebugSrvSlot);

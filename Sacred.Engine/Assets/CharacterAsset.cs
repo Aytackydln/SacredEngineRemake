@@ -1,7 +1,8 @@
 using System.Collections.Generic;
+using Sacred.Assets.Paks.Models;
 using Sacred.Assets.Paks.Texture;
-using Sacred.Engine.Rendering.EquipmentEffects;
 using Sacred.Granny;
+using Sacred.Inventory.Effects;
 
 namespace Sacred.Engine.Assets;
 
@@ -11,4 +12,5 @@ public sealed record PlayerCharacterAsset(
     string ModelName,
     GrnAsset Model,
     IReadOnlyDictionary<string, ModelTextureReference> TextureAliases,
-    EquipmentEffectScene? EquipmentEffects);
+    EquipmentEffectScene? EquipmentEffects,
+    CharacterMotionWeaponStyle WeaponStyle);

@@ -23,7 +23,15 @@ public sealed record GrnSliceDiagnostics(
     int TexturePolygonCount,
     int TexturePolygonGroupCount,
     IReadOnlyList<GrnBoneDiagnostics> Bones,
-    int BoneTieCount);
+    int BoneTieCount,
+    IReadOnlyList<GrnSurfaceTriangleDiagnostics> SurfaceTriangles);
+
+public readonly record struct GrnSurfaceTriangleDiagnostics(
+    Vector3 A,
+    Vector3 B,
+    Vector3 C,
+    Vector3 Normal,
+    float Area);
 
 public sealed record GrnMeshPartDiagnostics(
     int Index,

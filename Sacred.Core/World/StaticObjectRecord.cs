@@ -40,6 +40,12 @@ public readonly record struct StaticObjectRecord
     [FieldOffset(0x30)]
     public readonly byte OrientationOrFrame;
 
+    [FieldOffset(0x31)]
+    public readonly byte AnimationFrameDurationTicks;
+
+    [FieldOffset(0x32)]
+    public readonly byte AnimationFrameCount;
+
     [FieldOffset(0x33)]
     public readonly byte ElevationTier;
 }

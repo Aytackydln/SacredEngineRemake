@@ -16,8 +16,9 @@ using Sacred.Assets.Paks.Weapon;
 using Sacred.Core;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Pak.Weapon;
-using Sacred.Engine.Rendering.EquipmentEffects;
 using Sacred.Granny;
+using Sacred.Inventory.Actors;
+using Sacred.Inventory.Effects;
 
 namespace Sacred.Engine.Assets;
 
@@ -28,98 +29,8 @@ public sealed class AssetManager : IDisposable
     private const int MaxModelTextureCacheEntries = 128;
     private const int DefaultMaxCache = 256;
     
-    // These are game item ids (the ItemId field in Items.pak), not descriptor row indexes.
-    private const uint Seraphim = 1; // SERAPHIM.GRN
-    private const uint Gladiator = 2; // GLADIATOR.GRN
-    private const uint BattleMage = 3; // MAGICIAN.GRN
-    private const uint DarkElf = 4; // DARKELVE.GRN
-    private const uint Vampiress = 6; // VLADY_D.GRN and VLADY_N.GRN
-    private const uint Dwarf = 8; // dwarf.grn
-    private const uint Daemon = 9; // Daemonia.grn
-    private const uint WoodElf = 108; // Waldelfe.grn
-
-    private const string ShieldAttachBone = "Bip01 L Forearm";
-    private const string LeftWeaponAttachBone = "Bip01 L Hand";
-    private const string RightWeaponAttachBone = "Bip01 R Hand";
-    private const string LeftWeaponAnchorBone = "Bone_weapon_01";
-    private const string RightWeaponAnchorBone = "Bone_weapon_02";
-
-    private const uint DaemonHelm = 1222; // Daemonia_Armor01_Helm.grn
-    private const uint DarkElfBreastplate = 1251; // DElve_sa5_body.grn
-    private const uint SeraphimHelm = 1840; // Seraphim_christmas_helm.GRN
-    private const uint SeraphimGodsShield = 4017;
-    private const uint BattleMageCowl = 3219; // magician_cowl.grn
-    private const uint SeraphimWings = 4006; // SeraWings01.grn, animated wing effect row
-    private const uint SeraphimHair = 4007; // SeraHair01.grn
-    private const uint SeraphimArms = 4082;
-    private const uint SeraphimBoots = 4083;
-    private const uint SeraphimShoulder = 4084;
-    private const uint VampiressDayHair = 4028; // vlady_d_hair.grn
-    private const uint VampiressNightHair = 4029; // vlady_n_hair.grn
-    private const uint GladiatorBelt = 4054; // Gladiator_belt.grn
-
-    private const uint SeraphimSword = 1851;
-    private const uint ElvenBow = 1747;
-    private const uint VampireSword = 1771;
-    private const uint BattleMageStaff = 1877;
-    private const uint GladSword = 1725;
-    private const uint DelfPoisonBlade = 1862;
-    private const uint DelfFireBlade = 1864;
-
-    private const uint LargeTorch = 5633;
-
-    private static readonly PlayerCharacterAttachment[] SeraphimAttachments = [
-        new(SeraphimSword, RightWeaponAttachBone, LeftWeaponAnchorBone),
-        new(SeraphimWings),
-        new(SeraphimHair),
-        new(SeraphimHelm),
-        new(SeraphimGodsShield, ShieldAttachBone, RightWeaponAnchorBone),
-        new(SeraphimArms),
-        new(SeraphimBoots),
-        new(SeraphimShoulder)
-    ];
-    private static readonly PlayerCharacterAttachment[] GladiatorAttachments = [
-        new(GladiatorBelt), new(GladSword, RightWeaponAttachBone, LeftWeaponAnchorBone)
-    ];
-    private static readonly PlayerCharacterAttachment[] WoodElfAttachments = [
-        new(ElvenBow, RightWeaponAttachBone, LeftWeaponAnchorBone)
-    ];
-    private static readonly PlayerCharacterAttachment[] DarkElfAttachments = [
-        new(DarkElfBreastplate),
-        new(DelfPoisonBlade, RightWeaponAttachBone, LeftWeaponAnchorBone),
-        new(DelfFireBlade, LeftWeaponAttachBone, RightWeaponAnchorBone)
-    ];
-    private static readonly PlayerCharacterAttachment[] BattleMageAttachments = [
-        new(BattleMageCowl), new(BattleMageStaff, LeftWeaponAttachBone, RightWeaponAnchorBone)
-    ];
-    private static readonly PlayerCharacterAttachment[] VampiressKnightAttachments = [
-        new(VampiressDayHair),
-        new (LargeTorch, RightWeaponAttachBone, LeftWeaponAnchorBone)
-    ];
-    private static readonly PlayerCharacterAttachment[] DalmarSet = [
-        new(3271),
-        new(3272),
-        new(3273),
-        new(3274),
-        new(VampireSword, RightWeaponAttachBone, LeftWeaponAnchorBone),
-    ];
-
     private static readonly IReadOnlyDictionary<string, ModelTextureReference> EmptyTextureAliases =
         new Dictionary<string, ModelTextureReference>(StringComparer.OrdinalIgnoreCase);
-
-    private static readonly PlayerCharacterDefinition[] PlayerCharacterDefinitions =
-    [
-        new(Seraphim, "SERAPHIM.GRN", "Seraphim", SeraphimAttachments),
-        new(Gladiator, "GLADIATOR.GRN", "Gladiator", GladiatorAttachments),
-        new(WoodElf, "Waldelfe.grn", "Wood Elf", WoodElfAttachments),
-        new(DarkElf, "DARKELVE.GRN", "Dark Elf", DarkElfAttachments),
-        new(BattleMage, "MAGICIAN.GRN", "Battle Mage", BattleMageAttachments),
-        new(Vampiress, "VLADY_D.GRN", "Vampiress D", DalmarSet),
-        new(Vampiress, "VLADY_D.GRN", "Vampiress D (Dalmar)", VampiressKnightAttachments),
-        new(Vampiress, "VLADY_N.GRN", "Vampiress N", [new(VampiressNightHair)]),
-        new(Dwarf, "dwarf.grn", "Dwarf", []),
-        new(Daemon, "Daemonia.grn", "Daemon", [new(DaemonHelm)])
-    ];
 
     private readonly TexturePakArchive _texturePak;
     private readonly TilesPakArchive _tilesPak;
@@ -155,7 +66,7 @@ public sealed class AssetManager : IDisposable
     private readonly Dictionary<uint, PlayerCharacterAsset> _playerCharacters = new(DefaultMaxCache);
     private readonly SemaphoreSlim _modelLock = new(1, 1);
 
-    private readonly Dictionary<string, GrnAnimationClip?> _playerCharacterAnimations =
+    private readonly Dictionary<string, PlayerCharacterAnimations?> _playerCharacterAnimations =
         new(DefaultMaxCache, StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _playerAnimationLock = new(1, 1);
     private bool _disposed;
@@ -213,7 +124,7 @@ public sealed class AssetManager : IDisposable
         _modelsPak = modelsPak;
     }
 
-    public int PlayerCharacterCount => PlayerCharacterDefinitions.Length;
+    public int PlayerCharacterCount => TestCharacters.All.Count;
 
     public Task<TextureAsset> LoadTextureAsync(string textureName, CancellationToken cancellationToken = default)
     {
@@ -432,11 +343,20 @@ public sealed class AssetManager : IDisposable
         byte sourceX,
         byte sourceY,
         byte sourceSize,
+        byte animationFrameDurationTicks,
+        byte animationFrameCount,
         out StaticSpriteAsset? sprite)
     {
         sprite = null;
         var item = GetItem(typeId);
-        return item is null || _miniObjectSprites.TryGetOrRequest(item.Value, sourceX, sourceY, sourceSize, out sprite);
+        return item is null || _miniObjectSprites.TryGetOrRequest(
+            item.Value,
+            sourceX,
+            sourceY,
+            sourceSize,
+            animationFrameDurationTicks,
+            animationFrameCount,
+            out sprite);
     }
 
     public bool TryGetTextureFrameSequenceOrRequest(
@@ -958,17 +878,13 @@ public sealed class AssetManager : IDisposable
         cancellationToken.ThrowIfCancellationRequested();
         var definition = GetPlayerCharacterDefinition(entryId);
         var item = ResolvePlayerCharacterItem(definition);
-        var attachmentItems = ResolvePlayerCharacterItems(definition.Attachments);
+        var attachmentItems = ResolvePlayerCharacterItems(definition.Items);
+        var actor = CreateTestActor(definition, attachmentItems);
         var modelName = item.ModelDesc.ModelName;
 
         var model = await _modelsPak.LoadCharacterBaseModelAsync(
                 modelName,
-                attachmentItems
-                    .Select(static attachment => new ModelAttachmentReference(
-                        attachment.Item.ModelDesc.ModelName,
-                        attachment.Attachment.RigidAttachBoneName,
-                        attachment.Attachment.SourceAttachBoneName))
-                    .ToArray(),
+                CreateModelAttachmentReferences(attachmentItems, actor),
                 cancellationToken)
             .ConfigureAwait(false);
 
@@ -992,18 +908,22 @@ public sealed class AssetManager : IDisposable
             modelName,
             model,
             textureAliases,
-            equipmentEffects);
+            equipmentEffects,
+            CharacterWeaponStyleResolver.Resolve(actor));
     }
 
-    public async Task<GrnAnimationClip?> LoadPlayerCharacterAnimationAsync(
+    public async Task<PlayerCharacterAnimations?> LoadPlayerCharacterAnimationsAsync(
         uint entryId,
         CancellationToken cancellationToken = default)
     {
-        var modelName = GetPlayerCharacterDefinition(entryId).ModelName;
+        var definition = GetPlayerCharacterDefinition(entryId);
+        var player = await LoadPlayerCharacterAsync(entryId, cancellationToken).ConfigureAwait(false);
+        var modelName = definition.ModelName;
+        var cacheKey = $"{modelName}:{player.WeaponStyle}";
         await _playerAnimationLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_playerCharacterAnimations.TryGetValue(modelName, out var cached))
+            if (_playerCharacterAnimations.TryGetValue(cacheKey, out var cached))
                 return cached;
         }
         finally
@@ -1011,19 +931,19 @@ public sealed class AssetManager : IDisposable
             _playerAnimationLock.Release();
         }
 
-        var animation = await Task.Run(
-                () => _modelsPak.LoadDefaultCharacterAnimationAsync(modelName, cancellationToken),
-                cancellationToken)
-            .ConfigureAwait(false);
+        var animation = await LoadPlayerCharacterAnimationsCoreAsync(
+            modelName,
+            player.WeaponStyle,
+            cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
 
         await _playerAnimationLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_playerCharacterAnimations.TryGetValue(modelName, out var cached))
+            if (_playerCharacterAnimations.TryGetValue(cacheKey, out var cached))
                 return cached;
 
-            _playerCharacterAnimations.Add(modelName, animation);
+            _playerCharacterAnimations.Add(cacheKey, animation);
         }
         finally
         {
@@ -1031,6 +951,36 @@ public sealed class AssetManager : IDisposable
         }
 
         return animation;
+    }
+
+    private async Task<PlayerCharacterAnimations?> LoadPlayerCharacterAnimationsCoreAsync(
+        string modelName,
+        CharacterMotionWeaponStyle weaponStyle,
+        CancellationToken cancellationToken)
+    {
+        var idleTask = _modelsPak.LoadCharacterAnimationAsync(
+            modelName, CharacterMotionKind.Idle, weaponStyle, cancellationToken);
+        var walkTask = _modelsPak.LoadCharacterAnimationAsync(
+            modelName, CharacterMotionKind.Walk, weaponStyle, cancellationToken);
+        var runTask = _modelsPak.LoadCharacterAnimationAsync(
+            modelName, CharacterMotionKind.Run, weaponStyle, cancellationToken);
+        var defendTask = _modelsPak.LoadCharacterAnimationAsync(
+            modelName, CharacterMotionKind.Defend, weaponStyle, cancellationToken);
+        var attackTask = _modelsPak.LoadCharacterAnimationAsync(
+            modelName, CharacterMotionKind.Attack, weaponStyle, cancellationToken);
+        await Task.WhenAll(idleTask, walkTask, runTask, defendTask, attackTask).ConfigureAwait(false);
+
+        var idle = await idleTask.ConfigureAwait(false) ??
+            await _modelsPak.LoadDefaultCharacterAnimationAsync(modelName, cancellationToken).ConfigureAwait(false);
+        if (idle is null)
+            return null;
+
+        return new PlayerCharacterAnimations(
+            idle,
+            await walkTask.ConfigureAwait(false) ?? idle,
+            await runTask.ConfigureAwait(false) ?? await walkTask.ConfigureAwait(false) ?? idle,
+            await defendTask.ConfigureAwait(false) ?? idle,
+            await attackTask.ConfigureAwait(false) ?? idle);
     }
 
     public void Dispose()
@@ -1076,16 +1026,16 @@ public sealed class AssetManager : IDisposable
     private static string ModelCacheKey(string modelName, GrnMeshExtractionMode meshExtractionMode) =>
         $"{meshExtractionMode}:{modelName}";
 
-    private static PlayerCharacterDefinition GetPlayerCharacterDefinition(uint entryId)
+    private static TestCharacterDefinition GetPlayerCharacterDefinition(uint entryId)
     {
         var definitionIndex = checked((int)entryId - 1);
-        if ((uint)definitionIndex >= (uint)PlayerCharacterDefinitions.Length)
+        if ((uint)definitionIndex >= (uint)TestCharacters.All.Count)
             throw new FileNotFoundException($"Player character slot {entryId} was not configured.");
 
-        return PlayerCharacterDefinitions[definitionIndex];
+        return TestCharacters.All[definitionIndex];
     }
 
-    private ItemsPakEntry ResolvePlayerCharacterItem(PlayerCharacterDefinition definition)
+    private ItemsPakEntry ResolvePlayerCharacterItem(TestCharacterDefinition definition)
     {
         if (!_itemsByItemId.TryGetValue(definition.BaseItemId, out var items))
             throw new FileNotFoundException($"Player character item id {definition.BaseItemId} was not found in Items.pak.");
@@ -1112,13 +1062,12 @@ public sealed class AssetManager : IDisposable
         return item;
     }
 
-    private PlayerCharacterAttachmentItem[] ResolvePlayerCharacterItems(IReadOnlyList<PlayerCharacterAttachment> attachments)
+    private PlayerCharacterAttachmentItem[] ResolvePlayerCharacterItems(IReadOnlyDictionary<ItemSlot, uint> itemsBySlot)
     {
-        var items = new PlayerCharacterAttachmentItem[attachments.Count];
-        for (var i = 0; i < attachments.Count; i++)
-            items[i] = new PlayerCharacterAttachmentItem(
-                attachments[i],
-                ResolvePlayerCharacterItem(attachments[i].ItemId));
+        var items = new PlayerCharacterAttachmentItem[itemsBySlot.Count];
+        var index = 0;
+        foreach (var (slot, itemId) in itemsBySlot)
+            items[index++] = new PlayerCharacterAttachmentItem(slot, ResolvePlayerCharacterItem(itemId));
 
         return items;
     }
@@ -1160,13 +1109,80 @@ public sealed class AssetManager : IDisposable
             effects.Add(new EquipmentEffectAttachment(
                 index + 1,
                 attachmentItem.Item.ModelDesc.ModelName,
-                attachmentItem.Attachment.RigidAttachBoneName,
+                AttachmentPlacement(attachmentItem.Slot, equipment.EquipmentType).TargetBone,
                 equipment.Damage,
                 boundsSize));
         }
 
         return effects.ToArray();
     }
+
+    private SacredGameActor CreateTestActor(
+        TestCharacterDefinition definition,
+        IReadOnlyList<PlayerCharacterAttachmentItem> attachmentItems)
+    {
+        var actor = new SacredGameActor(definition.BaseItemId switch
+        {
+            1 => SacredCharacterClass.Seraphim,
+            2 => SacredCharacterClass.Gladiator,
+            3 => SacredCharacterClass.BattleMage,
+            4 => SacredCharacterClass.DarkElf,
+            6 => SacredCharacterClass.Vampiress,
+            8 => SacredCharacterClass.Dwarf,
+            9 => SacredCharacterClass.Daemon,
+            108 => SacredCharacterClass.WoodElf,
+            _ => throw new ArgumentOutOfRangeException(nameof(definition))
+        });
+
+        foreach (var attachment in attachmentItems)
+        {
+            if (!_equipmentByModelId.TryGetValue(attachment.Item.ItemIndex, out var equipment))
+                continue;
+
+            var slotType = attachment.Slot.ToEquipmentSlotType();
+            actor.EquipmentSlots.FirstOrDefault(slot => slot.Type == slotType && slot.Equipment is null)?.Equip(equipment);
+        }
+
+        return actor;
+    }
+
+    private static ModelAttachmentReference[] CreateModelAttachmentReferences(
+        IReadOnlyList<PlayerCharacterAttachmentItem> attachments,
+        SacredGameActor actor) =>
+        attachments.Select(attachment =>
+        {
+            var equipped = actor.EquipmentSlots.FirstOrDefault(candidate =>
+                candidate.Type == attachment.Slot.ToEquipmentSlotType() &&
+                candidate.Equipment?.IdemId == attachment.Item.ItemIndex)?.Equipment;
+            var placement = AttachmentPlacement(attachment.Slot, equipped?.EquipmentType);
+            return new ModelAttachmentReference(attachment.Item.ModelDesc.ModelName, placement.TargetBone, placement.SourceBone);
+        }).ToArray();
+
+    private static (string? TargetBone, string? SourceBone) AttachmentPlacement(
+        ItemSlot slot,
+        SacredEquipmentType? equipmentType) => (slot, equipmentType) switch
+    {
+        (ItemSlot.LeftHand, SacredEquipmentType.Shield) => ("Bip01 L Forearm", "Bone_weapon_02"),
+        (ItemSlot.LeftHand, _) => ("Bip01 L Hand", "Bone_weapon_02"),
+        (ItemSlot.RightHand, _) => ("Bip01 R Hand", "Bone_weapon_01"),
+        _ => (null, null)
+    };
+
+    private static EquipmentSlotType EquipmentSlotFor(SacredEquipmentType equipmentType) => equipmentType switch
+    {
+        SacredEquipmentType.HeadArmor => EquipmentSlotType.Head,
+        SacredEquipmentType.ChestArmor => EquipmentSlotType.Body,
+        SacredEquipmentType.ArmArmor => EquipmentSlotType.Arms,
+        SacredEquipmentType.Gloves => EquipmentSlotType.Hands,
+        SacredEquipmentType.LegArmor => EquipmentSlotType.Legs,
+        SacredEquipmentType.FootArmor => EquipmentSlotType.Feet,
+        SacredEquipmentType.Belt => EquipmentSlotType.Belt,
+        SacredEquipmentType.Shoulder => EquipmentSlotType.Shoulder,
+        SacredEquipmentType.Wings => EquipmentSlotType.Wings,
+        SacredEquipmentType.Amulet => EquipmentSlotType.Amulet,
+        SacredEquipmentType.Ring => EquipmentSlotType.Ring,
+        _ => EquipmentSlotType.RightHand
+    };
 
     private void AddItemTextureAliases(
         Dictionary<string, ModelTextureReference> aliases,
@@ -1193,7 +1209,6 @@ public sealed class AssetManager : IDisposable
                 item.ModelDesc.TextureId,
                 item.EffectTextureId,
                 item.GraphicRenderFlags,
-                item.ModelDesc.EffectAnimationRate,
                 modelHasEffectTextureSurface,
                 preferItemTexture,
                 surface.TextureName);
@@ -1240,19 +1255,8 @@ public sealed class AssetManager : IDisposable
         int DestRight,
         int DestBottom);
 
-    private readonly record struct PlayerCharacterDefinition(
-        uint BaseItemId,
-        string ModelName,
-        string DisplayName,
-        PlayerCharacterAttachment[] Attachments);
-
-    private readonly record struct PlayerCharacterAttachment(
-        uint ItemId,
-        string? RigidAttachBoneName = null,
-        string? SourceAttachBoneName = null);
-
     private readonly record struct PlayerCharacterAttachmentItem(
-        PlayerCharacterAttachment Attachment,
+        ItemSlot Slot,
         ItemsPakEntry Item);
 
     private readonly record struct StaticSpriteAssetKey(

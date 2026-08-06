@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
-using Sacred.Engine.Scene;
+using Sacred.World.Geometry;
 
 namespace Sacred.Engine.Rendering;
 
@@ -38,6 +38,8 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
 
     private readonly Dictionary<uint, TerrainTileSource?> _tileSources = new();
     private readonly HashSet<FloorSourceKey> _floorSources = [];
+    private readonly StairsDebugTileSourceFactory _stairsDebugTiles = new();
+    private readonly BlockedAreaDebugTileSourceFactory _blockedAreaDebugTile = new();
     private readonly object _cacheLock = new();
 
     public int CachedTileCount
@@ -65,6 +67,8 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
             sector.Coord.Y * Sector.TileCount);
         var baseTiles = new List<TerrainCompositionTile>(Sector.TileCount * Sector.TileCount + sector.FloorOverlays.Count);
         var coverTiles = new List<TerrainCompositionTile>(sector.FloorOverlays.Count);
+        var stairsDebugTiles = new List<TerrainCompositionTile>(sector.StairsCells.Count);
+        var blockedAreaDebugTiles = new List<TerrainCompositionTile>();
 
         var groundCandidateTiles = Sector.TileCount * Sector.TileCount;
         var groundDrawnTiles = 0;
@@ -149,6 +153,37 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
             floorDrawnTiles++;
         }
 
+        foreach (var cell in sector.StairsCells.Cells)
+        {
+            var position = cell.Position;
+            var localX = position.X - sector.Coord.X * Sector.TileCount;
+            var localY = position.Y - sector.Coord.Y * Sector.TileCount;
+            var iso = IsometricProjection.WorldToIso(localX, localY);
+            var isAnchor = position == cell.Anchor;
+            stairsDebugTiles.Add(new TerrainCompositionTile(
+                (int)MathF.Round(iso.X - SectorImageOriginX),
+                (int)MathF.Round(iso.Y - SectorImageOriginY),
+                _stairsDebugTiles.Get(isAnchor),
+                null));
+        }
+
+        for (var localY = 0; localY < Sector.TileCount; localY++)
+        for (var localX = 0; localX < Sector.TileCount; localX++)
+        {
+            if (!sector.Pathing.IsBlocked(localX, localY))
+                continue;
+
+            var iso = IsometricProjection.WorldToIso(localX, localY);
+            blockedAreaDebugTiles.Add(new TerrainCompositionTile(
+                (int)MathF.Round(iso.X - SectorImageOriginX),
+                (int)MathF.Round(iso.Y - SectorImageOriginY),
+                _blockedAreaDebugTile.Source,
+                null));
+        }
+
+        var stairsDebugBounds = CropDebugTiles(stairsDebugTiles);
+        var blockedAreaDebugBounds = CropDebugTiles(blockedAreaDebugTiles);
+
         return new TerrainSectorComposition(
             sector.Coord,
             sectorOriginIso.X + SectorImageOriginX,
@@ -158,12 +193,52 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
             sector.Coord.X + sector.Coord.Y,
             baseTiles.ToArray(),
             coverTiles.ToArray(),
+            stairsDebugTiles.ToArray(),
+            stairsDebugBounds.X,
+            stairsDebugBounds.Y,
+            stairsDebugBounds.Width,
+            stairsDebugBounds.Height,
+            blockedAreaDebugTiles.ToArray(),
+            blockedAreaDebugBounds.X,
+            blockedAreaDebugBounds.Y,
+            blockedAreaDebugBounds.Width,
+            blockedAreaDebugBounds.Height,
             groundCandidateTiles,
             groundDrawnTiles,
             groundMissingTiles,
             floorCandidateTiles,
             floorDrawnTiles,
             floorMissingTiles);
+    }
+
+    private static DebugLayerBounds CropDebugTiles(List<TerrainCompositionTile> tiles)
+    {
+        if (tiles.Count == 0)
+            return new DebugLayerBounds(0, 0, 1, 1);
+
+        var minX = int.MaxValue;
+        var minY = int.MaxValue;
+        var maxX = int.MinValue;
+        var maxY = int.MinValue;
+        foreach (var tile in tiles)
+        {
+            minX = Math.Min(minX, tile.ScreenX);
+            minY = Math.Min(minY, tile.ScreenY);
+            maxX = Math.Max(maxX, tile.ScreenX + RenderTileWidth);
+            maxY = Math.Max(maxY, tile.ScreenY + RenderTileHeight);
+        }
+
+        for (var index = 0; index < tiles.Count; index++)
+        {
+            var tile = tiles[index];
+            tiles[index] = tile with
+            {
+                ScreenX = tile.ScreenX - minX,
+                ScreenY = tile.ScreenY - minY,
+            };
+        }
+
+        return new DebugLayerBounds(minX, minY, maxX - minX, maxY - minY);
     }
 
     private async Task<TerrainTileSource?> GetTileSourceAsync(uint tileId)
@@ -218,6 +293,8 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
 
     private readonly record struct FloorSourceKey(uint PrimaryTileId, uint SecondaryTileId);
 
+    private readonly record struct DebugLayerBounds(int X, int Y, int Width, int Height);
+
     private readonly record struct DrawTile(
         int Depth,
         int WorldY,
@@ -241,6 +318,8 @@ public sealed class TerrainSectorComposition
 {
     private TerrainCompositionTile[] _baseTiles;
     private TerrainCompositionTile[] _coverTiles;
+    private TerrainCompositionTile[] _stairsDebugTiles;
+    private TerrainCompositionTile[] _blockedAreaDebugTiles;
 
     public TerrainSectorComposition(
         SectorCoord coord,
@@ -251,6 +330,16 @@ public sealed class TerrainSectorComposition
         int depth,
         TerrainCompositionTile[] baseTiles,
         TerrainCompositionTile[] coverTiles,
+        TerrainCompositionTile[] stairsDebugTiles,
+        int stairsDebugOffsetX,
+        int stairsDebugOffsetY,
+        int stairsDebugWidth,
+        int stairsDebugHeight,
+        TerrainCompositionTile[] blockedAreaDebugTiles,
+        int blockedAreaDebugOffsetX,
+        int blockedAreaDebugOffsetY,
+        int blockedAreaDebugWidth,
+        int blockedAreaDebugHeight,
         int groundCandidateTiles,
         int groundDrawnTiles,
         int groundMissingTiles,
@@ -266,6 +355,18 @@ public sealed class TerrainSectorComposition
         Depth = depth;
         _baseTiles = baseTiles;
         _coverTiles = coverTiles;
+        _stairsDebugTiles = stairsDebugTiles;
+        StairsDebugOffsetX = stairsDebugOffsetX;
+        StairsDebugOffsetY = stairsDebugOffsetY;
+        StairsDebugWidth = stairsDebugWidth;
+        StairsDebugHeight = stairsDebugHeight;
+        HasStairsDebugData = stairsDebugTiles.Length > 0;
+        _blockedAreaDebugTiles = blockedAreaDebugTiles;
+        BlockedAreaDebugOffsetX = blockedAreaDebugOffsetX;
+        BlockedAreaDebugOffsetY = blockedAreaDebugOffsetY;
+        BlockedAreaDebugWidth = blockedAreaDebugWidth;
+        BlockedAreaDebugHeight = blockedAreaDebugHeight;
+        HasBlockedAreaDebugData = blockedAreaDebugTiles.Length > 0;
         GroundCandidateTiles = groundCandidateTiles;
         GroundDrawnTiles = groundDrawnTiles;
         GroundMissingTiles = groundMissingTiles;
@@ -282,6 +383,18 @@ public sealed class TerrainSectorComposition
     public int Depth { get; }
     public IReadOnlyList<TerrainCompositionTile> BaseTiles => _baseTiles;
     public IReadOnlyList<TerrainCompositionTile> CoverTiles => _coverTiles;
+    public IReadOnlyList<TerrainCompositionTile> StairsDebugTiles => _stairsDebugTiles;
+    public int StairsDebugOffsetX { get; }
+    public int StairsDebugOffsetY { get; }
+    public int StairsDebugWidth { get; }
+    public int StairsDebugHeight { get; }
+    public bool HasStairsDebugData { get; }
+    public IReadOnlyList<TerrainCompositionTile> BlockedAreaDebugTiles => _blockedAreaDebugTiles;
+    public int BlockedAreaDebugOffsetX { get; }
+    public int BlockedAreaDebugOffsetY { get; }
+    public int BlockedAreaDebugWidth { get; }
+    public int BlockedAreaDebugHeight { get; }
+    public bool HasBlockedAreaDebugData { get; }
     public int GroundCandidateTiles { get; }
     public int GroundDrawnTiles { get; }
     public int GroundMissingTiles { get; }
@@ -293,5 +406,7 @@ public sealed class TerrainSectorComposition
     {
         Interlocked.Exchange(ref _baseTiles, []);
         Interlocked.Exchange(ref _coverTiles, []);
+        Interlocked.Exchange(ref _stairsDebugTiles, []);
+        Interlocked.Exchange(ref _blockedAreaDebugTiles, []);
     }
 }

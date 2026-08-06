@@ -151,19 +151,21 @@ float4 ps_main(vs_output input) : SV_Target
         ? pow(saturate(dot(reflection_direction, view_direction)), max(camera_position_and_shininess.w, 1.0f))
         : 0.0f;
 
-    float3 base_linear = SrgbToLinear(base_color.rgb);
-    float3 ambient_nits =
-        base_linear *
-        ambient_color_and_intensity.rgb *
-        (hdr_display.x * saturate(ambient_color_and_intensity.w));
-    float3 sun_diffuse_nits =
-        base_linear *
+    float3 ambient =
+        ambient_color_and_intensity.rgb * saturate(ambient_color_and_intensity.w);
+    float3 diffuse =
         light_color_and_diffuse_intensity.rgb *
-        (hdr_display.z * diffuse_amount * max(light_color_and_diffuse_intensity.w, 0.0f));
-    float3 sun_specular_nits =
+        (diffuse_amount * max(light_color_and_diffuse_intensity.w, 0.0f));
+    float3 specular =
         light_color_and_diffuse_intensity.rgb *
-        (hdr_display.w * specular_amount * max(light_position_and_specular_strength.w, 0.0f));
-
-    float3 hdr = Linear709NitsToHdr10(ambient_nits + sun_diffuse_nits + sun_specular_nits);
+        (specular_amount * max(light_position_and_specular_strength.w, 0.0f));
+    float3 hdr = SdrLitTextureToHdr10(
+        base_color.rgb,
+        ambient,
+        diffuse,
+        specular,
+        hdr_display.x,
+        hdr_display.z,
+        hdr_display.w);
     return float4(hdr, base_color.a);
 }

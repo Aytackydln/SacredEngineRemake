@@ -14,7 +14,8 @@ using Sacred.Assets.World.Static;
 using Sacred.Core;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Pak.Weapon;
-using Sacred.Engine.World;
+using Sacred.Core.World.Stairs;
+using Sacred.World;
 
 namespace Sacred.Engine.Assets;
 
@@ -25,6 +26,7 @@ namespace Sacred.Engine.Assets;
 internal sealed class GameResourceLoader : IDisposable
 {
     private readonly SacredGameDirectories _directories;
+    private readonly string _gameDirectory;
     private readonly string _pakDirectory;
     private readonly string _worldDirectory;
 
@@ -37,6 +39,7 @@ internal sealed class GameResourceLoader : IDisposable
     private TilesPakArchive? _tilesPak;
     private SacredEquipment[]? _equipment;
     private byte[]? _keyxData;
+    private SacredStairsMap? _stairsMap;
     private FileStream? _wldxStream;
     private FloorPakArchive? _floorPak;
     private bool _ownershipTransferred;
@@ -47,10 +50,9 @@ internal sealed class GameResourceLoader : IDisposable
         _directories = directories ?? throw new ArgumentNullException(nameof(directories));
         _pakDirectory = Path.GetDirectoryName(directories.TexturesPakPath)
             ?? throw new InvalidDataException("Cannot infer the PAK directory from Texture.pak.");
-        _worldDirectory = Path.Combine(
-            Directory.GetParent(_pakDirectory)?.FullName
-                ?? throw new InvalidDataException("Cannot infer the game directory from Texture.pak."),
-            "World");
+        _gameDirectory = Directory.GetParent(_pakDirectory)?.FullName
+            ?? throw new InvalidDataException("Cannot infer the game directory from Texture.pak.");
+        _worldDirectory = Path.Combine(_gameDirectory, "World");
     }
 
     public string PakDirectory => _pakDirectory;
@@ -68,6 +70,7 @@ internal sealed class GameResourceLoader : IDisposable
     [
         new("Tiles.pak", LoadTilesPak),
         new("Weapons.pak", LoadWeaponsPak),
+        new("stairs data", LoadStairsMap),
         new("sectors.keyx", LoadKeyx),
         new("sectors.wldx", OpenWldx),
         new("Floor.pak", LoadFloorPak)
@@ -86,6 +89,7 @@ internal sealed class GameResourceLoader : IDisposable
         var mixedPak = Require(_mixedPak, "Mixed.pak");
         var tilesPak = Require(_tilesPak, "Tiles.pak");
         var equipment = Require(_equipment, "Weapons.pak");
+        var stairsMap = Require(_stairsMap, "stairs data");
         var keyxData = Require(_keyxData, "sectors.keyx");
         var wldxStream = Require(_wldxStream, "sectors.wldx");
         var floorPak = Require(_floorPak, "Floor.pak");
@@ -95,7 +99,12 @@ internal sealed class GameResourceLoader : IDisposable
         try
         {
             assets = new AssetManager(texturePak, tilesPak, items, equipment, mixedPak, modelsPak);
-            world = SacredWorldArchive.Create(keyxData, wldxStream, floorPak, staticPak);
+            world = SacredWorldArchiveFactory.Create(
+                keyxData,
+                wldxStream,
+                floorPak,
+                staticPak,
+                stairsMap);
             _ownershipTransferred = true;
             ReleaseTransferredReferences();
             return new LoadedGameResources(assets, world);
@@ -135,6 +144,10 @@ internal sealed class GameResourceLoader : IDisposable
 
     private void LoadKeyx() => _keyxData = File.ReadAllBytes(Path.Combine(_worldDirectory, "sectors.keyx"));
 
+    private void LoadStairsMap() => _stairsMap = SacredStairsMap.Load(
+        _directories.StairsMapPath ?? Path.Combine(_gameDirectory, "bin", "treppe.bin"),
+        _directories.DefPosPath ?? Path.Combine(_gameDirectory, "bin", "NetScript", "DefPos.bin"));
+
     private void OpenWldx() => _wldxStream = new FileStream(
         Path.Combine(_worldDirectory, "sectors.wldx"),
         FileMode.Open,
@@ -158,6 +171,7 @@ internal sealed class GameResourceLoader : IDisposable
         _mixedPak = null;
         _tilesPak = null;
         _equipment = null;
+        _stairsMap = null;
         _keyxData = null;
         _wldxStream = null;
         _floorPak = null;

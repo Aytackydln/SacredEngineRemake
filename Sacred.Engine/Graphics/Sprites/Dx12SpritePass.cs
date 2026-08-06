@@ -6,9 +6,9 @@ using System.Runtime.InteropServices;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Graphics.Frames;
 using Sacred.Engine.Rendering;
-using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
 using Sacred.Shaders;
+using Sacred.World.Geometry;
 using Vortice.Direct3D;
 using Vortice.Direct3D12;
 
@@ -20,6 +20,8 @@ internal sealed class Dx12SpritePass : IDisposable
     public const int MaximumTextureCount = Dx12SpriteTextureCache.MaximumTextureCount;
 
     private const uint LiquidSpriteFlag = 0x01;
+    private const uint LightHaloSpriteFlag = 0x40000000;
+    private const uint UnlitSpriteFlag = 0x80000000;
     private const float AlphaCutoff = 0.45f;
     private const float PainterDepthScale = 1.0f / 4096.0f;
     private static readonly int InstanceStride = Marshal.SizeOf<StaticSpriteInstance>();
@@ -38,6 +40,7 @@ internal sealed class Dx12SpritePass : IDisposable
     private ID3D12RootSignature? _rootSignature;
     private ID3D12PipelineState? _staticPipeline;
     private ID3D12PipelineState? _liquidPipeline;
+    private ID3D12PipelineState? _lightHaloPipeline;
 
     public Dx12SpritePass(
         ID3D12Device device,
@@ -64,11 +67,12 @@ internal sealed class Dx12SpritePass : IDisposable
             _frameStates[index] = new SpriteFrameState();
     }
 
-    public void SetPipeline(StaticSpritePipelines pipeline)
+    public void SetPipeline(Dx12CreatedPipelineGroup pipeline)
     {
         _rootSignature = pipeline.RootSignature;
-        _staticPipeline = pipeline.Static;
-        _liquidPipeline = pipeline.Liquid;
+        _staticPipeline = pipeline[Dx12PipelineKind.StaticSprite];
+        _liquidPipeline = pipeline[Dx12PipelineKind.LiquidSprite];
+        _lightHaloPipeline = pipeline[Dx12PipelineKind.LightHalo];
     }
 
     public void DisposePipeline()
@@ -77,6 +81,8 @@ internal sealed class Dx12SpritePass : IDisposable
         _staticPipeline = null;
         _liquidPipeline?.Dispose();
         _liquidPipeline = null;
+        _lightHaloPipeline?.Dispose();
+        _lightHaloPipeline = null;
         _rootSignature?.Dispose();
         _rootSignature = null;
     }
@@ -84,10 +90,11 @@ internal sealed class Dx12SpritePass : IDisposable
     public void PrepareTextures(
         IReadOnlyList<TerrainLiquidSprite> liquidSprites,
         IReadOnlyList<TerrainStaticSprite> staticSprites,
+        IReadOnlyList<TerrainWorldLight> worldLights,
         Dx12FrameContext frame,
         ulong spriteRevision)
     {
-        _textureCache.Prepare(liquidSprites, staticSprites, frame, spriteRevision);
+        _textureCache.Prepare(liquidSprites, staticSprites, worldLights, frame, spriteRevision);
     }
 
     public bool VisibleTexturesPrepared(ulong spriteRevision) =>
@@ -97,6 +104,7 @@ internal sealed class Dx12SpritePass : IDisposable
         SacredCamera camera,
         IReadOnlyList<TerrainLiquidSprite> liquidSprites,
         IReadOnlyList<TerrainStaticSprite> staticSprites,
+        IReadOnlyList<TerrainWorldLight> worldLights,
         Dx12FrameContext frame,
         int renderWidth,
         int renderHeight,
@@ -117,7 +125,7 @@ internal sealed class Dx12SpritePass : IDisposable
 
         state.LiquidRanges.Clear();
         _activeLiquidRanges = state.LiquidRanges;
-        if (liquidSprites.Count == 0 && staticSprites.Count == 0)
+        if (liquidSprites.Count == 0 && staticSprites.Count == 0 && worldLights.Count == 0)
         {
             state.Remember(
                 spriteRevision,
@@ -137,7 +145,10 @@ internal sealed class Dx12SpritePass : IDisposable
             camera.ViewportZoom,
             renderWidth,
             renderHeight);
-        frame.EnsureSpriteInstanceCapacity(_device, InstanceStride, liquidSprites.Count + staticSprites.Count);
+        frame.EnsureSpriteInstanceCapacity(
+            _device,
+            InstanceStride,
+            liquidSprites.Count + worldLights.Count + staticSprites.Count);
 
         var instances = (StaticSpriteInstance*)frame.SpriteInstanceBufferMapped;
         var instanceCount = 0;
@@ -186,6 +197,33 @@ internal sealed class Dx12SpritePass : IDisposable
         if (rangeSector is not null && instanceCount > rangeStart)
             state.LiquidRanges.Add(new LiquidSpriteDrawRange(rangeSector.Value, rangeStart, instanceCount - rangeStart));
 
+        var lightStartInstance = instanceCount;
+        for (var index = 0; index < worldLights.Count; index++)
+        {
+            var light = worldLights[index];
+            if (!_textureCache.TryGetStaticSlot(light.EmitterSprite, out var textureSlot))
+                continue;
+
+            var drawPosition = screenTransform.ToScreen(light.IsoX, light.IsoY);
+            instances[instanceCount++] = new StaticSpriteInstance(
+                drawPosition.X,
+                drawPosition.Y,
+                screenTransform.Scale(light.Diameter),
+                screenTransform.Scale(light.Diameter),
+                1.0f,
+                textureSlot,
+                1,
+                LightHaloSpriteFlag,
+                0,
+                light.Colour.X,
+                light.Colour.Y,
+                light.Colour.Z,
+                light.Opacity,
+                1,
+                1);
+        }
+
+        var lightInstanceCount = instanceCount - lightStartInstance;
         var staticStartInstance = instanceCount;
         for (var index = 0; index < staticSprites.Count; index++)
         {
@@ -204,7 +242,7 @@ internal sealed class Dx12SpritePass : IDisposable
                 CalculateSceneDepth(camera, sprite),
                 textureSlot,
                 (uint)sprite.Sprite.FrameCount,
-                0,
+                sprite.IsUnlit ? UnlitSpriteFlag : 0,
                 sprite.Sprite.AnimationPeriodSeconds,
                 1.0f,
                 1.0f,
@@ -214,7 +252,11 @@ internal sealed class Dx12SpritePass : IDisposable
                 (uint)sprite.Sprite.AtlasRows);
         }
 
-        var batch = new WorldSpriteBatch(staticStartInstance, instanceCount - staticStartInstance);
+        var batch = new WorldSpriteBatch(
+            lightStartInstance,
+            lightInstanceCount,
+            staticStartInstance,
+            instanceCount - staticStartInstance);
         state.Remember(
             spriteRevision,
             _textureCache.ResidencyRevision,
@@ -247,16 +289,54 @@ internal sealed class Dx12SpritePass : IDisposable
         Dx12FrameContext frame,
         int renderWidth,
         int renderHeight) =>
-        RecordBatch(range.StartInstance, range.InstanceCount, _liquidPipeline, ambientIntensity, paperWhiteNits, frame, renderWidth, renderHeight);
+        RecordBatch(
+            range.StartInstance,
+            range.InstanceCount,
+            _liquidPipeline,
+            ambientIntensity,
+            paperWhiteNits,
+            paperWhiteNits,
+            frame,
+            renderWidth,
+            renderHeight);
 
     public void RecordStatic(
         WorldSpriteBatch batch,
         float ambientIntensity,
         float paperWhiteNits,
+        float unlitWhiteNits,
         Dx12FrameContext frame,
         int renderWidth,
         int renderHeight) =>
-        RecordBatch(batch.StaticStartInstance, batch.StaticInstanceCount, _staticPipeline, ambientIntensity, paperWhiteNits, frame, renderWidth, renderHeight);
+        RecordBatch(
+            batch.StaticStartInstance,
+            batch.StaticInstanceCount,
+            _staticPipeline,
+            ambientIntensity,
+            paperWhiteNits,
+            unlitWhiteNits,
+            frame,
+            renderWidth,
+            renderHeight);
+
+    public void RecordLights(
+        WorldSpriteBatch batch,
+        float nightBlend,
+        float paperWhiteNits,
+        float unlitWhiteNits,
+        Dx12FrameContext frame,
+        int renderWidth,
+        int renderHeight) =>
+        RecordBatch(
+            batch.LightStartInstance,
+            batch.LightInstanceCount,
+            _lightHaloPipeline,
+            nightBlend,
+            paperWhiteNits,
+            unlitWhiteNits,
+            frame,
+            renderWidth,
+            renderHeight);
 
     public void Dispose()
     {
@@ -269,6 +349,7 @@ internal sealed class Dx12SpritePass : IDisposable
         ID3D12PipelineState? pipeline,
         float ambientIntensity,
         float paperWhiteNits,
+        float unlitWhiteNits,
         Dx12FrameContext frame,
         int renderWidth,
         int renderHeight)
@@ -284,6 +365,7 @@ internal sealed class Dx12SpritePass : IDisposable
                 AlphaCutoff,
                 ambientIntensity,
                 paperWhiteNits,
+                unlitWhiteNits,
                 (float)Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds));
 
         _commandList.SetGraphicsRootSignature(_rootSignature);
@@ -377,5 +459,9 @@ internal sealed class Dx12SpritePass : IDisposable
     }
 }
 
-internal readonly record struct WorldSpriteBatch(int StaticStartInstance, int StaticInstanceCount);
+internal readonly record struct WorldSpriteBatch(
+    int LightStartInstance,
+    int LightInstanceCount,
+    int StaticStartInstance,
+    int StaticInstanceCount);
 internal readonly record struct LiquidSpriteDrawRange(SectorCoord Coord, int StartInstance, int InstanceCount);

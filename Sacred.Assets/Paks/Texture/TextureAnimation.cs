@@ -4,7 +4,7 @@ public enum TextureAnimationMode
 {
     None = 0,
     VerticalScrollBlackKey = 2,
-    VerticalScrollClampBlackKey = 3
+    RadialSweepBlackKey = 3
 }
 
 public readonly record struct TextureAnimation(
@@ -18,7 +18,7 @@ public readonly record struct TextureAnimation(
     public bool IsAnimated =>
         Mode switch
         {
-            TextureAnimationMode.VerticalScrollBlackKey or TextureAnimationMode.VerticalScrollClampBlackKey => ScrollSpeed > 0.0f,
+            TextureAnimationMode.VerticalScrollBlackKey or TextureAnimationMode.RadialSweepBlackKey => ScrollSpeed > 0.0f,
             _ => false
         };
 }

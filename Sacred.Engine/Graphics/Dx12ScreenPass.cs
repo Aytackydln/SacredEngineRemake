@@ -88,6 +88,26 @@ internal sealed class Dx12ScreenPass : IDisposable
         var drawX = (renderWidth - drawWidth) * 0.5f;
         var drawY = (renderHeight - drawHeight) * 0.5f;
 
+        Record(
+            rootSignature,
+            pipelineState,
+            renderWidth,
+            renderHeight,
+            paperWhiteNits,
+            new Vector4(drawX, drawY, drawWidth, drawHeight));
+    }
+
+    public unsafe void Record(
+        ID3D12RootSignature rootSignature,
+        ID3D12PipelineState pipelineState,
+        int renderWidth,
+        int renderHeight,
+        float paperWhiteNits,
+        Vector4 destinationRectangle)
+    {
+        if (_texture is null || _textureState != ResourceStates.PixelShaderResource)
+            return;
+
         _commandList.SetGraphicsRootSignature(rootSignature);
         _commandList.SetPipelineState(pipelineState);
         _commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
@@ -95,7 +115,7 @@ internal sealed class Dx12ScreenPass : IDisposable
         _constants.Write(
             values,
             new WorldQuadShaderConstants(
-                new Vector4(drawX, drawY, drawWidth, drawHeight),
+                destinationRectangle,
                 new Vector2(renderWidth, renderHeight),
                 AmbientIntensity: 1.0f,
                 IsPremultipliedAlpha: false,

@@ -15,6 +15,7 @@ internal sealed class GameLoadingScene : IGameScene
     private readonly Action<GameSceneId> _requestSwitch;
     private ScreenFrame _screen;
     private InGameScene? _inGame;
+    private Task? _worldPreparationTask;
     private string _displayedItem;
     private bool _switchRequested;
 
@@ -27,6 +28,7 @@ internal sealed class GameLoadingScene : IGameScene
         _loads = new ResourceLoadSequence(resources.CreateGameLoadSteps());
         _rasterizer = new LoadingScreenRasterizer(
             Path.Combine(resources.PakDirectory, "LoadingUW01.bmp"),
+            Path.Combine(resources.PakDirectory, "loading0.bmp"),
             gameDirectory);
         _initializeRuntime = initializeRuntime ?? throw new ArgumentNullException(nameof(initializeRuntime));
         _requestSwitch = requestSwitch ?? throw new ArgumentNullException(nameof(requestSwitch));
@@ -55,15 +57,20 @@ internal sealed class GameLoadingScene : IGameScene
         {
             SetScreen(0.78, "Preparing game systems");
             _inGame = _initializeRuntime();
+            _worldPreparationTask = _inGame.StartWorldPreparation();
             return;
         }
 
         var status = _inGame.Renderer.LastWorldPreparationStatus;
-        if (!status.IsReady)
+        if (_worldPreparationTask is not { IsCompleted: true })
         {
             SetScreen(0.9, status.PendingItem);
             return;
         }
+
+        // The task is deliberately started above, while the loading screen keeps rendering and
+        // feeding GPU work. Observe it here so a preparation failure cannot be hidden by status UI.
+        _worldPreparationTask.GetAwaiter().GetResult();
 
         SetScreen(1.0, "World ready");
         _switchRequested = true;

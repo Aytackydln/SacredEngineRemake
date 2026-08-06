@@ -16,11 +16,18 @@ internal sealed class LoadingScreenRasterizer : IDisposable
     private readonly DebugOverlayFontSet _fonts;
     private ulong _revision;
 
-    public LoadingScreenRasterizer(string backgroundPath, string gameDirectory)
+    public LoadingScreenRasterizer(string backgroundPath, string backgroundPath2, string gameDirectory)
     {
-        _background = RgbaImageDecoder.LoadBitmap(backgroundPath);
-        _emptyBar = LoadEmbeddedTga("ui_bar_empty.tga");
-        _redBar = LoadEmbeddedTga("ui_bar_red.tga");
+        if (Path.Exists(backgroundPath))
+        {
+            _background = RgbaImageDecoder.LoadBitmap(backgroundPath);
+        }
+        else
+        {
+            _background = RgbaImageDecoder.LoadBitmap(backgroundPath2);
+        }
+        _emptyBar = LoadEmbeddedTga(EmbeddedResource_Embeds.UiBarEmpty_tga);
+        _redBar = LoadEmbeddedTga(EmbeddedResource_Embeds.UiBarRed_tga);
         if (_emptyBar.Width != _redBar.Width || _emptyBar.Height != _redBar.Height)
             throw new InvalidDataException("The embedded loading-bar textures have different dimensions.");
 
@@ -149,21 +156,10 @@ internal sealed class LoadingScreenRasterizer : IDisposable
         destination[offset + 3] = 255;
     }
 
-    private static RgbaImage LoadEmbeddedTga(string fileName)
+    private static RgbaImage LoadEmbeddedTga(EmbeddedResource_Embeds embed)
     {
-        var assembly = typeof(LoadingScreenRasterizer).Assembly;
-        var suffix = ".Embeds." + fileName;
-        foreach (var resourceName in assembly.GetManifestResourceNames())
-        {
-            if (!resourceName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            using var stream = assembly.GetManifestResourceStream(resourceName)
-                ?? throw new InvalidOperationException($"Could not open embedded resource '{resourceName}'.");
-            return RgbaImageDecoder.LoadTga(stream, resourceName);
-        }
-
-        throw new FileNotFoundException($"Embedded loading-bar texture '{fileName}' was not found.");
+        using var stream = embed.GetStream();
+        return RgbaImageDecoder.LoadTga(stream, embed.ToString());
     }
 
     public void Dispose() => _fonts.Dispose();

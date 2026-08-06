@@ -287,6 +287,7 @@ internal sealed class Dx12ModelTextureCache : IDisposable
                 _uploader.CreateShaderResourceView(resource, SrvCpuHandle(completed.SrvSlot));
                 texture.SrvSlot = completed.SrvSlot;
                 texture.Resource = resource;
+                texture.HasTranslucentPixels = HasTranslucentPixels(asset.Rgba8);
                 _assets.ReleaseModelTexture(texture.Name, asset);
             }
             catch
@@ -300,6 +301,18 @@ internal sealed class Dx12ModelTextureCache : IDisposable
     }
 
     private CpuDescriptorHandle SrvCpuHandle(int index) => _srvHeapStart + index * _descriptorSize;
+
+    private static bool HasTranslucentPixels(ReadOnlySpan<byte> rgba8)
+    {
+        for (var index = 3; index < rgba8.Length; index += 4)
+        {
+            var alpha = rgba8[index];
+            if (alpha is not 0 and not byte.MaxValue)
+                return true;
+        }
+
+        return false;
+    }
 
     private readonly record struct CompletedTextureLoad(
         ModelTexture Texture,
@@ -325,6 +338,7 @@ internal sealed class Dx12ModelTextureCache : IDisposable
         public int SrvSlot { get; set; } = -1;
         public bool Pending { get; set; }
         public bool Failed { get; set; }
+        public bool HasTranslucentPixels { get; set; }
         public ModelTextureStage Stage
         {
             get => (ModelTextureStage)Volatile.Read(ref _stage);

@@ -1,80 +1,57 @@
+using System.Runtime.InteropServices;
+
 namespace Sacred.Core.World;
 
-public readonly record struct KeyxSectorRecord(
-    uint Id,
-    int RawX,
-    int RawY,
-    uint CompressedOffset,
-    uint CompressedSize,
-    int TilesRelativeOffset,
-    int TilesSize,
-    byte Style90,
-    byte StyleA0)
+[StructLayout(LayoutKind.Explicit, Size = Size)]
+public readonly record struct KeyxSectorRecord
 {
     public const int FileHeaderSize = 0x100;
     public const int Size = 0x300;
 
-    private const int IdOffset = 0x24;
-    private const int AbsoluteRawXOffset = 0x3C;
-    private const int AbsoluteRawYOffset = 0x40;
-    private const int TilesRelativeOffsetOffset = 0x0D4;
-    private const int TilesSizeOffset = 0x0D8;
-    private const int CompressedOffsetOffset = 0x0EC;
-    private const int CompressedSizeOffset = 0x0F0;
-    private const int Style90Offset = 0x2E0;
-    private const int StyleA0Offset = 0x2E1;
+    [FieldOffset(0x24)] public readonly uint Id;
+    [FieldOffset(0x3C)] public readonly int RawX;
+    [FieldOffset(0x40)] public readonly int RawY;
+    [FieldOffset(0x0D4)] public readonly int TilesRelativeOffset;
+    [FieldOffset(0x0D8)] public readonly uint TilesSize;
+    [FieldOffset(0x0EC)] public readonly uint CompressedOffset;
+    [FieldOffset(0x0F0)] public readonly uint CompressedSize;
+    [FieldOffset(0x2E0)] public readonly byte Style90;
+    [FieldOffset(0x2E1)] public readonly byte StyleA0;
 
     public static KeyxSectorRecord FromBytes(ReadOnlySpan<byte> data)
     {
-        if (data.Length < Size)
-            throw new InvalidDataException("A sectors.keyx entry is truncated.");
-
-        return new KeyxSectorRecord(
-            BitConverter.ToUInt32(data.Slice(IdOffset, 4)),
-            BitConverter.ToInt32(data.Slice(AbsoluteRawXOffset, 4)),
-            BitConverter.ToInt32(data.Slice(AbsoluteRawYOffset, 4)),
-            BitConverter.ToUInt32(data.Slice(CompressedOffsetOffset, 4)),
-            BitConverter.ToUInt32(data.Slice(CompressedSizeOffset, 4)),
-            checked((int)BitConverter.ToUInt32(data.Slice(TilesRelativeOffsetOffset, 4))),
-            checked((int)BitConverter.ToUInt32(data.Slice(TilesSizeOffset, 4))),
-            data[Style90Offset],
-            data[StyleA0Offset]);
+        // MemoryMarshal.Read<T> copies sizeof(T) bytes from the start of the
+        // span into a new T using the FieldOffset layout above — no manual
+        // slicing/BitConverter calls needed.
+        return MemoryMarshal.Read<KeyxSectorRecord>(data);
     }
 }
 
-public readonly record struct WldxTileRecord(
-    uint GroundTileId,
-    uint StaticChainHeadId,
-    uint FloorChainHeadId,
-    byte SurfaceType,
-    sbyte LiquidAlphaLeft,
-    sbyte LiquidAlphaTop,
-    sbyte LiquidAlphaRight,
-    sbyte LiquidAlphaBottom)
+[StructLayout(LayoutKind.Explicit, Size = Size)]
+public readonly record struct WldxTileRecord
 {
     public const int Size = 0x20;
 
-    private const int StaticChainHeadOffset = 0x04;
-    private const int FloorChainHeadOffset = 0x0C;
-    private const int LiquidAlphaLeftOffset = 0x10;
-    private const int LiquidAlphaTopOffset = 0x11;
-    private const int LiquidAlphaRightOffset = 0x12;
-    private const int LiquidAlphaBottomOffset = 0x13;
-    private const int SurfaceTypeOffset = 0x1F;
+    [FieldOffset(0x00)] public readonly uint GroundTileId;
+    [FieldOffset(0x04)] public readonly uint StaticChainHeadId;
+    [FieldOffset(0x0C)] public readonly uint FloorChainHeadId;
+    [FieldOffset(0x10)] public readonly sbyte LiquidAlphaLeft;
+    [FieldOffset(0x11)] public readonly sbyte LiquidAlphaTop;
+    [FieldOffset(0x12)] public readonly sbyte LiquidAlphaRight;
+    [FieldOffset(0x13)] public readonly sbyte LiquidAlphaBottom;
+    // Verified by exact corner continuity across adjacent elevated WLDX tiles.
+    [FieldOffset(0x18)] public readonly sbyte ElevationSouthWest;
+    [FieldOffset(0x19)] public readonly sbyte ElevationNorthWest;
+    [FieldOffset(0x1A)] public readonly sbyte ElevationNorthEast;
+    [FieldOffset(0x1B)] public readonly sbyte ElevationSouthEast;
+    [FieldOffset(0x1E)] public readonly byte PathFlags;
+    [FieldOffset(0x1F)] public readonly byte SurfaceType;
 
     public static WldxTileRecord FromBytes(ReadOnlySpan<byte> data)
     {
-        if (data.Length < Size)
-            throw new InvalidDataException("A sectors.wldx tile descriptor is truncated.");
-
-        return new WldxTileRecord(
-            BitConverter.ToUInt32(data.Slice(0, 4)),
-            BitConverter.ToUInt32(data.Slice(StaticChainHeadOffset, 4)),
-            BitConverter.ToUInt32(data.Slice(FloorChainHeadOffset, 4)),
-            data[SurfaceTypeOffset],
-            unchecked((sbyte)data[LiquidAlphaLeftOffset]),
-            unchecked((sbyte)data[LiquidAlphaTopOffset]),
-            unchecked((sbyte)data[LiquidAlphaRightOffset]),
-            unchecked((sbyte)data[LiquidAlphaBottomOffset]));
+        // MemoryMarshal.Read<T> copies sizeof(T) bytes from the start of the
+        // span into a new T using the FieldOffset layout above — no manual
+        // slicing/BitConverter calls needed.
+        return MemoryMarshal.Read<WldxTileRecord>(data);
     }
 }

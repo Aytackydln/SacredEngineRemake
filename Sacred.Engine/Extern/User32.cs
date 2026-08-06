@@ -57,6 +57,24 @@ internal static partial class User32
         public int Bottom;
     }
 
+    [LibraryImport(LibraryName)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool GetWindowRect(nint hwnd, out Rect rect);
+
+    [LibraryImport(LibraryName, EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
+    internal static partial nint SetWindowLongPtr(nint hwnd, int index, nint newLong);
+
+    [LibraryImport(LibraryName, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool SetWindowPos(
+        nint hwnd,
+        nint insertAfter,
+        int x,
+        int y,
+        int width,
+        int height,
+        uint flags);
+
     internal static unsafe ushort RegisterClass(ref Wndclass lpWndClass)
     {
         fixed (char* menuName = lpWndClass.lpszMenuName)
@@ -142,4 +160,10 @@ internal static partial class User32
 
     [LibraryImport(LibraryName)]
     internal static partial int GetSystemMetrics(int index);
+
+    [LibraryImport(LibraryName, EntryPoint = "LoadCursorW")]
+    internal static partial nint LoadCursor(nint instance, nint cursorName);
+
+    [LibraryImport(LibraryName)]
+    internal static partial nint SetCursor(nint cursor);
 }

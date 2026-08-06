@@ -31,7 +31,7 @@ public static class WeaponPakParser
 
         for (ushort i = 0; i < entryCount; i++)
         {
-            var weapon = SacredEquipment.FromBytes(br, sacredFile, items);
+            var weapon = SacredEquipment.FromBytes(br, items);
             yield return weapon;
         }
     }
@@ -58,7 +58,7 @@ public static class WeaponPakParser
 
         for (ushort i = 0; i < entryCount; i++)
         {
-            var weapon = SacredEquipment.FromBytes(br, sacredFile, items);
+            var weapon = SacredEquipment.FromBytes(br, items);
             yield return weapon;
         }
     }

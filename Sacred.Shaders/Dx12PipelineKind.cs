@@ -1,0 +1,21 @@
+namespace Sacred.Shaders;
+
+/// <summary>Stable names for the graphics pipelines supplied by the Sacred shader catalog.</summary>
+public enum Dx12PipelineKind
+{
+    Terrain,
+    TerrainLiquidCover,
+    StaticSprite,
+    LiquidSprite,
+    LightHalo,
+    StaticModel,
+    ModelShadow,
+    TransparentModel,
+    AnimatedModel,
+    EffectModel,
+    TransparentEffectModel,
+    TransparentItemParticle,
+    DenseItemParticle,
+    ItemGlow,
+    InventoryUi
+}

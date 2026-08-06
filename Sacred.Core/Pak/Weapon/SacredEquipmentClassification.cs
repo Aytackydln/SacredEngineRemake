@@ -130,7 +130,11 @@ public readonly record struct SacredEquipmentClassification(
         );
     }
 
-    public SacredEquipmentLore InferLore()
+    /// <summary>
+    /// Infers the displayed equipment family. The type code alone is ambiguous for gloves:
+    /// weapon gloves occupy two inventory rows, while armor gloves occupy one.
+    /// </summary>
+    public SacredEquipmentLore InferLore(byte inventoryHeight)
     {
         return EquipmentType switch
         {
@@ -144,15 +148,15 @@ public readonly record struct SacredEquipmentClassification(
             SacredEquipmentType.ChestArmor or SacredEquipmentType.HeadArmor or SacredEquipmentType.ArmArmor
                 or SacredEquipmentType.LegArmor or SacredEquipmentType.Belt or SacredEquipmentType.FootArmor or SacredEquipmentType.Shoulder
                 or SacredEquipmentType.Misc => SacredEquipmentLore.Armor,
-            SacredEquipmentType.Gloves when IsUnarmedGloveWeapon() => SacredEquipmentLore.Unarmed,
+            SacredEquipmentType.Gloves when IsUnarmedGloveWeapon(inventoryHeight) => SacredEquipmentLore.Unarmed,
             SacredEquipmentType.Gloves => SacredEquipmentLore.Armor,
             _ => SacredEquipmentLore.Unknown
         };
     }
 
-    public SacredEquipmentHandedness InferHandedness(byte usageIdentifier)
+    public SacredEquipmentHandedness InferHandedness(byte usageIdentifier, byte inventoryHeight)
     {
-        if (IsUnarmedGloveWeapon())
+        if (IsUnarmedGloveWeapon(inventoryHeight))
         {
             return SacredEquipmentHandedness.TwoHanded;
         }
@@ -167,16 +171,9 @@ public readonly record struct SacredEquipmentClassification(
         };
     }
 
-    private bool IsUnarmedGloveWeapon()
+    private bool IsUnarmedGloveWeapon(byte inventoryHeight)
     {
-        if (EquipmentType != SacredEquipmentType.Gloves)
-        {
-            return false;
-        }
-
-        return EffectiveCharacterClassMask is SacredCharacterClassMask.Gladiator
-            or SacredCharacterClassMask.AllBase
-            or SacredCharacterClassMask.AllKnown;
+        return EquipmentType == SacredEquipmentType.Gloves && inventoryHeight == 2;
     }
 
     private static SacredCharacterClassMask InferEffectiveCharacterClassMask(

@@ -49,5 +49,5 @@ internal readonly struct ItemsPakEntryModelDescLayout
     public readonly uint EffectTextureId;
 
     [FieldOffset(112)]
-    public readonly ushort EffectAnimationRate;
+    public readonly ushort Unknown112;
 }

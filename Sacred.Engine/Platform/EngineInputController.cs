@@ -10,23 +10,36 @@ internal sealed class EngineInputController(
     Dx12Renderer renderer,
     LowLatencySystem latency,
     Action cycleFramePacing,
+    Func<bool> toggleBorderlessFullscreen,
     Action updateWindowTitle)
 {
     public void Update()
     {
         if (input.ConsumePressed(VirtualKey.F4))
-            renderer.ToggleHdr();
+        {
+            var enabled = renderer.ToggleHdr();
+            Console.WriteLine($"Debug input: HDR {(enabled ? "enabled" : "disabled")}");
+        }
 
         if (input.ConsumePressed(VirtualKey.F5))
         {
             cycleFramePacing();
             updateWindowTitle();
+            Console.WriteLine("Debug input: frame pacing cycled");
         }
 
         if (input.ConsumePressed(VirtualKey.F6))
         {
-            latency.CycleMode();
+            var mode = latency.CycleMode();
             updateWindowTitle();
+            Console.WriteLine($"Debug input: low latency {mode}");
+        }
+
+        if (input.ConsumePressed(VirtualKey.F10))
+        {
+            var fullscreen = toggleBorderlessFullscreen();
+            updateWindowTitle();
+            Console.WriteLine($"Debug input: {(fullscreen ? "borderless fullscreen" : "windowed mode")}");
         }
     }
 }

@@ -27,6 +27,7 @@ cbuffer StaticSpriteSceneConstants : register(b0)
     float alpha_cutoff;
     float ambient_intensity;
     float scene_paper_white;
+    float unlit_white_nits;
     float animation_time;
 }
 
@@ -157,6 +158,26 @@ float4 sample_sprite_texture(Texture2D texture_to_sample, vertex_output input)
 
 pixel_output ps_main(vertex_output input)
 {
+    bool is_light_halo = (input.flags & 0x40000000u) != 0;
+    if (is_light_halo)
+    {
+        float2 radial_position = input.tex_coord * 2.0f - 1.0f;
+        float radius = length(radial_position);
+        if (radius >= 1.0f)
+            discard;
+
+        float falloff = saturate(1.0f - radius);
+        falloff *= falloff;
+        float alpha = falloff * input.corner_alpha.w * saturate(ambient_intensity);
+
+        pixel_output halo_output;
+        halo_output.color = float4(
+            SdrTextureToHdr10(input.corner_alpha.rgb, unlit_white_nits) * alpha,
+            alpha);
+        halo_output.depth = input.depth;
+        return halo_output;
+    }
+
     float4 tex = sample_sprite_texture(static_texture, input);
 
     if (tex.a == 0)
@@ -171,10 +192,16 @@ pixel_output ps_main(vertex_output input)
     if (tex.a < (is_liquid ? (1.0f / 255.0f) : alpha_cutoff))
         discard;
 
-    tex.rgb *= ambient_intensity;
+    bool is_unlit = !is_liquid && (input.flags & 0x80000000u) != 0;
+    tex.rgb *= is_unlit ? 1.0f : ambient_intensity;
+    float nits = is_unlit ? unlit_white_nits : scene_paper_white;
 
     pixel_output output;
-    output.color = float4(SdrTextureToHdr10(tex.rgb, scene_paper_white), tex.a);
+    // Sprite textures contain partially transparent edge texels. Convert their
+    // coverage-weighted color in linear light before PQ encoding; converting the
+    // unattenuated edge color first turns that coverage into a bright matte in
+    // HDR, most visibly along terrain-aligned static sprites.
+    output.color = float4(SdrTextureToPremultipliedHdr10(tex.rgb, tex.a, nits), tex.a);
     output.depth = input.depth;
     return output;
 }

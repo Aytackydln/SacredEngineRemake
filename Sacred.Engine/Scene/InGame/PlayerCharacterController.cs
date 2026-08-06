@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Sacred.Engine.Animation;
 using Sacred.Engine.Assets;
 using Sacred.Granny;
+using Sacred.World.Geometry;
 
 namespace Sacred.Engine.Scene.InGame;
 
@@ -24,32 +25,41 @@ internal sealed class PlayerCharacterController : IDisposable
 
     private Vector3 _position;
     private float _movementRotationZ = -MathF.PI * 0.25f;
-    private uint _activeModelEntryId = FirstModelSlotId;
-    private uint _requestedModelEntryId = FirstModelSlotId;
+    private uint _activeModelEntryId;
+    private uint _requestedModelEntryId;
     private PlayerCharacterAsset? _activeAsset;
     private CharacterAnimationState? _animation;
     private PlayerModelRequest? _currentRequest;
     private PendingPlayerModel? _pendingModel;
     private PendingPlayerAnimation? _pendingAnimation;
+    private float _modelGroundOffset;
     private long _requestVersion;
     private bool _transitionPending;
     private bool _disposed;
 
-    public PlayerCharacterController(AssetManager assets, SceneState scene)
+    public PlayerCharacterController(
+        AssetManager assets,
+        SceneState scene,
+        string? initialCharacterName)
     {
         _assets = assets;
         _scene = scene;
+        _activeModelEntryId = TestCharacters.ResolveEntryId(initialCharacterName);
+        _requestedModelEntryId = _activeModelEntryId;
     }
+
+    public string SelectedCharacterName => TestCharacters.GetDisplayName(_requestedModelEntryId);
 
     public void Initialize(Vector2 worldCenter)
     {
-        _position = new Vector3(worldCenter.X, worldCenter.Y, 0.0f);
+        UpdatePosition(worldCenter, 0.0f);
         _scene.AddModel(new SceneModel(
             "Loading player model",
             _proxyMesh,
             _position,
-            BuildRotation()));
-        RequestModel(FirstModelSlotId);
+            BuildRotation(),
+            groundPlaneZ: GroundPlaneZ));
+        RequestModel(_requestedModelEntryId);
     }
 
     public void ApplyPendingAssets()
@@ -58,19 +68,36 @@ internal sealed class PlayerCharacterController : IDisposable
         ApplyPendingAnimation();
     }
 
-    public void UpdatePose(Vector2 worldCenter, Vector2 movementDirection, float deltaSeconds)
+    public void UpdatePose(
+        Vector2 worldCenter,
+        Vector2 facingDirection,
+        bool isMoving,
+        bool isWalking,
+        bool isDefending,
+        float terrainWorldHeight,
+        float locomotionAnimationSpeed,
+        float deltaSeconds)
     {
-        _position = new Vector3(worldCenter.X, worldCenter.Y, 0.0f);
-        if (movementDirection != Vector2.Zero)
+        UpdatePosition(worldCenter, terrainWorldHeight);
+        if (facingDirection != Vector2.Zero)
         {
-            var angleRadians = MathF.Atan2(movementDirection.Y, movementDirection.X);
+            var angleRadians = MathF.Atan2(facingDirection.Y, facingDirection.X);
             _movementRotationZ = -(angleRadians + MathF.PI / 4);
         }
 
-        _animation?.Update(deltaSeconds);
+        _animation?.SetLocomotionState(isDefending
+            ? CharacterAnimationStateId.Defend
+            : isMoving
+                ? isWalking
+                    ? CharacterAnimationStateId.Walk
+                    : CharacterAnimationStateId.Run
+                : CharacterAnimationStateId.Idle);
+        _animation?.Update(deltaSeconds, locomotionAnimationSpeed);
         if (_scene.Models.Count > 0)
-            _scene.Models[0].SetPose(_position, BuildRotation());
+            _scene.Models[0].SetPose(_position, BuildRotation(), worldCenter, GroundPlaneZ);
     }
+
+    public void PlayAttack() => _animation?.PlayAttack();
 
     public void CycleModel()
     {
@@ -79,6 +106,7 @@ internal sealed class PlayerCharacterController : IDisposable
             : _requestedModelEntryId + 1;
 
         RequestModel(next);
+        Console.WriteLine($"Debug input: selected character {TestCharacters.GetDisplayName(next)}");
     }
 
     public void Dispose()
@@ -193,10 +221,10 @@ internal sealed class PlayerCharacterController : IDisposable
     {
         try
         {
-            var clip = await _assets
-                .LoadPlayerCharacterAnimationAsync(request.EntryId, cancellationToken)
+            var animations = await _assets
+                .LoadPlayerCharacterAnimationsAsync(request.EntryId, cancellationToken)
                 .ConfigureAwait(false);
-            if (clip is null)
+            if (animations is null)
                 return;
 
             var animation = await Task.Run(
@@ -205,7 +233,7 @@ internal sealed class PlayerCharacterController : IDisposable
                         cancellationToken.ThrowIfCancellationRequested();
                         var state = new CharacterAnimationState(
                             player.Model,
-                            clip,
+                            animations,
                             _proxyMesh,
                             player.EquipmentEffects);
                         cancellationToken.ThrowIfCancellationRequested();
@@ -266,6 +294,8 @@ internal sealed class PlayerCharacterController : IDisposable
         _activeAsset = pending.Player;
 
         var player = pending.Player;
+        Console.WriteLine($"Player character loaded: {player.DisplayName}");
+        _modelGroundOffset = CalculateModelGroundOffset(player.Model);
         var sceneModel = new SceneModel(
             $"{player.DisplayName}: item {player.ItemId}, {player.ModelName}",
             player.Model.Mesh ?? _proxyMesh,
@@ -273,7 +303,8 @@ internal sealed class PlayerCharacterController : IDisposable
             BuildRotation(),
             SceneScale,
             player.TextureAliases,
-            player.EquipmentEffects);
+            player.EquipmentEffects,
+            GroundPlaneZ);
 
         if (_scene.Models.Count == 0)
             _scene.AddModel(sceneModel);
@@ -298,6 +329,24 @@ internal sealed class PlayerCharacterController : IDisposable
     }
 
     private Vector3 BuildRotation() => new(0.0f, 0.0f, _movementRotationZ);
+
+    private float GroundPlaneZ => _position.Z - _modelGroundOffset;
+
+    private void UpdatePosition(Vector2 worldPosition, float terrainWorldHeight)
+    {
+        _position = new Vector3(
+            worldPosition.X + TerrainElevationProjection.HorizontalWorldOffset(terrainWorldHeight),
+            worldPosition.Y,
+            TerrainElevationProjection.ModelVerticalWorldOffset(terrainWorldHeight) + _modelGroundOffset);
+    }
+
+    private static float CalculateModelGroundOffset(GrnAsset model)
+    {
+        if (model.Diagnostics?.WholeModelBounds is not { } bounds)
+            return 0.0f;
+
+        return -bounds.Min.Z * SceneScale;
+    }
 
     private sealed record PendingPlayerModel(
         uint EntryId,

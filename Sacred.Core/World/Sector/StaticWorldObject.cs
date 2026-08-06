@@ -12,6 +12,8 @@ public readonly record struct StaticWorldObject(
     byte SpriteParam2E,
     byte SpriteParam2F,
     byte OrientationOrFrame,
+    byte AnimationFrameDurationTicks,
+    byte AnimationFrameCount,
     int TileDepth,
     int TileWorldY,
     int TileWorldX,

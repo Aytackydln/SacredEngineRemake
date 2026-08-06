@@ -130,7 +130,15 @@ public static partial class Granny1MeshExtractor
                             horizontalAxis0,
                             horizontalAxis1,
                             scale))).ToArray() ?? [],
-                slice.Skeleton?.BoneTieBones.Length ?? 0)).ToArray();
+                slice.Skeleton?.BoneTieBones.Length ?? 0,
+                CreateSurfaceTriangles(
+                    slice.Parts,
+                    bounds.Min,
+                    center,
+                    verticalAxis,
+                    horizontalAxis0,
+                    horizontalAxis1,
+                    scale))).ToArray();
         var bonePositions = sliceDiagnostics
             .SelectMany(static slice => slice.Bones)
             .Select(static bone => bone.Position)
@@ -142,6 +150,47 @@ public static partial class Granny1MeshExtractor
                 bonePositions.Aggregate(Vector3.Max));
 
         return new GrnModelDiagnostics(sliceDiagnostics, wholeModelBounds, skeletonBounds);
+    }
+
+    private static GrnSurfaceTriangleDiagnostics[] CreateSurfaceTriangles(
+        IReadOnlyList<ParsedMeshPart> parts,
+        Vector3 min,
+        Vector3 center,
+        int verticalAxis,
+        int horizontalAxis0,
+        int horizontalAxis1,
+        float scale)
+    {
+        var triangles = new List<GrnSurfaceTriangleDiagnostics>();
+        foreach (var part in parts)
+        {
+            foreach (var polygon in part.Polygons)
+            {
+                if (polygon.A >= part.Positions.Length ||
+                    polygon.B >= part.Positions.Length ||
+                    polygon.C >= part.Positions.Length)
+                {
+                    continue;
+                }
+
+                var a = ProjectPosition(part.Positions[polygon.A], min, center, verticalAxis, horizontalAxis0, horizontalAxis1, scale);
+                var b = ProjectPosition(part.Positions[polygon.B], min, center, verticalAxis, horizontalAxis0, horizontalAxis1, scale);
+                var c = ProjectPosition(part.Positions[polygon.C], min, center, verticalAxis, horizontalAxis0, horizontalAxis1, scale);
+                var cross = Vector3.Cross(b - a, c - a);
+                var doubleArea = cross.Length();
+                if (!float.IsFinite(doubleArea) || doubleArea <= 0.000001f)
+                    continue;
+
+                triangles.Add(new GrnSurfaceTriangleDiagnostics(
+                    a,
+                    b,
+                    c,
+                    cross / doubleArea,
+                    doubleArea * 0.5f));
+            }
+        }
+
+        return triangles.ToArray();
     }
 
     private static Vector3 ProjectPosition(
@@ -2490,4 +2539,5 @@ public static partial class Granny1MeshExtractor
     private readonly record struct MeshKey(int PointOffset, int PolygonOffset);
 
     private readonly record struct Bounds(Vector3 Min, Vector3 Max);
+
 }

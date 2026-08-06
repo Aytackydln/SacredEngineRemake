@@ -10,7 +10,7 @@ public static class ModelShaderVariables
 
     public const float TextureAnimationNone = 1.0f;
     public const float TextureAnimationScrollBlackKey = 1.5f;
-    public const float TextureAnimationClampScrollBlackKey = 1.75f;
+    public const float TextureAnimationRadialSweepBlackKey = 1.75f;
 
     public static Vector4 ColorFromName(string name)
     {
@@ -33,13 +33,13 @@ public static class ModelShaderVariables
         return multiTextureFill ? TextureModeMultiTextureFill : TextureModeBaseTexture;
     }
 
-    public static float PackTextureAnimation(bool isAnimated, bool clampScrollBlackKey, bool overlay)
+    public static float PackTextureAnimation(bool isAnimated, bool radialSweepBlackKey, bool overlay)
     {
         if (!isAnimated)
             return TextureAnimationNone;
 
-        var value = clampScrollBlackKey
-            ? TextureAnimationClampScrollBlackKey
+        var value = radialSweepBlackKey
+            ? TextureAnimationRadialSweepBlackKey
             : TextureAnimationScrollBlackKey;
         return overlay ? -value : value;
     }
@@ -72,6 +72,9 @@ public sealed class ModelShaderConstantsUpdater
         WriteMatrix(constants.World, target + 16);
         WriteVector4(constants.ModelColor, target + 32);
     }
+
+    public unsafe void WriteModelColor(float* target, Vector4 modelColor) =>
+        WriteVector4(modelColor, target);
 
     public unsafe void WriteTextureFlags(
         float* target,

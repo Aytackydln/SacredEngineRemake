@@ -58,15 +58,19 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
     private ID3D12Fence _fence = null!;
     private ID3D12RootSignature _rootSignature = null!;
     private ID3D12PipelineState _pipelineState = null!;
+    private ID3D12PipelineState _transparentModelPipelineState = null!;
     private ID3D12PipelineState _animatedPipelineState = null!;
     private ID3D12PipelineState _effectPipelineState = null!;
+    private ID3D12PipelineState _transparentEffectPipelineState = null!;
     private ID3D12PipelineState _itemParticlePipelineState = null!;
+    private ID3D12PipelineState _itemGlowPipelineState = null!;
     private ID3D12PipelineState _inventoryUiPipelineState = null!;
     private ID3D12Resource? _depthBuffer;
     private ID3D12Resource? _fallbackTexture;
     private Dx12TextureUploader _textureUploader = null!;
     private ModelGpuMesh? _inventoryUiMesh;
     private ModelGpuMesh? _mesh;
+    private Mesh? _sourceMesh;
     private ModelGpuMesh? _selectedBoneHighlightMesh;
     private ModelGpuMesh? _equipmentEffectMesh;
     private InventoryUiSurface[] _inventoryUiSurfaces = [];
@@ -124,6 +128,7 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
         WaitForGpu();
         _mesh?.Dispose();
         _mesh = null;
+        _sourceMesh = null;
         _selectedBoneHighlightMesh?.Dispose();
         _selectedBoneHighlightMesh = null;
         _equipmentEffectMesh?.Dispose();
@@ -153,6 +158,7 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
         WaitForGpu();
         _mesh?.Dispose();
         _mesh = null;
+        _sourceMesh = null;
         _selectedBoneHighlightMesh?.Dispose();
         _selectedBoneHighlightMesh = null;
         _equipmentEffectMesh?.Dispose();
@@ -180,6 +186,7 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
         _meshBounds = CalculateBounds(asset.Mesh.Vertices);
         _modelScale = CalculateGridFitScale(asset.Mesh.Vertices, GetPivotPoint(), CreateItemRotationMatrix(), _itemGridWidth, _itemGridHeight);
         _mesh = UploadMesh(asset.Mesh);
+        _sourceMesh = asset.Mesh;
         _selectedBoneHighlightMesh = CreateSelectedBoneHighlightMesh(_selectedBonePosition);
         if (effectScene.Mesh is { Vertices.Length: > 0, Indices.Length: > 0 } effectMesh)
         {
@@ -245,7 +252,8 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
                         overlayResource,
                         overlaySrvSlot,
                         overlayAnimation,
-                        overlayMode));
+                        overlayMode,
+                        HasTranslucentPixels(baseTexture.Rgba8)));
                 }
                 catch
                 {
@@ -270,7 +278,8 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
                     texture.OverlayResource,
                     texture.OverlaySrvSlot,
                     texture.OverlayAnimation,
-                    texture.OverlayMode);
+                    texture.OverlayMode,
+                    texture.HasTranslucentPixels);
             }
             uploaded.Clear();
         }
@@ -439,137 +448,26 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
 
     private void CreatePipeline()
     {
-        var rootParameters = new[]
-        {
-            new RootParameter(
-                new RootConstants(
-                    ModelShaderLayout.ModelConstantsRegister,
-                    0,
-                    ModelShaderLayout.ModelConstantsCount),
-                ShaderVisibility.All),
-            new RootParameter(
-                new RootDescriptorTable
-                {
-                    Ranges =
-                    [
-                        new DescriptorRange(
-                            DescriptorRangeType.ShaderResourceView,
-                            1,
-                            ModelShaderLayout.ModelTextureRegister,
-                            0,
-                            0)
-                    ]
-                },
-                ShaderVisibility.Pixel),
-            new RootParameter(
-                new RootDescriptorTable
-                {
-                    Ranges =
-                    [
-                        new DescriptorRange(
-                            DescriptorRangeType.ShaderResourceView,
-                            1,
-                            ModelShaderLayout.ModelOverlayTextureRegister,
-                            0,
-                            0)
-                    ]
-                },
-                ShaderVisibility.Pixel),
-            new RootParameter(
-                new RootConstants(
-                    ModelShaderLayout.SceneConstantsRegister,
-                    0,
-                    ModelShaderLayout.SceneConstantsCount),
-                ShaderVisibility.All)
-        };
-
-        var samplers = new[]
-        {
-            new StaticSamplerDescription(
-                ModelShaderLayout.ModelSamplerRegister,
-                Filter.MinMagMipLinear,
-                TextureAddressMode.Wrap,
-                TextureAddressMode.Wrap,
-                TextureAddressMode.Wrap,
-                0.0f,
-                16,
-                ComparisonFunction.Never,
-                StaticBorderColor.OpaqueWhite,
-                0.0f,
-                float.MaxValue,
-                ShaderVisibility.Pixel,
-                0)
-        };
-
-        var rootDescription = new RootSignatureDescription(RootSignatureFlags.AllowInputAssemblerInputLayout, rootParameters, samplers);
-        _rootSignature = _device.CreateRootSignature(in rootDescription, RootSignatureVersion.Version1);
-
         var shaders = Dx12ShaderCatalog.Sdr;
-        var vertexShader = D3DShaderCompiler.Compile(shaders.ModelVertexShader);
-        var pixelShader = D3DShaderCompiler.Compile(shaders.ModelPixelShader);
-        var animatedVertexShader = D3DShaderCompiler.Compile(shaders.AnimatedModelVertexShader);
-        var animatedPixelShader = D3DShaderCompiler.Compile(shaders.AnimatedModelPixelShader);
-        var effectVertexShader = D3DShaderCompiler.Compile(shaders.EffectModelVertexShader);
-        var effectPixelShader = D3DShaderCompiler.Compile(shaders.EffectModelPixelShader);
-        var itemParticleVertexShader = D3DShaderCompiler.Compile(shaders.ItemParticleVertexShader);
-        var itemParticlePixelShader = D3DShaderCompiler.Compile(shaders.ItemParticlePixelShader);
-        var depthStencil = DepthStencilDescription.Default;
-        depthStencil.DepthFunc = ComparisonFunction.LessEqual;
-        var inputLayout = new[]
+        var definition = Dx12PipelineCatalog.CreateModels(shaders, new Dx12ModelPipelineOptions
         {
-            new InputElementDescription("POSITION", 0, Format.R32G32B32_Float, 0, 0),
-            new InputElementDescription("NORMAL", 0, Format.R32G32B32_Float, 12, 0),
-            new InputElementDescription("TEXCOORD", 0, Format.R32G32_Float, 24, 0)
-        };
+            IncludeDenseParticle = false,
+            IncludeInventoryUi = true,
+            SamplerAddressMode = TextureAddressMode.Wrap,
+            SamplerBorderColor = StaticBorderColor.OpaqueWhite
+        });
+        var compiled = Dx12PipelineFactory.Compile(definition, D3DShaderCompiler.Compile);
+        var pipelines = Dx12PipelineFactory.Create(_device, compiled, BackBufferFormat, DepthBufferFormat);
 
-        var pipelineDescription = new GraphicsPipelineStateDescription
-        {
-            RootSignature = _rootSignature,
-            VertexShader = vertexShader,
-            PixelShader = pixelShader,
-            InputLayout = inputLayout,
-            BlendState = BlendDescription.AlphaBlend,
-            RasterizerState = RasterizerDescription.CullClockwise,
-            DepthStencilState = depthStencil,
-            SampleMask = uint.MaxValue,
-            PrimitiveTopologyType = PrimitiveTopologyType.Triangle,
-            RenderTargetFormats = [BackBufferFormat],
-            DepthStencilFormat = DepthBufferFormat,
-            SampleDescription = new SampleDescription(1, 0)
-        };
-
-        _pipelineState = _device.CreateGraphicsPipelineState(pipelineDescription);
-        pipelineDescription.VertexShader = animatedVertexShader;
-        pipelineDescription.PixelShader = animatedPixelShader;
-        _animatedPipelineState = _device.CreateGraphicsPipelineState(pipelineDescription);
-        pipelineDescription.VertexShader = effectVertexShader;
-        pipelineDescription.PixelShader = effectPixelShader;
-        _effectPipelineState = _device.CreateGraphicsPipelineState(pipelineDescription);
-
-        var particleDepthStencil = depthStencil;
-        particleDepthStencil.DepthWriteMask = DepthWriteMask.Zero;
-        pipelineDescription.VertexShader = itemParticleVertexShader;
-        pipelineDescription.PixelShader = itemParticlePixelShader;
-        var particleBlend = BlendDescription.AlphaBlend;
-        particleBlend.RenderTarget[0].DestinationBlend = Blend.One;
-        particleBlend.RenderTarget[0].DestinationBlendAlpha = Blend.One;
-        pipelineDescription.BlendState = particleBlend;
-        pipelineDescription.RasterizerState = RasterizerDescription.CullNone;
-        pipelineDescription.DepthStencilState = particleDepthStencil;
-        _itemParticlePipelineState = _device.CreateGraphicsPipelineState(pipelineDescription);
-
-        var inventoryUiVertexShader = D3DShaderCompiler.Compile(shaders.InventoryUiVertexShader);
-        var inventoryUiPixelShader = D3DShaderCompiler.Compile(shaders.InventoryUiPixelShader);
-        var inventoryUiDepthStencil = DepthStencilDescription.Default;
-        inventoryUiDepthStencil.DepthEnable = false;
-        inventoryUiDepthStencil.DepthWriteMask = DepthWriteMask.Zero;
-
-        pipelineDescription.VertexShader = inventoryUiVertexShader;
-        pipelineDescription.PixelShader = inventoryUiPixelShader;
-        pipelineDescription.BlendState = BlendDescription.AlphaBlend;
-        pipelineDescription.RasterizerState = RasterizerDescription.CullNone;
-        pipelineDescription.DepthStencilState = inventoryUiDepthStencil;
-        _inventoryUiPipelineState = _device.CreateGraphicsPipelineState(pipelineDescription);
+        _rootSignature = pipelines.RootSignature;
+        _pipelineState = pipelines[Dx12PipelineKind.StaticModel];
+        _transparentModelPipelineState = pipelines[Dx12PipelineKind.TransparentModel];
+        _animatedPipelineState = pipelines[Dx12PipelineKind.AnimatedModel];
+        _effectPipelineState = pipelines[Dx12PipelineKind.EffectModel];
+        _transparentEffectPipelineState = pipelines[Dx12PipelineKind.TransparentEffectModel];
+        _itemParticlePipelineState = pipelines[Dx12PipelineKind.TransparentItemParticle];
+        _itemGlowPipelineState = pipelines[Dx12PipelineKind.ItemGlow];
+        _inventoryUiPipelineState = pipelines[Dx12PipelineKind.InventoryUi];
     }
 
     private void RequestShaderReload() => Interlocked.Exchange(ref _shaderReloadPending, 1);
@@ -586,10 +484,13 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
     private void DisposePipelineResources()
     {
         _inventoryUiPipelineState?.Dispose();
+        _itemGlowPipelineState?.Dispose();
         _itemParticlePipelineState?.Dispose();
         _effectPipelineState?.Dispose();
+        _transparentEffectPipelineState?.Dispose();
         _animatedPipelineState?.Dispose();
         _pipelineState?.Dispose();
+        _transparentModelPipelineState?.Dispose();
         _rootSignature?.Dispose();
     }
 
@@ -699,6 +600,7 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
             wvp,
             world,
             ModelShaderVariables.ColorFromName(_modelName));
+        var defaultModelColor = ModelShaderVariables.ColorFromName(_modelName);
         _modelShaderConstants.WriteTextureFlags(
             constants + ModelShaderLayout.TextureFlagsOffset,
             ModelShaderVariables.TextureModeNoTexture,
@@ -710,13 +612,6 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
         for (var passIndex = 0; passIndex < 3; passIndex++)
         {
             var pass = (ModelSurfacePass)passIndex;
-            _commandList.SetPipelineState(pass switch
-            {
-                ModelSurfacePass.AnimatedBase => _animatedPipelineState,
-                ModelSurfacePass.EffectOverlay => _effectPipelineState,
-                _ => _pipelineState
-            });
-
             foreach (var surface in _surfaces)
             {
                 if (surface.IndexCount <= 0 || surface.IndexStart >= mesh.IndexCount)
@@ -755,6 +650,21 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
                     hasOverlay = hasOverlay && !animatesOverlay;
                 }
 
+                _commandList.SetPipelineState(pass switch
+                {
+                    ModelSurfacePass.AnimatedBase => _animatedPipelineState,
+                    ModelSurfacePass.EffectOverlay => _effectPipelineState,
+                    _ when texture?.HasTranslucentPixels == true => _transparentModelPipelineState,
+                    _ => _pipelineState
+                });
+
+                var modelColor = animation.Mode == TextureAnimationMode.RadialSweepBlackKey &&
+                                 _sourceMesh is not null &&
+                                 MeshSurfaceRadialSweep.TryCalculate(_sourceMesh, surface, out var radialSweep)
+                    ? radialSweep
+                    : defaultModelColor;
+                _modelShaderConstants.WriteModelColor(constants + 32, modelColor);
+
                 _modelShaderConstants.WriteTextureFlags(
                     constants + ModelShaderLayout.TextureFlagsOffset,
                     ModelShaderVariables.PackTextureMode(
@@ -763,7 +673,7 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
                         drawOverlay || texture?.OverlayMode == TextureOverlayMode.MultiTextureFill),
                     ModelShaderVariables.PackTextureAnimation(
                         animation.IsAnimated,
-                        animation.Mode == TextureAnimationMode.VerticalScrollClampBlackKey,
+                        animation.Mode == TextureAnimationMode.RadialSweepBlackKey,
                         overlay: false),
                     ModelShaderLayout.PreserveProjectedDepth,
                     animation.IsAnimated ? elapsedSeconds * animation.TimeScale : 0.0f);
@@ -813,12 +723,21 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
 
         foreach (var surface in _equipmentEffectSurfaces)
         {
+            if (surface.TextureMode is EquipmentEffectTextureMode.PoisonStatic or EquipmentEffectTextureMode.FirePop or EquipmentEffectTextureMode.MagicOrb)
+            {
+                _commandList.SetPipelineState(_itemParticlePipelineState);
+            }
+            else
+            {
+                _commandList.SetPipelineState(_itemGlowPipelineState);
+            }
+
             var texture = ResolveTexture(surface.TextureName);
             if (texture is null || surface.IndexCount <= 0 || surface.IndexStart >= mesh.IndexCount)
                 continue;
 
             var effectWorld = world;
-            if (surface.TextureMode == EquipmentEffectTextureMode.PoisonFlow &&
+            if (surface.TextureMode == EquipmentEffectTextureMode.PoisonStatic &&
                 surface.MotionVector.LengthSquared() > 0.0001f)
             {
                 var progress = (elapsedSeconds * 0.42f + surface.Phase) % 1.0f;
@@ -828,8 +747,8 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
             _modelShaderConstants.WriteModelBase(constants, viewProjection, effectWorld, surface.Color);
             _modelShaderConstants.WriteTextureFlags(
                 constants + ModelShaderLayout.TextureFlagsOffset,
-                ModelShaderVariables.TextureModeBaseTexture,
                 (float)surface.TextureMode,
+                ModelShaderLayout.PreserveProjectedDepth,
                 surface.Phase,
                 elapsedSeconds);
             _commandList.SetGraphicsRoot32BitConstants(
@@ -1281,6 +1200,18 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
 
     private GpuDescriptorHandle SrvGpuHandle(int index) => _srvHeap.GetGPUDescriptorHandleForHeapStart() + index * _srvDescriptorSize;
 
+    private static bool HasTranslucentPixels(ReadOnlySpan<byte> rgba8)
+    {
+        for (var index = 3; index < rgba8.Length; index += 4)
+        {
+            var alpha = rgba8[index];
+            if (alpha is not 0 and not byte.MaxValue)
+                return true;
+        }
+
+        return false;
+    }
+
     private static MeshBounds CalculateBounds(IReadOnlyList<VertexPositionNormalTexture> vertices)
     {
         var min = new Vector3(float.MaxValue);
@@ -1360,7 +1291,8 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
         ID3D12Resource? OverlayResource,
         int OverlaySrvSlot,
         TextureAnimation OverlayAnimation,
-        TextureOverlayMode OverlayMode);
+        TextureOverlayMode OverlayMode,
+        bool HasTranslucentPixels);
 
     private sealed record UploadedModelTexture(
         string Name,
@@ -1370,7 +1302,8 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
         ID3D12Resource? OverlayResource,
         int OverlaySrvSlot,
         TextureAnimation OverlayAnimation,
-        TextureOverlayMode OverlayMode);
+        TextureOverlayMode OverlayMode,
+        bool HasTranslucentPixels);
 
     private readonly record struct InventoryUiSurface(int IndexStart, int IndexCount, Vector4 Color);
 

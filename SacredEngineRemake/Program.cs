@@ -37,15 +37,26 @@ var texturePak = gameDir + @"\pak\Texture.pak";
 var directories = new SacredGameDirectories
 {
     GlobalResourcesPath = globalRes,
+    StairsMapPath = Path.Combine(gameDir, "bin", "treppe.bin"),
+    DefPosPath = Path.Combine(gameDir, "bin", "NetScript", "DefPos.bin"),
     WeaponsPakPath = weaponPak,
     ItemsPakPath = itemsPak,
     TexturesPakPath = texturePak,
 };
 
+var saveState = SacredEngineRemakeConfig.Load(gameDir);
+
 try
 {
-    using var game = new SacredGame(directories);
-    await game.Run();
+    using var game = new SacredGame(directories, saveState);
+    try
+    {
+        await game.Run();
+    }
+    finally
+    {
+        SacredEngineRemakeConfig.Save(gameDir, game.CaptureSaveState());
+    }
 }
 catch (Exception e)
 {

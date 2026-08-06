@@ -8,6 +8,7 @@ using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Extern;
 using Sacred.Engine.Graphics.Frames;
+using Sacred.Engine.Graphics.Minimap;
 using Sacred.Engine.Graphics.Models;
 using Sacred.Engine.Graphics.Sprites;
 using Sacred.Engine.Graphics.Swapchain;
@@ -18,6 +19,8 @@ using Sacred.Engine.Rendering;
 using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
 using Sacred.Shaders;
+using Sacred.World;
+using Sacred.World.Geometry;
 using Vortice;
 using Vortice.Direct3D;
 using Vortice.Direct3D12;
@@ -32,14 +35,16 @@ public sealed class Dx12Renderer : IDisposable
 {
     private const int FrameCount = 2;
     private const int MaxSectorTextures = 32;
-    private const int MaxSectorTextureDescriptors = MaxSectorTextures * 2;
+    private const int MaxSectorTextureDescriptors = MaxSectorTextures * 4;
     private const int MaxModelTextures = 128;
     private const int DebugOverlaySrvSlot = MaxSectorTextureDescriptors;
     private const int ControlsOverlaySrvSlot = DebugOverlaySrvSlot + 1;
     private const int ScreenSrvSlot = ControlsOverlaySrvSlot + 1;
     private const int FirstModelTextureSrvSlot = ScreenSrvSlot + 1;
     private const int FirstStaticSpriteSrvSlot = FirstModelTextureSrvSlot + MaxModelTextures;
-    private const int SrvDescriptorCount = FirstStaticSpriteSrvSlot + Dx12SpritePass.MaximumTextureCount;
+    private const int FirstMinimapSrvSlot = FirstStaticSpriteSrvSlot + Dx12SpritePass.MaximumTextureCount;
+    private const int SrvDescriptorCount =
+        FirstMinimapSrvSlot + Dx12MinimapPass.DescriptorsPerFrame * FrameCount;
     private static readonly TimeSpan ResizeDebounce = TimeSpan.FromMilliseconds(150);
 
     private const Format DepthBufferFormat = Format.D32_Float;
@@ -56,6 +61,7 @@ public sealed class Dx12Renderer : IDisposable
     private readonly Dx12TextureUploader _textureUploader;
     private readonly Dx12ScreenPass _screenPass;
     private readonly Action _shaderReloadHandler;
+    private TaskCompletionSource? _worldPreparationCompletion;
 
     private TerrainRenderer? _terrain;
     private Dx12SectorTextureCache? _sectorTextureCache;
@@ -63,6 +69,7 @@ public sealed class Dx12Renderer : IDisposable
     private Dx12ModelGeometryCache? _modelGeometryCache;
     private Dx12ModelPass? _modelPass;
     private Dx12SpritePass? _spritePass;
+    private Dx12MinimapPass? _minimapPass;
 
     private Dx12DebugOverlay _debugOverlay = null!;
     private IDXGIFactory2 _factory = null!;
@@ -96,11 +103,16 @@ public sealed class Dx12Renderer : IDisposable
     private long _lastResizeRequestTimestamp;
     private bool _worldInitialized;
 
-    public Dx12Renderer(Win32Window window, string gameDirectory, LowLatencySystem latency)
+    public Dx12Renderer(
+        Win32Window window,
+        string gameDirectory,
+        LowLatencySystem latency,
+        bool hdrEnabled = false)
     {
         _window = window;
         _gameDirectory = gameDirectory;
         _latency = latency;
+        _requestedSwapChainMode = hdrEnabled ? Dx12SwapChainMode.Hdr : Dx12SwapChainMode.Sdr;
         _shaderReloadHandler = RequestShaderReload;
 
         for (var i = FirstModelTextureSrvSlot + MaxModelTextures - 1; i >= FirstModelTextureSrvSlot; i--)
@@ -123,14 +135,35 @@ public sealed class Dx12Renderer : IDisposable
 
     public bool VariableRefreshRateSupported => _allowTearing;
 
+    public bool IsHdrEnabled => _swapChain is Dx12HdrSwapChain;
+
     public bool WorldInitialized => _worldInitialized;
 
     public WorldPreparationStatus LastWorldPreparationStatus { get; private set; } =
         WorldPreparationStatus.NotStarted;
 
-    public void InitializeWorld(AssetManager assets)
+    /// <summary>
+    /// Begins tracking the initial visible-world preparation. Sector streaming starts with the
+    /// request's world, and loading-screen frames drive the corresponding GPU composition work.
+    /// The returned task finishes only once both are ready for the first in-game frame.
+    /// </summary>
+    public async Task StartWorldPreparation()
+    {
+        EnsureWorldInitialized();
+        if (_worldPreparationCompletion is null)
+        {
+            Console.WriteLine("World preparation started: sector loading and GPU uploads are running during game load.");
+            _worldPreparationCompletion = new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+
+        await _worldPreparationCompletion.Task;
+    }
+
+    public void InitializeWorld(AssetManager assets, SacredWorldArchive worldArchive)
     {
         ArgumentNullException.ThrowIfNull(assets);
+        ArgumentNullException.ThrowIfNull(worldArchive);
         if (_worldInitialized)
             throw new InvalidOperationException("The renderer's world resources are already initialized.");
 
@@ -149,6 +182,18 @@ public sealed class Dx12Renderer : IDisposable
             _srvDescriptorSize,
             FirstStaticSpriteSrvSlot,
             FrameCount);
+        _minimapPass = new Dx12MinimapPass(
+            _commandList,
+            _textureUploader,
+            _srvHeap,
+            _srvDescriptorSize,
+            FirstMinimapSrvSlot,
+            FrameCount,
+            assets,
+            coord => worldArchive.TryGetMinimapTextureName(coord, out var textureName)
+                ? textureName
+                : null,
+            _gameDirectory);
         _modelTextureCache = new Dx12ModelTextureCache(
             assets,
             _textureUploader,
@@ -195,6 +240,7 @@ public sealed class Dx12Renderer : IDisposable
         IReadOnlyList<TerrainSectorComposition>? sectorImages = null;
         IReadOnlyList<TerrainLiquidSprite>? liquidSprites = null;
         IReadOnlyList<TerrainStaticSprite>? staticSprites = null;
+        IReadOnlyList<TerrainWorldLight>? worldLights = null;
         if (worldPreload is not null)
         {
             EnsureWorldInitialized();
@@ -202,6 +248,7 @@ public sealed class Dx12Renderer : IDisposable
             sectorImages = _terrain!.PrepareVisibleWorld(worldPreload.World);
             liquidSprites = _terrain.PrepareVisibleLiquidSprites();
             staticSprites = _terrain.PrepareVisibleStaticSprites();
+            worldLights = _terrain.VisibleWorldLights;
             _sectorTextureCache!.PrepareFrame(sectorImages, CurrentFrame, frameId);
         }
 
@@ -214,6 +261,7 @@ public sealed class Dx12Renderer : IDisposable
             _spritePass!.PrepareTextures(
                 liquidSprites!,
                 staticSprites!,
+                worldLights!,
                 CurrentFrame,
                 _terrain!.WorldSpriteRevision);
             UpdateWorldPreparationStatus(worldPreload.World, sectorImages!);
@@ -221,6 +269,44 @@ public sealed class Dx12Renderer : IDisposable
 
         _latency.Mark(LatencyMarker.RenderSubmitStart, frameId);
         RecordScreenPass();
+        SubmitAndPresent(verticalSyncEnabled, frameId);
+    }
+
+    public async ValueTask RenderWorldMapAsync(
+        WorldMapFrame map,
+        bool verticalSyncEnabled,
+        ulong frameId,
+        CancellationToken cancellationToken = default)
+    {
+        ReloadShadersIfRequested();
+        ResizeIfNeeded();
+        await BeginFrameAsync(cancellationToken);
+
+        CurrentFrame.CommandAllocator.Reset();
+        _commandList.Reset(CurrentFrame.CommandAllocator, _pipelineState);
+        _screenPass.Prepare(map.Map, CurrentFrame);
+        if (map.Overlay.MinimapVisible)
+        {
+            _minimapPass!.Prepare(
+                map.Overlay.TargetWorldPosition,
+                map.Overlay.DifficultyDisplayName,
+                CurrentFrame);
+        }
+        else if (map.Overlay.TargetMarkerVisible)
+        {
+            _minimapPass!.PrepareTargetMarker(CurrentFrame);
+        }
+
+        var drawWidth = map.Map.Width * map.Zoom;
+        var drawHeight = map.Map.Height * map.Zoom;
+        var destination = new Vector4(
+            _renderWidth * 0.5f - map.Center.X * map.Zoom,
+            _renderHeight * 0.5f - map.Center.Y * map.Zoom,
+            drawWidth,
+            drawHeight);
+
+        _latency.Mark(LatencyMarker.RenderSubmitStart, frameId);
+        RecordScreenPass(destination, () => RecordWorldMapOverlay(map.Overlay));
         SubmitAndPresent(verticalSyncEnabled, frameId);
     }
 
@@ -243,6 +329,7 @@ public sealed class Dx12Renderer : IDisposable
         var sectorImages = _terrain!.PrepareVisibleWorld(world);
         var liquidSprites = _terrain.PrepareVisibleLiquidSprites();
         var staticSprites = _terrain.PrepareVisibleStaticSprites();
+        var worldLights = _terrain.VisibleWorldLights;
         _sectorTextureCache!.PrepareFrame(sectorImages, CurrentFrame, frameId);
 
         CurrentFrame.CommandAllocator.Reset();
@@ -251,8 +338,11 @@ public sealed class Dx12Renderer : IDisposable
         _spritePass!.PrepareTextures(
             liquidSprites,
             staticSprites,
+            worldLights,
             CurrentFrame,
             _terrain!.WorldSpriteRevision);
+        if (scene.Minimap.IsVisible)
+            _minimapPass!.Prepare(camera.WorldCenter, scene.Minimap.DifficultyDisplayName, CurrentFrame);
 
         var modelTextureStats = _modelTextureCache.Stats;
 
@@ -270,7 +360,7 @@ public sealed class Dx12Renderer : IDisposable
                 modelTextureStats.Failed,
                 framePacingStatus),
             CurrentFrame.TransientResources);
-        RecordWorldPass(camera, sectorImages, liquidSprites, staticSprites, scene);
+        RecordWorldPass(camera, sectorImages, liquidSprites, staticSprites, worldLights, scene);
         SubmitAndPresent(verticalSyncEnabled, frameId);
     }
 
@@ -281,7 +371,7 @@ public sealed class Dx12Renderer : IDisposable
             : Dx12SwapChainMode.Hdr;
 
         RecreateSwapChain(nextMode);
-        return _swapChain is Dx12HdrSwapChain;
+        return IsHdrEnabled;
     }
 
     public void Dispose()
@@ -302,6 +392,7 @@ public sealed class Dx12Renderer : IDisposable
         _modelGeometryCache?.Dispose();
         _modelTextureCache?.Dispose();
         _spritePass?.Dispose();
+        _minimapPass?.Dispose();
         DisposeBackBuffers();
         DisposePipelineResources();
         _fence.Dispose();
@@ -441,33 +532,31 @@ public sealed class Dx12Renderer : IDisposable
             return;
         }
 
-        var shaders = Dx12RendererPipelineFactory.Compile(_swapChain.Shaders);
+        var shaders = Dx12RendererPipelineFactory.Compile(
+            _swapChain.Shaders,
+            _swapChain is Dx12HdrSwapChain);
         CreatePipeline(shaders);
     }
 
-    private void CreatePipeline(Dx12CompiledShaderSet shaders)
+    private void CreatePipeline(Dx12CompiledRendererPipelines shaders)
     {
         CreateTerrainPipeline(shaders.Terrain);
 
-        var staticSprites = Dx12RendererPipelineFactory.CreateStaticSprites(
-            _device, shaders, _swapChain.BackBufferFormat, DepthBufferFormat);
+        var staticSprites = Dx12RendererPipelineFactory.Create(
+            _device, shaders.StaticSprites, _swapChain.BackBufferFormat, DepthBufferFormat);
         _spritePass!.SetPipeline(staticSprites);
 
-        var models = Dx12RendererPipelineFactory.CreateModels(
-            _device,
-            shaders,
-            _swapChain.BackBufferFormat,
-            DepthBufferFormat,
-            _swapChain is Dx12HdrSwapChain);
+        var models = Dx12RendererPipelineFactory.Create(
+            _device, shaders.Models, _swapChain.BackBufferFormat, DepthBufferFormat);
         _modelPass!.SetPipeline(models);
     }
 
-    private void CreateTerrainPipeline(Dx12CompiledTerrainShaderSet shaders)
+    private void CreateTerrainPipeline(Dx12CompiledPipelineGroup shaders)
     {
-        var terrain = Dx12RendererPipelineFactory.CreateTerrain(_device, shaders, _swapChain.BackBufferFormat);
+        var terrain = Dx12RendererPipelineFactory.Create(_device, shaders, _swapChain.BackBufferFormat);
         _rootSignature = terrain.RootSignature;
-        _pipelineState = terrain.Base;
-        _terrainLiquidCoverPipelineState = terrain.LiquidCover;
+        _pipelineState = terrain[Dx12PipelineKind.Terrain];
+        _terrainLiquidCoverPipelineState = terrain[Dx12PipelineKind.TerrainLiquidCover];
     }
 
     private void RequestShaderReload() => Interlocked.Exchange(ref _shaderReloadPending, 1);
@@ -481,7 +570,9 @@ public sealed class Dx12Renderer : IDisposable
         {
             // Compile first so a shader error leaves the currently rendered pipelines intact.
             var shaders = _worldInitialized
-                ? Dx12RendererPipelineFactory.Compile(_swapChain.Shaders)
+                ? Dx12RendererPipelineFactory.Compile(
+                    _swapChain.Shaders,
+                    _swapChain is Dx12HdrSwapChain)
                 : null;
             var terrainShaders = shaders?.Terrain
                 ?? Dx12RendererPipelineFactory.CompileTerrain(_swapChain.Shaders);
@@ -574,7 +665,7 @@ public sealed class Dx12Renderer : IDisposable
         CreateDepthBuffer();
     }
 
-    private void RecordScreenPass()
+    private void RecordScreenPass(Vector4? destinationRectangle = null, Action? recordOverlay = null)
     {
         var frameIndex = _swapChain.CurrentBackBufferIndex;
         var backBuffer = _backBuffers[frameIndex];
@@ -585,13 +676,51 @@ public sealed class Dx12Renderer : IDisposable
         _commandList.OMSetRenderTargets(rtv, null);
         _commandList.ClearRenderTargetView(rtv, new Color4(0.0f, 0.0f, 0.0f, 1.0f));
         _commandList.SetDescriptorHeaps(1, _shaderVisibleDescriptorHeaps);
-        _screenPass.Record(
-            _rootSignature,
-            _pipelineState,
-            _renderWidth,
-            _renderHeight,
-            _swapChain.DisplayProfile.UiPaperWhiteNits);
+        if (destinationRectangle is { } destination)
+        {
+            _screenPass.Record(
+                _rootSignature,
+                _pipelineState,
+                _renderWidth,
+                _renderHeight,
+                _swapChain.DisplayProfile.UiPaperWhiteNits,
+                destination);
+        }
+        else
+        {
+            _screenPass.Record(
+                _rootSignature,
+                _pipelineState,
+                _renderWidth,
+                _renderHeight,
+                _swapChain.DisplayProfile.UiPaperWhiteNits);
+        }
+        recordOverlay?.Invoke();
         Transition(backBuffer, ResourceStates.RenderTarget, ResourceStates.Present);
+    }
+
+    private void RecordWorldMapOverlay(WorldMapOverlay overlay)
+    {
+        if (overlay.MinimapVisible)
+        {
+            _minimapPass!.Record(
+                _rootSignature,
+                _pipelineState,
+                _renderWidth,
+                _renderHeight,
+                _swapChain.DisplayProfile.UiPaperWhiteNits);
+        }
+
+        if (overlay.TargetMarkerVisible)
+        {
+            _minimapPass!.RecordTargetMarker(
+                _rootSignature,
+                _pipelineState,
+                overlay.TargetScreenPosition,
+                _renderWidth,
+                _renderHeight,
+                _swapChain.DisplayProfile.UiPaperWhiteNits);
+        }
     }
 
     private void UpdateWorldPreparationStatus(
@@ -612,6 +741,11 @@ public sealed class Dx12Renderer : IDisposable
             sectorImagesUploaded,
             sourceAssetsReady,
             spriteTexturesUploaded);
+        if (LastWorldPreparationStatus.IsReady)
+        {
+            if (_worldPreparationCompletion?.TrySetResult() == true)
+                Console.WriteLine("World preparation completed.");
+        }
     }
 
     private void EnsureWorldInitialized()
@@ -636,6 +770,7 @@ public sealed class Dx12Renderer : IDisposable
         IReadOnlyList<TerrainSectorComposition> sectorImages,
         IReadOnlyList<TerrainLiquidSprite> liquidSprites,
         IReadOnlyList<TerrainStaticSprite> staticSprites,
+        IReadOnlyList<TerrainWorldLight> worldLights,
         SceneState scene)
     {
         var frameIndex = _swapChain.CurrentBackBufferIndex;
@@ -657,6 +792,7 @@ public sealed class Dx12Renderer : IDisposable
             camera,
             liquidSprites,
             staticSprites,
+            worldLights,
             CurrentFrame,
             _renderWidth,
             _renderHeight,
@@ -710,30 +846,89 @@ public sealed class Dx12Renderer : IDisposable
                 scene.Lighting.WorldQuadAmbientIntensity,
                 true,
                 constants);
+
+            if (scene.Debug.StairsMapVisible && image.HasStairsDebugData)
+            {
+                var debugPosition = screenTransform.ToScreen(
+                    image.IsoX + image.StairsDebugOffsetX,
+                    image.IsoY + image.StairsDebugOffsetY);
+                RecordTerrainLayer(
+                    texture.StairsDebugSrvSlot,
+                    debugPosition.X,
+                    debugPosition.Y,
+                    screenTransform.Scale(image.StairsDebugWidth),
+                    screenTransform.Scale(image.StairsDebugHeight),
+                    1.0f,
+                    true,
+                    constants);
+            }
+
+            if (scene.Debug.BlockedAreasVisible && image.HasBlockedAreaDebugData)
+            {
+                var debugPosition = screenTransform.ToScreen(
+                    image.IsoX + image.BlockedAreaDebugOffsetX,
+                    image.IsoY + image.BlockedAreaDebugOffsetY);
+                RecordTerrainLayer(
+                    texture.BlockedAreaDebugSrvSlot,
+                    debugPosition.X,
+                    debugPosition.Y,
+                    screenTransform.Scale(image.BlockedAreaDebugWidth),
+                    screenTransform.Scale(image.BlockedAreaDebugHeight),
+                    1.0f,
+                    true,
+                    constants);
+            }
         }
 
         var dsv = DsvHandle();
         _commandList.OMSetRenderTargets(rtv, dsv);
         _commandList.ClearDepthStencilView(dsv, ClearFlags.Depth, 1.0f, 0, 0, Array.Empty<RawRect>());
+        _modelPass!.RecordShadows(
+            camera,
+            scene.Models,
+            scene.Lighting,
+            CurrentFrame.Index);
         _spritePass.RecordStatic(
             spriteBatch,
             scene.Lighting.WorldQuadAmbientIntensity,
             _swapChain.DisplayProfile.ScenePaperWhiteNits,
+            scene.Lighting.UnlitStaticSpriteWhiteNits,
             CurrentFrame,
             _renderWidth,
             _renderHeight);
-        _modelPass!.Record(
+        _modelPass.Record(
             camera,
             scene.Models,
             scene.Lighting,
             _swapChain.DisplayProfile,
             CurrentFrame.Index);
 
+        // World light halos are screen-space overlays in the original renderer.
+        // Record them after every depth-tested world object so they cannot be occluded.
+        _commandList.OMSetRenderTargets(rtv, null);
+        _spritePass.RecordLights(
+            spriteBatch,
+            scene.Lighting.NightBlend,
+            _swapChain.DisplayProfile.ScenePaperWhiteNits,
+            scene.Lighting.UnlitStaticSpriteWhiteNits,
+            CurrentFrame,
+            _renderWidth,
+            _renderHeight);
+
         _commandList.SetGraphicsRootSignature(_rootSignature);
         _commandList.SetPipelineState(_pipelineState);
 
         _commandList.OMSetRenderTargets(rtv, null);
         _debugOverlay!.RecordDebugOverlay(_renderWidth, _renderHeight, _swapChain.DisplayProfile.UiPaperWhiteNits);
+        if (scene.Minimap.IsVisible)
+        {
+            _minimapPass!.Record(
+                _rootSignature,
+                _pipelineState,
+                _renderWidth,
+                _renderHeight,
+                _swapChain.DisplayProfile.UiPaperWhiteNits);
+        }
 
         Transition(backBuffer, ResourceStates.RenderTarget, ResourceStates.Present);
     }

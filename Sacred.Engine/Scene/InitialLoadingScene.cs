@@ -22,6 +22,7 @@ internal sealed class InitialLoadingScene : IGameScene
         _loads = new ResourceLoadSequence(resources.CreateInitialLoadSteps());
         _rasterizer = new LoadingScreenRasterizer(
             Path.Combine(resources.PakDirectory, "LoadingUW00.bmp"),
+            Path.Combine(resources.PakDirectory, "loadgame.bmp"),
             gameDirectory);
         _onLoaded = onLoaded ?? throw new ArgumentNullException(nameof(onLoaded));
         _screen = _rasterizer.Rasterize(0.0, _loads.CurrentItem);

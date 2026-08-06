@@ -25,7 +25,9 @@ SamplerState model_sampler : register(s0);
 static const float texture_mode_has_texture_threshold = 0.5f;
 static const float texture_mode_multitexture_fill_threshold = 2.5f;
 static const float texture_animation_scroll_mode_threshold = 0.25f;
-static const float texture_animation_clamp_mode_threshold = 0.60f;
+static const float texture_animation_radial_sweep_mode_threshold = 0.60f;
+static const float texture_animation_black_key_threshold = 0.03f;
+static const float texture_animation_black_key_scale = 12.0f;
 static const float effect_alpha_cutoff = 0.015f;
 static const float multitexture_fill_alpha_threshold = 0.85f;
 static const float multitexture_fill_alpha_scale = 8.0f;
@@ -47,6 +49,7 @@ struct vs_output
     float2 tex_coord : TEXCOORD0;
     float3 world_position : TEXCOORD1;
     float3 normal : TEXCOORD2;
+    float3 local_position : TEXCOORD3;
 };
 
 float3 safe_normalize(float3 value, float3 fallback)
@@ -75,9 +78,9 @@ bool uses_scroll_black_key_animation()
     return frac(texture_animation_value()) > texture_animation_scroll_mode_threshold;
 }
 
-bool uses_clamped_scroll_animation()
+bool uses_radial_sweep_animation()
 {
-    return frac(texture_animation_value()) > texture_animation_clamp_mode_threshold;
+    return frac(texture_animation_value()) > texture_animation_radial_sweep_mode_threshold;
 }
 
 float2 animated_tex_coord(float2 tex_coord)
@@ -85,27 +88,36 @@ float2 animated_tex_coord(float2 tex_coord)
     if (uses_scroll_black_key_animation())
     {
         float y = tex_coord.y + texture_flags.w;
-        if (uses_clamped_scroll_animation())
-            return float2(saturate(tex_coord.x), tex_coord.y + frac(texture_flags.w));
-
         return float2(saturate(tex_coord.x), frac(y));
     }
 
     return tex_coord;
 }
 
-float animated_tex_alpha_scale(float2 tex_coord)
-{
-    if (!uses_clamped_scroll_animation())
-        return 1.0f;
-
-    float y = tex_coord.y + frac(texture_flags.w);
-    return y >= 0.0f && y <= 1.0f ? 1.0f : 0.0f;
-}
-
 float4 sample_animated_overlay(float2 tex_coord)
 {
-    return model_overlay_texture.Sample(model_sampler, animated_tex_coord(tex_coord));
+    if (uses_radial_sweep_animation())
+        return model_overlay_texture.Sample(model_sampler, tex_coord);
+
+    float4 color = model_overlay_texture.Sample(model_sampler, animated_tex_coord(tex_coord));
+    if (uses_scroll_black_key_animation())
+    {
+        float brightness = max(max(color.r, color.g), color.b);
+        color.a *= saturate((brightness - texture_animation_black_key_threshold) * texture_animation_black_key_scale);
+    }
+
+    return color;
+}
+
+float4 spatial_sweep_effect(float4 effect_color, float3 local_position)
+{
+    float radial_progress = saturate(
+        length(local_position.xz - model_color.xy) * model_color.z);
+    float sweep_position = frac(texture_flags.w);
+    float glow = 1.0f - smoothstep(0.07f, 0.19f, abs(radial_progress - sweep_position));
+    float alpha = saturate(effect_color.a + glow * 0.38f);
+    float3 color = saturate(effect_color.rgb * (1.0f + glow * 1.9f));
+    return float4(color, alpha);
 }
 
 float4 visible_effect_color(float4 color)
@@ -139,6 +151,7 @@ vs_output vs_main(vs_input input)
     output.tex_coord = input.tex_coord;
     output.world_position = world_position.xyz;
     output.normal = safe_normalize(mul(float4(input.normal, 0.0f), world).xyz, float3(0.0f, 0.0f, 1.0f));
+    output.local_position = input.position;
     return output;
 }
 
@@ -153,7 +166,10 @@ float4 ps_main(vs_output input) : SV_Target
     // "glow" effects should not be affected by light, immediately return
     if (base_color.a < effect_alpha_cutoff)
     {
-        return visible_effect_color(sample_animated_overlay(input.tex_coord));
+        float4 effect_color = sample_animated_overlay(input.tex_coord);
+        return uses_radial_sweep_animation()
+            ? spatial_sweep_effect(effect_color, input.local_position)
+            : visible_effect_color(effect_color);
     }
 
     float3 normal = safe_normalize(input.normal, float3(0.0f, 0.0f, 1.0f));

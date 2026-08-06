@@ -10,7 +10,7 @@ public sealed class GrnAnimatedMesh
 {
     private readonly GrnMeshSkin _skin;
     private readonly int[] _animationBoneBySkinBone;
-    private readonly Matrix4x4[] _animationLocals;
+    private Matrix4x4[] _animationLocals = [];
     private readonly Matrix4x4[] _currentWorldTransforms;
     private readonly Matrix4x4[] _skinTransforms;
     private readonly Matrix4x4[] _rigidSkinTransforms;
@@ -22,27 +22,36 @@ public sealed class GrnAnimatedMesh
             throw new ArgumentException("The skin vertex count does not match the source mesh.", nameof(skin));
 
         _skin = skin;
-        Animation = animation;
         Mesh = sourceMesh.CreateInstance();
         _animationBoneBySkinBone = new int[skin.Skeleton.Bones.Length];
-        Array.Fill(_animationBoneBySkinBone, -1);
-        for (var skinBoneIndex = 0; skinBoneIndex < skin.Skeleton.Bones.Length; skinBoneIndex++)
-        {
-            var name = skin.Skeleton.Bones[skinBoneIndex].Name;
-            if (!string.IsNullOrWhiteSpace(name) && animation.Skeleton.TryFindBone(name, out var animationBoneIndex))
-                _animationBoneBySkinBone[skinBoneIndex] = animationBoneIndex;
-        }
-
-        _animationLocals = new Matrix4x4[animation.Skeleton.Bones.Length];
         _currentWorldTransforms = new Matrix4x4[skin.Skeleton.Bones.Length];
         _skinTransforms = new Matrix4x4[skin.Skeleton.Bones.Length];
         _rigidSkinTransforms = new Matrix4x4[skin.Skeleton.Bones.Length];
         _worldTransformStates = new byte[skin.Skeleton.Bones.Length];
+        SetAnimation(animation);
     }
 
     public Mesh Mesh { get; }
 
-    public GrnAnimationClip Animation { get; }
+    public GrnAnimationClip Animation { get; private set; } = null!;
+
+    /// <summary>Changes clips without replacing the mutable scene mesh.</summary>
+    public void SetAnimation(GrnAnimationClip animation)
+    {
+        ArgumentNullException.ThrowIfNull(animation);
+
+        Animation = animation;
+        if (_animationLocals.Length != animation.Skeleton.Bones.Length)
+            _animationLocals = new Matrix4x4[animation.Skeleton.Bones.Length];
+
+        Array.Fill(_animationBoneBySkinBone, -1);
+        for (var skinBoneIndex = 0; skinBoneIndex < _skin.Skeleton.Bones.Length; skinBoneIndex++)
+        {
+            var name = _skin.Skeleton.Bones[skinBoneIndex].Name;
+            if (!string.IsNullOrWhiteSpace(name) && animation.Skeleton.TryFindBone(name, out var animationBoneIndex))
+                _animationBoneBySkinBone[skinBoneIndex] = animationBoneIndex;
+        }
+    }
 
     /// <summary>
     /// Applies the current rigid skin transform for a named bone to a point expressed in the

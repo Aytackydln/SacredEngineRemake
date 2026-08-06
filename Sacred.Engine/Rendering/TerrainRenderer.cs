@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Numerics;
 using System.Threading.Tasks;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Core.World.Sector;
@@ -25,6 +26,7 @@ public sealed class TerrainRenderer
 
     public TerrainRenderStats LastStats { get; private set; }
     public ulong WorldSpriteRevision { get; private set; }
+    public IReadOnlyList<TerrainWorldLight> VisibleWorldLights { get; private set; } = [];
     public bool HasPendingSpriteAssetRequests =>
         _staticSpriteBuilder.HasPendingAssetRequests || _liquidSpriteBuilder.HasPendingAssetRequests;
 
@@ -106,10 +108,14 @@ public sealed class TerrainRenderer
 
     public IReadOnlyList<TerrainStaticSprite> PrepareVisibleStaticSprites()
     {
-        var preparation = _staticSpriteBuilder.Prepare(_candidateSectors, _worldChangedThisFrame);
+        var preparation = _staticSpriteBuilder.Prepare(
+            _candidateSectors,
+            _worldChangedThisFrame,
+            true);
         if (!preparation.Changed)
             return preparation.Sprites;
 
+        VisibleWorldLights = preparation.Lights;
         WorldSpriteRevision++;
         LastStats = LastStats with
         {
@@ -205,6 +211,7 @@ public sealed class TerrainRenderer
 
 public readonly record struct TerrainStaticSprite(
     StaticSpriteAsset Sprite,
+    bool IsUnlit,
     float IsoX,
     float IsoY,
     float DepthX,
@@ -216,6 +223,14 @@ public readonly record struct TerrainStaticSprite(
     int TileWorldX,
     int ChainDepth,
     int InsertionOrder);
+
+public readonly record struct TerrainWorldLight(
+    StaticSpriteAsset EmitterSprite,
+    float IsoX,
+    float IsoY,
+    float Diameter,
+    Vector3 Colour,
+    float Opacity);
 
 public readonly record struct TerrainLiquidSprite(
     TextureFrameSequenceAsset Animation,

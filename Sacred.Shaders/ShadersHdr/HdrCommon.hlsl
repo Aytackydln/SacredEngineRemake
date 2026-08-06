@@ -40,6 +40,27 @@ float3 SdrTextureToHdr10(float3 color, float paper_white_nits)
     return LinearNitsToPQ(Linear709To2020(nits709));
 }
 
+float3 SdrLitTextureToHdr10(
+    float3 base_color,
+    float3 ambient,
+    float3 diffuse,
+    float3 specular,
+    float paper_white_nits,
+    float diffuse_white_nits,
+    float specular_white_nits)
+{
+    // Sacred's SDR renderer applies its lighting to the encoded texture color.
+    // Preserve that response before converting to PQ; applying small night-light
+    // factors after decoding to linear makes dark models substantially brighter.
+    float safe_paper_white = max(paper_white_nits, 0.000001f);
+    float diffuse_scale = max(diffuse_white_nits, 0.0f) / safe_paper_white;
+    float specular_scale = max(specular_white_nits, 0.0f) / safe_paper_white;
+    float3 lit_color =
+        base_color * (ambient + diffuse * diffuse_scale) +
+        specular * specular_scale;
+    return SdrTextureToHdr10(saturate(lit_color), safe_paper_white);
+}
+
 float3 Linear709NitsToHdr10(float3 nits709)
 {
     return LinearNitsToPQ(Linear709To2020(max(nits709, 0.0f)));

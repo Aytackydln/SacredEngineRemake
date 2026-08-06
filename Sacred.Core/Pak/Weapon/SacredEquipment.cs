@@ -77,7 +77,6 @@ internal readonly struct SacredEquipmentLayout
 // debug view with ItemId, Name, Width, Height, TypeIdentifier
 [DebuggerDisplay("{IdemId}: {Name}, Class = {EffectiveCharacterClassMask}, Type = {EquipmentType}, RarityTier = {RarityTier}")]
 public readonly record struct SacredEquipment(
-    SacredPakLocation PakLocation, // location of the entry in the pak file, useful for debugging and lookup
     ItemsPakEntry Item,
     ushort Short1, // 2 bytes at offset 0
     Vector3 PreviewRotation, // candidate item preview rotation: three unaligned floats at offsets 2, 6, and 10 in radians
@@ -103,8 +102,8 @@ public readonly record struct SacredEquipment(
     public byte RarityTierCode => Classification.RarityTierCode;
     public SacredEquipmentRarityTier RarityTier => Classification.RarityTier;
     public byte ClassFlagCode => Classification.ClassFlagCode;
-    public SacredEquipmentLore InferredLore => Classification.InferLore();
-    public SacredEquipmentHandedness InferredHandedness => Classification.InferHandedness(UsageIdentifier);
+    public SacredEquipmentLore InferredLore => Classification.InferLore(Height);
+    public SacredEquipmentHandedness InferredHandedness => Classification.InferHandedness(UsageIdentifier, Height);
 
     public bool? InferredTwoHanded => InferredHandedness switch
     {
@@ -115,13 +114,9 @@ public readonly record struct SacredEquipment(
 
     public static SacredEquipment FromBytes(
         BinaryReader br,
-        SacredPakFile sacredFile,
         FrozenDictionary<ushort, ItemsPakEntry> items
     )
     {
-        var offset = br.BaseStream.Position;
-        var pakLocation = new SacredPakLocation(sacredFile, offset, SacredEquipmentLayout.Size);
-
         Span<byte> bytes = stackalloc byte[SacredEquipmentLayout.Size];
         br.BaseStream.ReadExactly(bytes);
 
@@ -139,9 +134,7 @@ public readonly record struct SacredEquipment(
             rarityAndClassFlags: layout.RarityAndClassFlags
         );
 
-        return new SacredEquipment(
-            PakLocation: pakLocation,
-            Item: item,
+        return new SacredEquipment(Item: item,
             Short1: layout.Short1,
             PreviewRotation: new Vector3(
                 layout.PreviewRotationX,

@@ -11,7 +11,8 @@ public readonly record struct ModelTextureReference(
     TextureAnimation Animation,
     string? OverlayTextureName = null,
     TextureAnimation OverlayAnimation = default,
-    TextureOverlayMode OverlayMode = TextureOverlayMode.None)
+    TextureOverlayMode OverlayMode = TextureOverlayMode.None,
+    bool OverlayCompositesInFront = false)
 {
     public static ModelTextureReference Static(string textureName) =>
         new(textureName, TextureAnimation.None);
@@ -20,7 +21,3 @@ public readonly record struct ModelTextureReference(
         !string.IsNullOrWhiteSpace(OverlayTextureName) &&
         OverlayMode != TextureOverlayMode.None;
 }
-
-public readonly record struct ModelTextureOverride(
-    string? EffectTextureName = null,
-    bool SuppressEffectOverlay = false);

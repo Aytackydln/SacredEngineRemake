@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Sacred.Core.Pak.Items;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
 
@@ -8,24 +9,36 @@ namespace Sacred.Engine.Rendering;
 internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
 {
     private const uint NormalRenderExcludeFlags = 0x290;
+    private const uint NightOnlyObjectFlag = 0x00000040;
+    private const uint UnlitGraphicFlag = 0x00020000;
     private const int ExteriorActiveLayer = 1;
     private const byte SpecialRenderClass = 0x0C;
     private const uint RearGraphicFlag = 0x00000004;
     private const uint FrontGraphicFlag = 0x00800000;
     private const float ObjectShiftX = 47.8f;
     private const float ObjectShiftY = -0.3f;
+    private const float LightHaloDiameterScale = 1.2f;
 
     private readonly List<TerrainStaticSprite> _visibleSprites = new(1024);
+    private readonly List<TerrainWorldLight> _visibleLights = new(64);
+    private readonly WorldLightAppearanceCache _lightAppearanceCache = new();
     private bool _assetRequestsPending = true;
+    private bool _nightObjectsVisible;
 
     public bool HasPendingAssetRequests => _assetRequestsPending;
 
-    public TerrainStaticPreparation Prepare(IReadOnlyList<Sector> sectors, bool worldChanged)
+    public TerrainStaticPreparation Prepare(
+        IReadOnlyList<Sector> sectors,
+        bool worldChanged,
+        bool nightObjectsVisible)
     {
-        if (!worldChanged && !_assetRequestsPending)
-            return new TerrainStaticPreparation(_visibleSprites, false, 0, 0);
+        var nightVisibilityChanged = _nightObjectsVisible != nightObjectsVisible;
+        _nightObjectsVisible = nightObjectsVisible;
+        if (!worldChanged && !nightVisibilityChanged && !_assetRequestsPending)
+            return new TerrainStaticPreparation(_visibleSprites, _visibleLights, false, 0, 0);
 
         _visibleSprites.Clear();
+        _visibleLights.Clear();
         var candidateObjects = 0;
         var missingObjects = 0;
         var requestsPending = false;
@@ -54,6 +67,8 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                         staticObject.SpriteParam2E,
                         staticObject.SpriteParam2F,
                         staticObject.OrientationOrFrame,
+                        staticObject.AnimationFrameDurationTicks,
+                        staticObject.AnimationFrameCount,
                         out sprite);
                     if (!ready)
                     {
@@ -79,8 +94,28 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                     continue;
                 }
 
+                var item = assets.GetItem(staticObject.TypeId);
+                if (item is { } lightItem &&
+                    _lightAppearanceCache.TryGet(lightItem, sprite, out var lightAppearance))
+                {
+                    var diameter = lightItem.ModelDesc.ModelExtent * LightHaloDiameterScale;
+                    _visibleLights.Add(new TerrainWorldLight(
+                        sprite,
+                        spriteIsoX + lightAppearance.CenterX - diameter * 0.5f,
+                        spriteIsoY + lightAppearance.CenterY - diameter * 0.5f,
+                        diameter,
+                        lightAppearance.Colour,
+                        lightAppearance.Opacity));
+                }
+
+                if ((staticObject.Flags & NightOnlyObjectFlag) != 0 &&
+                    !nightObjectsVisible &&
+                    sprite.FrameCount <= 1)
+                    continue;
+
                 _visibleSprites.Add(new TerrainStaticSprite(
                     sprite,
+                    IsUnlit(item),
                     spriteIsoX,
                     spriteIsoY,
                     footX,
@@ -97,8 +132,11 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
 
         _visibleSprites.Sort(CompareSprites);
         _assetRequestsPending = requestsPending;
-        return new TerrainStaticPreparation(_visibleSprites, true, candidateObjects, missingObjects);
+        return new TerrainStaticPreparation(_visibleSprites, _visibleLights, true, candidateObjects, missingObjects);
     }
+
+    private static bool IsUnlit(ItemsPakEntry? item) =>
+        (item?.GraphicRenderFlags & UnlitGraphicFlag) != 0;
 
     private static int CompareSprites(TerrainStaticSprite left, TerrainStaticSprite right)
     {
@@ -140,6 +178,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
 
 internal readonly record struct TerrainStaticPreparation(
     IReadOnlyList<TerrainStaticSprite> Sprites,
+    IReadOnlyList<TerrainWorldLight> Lights,
     bool Changed,
     int CandidateObjects,
     int MissingObjects);

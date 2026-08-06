@@ -9,6 +9,9 @@ public sealed class InputState
     private readonly HashSet<VirtualKey> _pressed = [];
     private Vector2? _leftClickPosition;
     private bool _leftMouseButtonReleased;
+    private bool _rightMouseButtonPressed;
+    private bool _rightMouseButtonReleased;
+    private bool _middleMouseButtonDown;
     private bool _xButtonCyclePressed;
     private int _mouseWheelDelta;
     
@@ -18,25 +21,39 @@ public sealed class InputState
 
     public double RightJoystickY { get; set; }
 
-    public bool GamepadMoveFaster { get; set; }
+    public bool GamepadWalk { get; set; }
+
+    public bool GamepadDefend { get; set; }
 
     public Vector2 MousePosition { get; private set; }
 
     public bool IsLeftMouseButtonDown { get; private set; }
 
+    public bool IsRightMouseButtonDown { get; private set; }
+
+    public bool IsMiddleMouseButtonDown => _middleMouseButtonDown;
+
+    public bool UsingController { get; private set; }
+
     public bool HasPendingLeftClick => _leftClickPosition.HasValue;
 
     public bool IsDown(VirtualKey key) => _down.Contains(key);
 
-    public bool IsMoveFasterDown => IsDown(VirtualKey.Shift) || GamepadMoveFaster;
+    public bool IsWalkModifierDown => IsDown(VirtualKey.Shift) || GamepadWalk;
+
+    public bool IsDefendDown => IsDown(VirtualKey.Control) || GamepadDefend;
 
     public bool ConsumePressed(VirtualKey key) => _pressed.Remove(key);
 
-    public void SetMousePosition(int x, int y) => MousePosition = new Vector2(x, y);
+    public void SetMousePosition(int x, int y)
+    {
+        MousePosition = new Vector2(x, y);
+    }
 
     public void SetLeftMouseButton(bool down, int x, int y)
     {
         SetMousePosition(x, y);
+        UsingController = false;
 
         if (down && !IsLeftMouseButtonDown)
             _leftClickPosition = MousePosition;
@@ -68,7 +85,54 @@ public sealed class InputState
         return true;
     }
 
-    public void PressXButtonCycle() => _xButtonCyclePressed = true;
+    public void SetRightMouseButton(bool down, int x, int y)
+    {
+        SetMousePosition(x, y);
+        UsingController = false;
+        if (down && !IsRightMouseButtonDown)
+            _rightMouseButtonPressed = true;
+        else if (!down && IsRightMouseButtonDown)
+            _rightMouseButtonReleased = true;
+
+        IsRightMouseButtonDown = down;
+    }
+
+    public bool ConsumeRightMouseButtonPressed()
+    {
+        if (!_rightMouseButtonPressed)
+            return false;
+
+        _rightMouseButtonPressed = false;
+        return true;
+    }
+
+    public bool ConsumeRightMouseButtonReleased()
+    {
+        if (!_rightMouseButtonReleased)
+            return false;
+
+        _rightMouseButtonReleased = false;
+        return true;
+    }
+
+    public void SetMiddleMouseButton(bool down, int x, int y)
+    {
+        SetMousePosition(x, y);
+        UsingController = false;
+        _middleMouseButtonDown = down;
+    }
+
+    public void DiscardPointerMovementEvents()
+    {
+        _leftClickPosition = null;
+        _leftMouseButtonReleased = false;
+    }
+
+    public void PressXButtonCycle()
+    {
+        UsingController = false;
+        _xButtonCyclePressed = true;
+    }
 
     public bool ConsumeXButtonCyclePressed()
     {
@@ -90,6 +154,7 @@ public sealed class InputState
 
     public void Set(VirtualKey key, bool down)
     {
+        UsingController = false;
         if (down)
         {
             if (_down.Add(key))
@@ -101,12 +166,16 @@ public sealed class InputState
         }
     }
 
+    public void MarkControllerInput() => UsingController = true;
+
     /// <summary>Discards one-shot events when input ownership moves to another scene.</summary>
     public void ClearTransientEvents()
     {
         _pressed.Clear();
         _leftClickPosition = null;
         _leftMouseButtonReleased = false;
+        _rightMouseButtonPressed = false;
+        _rightMouseButtonReleased = false;
         _xButtonCyclePressed = false;
         _mouseWheelDelta = 0;
     }

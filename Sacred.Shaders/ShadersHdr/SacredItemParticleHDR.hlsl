@@ -41,9 +41,10 @@ vs_output vs_main(vs_input input)
         float3 up = normalize(cross(right, camera_direction));
         float model_scale = length(mul(float4(1.0f, 0.0f, 0.0f, 0.0f), world).xyz);
         float size_scale = 1.0f;
-        if (texture_flags.y > 5.5f && texture_flags.y < 6.5f)
+        if (texture_flags.x > 5.5f && texture_flags.x < 6.5f)
         {
-            float cycle = frac(texture_flags.w * 1.8f + texture_flags.z);
+            float particle_phase = texture_flags.z + max(input.normal.z - 1.0f, 0.0f);
+            float cycle = frac(texture_flags.w * 1.8f + particle_phase);
             float pulse = saturate(sin(cycle * 3.14159265f));
             output.opacity = smoothstep(0.08f, 0.42f, pulse);
             size_scale = lerp(0.3f, 1.1f, pulse);
@@ -51,18 +52,28 @@ vs_output vs_main(vs_input input)
         world_position += (right * input.normal.x + up * input.normal.y) * model_scale * size_scale;
     }
     output.position = mul(float4(world_position, 1.0f), view_projection);
+    if (texture_flags.y >= 0.0f)
+    {
+        float painter_depth = texture_flags.y;
+        if (texture_flags.x > 4.5f && texture_flags.x < 5.5f)
+            painter_depth -= 0.00025f;
+        float4 projected_origin = mul(mul(float4(0.0f, 0.0f, 0.0f, 1.0f), world), view_projection);
+        float vertex_depth = output.position.z / max(output.position.w, 0.000001f);
+        float origin_depth = projected_origin.z / max(projected_origin.w, 0.000001f);
+        output.position.z = output.position.w * saturate(painter_depth + (vertex_depth - origin_depth) * 0.08f);
+    }
     output.tex_coord = input.tex_coord;
     return output;
 }
 
 float2 animated_tex_coord(float2 tex_coord)
 {
-    if (texture_flags.y > 1.5f && texture_flags.y < 2.5f)
+    if (texture_flags.x > 1.5f && texture_flags.x < 2.5f)
     {
         float frame = fmod(floor(texture_flags.w * 12.0f), 16.0f);
         return (tex_coord + float2(fmod(frame, 4.0f), floor(frame / 4.0f))) * 0.25f;
     }
-    if (texture_flags.y > 7.5f && texture_flags.y < 8.5f)
+    if (texture_flags.x > 7.5f && texture_flags.x < 8.5f)
     {
         float angle = texture_flags.w * 1.35f + texture_flags.z * 6.2831853f;
         float sine = sin(angle);
@@ -72,7 +83,7 @@ float2 animated_tex_coord(float2 tex_coord)
             centered.x * cosine - centered.y * sine,
             centered.x * sine + centered.y * cosine) + 0.5f;
     }
-    if (texture_flags.y > 3.5f && texture_flags.y < 4.5f)
+    if (texture_flags.x > 3.5f && texture_flags.x < 4.5f)
         tex_coord.x += sin(tex_coord.y * 11.0f + texture_flags.w * 7.0f) * 0.08f;
     return tex_coord;
 }
@@ -80,20 +91,26 @@ float2 animated_tex_coord(float2 tex_coord)
 float4 ps_main(vs_output input) : SV_Target
 {
     float4 sampled = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord));
-    float brightness = max(max(sampled.r, sampled.g), sampled.b);
-    bool uses_alpha = texture_flags.y > 2.5f && texture_flags.y < 4.5f;
-    float coverage = uses_alpha ? sampled.a : smoothstep(0.02f, 0.92f, brightness) * sampled.a;
+    bool uses_dense_composition = texture_flags.x > 4.5f && texture_flags.x < 7.5f;
+
+    // Dense elemental fields use a soft mask authored in the 0..0.6 alpha range.
+    // SDR builds its intensity by additively stacking many sprites. Reconstruct a
+    // narrow, full-strength core from the authored range so source-over stacking
+    // preserves that detail without broadening the whole soft mask.
+    float dense_coverage = saturate(sampled.a / 0.6f);
+    dense_coverage *= dense_coverage;
+    float coverage = uses_dense_composition ? dense_coverage : sampled.a;
     float alpha = coverage * model_color.a * input.opacity;
     if (alpha < 0.02f)
         discard;
-    // Preserve the authored SDR intensity. Normalizing by brightness and then
-    // boosting it made mid-bright fire texels reach the HDR peak; only an
-    // authored white texel should reach SunSpecularNits.
-    float3 texture_color = uses_alpha ? 1.0f : sampled.rgb;
+
+    // Alpha-authored streak textures carry their shape in alpha and are tinted by
+    // model_color. Dense elemental textures carry both shape and color in RGB.
+    float3 texture_color = uses_dense_composition ? sampled.rgb : 1.0f;
     float3 color = texture_color * model_color.rgb;
-    bool uses_max_composition = texture_flags.y > 4.5f && texture_flags.y < 7.5f;
-    float3 hdr_color = uses_max_composition
-        ? SdrTextureToPremultipliedHdr10(color, alpha, hdr_display.w)
-        : SdrTextureToHdr10(color, hdr_display.w);
+    // The render target is already PQ encoded, so its fixed-function blend unit
+    // also operates on PQ values. Premultiply in that same domain to preserve
+    // the authored coverage gradient during ordinary source-over composition.
+    float3 hdr_color = SdrTextureToHdr10(color, hdr_display.w) * alpha;
     return float4(hdr_color, alpha);
 }

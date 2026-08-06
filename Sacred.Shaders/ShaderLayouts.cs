@@ -32,6 +32,7 @@ public static class StaticSpriteShaderLayout
     public const int SceneConstantsRegister = 0; // HLSL: register(b0)
     public const int InstanceBufferRegister = 0; // HLSL: register(t0)
     public const int FirstTextureRegister = 1; // HLSL: register(t1)
+    public const int SamplerRegister = 0; // HLSL: register(s0)
 
     public const int SceneConstantsRootParameter = 0;
     public const int InstanceBufferRootParameter = 1;
@@ -41,6 +42,8 @@ public static class StaticSpriteShaderLayout
 public static class WorldQuadShaderLayout
 {
     public const int RootConstantsRegister = 0; // HLSL: register(b0)
+    public const int TextureRegister = 0; // HLSL: register(t0)
+    public const int SamplerRegister = 0; // HLSL: register(s0)
     public const int RootConstantsRootParameter = 0;
     public const int TextureRootParameter = 1;
     public const int RootConstantsCount = WorldQuadShaderConstants.FloatCount;

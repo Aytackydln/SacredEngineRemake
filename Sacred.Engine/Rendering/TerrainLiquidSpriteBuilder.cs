@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
-using Sacred.Engine.Scene;
+using Sacred.World.Geometry;
 
 namespace Sacred.Engine.Rendering;
 

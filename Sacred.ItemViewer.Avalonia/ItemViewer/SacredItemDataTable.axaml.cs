@@ -362,7 +362,7 @@ public partial class SacredItemDataTable : UserControl
             if (cancellationToken.IsCancellationRequested)
                 return;
 
-            var effectScene = EquipmentEffectSceneFactory.Create(asset, selectedItem.Damage);
+            var effectScene = EquipmentEffectSceneFactory.Create(asset, selectedItem.Damage) ?? EquipmentEffectScene.Empty;
 
             _modelViewer.ShowModel(
                 asset,
@@ -562,7 +562,6 @@ public partial class SacredItemDataTable : UserControl
                 selectedItem.TextureId,
                 selectedItem.EffectTextureId,
                 selectedItem.GraphicRenderFlags,
-                selectedItem.EffectAnimationRate,
                 modelHasEffectTextureSurface,
                 preferItemTexture,
                 textureName);

@@ -4,7 +4,6 @@ using System.Text;
 namespace Sacred.Core.Pak.Items;
 
 public readonly record struct ItemsPakEntryModelDesc(
-    SacredPakLocation PakLocation, // location of the entry in the pak file, useful for debugging and lookup
     ItemsPakEntryInfo EntryInfo,
     ushort SomeShort2, // 2 bytes at offset 9, purpose unknown
     uint GraphicRenderFlags, // 4 bytes at offset 0
@@ -17,7 +16,7 @@ public readonly record struct ItemsPakEntryModelDesc(
     ushort ModelExtent, // 2 bytes at offset 50; character rows contain values like 120..200
     string ModelName, // null-terminated string at 55, max length 32 bytes (including null terminator)
     uint EffectTextureId, // 4 bytes at offset 102; texture.pak descriptor index for model effect/fill/animated texture
-    ushort EffectAnimationRate // 2 bytes at offset 112; scroll speed scalar for animated effect textures
+    ushort Unknown112 // 2 bytes at offset 112; not the animated-texture speed
 )
 {
     private static readonly Encoding SacredEncoding = Encoding.GetEncoding("iso-8859-1");
@@ -44,7 +43,7 @@ public readonly record struct ItemsPakEntryModelDesc(
             if ((uint)layoutIndex >= (uint)layouts.Length)
                 throw new InvalidDataException($"Items pak model descriptor offset {entryInfo.ModelDescOffset} is outside the marshalled descriptor table.");
 
-            yield return FromLayout(pakFile, entryInfo, layouts[layoutIndex]);
+            yield return FromLayout(entryInfo, layouts[layoutIndex]);
         }
     }
 
@@ -65,18 +64,13 @@ public readonly record struct ItemsPakEntryModelDesc(
             .ToArray();
     }
 
-    private static ItemsPakEntryModelDesc FromLayout(
-        SacredPakFile pakFile,
-        ItemsPakEntryInfo entryInfo,
+    private static ItemsPakEntryModelDesc FromLayout(ItemsPakEntryInfo entryInfo,
         ItemsPakEntryModelDescLayout layout
     )
     {
-        var pakLocation = new SacredPakLocation(pakFile, entryInfo.ModelDescOffset, ItemsPakEntryModelDescLayout.Size);
         ReadOnlySpan<byte> modelNameBytes = layout.ModelNameBytes;
 
-        return new ItemsPakEntryModelDesc(
-            PakLocation: pakLocation,
-            EntryInfo: entryInfo,
+        return new ItemsPakEntryModelDesc(EntryInfo: entryInfo,
             SomeShort2: layout.SomeShort2,
             GraphicRenderFlags: layout.GraphicRenderFlags,
             TextureId: layout.TextureId,
@@ -88,7 +82,7 @@ public readonly record struct ItemsPakEntryModelDesc(
             ModelExtent: layout.ModelExtent,
             ModelName: ReadLocationString(modelNameBytes),
             EffectTextureId: layout.EffectTextureId,
-            EffectAnimationRate: layout.EffectAnimationRate
+            Unknown112: layout.Unknown112
         );
     }
 

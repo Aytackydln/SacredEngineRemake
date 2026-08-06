@@ -142,6 +142,37 @@ public sealed class ModelsPakArchive : IDisposable
             cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<GrnAnimationClip?> LoadCharacterAnimationAsync(
+        string baseModelName,
+        CharacterMotionKind kind,
+        CharacterMotionWeaponStyle weaponStyle,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_metadata.TryGetMotionName(baseModelName, kind, weaponStyle, out var motionName) ||
+            !_recordsByName.TryGetValue(motionName, out var animationRecord))
+        {
+            return null;
+        }
+
+        var baseRecord = FindRecord(baseModelName, cancellationToken);
+        var metadataPrefix = await ReadPayloadPrefixAsync(
+            _stream,
+            _streamLock,
+            baseRecord,
+            ModelScaleOffset + ModelScaleSize,
+            cancellationToken).ConfigureAwait(false);
+        var animationPayload = await ReadPayloadAsync(
+            _stream,
+            _streamLock,
+            animationRecord,
+            cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Granny1MeshExtractor.TryExtractAnimation(
+            animationPayload,
+            motionName,
+            ReadModelPayloadMetadata(metadataPrefix).Scale);
+    }
+
     private async Task<GrnAsset> LoadCharacterModelAsync(
         string baseModelName,
         IReadOnlyList<ModelAttachmentReference> attachments,

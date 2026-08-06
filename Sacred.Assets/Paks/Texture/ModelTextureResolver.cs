@@ -2,7 +2,9 @@ namespace Sacred.Assets.Paks.Texture;
 
 public static class ModelTextureResolver
 {
-    private const float ScrollSpeedScale = 1000.0f;
+    // Sacred's item descriptor value at offset 112 is unrelated to effect timing.
+    // Scrolling equipment materials use a common cadence in the game.
+    private const float EffectScrollCyclesPerSecond = 0.5f;
     // Equipment multitexture rows use this flag for scrolling fill effects without a frame-strip texture.
     private const uint MultitextureScrollEffectFlag = 0x0010_0000;
     private const uint VerticalScrollEffectFlag = 0x0020_0000;
@@ -13,7 +15,6 @@ public static class ModelTextureResolver
         uint itemTextureId,
         uint effectTextureId,
         uint graphicRenderFlags,
-        ushort effectAnimationRate,
         bool modelHasEffectTextureSurface,
         bool preferItemTexture,
         string? surfaceTextureName)
@@ -35,7 +36,8 @@ public static class ModelTextureResolver
                     CreateEffectAnimation(
                         textureArchive,
                         resolvedSurfaceName,
-                        effectAnimationRate));
+                        graphicRenderFlags,
+                        clampAtTextureEdges: false));
             }
 
             // Single-material GRNs commonly embed an export-time default; Items.pak selects the item variant.
@@ -51,7 +53,8 @@ public static class ModelTextureResolver
                     CreateEffectAnimation(
                         textureArchive,
                         effectTextureName,
-                        effectAnimationRate),
+                        graphicRenderFlags,
+                        ShouldClampOverlay(effectTextureId, graphicRenderFlags)),
                     TextureOverlayMode.MultiTextureFill);
             }
 
@@ -71,7 +74,8 @@ public static class ModelTextureResolver
                     CreateEffectAnimation(
                         textureArchive,
                         effectTextureName,
-                        effectAnimationRate),
+                        graphicRenderFlags,
+                        ShouldClampOverlay(effectTextureId, graphicRenderFlags)),
                     TextureOverlayMode.MultiTextureFill);
             }
 
@@ -86,7 +90,8 @@ public static class ModelTextureResolver
                 CreateEffectAnimation(
                     textureArchive,
                     effectTextureName,
-                    effectAnimationRate));
+                    graphicRenderFlags,
+                    clampAtTextureEdges: false));
 
         return string.IsNullOrWhiteSpace(surfaceTextureName)
             ? new ModelTextureReference(string.Empty, TextureAnimation.None)
@@ -96,16 +101,25 @@ public static class ModelTextureResolver
     private static TextureAnimation CreateEffectAnimation(
         TexturePakArchive textureArchive,
         string effectTextureName,
-        ushort effectAnimationRate)
+        uint graphicRenderFlags,
+        bool clampAtTextureEdges)
     {
-        if (effectAnimationRate == 0)
+        if ((graphicRenderFlags & (MultitextureScrollEffectFlag | VerticalScrollEffectFlag)) == 0)
             return TextureAnimation.None;
 
         if (!textureArchive.TryResolveTextureRecord(effectTextureName, out _))
             return TextureAnimation.None;
 
         return new TextureAnimation(
-            TextureAnimationMode.VerticalScrollBlackKey,
-            effectAnimationRate / ScrollSpeedScale);
+            clampAtTextureEdges
+                ? TextureAnimationMode.RadialSweepBlackKey
+                : TextureAnimationMode.VerticalScrollBlackKey,
+            EffectScrollCyclesPerSecond);
     }
+
+    private static bool ShouldClampOverlay(uint effectTextureId, uint graphicRenderFlags) =>
+        // External vertical-effect textures are one-shot bands that cross the UV
+        // map before repeating. Primary-table multitextures are tiled fills.
+        effectTextureId > PrimaryTextureTableLimit &&
+        (graphicRenderFlags & VerticalScrollEffectFlag) != 0;
 }

@@ -14,16 +14,29 @@ public enum WorldLightingMode
 /// <summary>Applies deterministic lighting profiles, including the world-quad ambient level.</summary>
 public sealed class WorldLightingController
 {
+    private const float SunriseTime = 0.25f;
+    private const float NoonTime = 0.50f;
+    private const float SunsetTime = 0.75f;
     private const float DayDurationSeconds = 15.0f;
     private const float NightDurationSeconds = 10.0f;
     private const float TransitionDurationSeconds = 5.0f;
 
     private const float CycleDurationSeconds =
         DayDurationSeconds + NightDurationSeconds + TransitionDurationSeconds * 2.0f;
+    private const float DuskEndSeconds = DayDurationSeconds + TransitionDurationSeconds;
+    private const float DawnStartSeconds = DuskEndSeconds + NightDurationSeconds;
+    private const float DawnToDuskDurationSeconds =
+        TransitionDurationSeconds + DayDurationSeconds + TransitionDurationSeconds;
 
     private float _cycleElapsedSeconds;
 
-    public WorldLightingMode Mode { get; private set; } = WorldLightingMode.TimedDayNightCycle;
+    public WorldLightingController(WorldLightingMode mode = WorldLightingMode.TimedDayNightCycle)
+    {
+        Mode = mode;
+        ResetClock();
+    }
+
+    public WorldLightingMode Mode { get; private set; }
 
     public void CycleMode()
     {
@@ -32,14 +45,20 @@ public sealed class WorldLightingController
             WorldLightingMode.Day => WorldLightingMode.Night,
             WorldLightingMode.Night => WorldLightingMode.PitchBlack,
             WorldLightingMode.TimedDayNightCycle => WorldLightingMode.Night,
-            WorldLightingMode.PitchBlack => WorldLightingMode.Day,
+            WorldLightingMode.PitchBlack => WorldLightingMode.TimedDayNightCycle,
             _ => WorldLightingMode.Day
         };
-        _cycleElapsedSeconds = 0.0f;
+        ResetClock();
+    }
+
+    public void SetMode(WorldLightingMode mode)
+    {
+        Mode = mode;
+        ResetClock();
     }
 
     /// <returns><see langword="true"/> when a timed cycle enters a new lighting phase.</returns>
-    public bool Update(float elapsedSeconds, SceneLighting lighting)
+    public bool Update(float elapsedSeconds, SceneLighting lighting, Vector3 focusPosition)
     {
         var previousPhase = GetCyclePhase();
         if (Mode == WorldLightingMode.TimedDayNightCycle)
@@ -50,10 +69,12 @@ public sealed class WorldLightingController
         else if (Mode == WorldLightingMode.PitchBlack)
         {
             ApplyPitchBlack(lighting);
+            ApplyCelestialLighting(lighting, focusPosition);
             return false;
         }
 
         ApplyProfile(GetNightBlend(), lighting);
+        ApplyCelestialLighting(lighting, focusPosition);
         return Mode == WorldLightingMode.TimedDayNightCycle && previousPhase != GetCyclePhase();
     }
 
@@ -112,10 +133,59 @@ public sealed class WorldLightingController
         var blend = Math.Clamp(nightBlend, 0.0f, 1.0f);
         lighting.LightColor = Vector3.Lerp(new Vector3(1.0f, 0.93f, 0.82f), new Vector3(0.43f, 0.56f, 0.90f), blend);
         lighting.AmbientColor = Vector3.Lerp(new Vector3(0.76f, 0.84f, 1.0f), new Vector3(0.24f, 0.33f, 0.56f), blend);
-        lighting.AmbientIntensity = Lerp(0.28f, 0.18f, blend);
-        lighting.DiffuseIntensity = Lerp(0.85f, 0.12f, blend);
-        lighting.SpecularIntensity = Lerp(0.20f, 0.08f, blend);
+        lighting.AmbientIntensity = Lerp(0.34f, 0.18f, blend);
+        lighting.DiffuseIntensity = Lerp(0.82f, 0.12f, blend);
+        // Moonlight keeps a cool diffuse response, but never contributes a specular lobe.
+        lighting.SpecularIntensity = Lerp(0.16f, 0.0f, blend);
         lighting.WorldQuadAmbientIntensity = Lerp(1.0f, 0.30f, blend);
+        lighting.UnlitStaticSpriteWhiteNits = SceneLighting.DefaultUnlitStaticSpriteWhiteNits;
+        lighting.NightBlend = blend;
+    }
+
+    private void ApplyCelestialLighting(SceneLighting lighting, Vector3 focusPosition)
+    {
+        var solar = SolarLightingCalculator.Calculate(GetCelestialTime(), lighting.NightBlend, focusPosition);
+        lighting.LightPosition = solar.LightPosition;
+        lighting.DirectionToLight = solar.DirectionToLight;
+        lighting.DirectionToSun = solar.DirectionToSun;
+        lighting.SunHeight = solar.SunHeight;
+        lighting.ShadowOpacity = Mode == WorldLightingMode.PitchBlack ? 0.0f : solar.ShadowOpacity;
+    }
+
+    private float GetCelestialTime()
+    {
+        if (Mode == WorldLightingMode.Day)
+            return NoonTime;
+        if (Mode is WorldLightingMode.Night or WorldLightingMode.PitchBlack)
+            return 0.0f;
+
+        if (GetCyclePhase() == LightingCyclePhase.Night)
+        {
+            // Keep moon motion continuous on the complementary half of the same arc.
+            var nightProgress = (_cycleElapsedSeconds - DuskEndSeconds) / NightDurationSeconds;
+            var moonTime = SunsetTime + nightProgress * (1.0f - SunsetTime + SunriseTime);
+            return moonTime >= 1.0f ? moonTime - 1.0f : moonTime;
+        }
+
+        // Interpolate time (therefore solar angle), not XYZ coordinates. Constant angular
+        // velocity produces a naturally curved path and reaches noon halfway through the
+        // complete dawn-to-dusk interval.
+        var elapsedSinceDawn = _cycleElapsedSeconds - DawnStartSeconds;
+        if (elapsedSinceDawn < 0.0f)
+            elapsedSinceDawn += CycleDurationSeconds;
+        var daylightProgress = Math.Clamp(
+            elapsedSinceDawn / DawnToDuskDurationSeconds,
+            0.0f,
+            1.0f);
+        return Lerp(SunriseTime, SunsetTime, daylightProgress);
+    }
+
+    private void ResetClock()
+    {
+        // A freshly entered timed cycle starts at noon, matching the fixed Day profile.
+        _cycleElapsedSeconds = Mode == WorldLightingMode.TimedDayNightCycle
+            ? DayDurationSeconds * 0.5f
+            : 0.0f;
     }
 
     private static void ApplyPitchBlack(SceneLighting lighting)
@@ -126,6 +196,9 @@ public sealed class WorldLightingController
         lighting.DiffuseIntensity = 0;
         lighting.SpecularIntensity = 0;
         lighting.WorldQuadAmbientIntensity = 0;
+        lighting.UnlitStaticSpriteWhiteNits = SceneLighting.DefaultUnlitStaticSpriteWhiteNits;
+        lighting.NightBlend = 1;
+        lighting.ShadowOpacity = 0;
     }
 
     private static float SmoothStep(float value)

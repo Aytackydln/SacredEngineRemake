@@ -1,14 +1,17 @@
 using System;
 using System.Numerics;
 using Sacred.Engine.Platform;
+using Sacred.World;
+using Sacred.World.Geometry;
 
 namespace Sacred.Engine.Scene.InGame;
 
 public sealed class SacredCamera
 {
-    private const float NormalMovementSpeed = 10.0f;
-    private const float FastMovementSpeed = 30.0f;
+    public const float WalkingBaseSpeed = 2.0f;
+    public const float RunningBaseSpeed = 12.0f;
     private const float JoystickDeadzone = 0.1f;
+    private const float JoystickRotationDeadzone = 0.075f;
 
     private static readonly Matrix3x2 IsometricRotation = Matrix3x2.CreateRotation(-MathF.PI / 4);
 
@@ -22,10 +25,14 @@ public sealed class SacredCamera
     private int _viewportWidth;
     private int _viewportHeight;
     private readonly float _worldViewHeight;
+    private readonly DirectionalPathfindingController _gamepadPathfinding = new();
     private float _viewportZoom;
     private Vector2? _movementTarget;
 
     public Vector2 CameraSpeedUnitVector { get; private set; } = Vector2.Zero;
+    public Vector2 CharacterFacingUnitVector { get; private set; } = Vector2.Zero;
+    public float CurrentMovementSpeed { get; private set; }
+    public float LocomotionAnimationSpeed { get; private set; } = 1.0f;
 
     private SacredCamera(int width, int height)
     {
@@ -66,32 +73,81 @@ public sealed class SacredCamera
 
     public void MoveTo(Vector2 worldTarget) => _movementTarget = worldTarget;
 
+    public void RotateToward(Vector2 direction)
+    {
+        if (direction.LengthSquared() > float.Epsilon)
+            CharacterFacingUnitVector = Vector2.Normalize(direction);
+    }
+
     public void StopMoving()
     {
         _movementTarget = null;
+        _gamepadPathfinding.Reset();
         CameraSpeedUnitVector = Vector2.Zero;
+        CurrentMovementSpeed = 0.0f;
     }
 
-    public void UpdateFromKeyboard(InputState input, float dt)
+    public void UpdateFromInput(InputState input, float dt, WorldCollisionResolver collision)
     {
         var previousWorldCenter = WorldCenter;
         var previousZoom = Zoom;
-        var speed = (input.IsMoveFasterDown ? FastMovementSpeed : NormalMovementSpeed) / Zoom;
-        var delta = MovementDirection(input);
+        var baseSpeed = input.IsWalkModifierDown ? WalkingBaseSpeed : RunningBaseSpeed;
+        var delta = MovementDirection(
+            input,
+            out var joystickMovementScale,
+            out var joystickRotationOnly);
+        CurrentMovementSpeed = 0.0f;
+        LocomotionAnimationSpeed = 1.0f;
 
-        if (delta.LengthSquared() > 0)
+        if (input.IsDefendDown)
         {
             _movementTarget = null;
-            MoveInDirection(delta, speed, dt);
+            CameraSpeedUnitVector = Vector2.Zero;
+            if (delta.LengthSquared() > 0.0f)
+                RotateToward(delta);
+            else if (joystickRotationOnly.LengthSquared() > 0.0f)
+                RotateToward(joystickRotationOnly);
+        }
+        else if (joystickRotationOnly.LengthSquared() > 0.0f)
+        {
+            _movementTarget = null;
+            RotateToward(joystickRotationOnly);
+        }
+
+        if (input.IsDefendDown)
+        {
+            // Movement input is consumed as facing input while guarding.
+        }
+        else if (delta.LengthSquared() > 0)
+        {
+            _movementTarget = null;
+            if (joystickMovementScale > 0.0f)
+            {
+                var speed = baseSpeed * joystickMovementScale;
+                if (_gamepadPathfinding.TryGetWaypoint(WorldCenter, delta, collision, out var waypoint))
+                    MoveInDirection(waypoint - WorldCenter, speed, dt, collision);
+                else
+                    RotateToward(delta);
+            }
+            else
+            {
+                _gamepadPathfinding.Reset();
+                MoveInDirection(delta, baseSpeed, dt, collision);
+            }
         }
         else if (_movementTarget is { } target)
         {
-            MoveTowardTarget(target, speed, dt);
+            _gamepadPathfinding.Reset();
+            MoveTowardTarget(target, baseSpeed, dt, collision);
         }
         else
         {
+            _gamepadPathfinding.Reset();
             CameraSpeedUnitVector = Vector2.Zero;
         }
+
+        if (CurrentMovementSpeed > 0.0f)
+            LocomotionAnimationSpeed = CurrentMovementSpeed / baseSpeed;
 
         if (input.IsDown(VirtualKey.Q)) Zoom *= MathF.Pow(0.985f, dt * 60f);
         if (input.IsDown(VirtualKey.E)) Zoom *= MathF.Pow(1.015f, dt * 60f);
@@ -110,13 +166,15 @@ public sealed class SacredCamera
             RebuildMatrices();
     }
 
-    private void MoveInDirection(Vector2 direction, float speed, float dt)
+    private void MoveInDirection(Vector2 direction, float speed, float dt, WorldCollisionResolver collision)
     {
-        CameraSpeedUnitVector = Vector2.Normalize(direction);
-        WorldCenter += CameraSpeedUnitVector * speed * dt;
+        if (direction.LengthSquared() <= float.Epsilon)
+            return;
+
+        ApplyMovement(WorldCenter + Vector2.Normalize(direction) * speed * dt, collision, speed, dt);
     }
 
-    private void MoveTowardTarget(Vector2 target, float speed, float dt)
+    private void MoveTowardTarget(Vector2 target, float speed, float dt, WorldCollisionResolver collision)
     {
         var delta = target - WorldCenter;
         var distance = delta.Length();
@@ -127,30 +185,70 @@ public sealed class SacredCamera
             return;
         }
 
-        CameraSpeedUnitVector = delta / distance;
         var step = speed * dt;
         if (step >= distance)
         {
-            WorldCenter = target;
-            _movementTarget = null;
+            var movement = ApplyMovement(target, collision, speed, dt);
+            if (movement.ReachedIntendedEnd || !movement.Moved)
+                _movementTarget = null;
             return;
         }
 
-        WorldCenter += CameraSpeedUnitVector * step;
+        var stepMovement = ApplyMovement(
+            WorldCenter + delta / distance * step,
+            collision,
+            speed,
+            dt);
+        if (!stepMovement.Moved)
+            _movementTarget = null;
     }
 
-    private static Vector2 MovementDirection(InputState input)
+    private MovementResult ApplyMovement(
+        Vector2 intendedEnd,
+        WorldCollisionResolver collision,
+        float requestedSpeed,
+        float dt)
     {
-        if (
-            input.LeftJoystickX >= JoystickDeadzone || input.LeftJoystickX <= -JoystickDeadzone
-                                                     || input.LeftJoystickY >= JoystickDeadzone || input.LeftJoystickY <= -JoystickDeadzone)
+        var start = WorldCenter;
+        var resolved = collision.ResolveMovement(start, intendedEnd);
+        var actualDelta = resolved - start;
+        WorldCenter = resolved;
+        var actualDistance = actualDelta.Length();
+        if (actualDistance > float.Epsilon)
         {
-            var movementDirection = new Vector2((float)input.LeftJoystickX, -(float)input.LeftJoystickY);
-            
-            // rotate for isometric camera:
-            var rotatedDirection = Vector2.Transform(movementDirection, IsometricRotation);
-            return rotatedDirection;
+            CameraSpeedUnitVector = actualDelta / actualDistance;
+            CharacterFacingUnitVector = CameraSpeedUnitVector;
+            CurrentMovementSpeed = dt > float.Epsilon
+                ? MathF.Min(requestedSpeed, actualDistance / dt)
+                : requestedSpeed;
         }
+        else
+        {
+            CameraSpeedUnitVector = Vector2.Zero;
+        }
+
+        return new MovementResult(
+            actualDistance > float.Epsilon,
+            Vector2.DistanceSquared(resolved, intendedEnd) <= 0.000001f);
+    }
+
+    private static Vector2 MovementDirection(
+        InputState input,
+        out float joystickMovementScale,
+        out Vector2 joystickRotationOnly)
+    {
+        joystickMovementScale = 0.0f;
+        joystickRotationOnly = Vector2.Zero;
+        var joystick = new Vector2((float)input.LeftJoystickX, -(float)input.LeftJoystickY);
+        var joystickLengthSquared = joystick.LengthSquared();
+        if (joystickLengthSquared > JoystickDeadzone * JoystickDeadzone)
+        {
+            var joystickLength = MathF.Min(MathF.Sqrt(joystickLengthSquared), 1.0f);
+            joystickMovementScale = (joystickLength - JoystickDeadzone) / (1.0f - JoystickDeadzone);
+            return Vector2.Transform(joystick / MathF.Sqrt(joystickLengthSquared), IsometricRotation);
+        }
+        if (joystickLengthSquared >= JoystickRotationDeadzone * JoystickRotationDeadzone)
+            joystickRotationOnly = Vector2.Transform(joystick, IsometricRotation);
         
         var delta = Vector2.Zero;
 
@@ -183,6 +281,8 @@ public sealed class SacredCamera
 
     private static float ApplyDeadzone(float value) =>
         MathF.Abs(value) < JoystickDeadzone ? 0.0f : value;
+
+    private readonly record struct MovementResult(bool Moved, bool ReachedIntendedEnd);
 
     private void RebuildMatrices()
     {

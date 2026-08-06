@@ -1,9 +1,11 @@
 using System;
 using System.IO;
+using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Core;
 using Sacred.Engine.Assets;
+using Sacred.Engine.Cheats;
 using Sacred.Engine.Graphics;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Platform;
@@ -15,8 +17,6 @@ namespace Sacred.Engine;
 /// <summary>Owns engine lifetime and coordinates the active scene's frame stages.</summary>
 public sealed class SacredGame : IDisposable
 {
-    private static FramePacingMode _mode = FramePacingMode.VariableRefreshRate;
-
     private readonly Win32Window _window;
     private readonly LowLatencySystem _latency;
     private readonly Dx12Renderer _renderer;
@@ -24,28 +24,40 @@ public sealed class SacredGame : IDisposable
     private readonly SceneManager _scenes = new();
     private readonly GamepadInputSource _gamepad = new();
     private readonly EngineInputController _engineInput;
+    private readonly CheatsController _cheats;
     private readonly uint _displayRefreshRateHz;
     private readonly string _gameDirectory;
+    private readonly SacredGameSaveState _initialSaveState;
 
     private InGameScene? _inGameScene;
+    private FramePacingMode _mode;
     private string _framePacingStatus = string.Empty;
     private bool _disposed;
 
-    public SacredGame(SacredGameDirectories gameDirectories)
+    public SacredGame(SacredGameDirectories gameDirectories, SacredGameSaveState? saveState = null)
     {
         ArgumentNullException.ThrowIfNull(gameDirectories);
+        _initialSaveState = NormalizeSaveState(saveState ?? new SacredGameSaveState());
+        _mode = _initialSaveState.FramePacingMode;
         _gameDirectory = ResolveGameDirectory(gameDirectories);
         _latency = LowLatencySystem.CreateDefault();
-        _window = new Win32Window("Sacred Remake", 1600, 900);
+        _window = new Win32Window(
+            "Sacred Remake",
+            _initialSaveState.WindowedWidth,
+            _initialSaveState.WindowedHeight,
+            _initialSaveState.BorderlessFullscreen);
         _displayRefreshRateHz = _window.DisplayRefreshRateHz;
-        _renderer = new Dx12Renderer(_window, _gameDirectory, _latency);
+        _renderer = new Dx12Renderer(_window, _gameDirectory, _latency, _initialSaveState.HdrEnabled);
+        _latency.SetMode(_initialSaveState.LowLatencyMode, 0);
         _resourceLoader = new GameResourceLoader(gameDirectories);
         _engineInput = new EngineInputController(
             _window.Input,
             _renderer,
             _latency,
             CycleFramePacing,
+            _window.ToggleBorderlessFullscreen,
             UpdateWindowTitle);
+        _cheats = new CheatsController(Console.In);
 
         RegisterScenes();
         _scenes.SceneChanged += UpdateWindowTitle;
@@ -56,6 +68,21 @@ public sealed class SacredGame : IDisposable
     public Task Run(CancellationToken cancellationToken = default) =>
         Win32AsyncPump.RunAsync(() => RunCoreAsync(cancellationToken), _window.ProcessMessages);
 
+    public SacredGameSaveState CaptureSaveState() => new()
+    {
+        BorderlessFullscreen = _window.IsBorderlessFullscreen,
+        WindowedWidth = _window.WindowedWidth,
+        WindowedHeight = _window.WindowedHeight,
+        HdrEnabled = _renderer.IsHdrEnabled,
+        FramePacingMode = _mode,
+        LowLatencyMode = _latency.Mode,
+        WorldLightingMode = _inGameScene?.WorldLightingMode ?? _initialSaveState.WorldLightingMode,
+        StairsTilesVisible = _inGameScene?.StairsTilesVisible ?? _initialSaveState.StairsTilesVisible,
+        BlockedTilesVisible = _inGameScene?.BlockedTilesVisible ?? _initialSaveState.BlockedTilesVisible,
+        CharacterName = _inGameScene?.SelectedCharacterName ?? _initialSaveState.CharacterName,
+        LastLocation = _inGameScene?.PlayerWorldPosition ?? _initialSaveState.LastLocation
+    };
+
     public void Dispose()
     {
         if (_disposed)
@@ -65,6 +92,7 @@ public sealed class SacredGame : IDisposable
         _scenes.SceneChanged -= UpdateWindowTitle;
         // GPU caches can reference scene-owned assets, so retire them before disposing scenes.
         _renderer.Dispose();
+        _cheats.Dispose();
         _scenes.Dispose();
         _resourceLoader.Dispose();
         _latency.Dispose();
@@ -115,9 +143,12 @@ public sealed class SacredGame : IDisposable
         _scenes.Register(
             GameSceneId.WorldMap,
             () => new WorldMapScene(
-                _window.Input,
+                _window,
                 _gamepad,
                 _scenes.RequestSwitch,
+                destination => RuntimeScene.Teleport(destination),
+                (textureName, cancellationToken) => RuntimeScene.LoadTextureAsync(textureName, cancellationToken),
+                () => RuntimeScene.PlayerWorldPosition,
                 _gameDirectory),
             preserveInMemory: true);
     }
@@ -127,14 +158,15 @@ public sealed class SacredGame : IDisposable
         var resources = _resourceLoader.TransferToRuntime();
         try
         {
-            _renderer.InitializeWorld(resources.Assets);
+            _renderer.InitializeWorld(resources.Assets, resources.WorldArchive);
             var scene = new InGameScene(
                 resources,
                 _renderer,
                 _window,
                 _gamepad,
                 _scenes.RequestSwitch,
-                UpdateWindowTitle);
+                UpdateWindowTitle,
+                _initialSaveState);
             _scenes.RegisterInstance(scene);
             _inGameScene = scene;
             UpdateWindowTitle();
@@ -147,6 +179,9 @@ public sealed class SacredGame : IDisposable
             throw;
         }
     }
+
+    private InGameScene RuntimeScene =>
+        _inGameScene ?? throw new InvalidOperationException("The in-game scene has not been initialized.");
 
     private async Task RunCoreAsync(CancellationToken cancellationToken)
     {
@@ -171,6 +206,7 @@ public sealed class SacredGame : IDisposable
                 _latency.Mark(LatencyMarker.LeftMouseButtonClick, frameId);
 
             _gamepad.Poll(_window.Input);
+            _cheats.Update(ExecuteCheat);
             _engineInput.Update();
             _scenes.Update(deltaSeconds);
             _latency.Mark(LatencyMarker.SimulationEnd, frameId);
@@ -190,6 +226,77 @@ public sealed class SacredGame : IDisposable
 
     private void CycleFramePacing() => _mode = NextFramePacingMode(_mode);
 
+    private void ExecuteCheat(CheatCommand command)
+    {
+        switch (command)
+        {
+            case HelpCheatCommand:
+                Console.WriteLine("Cheats: teleport <x> <y>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set character next; set hdr <on|off>; set pacing <vrr|vsync|limit>; set latency <off|on|boost>.");
+                return;
+            case TeleportCheatCommand teleport:
+                if (_inGameScene is null)
+                {
+                    Console.WriteLine("Cheat: teleport is available once the in-game scene has loaded.");
+                    return;
+                }
+
+                _inGameScene.Teleport(teleport.Position);
+                Console.WriteLine($"Cheat: teleported to {teleport.Position.X:0.##}, {teleport.Position.Y:0.##}.");
+                return;
+            case SetOptionCheatCommand setOption:
+                ExecuteSetOptionCheat(setOption);
+                return;
+            case InvalidCheatCommand invalid:
+                Console.WriteLine($"Cheat: {invalid.Message}");
+                return;
+        }
+    }
+
+    private void ExecuteSetOptionCheat(SetOptionCheatCommand command)
+    {
+        if (TrySetEngineCheatOption(command.Option, command.Value, out var engineMessage))
+        {
+            Console.WriteLine($"Cheat: {engineMessage}");
+            return;
+        }
+
+        if (_inGameScene is not null)
+        {
+            var applied = _inGameScene.TrySetCheatOption(command.Option, command.Value, out var sceneMessage);
+            if (applied)
+                UpdateWindowTitle();
+            Console.WriteLine($"Cheat: {sceneMessage}");
+            return;
+        }
+
+        Console.WriteLine($"Cheat: {engineMessage}");
+    }
+
+    private bool TrySetEngineCheatOption(string option, string value, out string message)
+    {
+        switch (option.ToLowerInvariant())
+        {
+            case "hdr" when TryParseBoolean(value, out var hdrEnabled):
+                if (_renderer.IsHdrEnabled != hdrEnabled)
+                    _renderer.ToggleHdr();
+                message = $"HDR {(hdrEnabled ? "enabled" : "disabled")}";
+                return true;
+            case "pacing" when TryParseFramePacing(value, out var pacingMode):
+                _mode = pacingMode;
+                UpdateWindowTitle();
+                message = $"frame pacing set to {FormatFramePacingMode()}";
+                return true;
+            case "latency" when TryParseLowLatencyMode(value, out var latencyMode):
+                _latency.SetMode(latencyMode, _mode == FramePacingMode.VSync ? 0 : _displayRefreshRateHz);
+                UpdateWindowTitle();
+                message = $"low latency set to {latencyMode}";
+                return true;
+            default:
+                message = "Unknown option. Type 'help' for commands.";
+                return false;
+        }
+    }
+
     private static FramePacingMode NextFramePacingMode(FramePacingMode mode) => mode switch
     {
         FramePacingMode.VariableRefreshRate => FramePacingMode.VSync,
@@ -197,11 +304,78 @@ public sealed class SacredGame : IDisposable
         _ => FramePacingMode.VariableRefreshRate
     };
 
+    private static bool TryParseBoolean(string value, out bool enabled)
+    {
+        enabled = value.Equals("on", StringComparison.OrdinalIgnoreCase) ||
+                  value.Equals("true", StringComparison.OrdinalIgnoreCase);
+        return enabled || value.Equals("off", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("false", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryParseFramePacing(string value, out FramePacingMode mode)
+    {
+        mode = value.ToLowerInvariant() switch
+        {
+            "vrr" => FramePacingMode.VariableRefreshRate,
+            "vsync" => FramePacingMode.VSync,
+            "limit" or "limiter" => FramePacingMode.MonitorRefreshLimiter,
+            _ => default
+        };
+        return value.Equals("vrr", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("vsync", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("limit", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("limiter", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryParseLowLatencyMode(string value, out LowLatencyMode mode)
+    {
+        mode = value.ToLowerInvariant() switch
+        {
+            "off" => LowLatencyMode.Off,
+            "on" => LowLatencyMode.On,
+            "boost" or "onplusboost" => LowLatencyMode.OnPlusBoost,
+            _ => default
+        };
+        return value.Equals("off", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("on", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("boost", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("onplusboost", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string ResolveGameDirectory(SacredGameDirectories gameDirectories)
     {
         var pakDirectory = Path.GetDirectoryName(gameDirectories.TexturesPakPath);
         return Path.GetDirectoryName(pakDirectory) ?? ".";
     }
+
+    private static SacredGameSaveState NormalizeSaveState(SacredGameSaveState state)
+    {
+        Vector2? location = state.LastLocation is { } savedLocation &&
+                            float.IsFinite(savedLocation.X) &&
+                            float.IsFinite(savedLocation.Y)
+            ? savedLocation
+            : null;
+
+        return state with
+        {
+            WindowedWidth = NormalizeWindowDimension(state.WindowedWidth, 1600),
+            WindowedHeight = NormalizeWindowDimension(state.WindowedHeight, 900),
+            FramePacingMode = Enum.IsDefined(state.FramePacingMode)
+                ? state.FramePacingMode
+                : FramePacingMode.VariableRefreshRate,
+            LowLatencyMode = Enum.IsDefined(state.LowLatencyMode)
+                ? state.LowLatencyMode
+                : LowLatencyMode.On,
+            WorldLightingMode = Enum.IsDefined(state.WorldLightingMode)
+                ? state.WorldLightingMode
+                : WorldLightingMode.TimedDayNightCycle,
+            CharacterName = TestCharacters.GetDisplayName(TestCharacters.ResolveEntryId(state.CharacterName)),
+            LastLocation = location
+        };
+    }
+
+    private static int NormalizeWindowDimension(int dimension, int fallback) =>
+        dimension is >= 320 and <= 16_384 ? dimension : fallback;
 
     private void UpdateWindowTitle()
     {

@@ -55,6 +55,7 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
     public void Prepare(
         IReadOnlyList<TerrainLiquidSprite> liquidSprites,
         IReadOnlyList<TerrainStaticSprite> staticSprites,
+        IReadOnlyList<TerrainWorldLight> worldLights,
         Dx12FrameContext frame,
         ulong spriteRevision)
     {
@@ -62,7 +63,7 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
             return;
 
         var liquidsReady = PrepareLiquidTextures(liquidSprites, frame);
-        var staticsReady = PrepareStaticTextures(staticSprites, frame);
+        var staticsReady = PrepareStaticTextures(staticSprites, worldLights, frame);
         if (liquidsReady && staticsReady)
             _preparedSpriteRevision = spriteRevision;
     }
@@ -152,7 +153,10 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
         return true;
     }
 
-    private bool PrepareStaticTextures(IReadOnlyList<TerrainStaticSprite> sprites, Dx12FrameContext frame)
+    private bool PrepareStaticTextures(
+        IReadOnlyList<TerrainStaticSprite> sprites,
+        IReadOnlyList<TerrainWorldLight> lights,
+        Dx12FrameContext frame)
     {
         if (_freeSrvSlots.Count == 0)
             return true;
@@ -160,38 +164,52 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
         var attempted = 0;
         foreach (var visibleSprite in sprites)
         {
-            var sprite = visibleSprite.Sprite;
-            if (_staticTextures.ContainsKey(sprite) ||
-                _failedStaticUploads.Contains(sprite) ||
-                _freeSrvSlots.Count == 0)
-            {
-                continue;
-            }
-
-            var slot = _freeSrvSlots.Pop();
-            ID3D12Resource? resource = null;
-            try
-            {
-                resource = _uploader.UploadRgbaTexture(
-                    _commandList,
-                    sprite.AtlasWidth,
-                    sprite.AtlasHeight,
-                    sprite.Rgba,
-                    frame.TransientResources);
-                _uploader.CreateShaderResourceView(resource, SrvCpuHandle(slot));
-                _staticTextures[sprite] = new SpriteTexture(resource, slot);
-                sprite.ReleasePixelData();
-                ResidencyRevision++;
-            }
-            catch
-            {
-                resource?.Dispose();
-                _failedStaticUploads.Add(sprite);
-                _freeSrvSlots.Push(slot);
-            }
-
-            if (++attempted == StaticUploadBatchSize)
+            if (TryPrepareStaticTexture(visibleSprite.Sprite, frame))
+                attempted++;
+            if (attempted == StaticUploadBatchSize)
                 return false;
+        }
+
+        foreach (var light in lights)
+        {
+            if (TryPrepareStaticTexture(light.EmitterSprite, frame))
+                attempted++;
+            if (attempted == StaticUploadBatchSize)
+                return false;
+        }
+
+        return true;
+    }
+
+    private bool TryPrepareStaticTexture(StaticSpriteAsset sprite, Dx12FrameContext frame)
+    {
+        if (_staticTextures.ContainsKey(sprite) ||
+            _failedStaticUploads.Contains(sprite) ||
+            _freeSrvSlots.Count == 0)
+        {
+            return false;
+        }
+
+        var slot = _freeSrvSlots.Pop();
+        ID3D12Resource? resource = null;
+        try
+        {
+            resource = _uploader.UploadRgbaTexture(
+                _commandList,
+                sprite.AtlasWidth,
+                sprite.AtlasHeight,
+                sprite.Rgba,
+                frame.TransientResources);
+            _uploader.CreateShaderResourceView(resource, SrvCpuHandle(slot));
+            _staticTextures[sprite] = new SpriteTexture(resource, slot);
+            sprite.ReleasePixelData();
+            ResidencyRevision++;
+        }
+        catch
+        {
+            resource?.Dispose();
+            _failedStaticUploads.Add(sprite);
+            _freeSrvSlots.Push(slot);
         }
 
         return true;

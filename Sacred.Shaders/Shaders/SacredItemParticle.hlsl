@@ -7,7 +7,7 @@ cbuffer ModelConstants : register(b0)
     row_major float4x4 view_projection;
     row_major float4x4 world;
     float4 model_color;
-    float4 texture_flags; // y: 4x4 atlas when > 1.5, z: painter depth, w: elapsed seconds
+    float4 texture_flags; // x: texture mode, y: painter depth, z: phase, w: elapsed seconds
 }
 
 cbuffer SceneConstants : register(b1)
@@ -52,9 +52,10 @@ vs_output vs_main(vs_input input)
         float3 up = normalize(cross(right, camera_direction));
         float model_scale = length(mul(float4(1.0f, 0.0f, 0.0f, 0.0f), world).xyz);
         float size_scale = 1.0f;
-        if (texture_flags.y > 5.5f && texture_flags.y < 6.5f)
+        if (texture_flags.x > 5.5f && texture_flags.x < 6.5f)
         {
-            float cycle = frac(texture_flags.w * 1.8f + texture_flags.z);
+            float particle_phase = texture_flags.z + max(input.normal.z - 1.0f, 0.0f);
+            float cycle = frac(texture_flags.w * 1.8f + particle_phase);
             float pulse = saturate(sin(cycle * 3.14159265f));
             output.opacity = smoothstep(0.08f, 0.42f, pulse);
             size_scale = lerp(0.3f, 1.1f, pulse);
@@ -62,20 +63,30 @@ vs_output vs_main(vs_input input)
         world_position += (right * input.normal.x + up * input.normal.y) * model_scale * size_scale;
     }
     output.position = mul(float4(world_position, 1.0f), view_projection);
+    if (texture_flags.y >= 0.0f)
+    {
+        float painter_depth = texture_flags.y;
+        if (texture_flags.x > 4.5f && texture_flags.x < 5.5f)
+            painter_depth -= 0.00025f;
+        float4 projected_origin = mul(mul(float4(0.0f, 0.0f, 0.0f, 1.0f), world), view_projection);
+        float vertex_depth = output.position.z / max(output.position.w, 0.000001f);
+        float origin_depth = projected_origin.z / max(projected_origin.w, 0.000001f);
+        output.position.z = output.position.w * saturate(painter_depth + (vertex_depth - origin_depth) * 0.08f);
+    }
     output.tex_coord = input.tex_coord;
     return output;
 }
 
 float2 animated_tex_coord(float2 tex_coord)
 {
-    if (texture_flags.y > 1.5f && texture_flags.y < 2.5f)
+    if (texture_flags.x > 1.5f && texture_flags.x < 2.5f)
     {
         float frame = fmod(floor(texture_flags.w * 12.0f), 16.0f);
         float2 cell = float2(fmod(frame, 4.0f), floor(frame / 4.0f));
         return (tex_coord + cell) * 0.25f;
     }
 
-    if (texture_flags.y > 7.5f && texture_flags.y < 8.5f)
+    if (texture_flags.x > 7.5f && texture_flags.x < 8.5f)
     {
         float angle = texture_flags.w * 1.35f + texture_flags.z * 6.2831853f;
         float sine = sin(angle);
@@ -86,7 +97,7 @@ float2 animated_tex_coord(float2 tex_coord)
             centered.x * sine + centered.y * cosine) + 0.5f;
     }
 
-    if (texture_flags.y > 3.5f && texture_flags.y < 4.5f)
+    if (texture_flags.x > 3.5f && texture_flags.x < 4.5f)
         tex_coord.x += sin(tex_coord.y * 11.0f + texture_flags.w * 7.0f) * 0.08f;
     return tex_coord;
 }
@@ -94,15 +105,13 @@ float2 animated_tex_coord(float2 tex_coord)
 float4 ps_main(vs_output input) : SV_Target
 {
     float4 sampled = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord));
-    float brightness = max(max(sampled.r, sampled.g), sampled.b);
-    bool uses_alpha = texture_flags.y > 2.5f && texture_flags.y < 4.5f;
-    float coverage = uses_alpha ? sampled.a : smoothstep(0.02f, 0.92f, brightness) * sampled.a;
+    float brightness = 1.f;//max(max(sampled.r, sampled.g), sampled.b);
+    float coverage = 0.92f * sampled.a;
     float alpha = coverage * model_color.a * input.opacity;
     if (alpha < 0.02f)
         discard;
 
-    float3 source_color = uses_alpha ? 1.0f : sampled.rgb / max(brightness, 0.08f);
-    float intensity = uses_alpha ? 1.0f : saturate(brightness * 1.75f);
-    float3 color = source_color * model_color.rgb * intensity;
+    float intensity = saturate(brightness * 1.75f);
+    float3 color = sampled.rgb * model_color.rgb * intensity;
     return float4(color * alpha, alpha);
 }

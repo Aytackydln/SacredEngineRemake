@@ -1,3 +1,4 @@
+using System;
 using Windows.Gaming.Input;
 
 namespace Sacred.Engine.Platform;
@@ -11,6 +12,7 @@ internal sealed class GamepadInputSource
     public GamepadButtons PressedButtons { get; private set; }
 
     public bool WasPressed(GamepadButtons button) => (PressedButtons & button) != 0;
+    public bool IsDown(GamepadButtons button) => (Buttons & button) != 0;
 
     public void Poll(InputState input)
     {
@@ -24,17 +26,29 @@ internal sealed class GamepadInputSource
             input.LeftJoystickX = 0.0;
             input.LeftJoystickY = 0.0;
             input.RightJoystickY = 0.0;
-            input.GamepadMoveFaster = false;
+            input.GamepadWalk = false;
+            input.GamepadDefend = false;
             return;
         }
 
         var reading = gamepad.GetCurrentReading();
+        if (reading.Buttons != GamepadButtons.None ||
+            Math.Abs(reading.LeftThumbstickX) > 0.01 ||
+            Math.Abs(reading.LeftThumbstickY) > 0.01 ||
+            Math.Abs(reading.RightThumbstickX) > 0.01 ||
+            Math.Abs(reading.RightThumbstickY) > 0.01 ||
+            reading.LeftTrigger > 0.01 ||
+            reading.RightTrigger > 0.01)
+        {
+            input.MarkControllerInput();
+        }
         Buttons = reading.Buttons;
         PressedButtons = Buttons & ~_previousButtons;
         _previousButtons = Buttons;
         input.LeftJoystickX = reading.LeftThumbstickX;
         input.LeftJoystickY = reading.LeftThumbstickY;
         input.RightJoystickY = reading.RightThumbstickY;
-        input.GamepadMoveFaster = (Buttons & GamepadButtons.A) != 0;
+        input.GamepadWalk = (Buttons & GamepadButtons.A) != 0;
+        input.GamepadDefend = reading.LeftTrigger >= 0.5;
     }
 }

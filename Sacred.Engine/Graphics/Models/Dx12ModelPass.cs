@@ -4,9 +4,10 @@ using System.Diagnostics;
 using System.Numerics;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Engine.Graphics.Swapchain;
-using Sacred.Engine.Rendering.EquipmentEffects;
 using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
+using Sacred.Granny;
+using Sacred.Inventory.Effects;
 using Sacred.Shaders;
 using Vortice.Direct3D;
 using Vortice.Direct3D12;
@@ -28,13 +29,17 @@ internal sealed class Dx12ModelPass
     private readonly long _startTimestamp = Stopwatch.GetTimestamp();
     private readonly ModelRootConstantsUpdater _rootConstants = new(ModelShaderLayout.RootParameterCount);
     private readonly ModelShaderConstantsUpdater _shaderConstants = new();
+    private readonly Dx12ModelShadowPass _shadowPass;
 
     private ID3D12RootSignature? _rootSignature;
     private ID3D12PipelineState? _staticPipeline;
+    private ID3D12PipelineState? _transparentModelPipeline;
     private ID3D12PipelineState? _animatedPipeline;
     private ID3D12PipelineState? _effectPipeline;
+    private ID3D12PipelineState? _transparentEffectPipeline;
     private ID3D12PipelineState? _transparentParticlePipeline;
     private ID3D12PipelineState? _denseParticlePipeline;
+    private ID3D12PipelineState? _itemGlowPipeline;
 
     public Dx12ModelPass(
         ID3D12GraphicsCommandList commandList,
@@ -50,33 +55,58 @@ internal sealed class Dx12ModelPass
         _srvHeapStart = srvHeap.GetGPUDescriptorHandleForHeapStart();
         _descriptorSize = descriptorSize;
         _fallbackTextureSlot = fallbackTextureSlot;
+        _shadowPass = new Dx12ModelShadowPass(
+            commandList,
+            geometryCache,
+            textureCache,
+            _srvHeapStart,
+            descriptorSize,
+            fallbackTextureSlot);
     }
 
-    public void SetPipeline(ModelPipelines pipeline)
+    public void SetPipeline(Dx12CreatedPipelineGroup pipeline)
     {
         _rootSignature = pipeline.RootSignature;
-        _staticPipeline = pipeline.Static;
-        _animatedPipeline = pipeline.Animated;
-        _effectPipeline = pipeline.Effect;
-        _transparentParticlePipeline = pipeline.TransparentParticle;
-        _denseParticlePipeline = pipeline.DenseParticle;
+        _shadowPass.SetPipeline(pipeline.RootSignature, pipeline[Dx12PipelineKind.ModelShadow]);
+        _staticPipeline = pipeline[Dx12PipelineKind.StaticModel];
+        _transparentModelPipeline = pipeline[Dx12PipelineKind.TransparentModel];
+        _animatedPipeline = pipeline[Dx12PipelineKind.AnimatedModel];
+        _effectPipeline = pipeline[Dx12PipelineKind.EffectModel];
+        _transparentEffectPipeline = pipeline[Dx12PipelineKind.TransparentEffectModel];
+        _transparentParticlePipeline = pipeline[Dx12PipelineKind.TransparentItemParticle];
+        _denseParticlePipeline = pipeline[Dx12PipelineKind.DenseItemParticle];
+        _itemGlowPipeline = pipeline[Dx12PipelineKind.ItemGlow];
     }
 
     public void DisposePipeline()
     {
         _staticPipeline?.Dispose();
         _staticPipeline = null;
+        _shadowPass.DisposePipeline();
+        _transparentModelPipeline?.Dispose();
+        _transparentModelPipeline = null;
         _animatedPipeline?.Dispose();
         _animatedPipeline = null;
         _effectPipeline?.Dispose();
         _effectPipeline = null;
+        _transparentEffectPipeline?.Dispose();
+        _transparentEffectPipeline = null;
         _transparentParticlePipeline?.Dispose();
         _transparentParticlePipeline = null;
         _denseParticlePipeline?.Dispose();
         _denseParticlePipeline = null;
+        _itemGlowPipeline?.Dispose();
+        _itemGlowPipeline = null;
         _rootSignature?.Dispose();
         _rootSignature = null;
     }
+
+    public void RecordShadows(
+        SacredCamera camera,
+        IReadOnlyList<SceneModel> models,
+        SceneLighting lighting,
+        int frameIndex) =>
+        _shadowPass.Record(camera, models, lighting, frameIndex);
 
     public unsafe void Record(
         SacredCamera camera,
@@ -113,11 +143,12 @@ internal sealed class Dx12ModelPass
             var world = model.Transform;
             var worldViewProjection = world * viewProjection;
             var modelSceneDepth = CalculateSceneDepth(camera, model);
+            var defaultModelColor = ModelShaderVariables.ColorFromName(model.Name);
             _shaderConstants.WriteModelBase(
                 constants,
                 worldViewProjection,
                 world,
-                ModelShaderVariables.ColorFromName(model.Name));
+                defaultModelColor);
 
             var vertexBufferView = mesh.VertexBufferViews[frameIndex];
             var indexBufferView = mesh.IndexBufferView;
@@ -138,13 +169,6 @@ internal sealed class Dx12ModelPass
                 for (var passIndex = 0; passIndex < 3; passIndex++)
                 {
                     var pass = (ModelSurfacePass)passIndex;
-                    _commandList.SetPipelineState(pass switch
-                    {
-                        ModelSurfacePass.AnimatedBase => _animatedPipeline!,
-                        ModelSurfacePass.EffectOverlay => _effectPipeline!,
-                        _ => _staticPipeline
-                    });
-
                     foreach (var surface in model.Mesh.Surfaces)
                     {
                         if (surface.IndexCount <= 0 || surface.IndexStart >= mesh.IndexCount)
@@ -165,7 +189,7 @@ internal sealed class Dx12ModelPass
                                                  textureReference.OverlayMode != TextureOverlayMode.None;
                         }
 
-                        if (!TrySelectPass(
+                        if (!ModelSurfacePassSelector.TrySelect(
                                 pass,
                                 textureReference,
                                 animatesBase,
@@ -177,12 +201,32 @@ internal sealed class Dx12ModelPass
                                 out var hasOverlay))
                             continue;
 
+                        _commandList.SetPipelineState(pass switch
+                        {
+                            ModelSurfacePass.AnimatedBase => _animatedPipeline!,
+                            ModelSurfacePass.EffectOverlay when textureReference.OverlayCompositesInFront => _transparentEffectPipeline!,
+                            ModelSurfacePass.EffectOverlay => _effectPipeline!,
+                            _ when texture?.HasTranslucentPixels == true => _transparentModelPipeline!,
+                            _ => _staticPipeline
+                        });
+
+                        var modelColor = animation.Mode == TextureAnimationMode.RadialSweepBlackKey &&
+                                         MeshSurfaceRadialSweep.TryCalculate(model.Mesh, surface, out var radialSweep)
+                            ? radialSweep
+                            : defaultModelColor;
+                        _shaderConstants.WriteModelColor(constants + 32, modelColor);
+                        SetRootConstantsIfChanged(
+                            ModelShaderLayout.ModelConstantsRootParameter,
+                            constants + 32,
+                            4,
+                            32);
+
                         _shaderConstants.WriteTextureFlags(
                             constants + ModelShaderLayout.TextureFlagsOffset,
                             textureMode,
                             ModelShaderVariables.PackTextureAnimation(
                                 animation.IsAnimated,
-                                animation.Mode == TextureAnimationMode.VerticalScrollClampBlackKey,
+                                animation.Mode == TextureAnimationMode.RadialSweepBlackKey,
                                 overlay: false),
                             modelSceneDepth,
                             animation.IsAnimated ? elapsedSeconds * animation.TimeScale : 0.0f);
@@ -202,19 +246,20 @@ internal sealed class Dx12ModelPass
                 }
             }
 
-            RecordEquipmentEffects(model, viewProjection, elapsedSeconds, frameIndex, constants);
+            RecordEquipmentEffects(model, viewProjection, modelSceneDepth, elapsedSeconds, frameIndex, constants);
         }
     }
 
     private unsafe void RecordEquipmentEffects(
         SceneModel model,
         Matrix4x4 viewProjection,
+        float modelSceneDepth,
         float elapsedSeconds,
         int frameIndex,
         float* constants)
     {
         var effects = model.EquipmentEffects;
-        if (effects is null || _transparentParticlePipeline is null || _denseParticlePipeline is null)
+        if (effects is null || _transparentParticlePipeline is null || _denseParticlePipeline is null || _itemGlowPipeline is null)
             return;
 
         var mesh = _geometryCache.GetOrCreate(effects.Mesh, frameIndex);
@@ -233,15 +278,21 @@ internal sealed class Dx12ModelPass
                 EquipmentEffectTextureMode.MagicOrb or
                 EquipmentEffectTextureMode.FirePop or
                 EquipmentEffectTextureMode.PoisonStatic;
-            _commandList.SetPipelineState(usesDenseComposition
-                ? _denseParticlePipeline
-                : _transparentParticlePipeline);
+
+            if (surface.TextureMode is EquipmentEffectTextureMode.WeaponGlowFlare or EquipmentEffectTextureMode.Luminance or EquipmentEffectTextureMode.Atlas4X4)
+            {
+                _commandList.SetPipelineState(_itemGlowPipeline);
+            }
+            else
+            {
+                _commandList.SetPipelineState(usesDenseComposition ? _denseParticlePipeline : _transparentParticlePipeline);
+            }
 
             _shaderConstants.WriteModelBase(constants, viewProjection, model.Transform, surface.Color);
             _shaderConstants.WriteTextureFlags(
                 constants + ModelShaderLayout.TextureFlagsOffset,
-                ModelShaderVariables.TextureModeBaseTexture,
                 (float)surface.TextureMode,
+                modelSceneDepth,
                 surface.Phase,
                 elapsedSeconds);
             SetRootConstantsIfChanged(
@@ -279,51 +330,6 @@ internal sealed class Dx12ModelPass
         _commandList.DrawIndexedInstanced((uint)mesh.IndexCount, 1, 0, 0, 0);
     }
 
-    private static bool TrySelectPass(
-        ModelSurfacePass pass,
-        ModelTextureReference textureReference,
-        bool animatesBase,
-        bool animatesOverlay,
-        bool hasTexture,
-        bool hasOverlayResource,
-        out float textureMode,
-        out TextureAnimation animation,
-        out bool hasOverlay)
-    {
-        hasOverlay = false;
-        textureMode = ModelShaderVariables.TextureModeNoTexture;
-        animation = TextureAnimation.None;
-
-        if (pass == ModelSurfacePass.AnimatedBase)
-        {
-            if (!animatesBase || !hasTexture)
-                return false;
-            textureMode = ModelShaderVariables.PackTextureMode(hasTexture, false, false);
-            animation = textureReference.Animation;
-            return true;
-        }
-
-        if (pass == ModelSurfacePass.EffectOverlay)
-        {
-            if (animatesBase || !animatesOverlay || !hasTexture || !hasOverlayResource)
-                return false;
-            hasOverlay = true;
-            textureMode = ModelShaderVariables.PackTextureMode(hasTexture, true, true);
-            animation = textureReference.OverlayAnimation;
-            return true;
-        }
-
-        if (animatesBase || (animatesOverlay && hasOverlayResource))
-            return false;
-
-        hasOverlay = hasOverlayResource && !animatesOverlay;
-        textureMode = ModelShaderVariables.PackTextureMode(
-            hasTexture,
-            hasOverlay,
-            textureReference.OverlayMode == TextureOverlayMode.MultiTextureFill);
-        return true;
-    }
-
     private unsafe void SetRootConstantsIfChanged(int parameter, float* constants, int count, int offset) =>
         _rootConstants.SetIfChanged(_commandList, parameter, constants, count, offset);
 
@@ -350,7 +356,9 @@ internal sealed class Dx12ModelPass
 
     private static float CalculateSceneDepth(SacredCamera camera, SceneModel model)
     {
-        var depthKey = model.Position.X + model.Position.Y + model.Position.Y * 0.001f;
+        // Keep painter ordering tied to the gameplay/collision anchor. Model-local geometry
+        // (weapons, wings, effects) must not move the character between world depth layers.
+        var depthKey = model.DepthAnchor.X + model.DepthAnchor.Y + model.DepthAnchor.Y * 0.001f;
         var centerDepthKey = camera.WorldCenter.X + camera.WorldCenter.Y + camera.WorldCenter.Y * 0.001f;
         var painterDepth = Math.Clamp(
             0.50f - (depthKey - centerDepthKey) * PainterDepthScale,
@@ -361,10 +369,4 @@ internal sealed class Dx12ModelPass
 
     private GpuDescriptorHandle SrvGpuHandle(int index) => _srvHeapStart + index * _descriptorSize;
 
-    private enum ModelSurfacePass
-    {
-        Static = 0,
-        AnimatedBase = 1,
-        EffectOverlay = 2
-    }
 }

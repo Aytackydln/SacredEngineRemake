@@ -69,13 +69,15 @@ public unsafe class Dx12DebugOverlay : IDisposable
             DebugTextLine.CarolingTitle("CONTROLS"),
             DebugTextLine.Default("MOVE: WASD, ARROWS, LEFT STICK"),
             DebugTextLine.Default("FASTER: SHIFT OR GAMEPAD A"),
-            DebugTextLine.Default("CYCLE: TAB, MOUSE4/5, GAMEPAD B"),
+            DebugTextLine.Default("CYCLE: MOUSE4/5 OR GAMEPAD B"),
             DebugTextLine.Default("ZOOM: Q/E, WHEEL, RIGHT STICK"),
-            DebugTextLine.Default("WORLD MAP: M OR GAMEPAD SELECT"),
+            DebugTextLine.Default("MINIMAP: HOLD TAB/MIDDLE MOUSE OR GAMEPAD SELECT"),
+            DebugTextLine.Default("WORLD MAP: M OR TAP GAMEPAD SELECT"),
             DebugTextLine.Default("TOGGLE HDR: F4"),
             DebugTextLine.Default("FRAME PACING: F5"),
             DebugTextLine.Default("LOW LATENCY: F6"),
-            DebugTextLine.Default("WORLD LIGHT: F7")
+            DebugTextLine.Default("WORLD LIGHT: F7"),
+            DebugTextLine.Default("STAIRS ZONES: F8")
         ]);
     }
 
@@ -237,6 +239,7 @@ public unsafe class Dx12DebugOverlay : IDisposable
             $"LIQUID {stats.LiquidDrawnTiles}/{stats.LiquidCandidateTiles} CACHE {stats.LiquidCachedTiles}",
             $"STATIC {stats.StaticDrawnObjects}/{stats.StaticCandidateObjects} MISSING {stats.StaticMissingObjects}  MODEL TEX R{rendererStats.ReadyModelTextureCount} A{rendererStats.LoadingModelTextureCount} G{rendererStats.UploadingModelTextureCount} F{rendererStats.FailedModelTextureCount}",
             $"MODEL {FormatActiveModel(scene)}",
+            $"TERRAIN HEIGHT {scene.Debug.ActorTerrainHeight:0.0}  STAIRS {(scene.Debug.StairsMapVisible ? "ON" : "OFF")}  BLOCKED {(scene.Debug.BlockedAreasVisible ? "ON" : "OFF")}",
             $"CAMERA {camera.WorldCenter.X:0.0},{camera.WorldCenter.Y:0.0} SECTOR {world.CenterSector.X},{world.CenterSector.Y}"
         };
 

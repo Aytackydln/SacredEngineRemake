@@ -16,6 +16,8 @@ internal sealed class MiniObjectSpriteLoader
 {
     private const int AtlasSize = 256;
     private const int SpriteAnchorX = 48;
+    // Static.pak stores animation duration in 50 Hz engine ticks.
+    private const float AnimationTickDurationSeconds = 0.02f;
 
     private readonly Func<string, Task<TextureAsset>> _loadTextureAsync;
     private readonly WorldSpriteLoadQueue _loadQueue;
@@ -36,10 +38,19 @@ internal sealed class MiniObjectSpriteLoader
         byte sourceX,
         byte sourceY,
         byte sourceSize,
+        byte animationFrameDurationTicks,
+        byte animationFrameCount,
         out StaticSpriteAsset? sprite)
     {
         sprite = null;
-        if (!TryCreateKey(item.ModelDesc.ModelName, sourceX, sourceY, sourceSize, out var key))
+        if (!TryCreateKey(
+                item.ModelDesc.ModelName,
+                sourceX,
+                sourceY,
+                sourceSize,
+                animationFrameDurationTicks,
+                animationFrameCount,
+                out var key))
             return true;
 
         if (!_lock.Wait(0))
@@ -104,6 +115,27 @@ internal sealed class MiniObjectSpriteLoader
 
     private static StaticSpriteAsset? BuildSprite(TextureAsset atlas, MiniObjectSpriteKey key)
     {
+        if (key.FrameCount > 0)
+        {
+            if (key.AtlasColumns <= 0 || key.AtlasRows <= 0 ||
+                key.FrameCount > key.AtlasColumns * key.AtlasRows ||
+                atlas.Width % key.AtlasColumns != 0 ||
+                atlas.Height % key.AtlasRows != 0)
+            {
+                return null;
+            }
+
+            return new StaticSpriteAsset(
+                0,
+                atlas.Width / key.AtlasColumns,
+                atlas.Height / key.AtlasRows,
+                0,
+                0,
+                atlas.Rgba8,
+                key.FrameCount,
+                key.FrameDurationTicks * AnimationTickDurationSeconds);
+        }
+
         if (key.SourceX + key.SourceSize > atlas.Width ||
             key.SourceY + key.SourceSize > atlas.Height)
         {
@@ -125,25 +157,60 @@ internal sealed class MiniObjectSpriteLoader
         byte sourceX,
         byte sourceY,
         byte sourceSize,
+        byte animationFrameDurationTicks,
+        byte animationFrameCount,
         out MiniObjectSpriteKey key)
     {
         key = default;
         const string prefix = "MiniObjTex";
         if (!modelName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
-            !int.TryParse(modelName.AsSpan(prefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var atlasIndex) ||
-            sourceSize == 0 ||
-            AtlasSize % sourceSize != 0)
+            !int.TryParse(modelName.AsSpan(prefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var atlasIndex))
         {
             return false;
         }
+
+        if (animationFrameCount > 0)
+        {
+            if (sourceX == 0 || sourceY == 0 || animationFrameDurationTicks == 0 ||
+                animationFrameCount > sourceX * sourceY)
+            {
+                return false;
+            }
+
+            key = new MiniObjectSpriteKey(
+                $"MINIOBJ{sourceX}X{sourceY}_{animationFrameCount}_{animationFrameDurationTicks}_{atlasIndex}.TGA",
+                0,
+                0,
+                0,
+                sourceX,
+                sourceY,
+                animationFrameCount,
+                animationFrameDurationTicks);
+            return true;
+        }
+
+        if (sourceSize == 0 || AtlasSize % sourceSize != 0)
+            return false;
 
         key = new MiniObjectSpriteKey(
             $"MINIOBJ{AtlasSize / sourceSize}_{atlasIndex}.TGA",
             sourceX,
             sourceY,
-            sourceSize);
+            sourceSize,
+            0,
+            0,
+            0,
+            0);
         return true;
     }
 
-    private readonly record struct MiniObjectSpriteKey(string TextureName, int SourceX, int SourceY, int SourceSize);
+    private readonly record struct MiniObjectSpriteKey(
+        string TextureName,
+        int SourceX,
+        int SourceY,
+        int SourceSize,
+        int AtlasColumns,
+        int AtlasRows,
+        int FrameCount,
+        byte FrameDurationTicks);
 }
