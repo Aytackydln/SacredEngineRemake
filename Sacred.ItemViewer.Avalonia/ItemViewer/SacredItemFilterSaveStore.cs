@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Sacred.Granny;
+using Sacred.Granny.Abstractions;
 
 namespace Sacred.ItemViewer.Avalonia.ItemViewer;
 
@@ -55,11 +57,15 @@ internal sealed class SacredItemFilterSaveStore
             var gameDirectory = string.IsNullOrWhiteSpace(saveData.GameDirectory)
                 ? DefaultGameDirectory
                 : saveData.GameDirectory;
+            var grannyBackend = Enum.IsDefined(saveData.GrannyBackend)
+                ? saveData.GrannyBackend
+                : GrnBackendKind.ManagedParser;
 
             return new SacredItemFilterSettings(
                 enumFilters,
                 saveData.FilterHasModel,
-                gameDirectory);
+                gameDirectory,
+                grannyBackend);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -81,7 +87,8 @@ internal sealed class SacredItemFilterSaveStore
                         static pair => pair.Value.Order().ToArray(),
                         StringComparer.Ordinal),
                 FilterHasModel = settings.FilterHasModel,
-                GameDirectory = settings.GameDirectory
+                GameDirectory = settings.GameDirectory,
+                GrannyBackend = settings.GrannyBackend
             };
 
             var directory = Path.GetDirectoryName(FilePath);
@@ -102,14 +109,19 @@ internal sealed class SacredItemFilterSaveStore
 
     private static SacredItemFilterSettings CreateDefaultSettings()
     {
-        return new SacredItemFilterSettings([], false, DefaultGameDirectory);
+        return new SacredItemFilterSettings(
+            [],
+            false,
+            DefaultGameDirectory,
+            GrnBackendKind.ManagedParser);
     }
 }
 
 internal sealed record SacredItemFilterSettings(
     Dictionary<string, HashSet<ulong>> EnumFilters,
     bool FilterHasModel,
-    string GameDirectory);
+    string GameDirectory,
+    GrnBackendKind GrannyBackend);
 
 internal sealed record SacredItemFilterSaveData
 {
@@ -120,6 +132,8 @@ internal sealed record SacredItemFilterSaveData
     public bool FilterHasModel { get; init; }
 
     public string GameDirectory { get; init; } = "";
+
+    public GrnBackendKind GrannyBackend { get; init; } = GrnBackendKind.ManagedParser;
 }
 
 [JsonSourceGenerationOptions(WriteIndented = true)]

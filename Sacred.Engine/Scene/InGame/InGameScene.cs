@@ -80,13 +80,17 @@ internal sealed class InGameScene : IGameScene
     {
         switch (option.ToLowerInvariant())
         {
+            case "overlays" or "debug-overlay" when TryParseBoolean(value, out var overlaysVisible):
+                _scene.Debug.OverlaysVisible = overlaysVisible;
+                message = $"debug overlays {(overlaysVisible ? "visible" : "hidden")}";
+                return true;
             case "lighting" when TryParseLightingMode(value, out var lightingMode):
                 _worldLighting.SetMode(lightingMode);
                 message = $"world lighting set to {_worldLighting.DisplayName}";
                 return true;
             case "stairs" or "stairs-tiles" when TryParseBoolean(value, out var gateTilesVisible):
                 _scene.Debug.StairsMapVisible = gateTilesVisible;
-                message = $"stairs tiles {(gateTilesVisible ? "visible" : "hidden")}";
+                message = $"stairs and door tiles {(gateTilesVisible ? "visible" : "hidden")}";
                 return true;
             case "blocked" or "blocked-tiles" when TryParseBoolean(value, out var blockedTilesVisible):
                 _scene.Debug.BlockedAreasVisible = blockedTilesVisible;
@@ -97,7 +101,7 @@ internal sealed class InGameScene : IGameScene
                 message = "loading next character";
                 return true;
             default:
-                message = "Unknown in-game option. Use lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, or character next.";
+                message = "Unknown in-game option. Use overlays <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, or character next.";
                 return false;
         }
     }
@@ -141,7 +145,11 @@ internal sealed class InGameScene : IGameScene
             (int)MathF.Floor(startLocation.X / WorldStreamer.SectorTileCount),
             (int)MathF.Floor(startLocation.Y / WorldStreamer.SectorTileCount));
         _camera.CenterOnTile(startLocation.X, startLocation.Y, 0.75f);
-        _worldLighting.Update(0.0f, _scene.Lighting, new Vector3(_camera.WorldCenter, 0.0f));
+        _inputController.InitializeLocation(startLocation);
+        var zone = _scene.Indoor.ActiveGroup is null
+            ? _worldStreamer.GetZone(_camera.WorldCenter)
+            : Sacred.Core.World.Sector.WorldZone.Indoors;
+        _worldLighting.Update(0.0f, _scene.Lighting, new Vector3(_camera.WorldCenter, 0.0f), zone);
         _player.Initialize(_camera.WorldCenter);
     }
 

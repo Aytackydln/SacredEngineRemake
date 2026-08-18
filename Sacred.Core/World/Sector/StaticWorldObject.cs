@@ -18,4 +18,13 @@ public readonly record struct StaticWorldObject(
     int TileWorldY,
     int TileWorldX,
     int ChainDepth,
-    int InsertionOrder);
+    int InsertionOrder)
+{
+    public byte MiniObjectSourceXOrAtlasColumns => SpriteParam2E;
+    public byte MiniObjectSourceYOrAtlasRows => SpriteParam2F;
+    public byte MiniObjectSourceSize => OrientationOrFrame;
+    public byte MiniObjectFrameDurationTicks => AnimationFrameDurationTicks;
+    public byte MiniObjectFrameCount => AnimationFrameCount;
+    public bool UsesAlternateSurface =>
+        (Flags & Sacred.Core.World.StaticObjectRecord.AlternateSurfaceFlag) != 0;
+}

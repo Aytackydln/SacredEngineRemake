@@ -1,6 +1,7 @@
 using Sacred.Assets.Paks.Models;
 using Sacred.Core.Pak.Weapon;
 using Sacred.Granny;
+using Sacred.Granny.Animation;
 using Sacred.Inventory.Actors;
 
 namespace Sacred.Engine.Assets;

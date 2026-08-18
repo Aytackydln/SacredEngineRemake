@@ -1,6 +1,6 @@
 // #pragma hlsl profile ps_5_0
 #pragma vertex vs_main
-#pragma fragment ps_main
+#pragma fragment ps_sdr
 
 cbuffer ModelConstants : register(b0)
 {
@@ -16,6 +16,7 @@ cbuffer SceneConstants : register(b1)
     float4 camera_position_and_shininess;
     float4 ambient_color_and_intensity;
     float4 light_color_and_diffuse_intensity;
+    float4 hdr_display; // x: scene paper white, y: UI paper white, z: sun diffuse nits, w: sun specular nits
 }
 
 Texture2D model_texture : register(t0);
@@ -23,6 +24,7 @@ Texture2D model_overlay_texture : register(t1);
 SamplerState model_sampler : register(s0);
 
 static const float texture_mode_has_texture_threshold = 0.5f;
+static const float hdr_texture_mode_has_texture_threshold = 0.15f;
 static const float texture_mode_multitexture_fill_threshold = 2.5f;
 static const float texture_animation_scroll_mode_threshold = 0.25f;
 static const float texture_animation_radial_sweep_mode_threshold = 0.60f;
@@ -61,6 +63,11 @@ float3 safe_normalize(float3 value, float3 fallback)
 bool has_texture()
 {
     return texture_flags.x > texture_mode_has_texture_threshold;
+}
+
+bool has_hdr_texture()
+{
+    return texture_flags.x > hdr_texture_mode_has_texture_threshold;
 }
 
 bool has_effect_overlay_texture()
@@ -125,6 +132,24 @@ float4 visible_effect_color(float4 color)
     return float4(color.rgb * color.a, color.a);
 }
 
+float4 hdr_spatial_sweep_effect(float4 effect_color, float3 local_position)
+{
+    float radial_progress = saturate(
+        length(local_position.xz - model_color.xy) * model_color.z);
+    float sweep_position = frac(texture_flags.w);
+    float glow = 1.0f - smoothstep(0.07f, 0.19f, abs(radial_progress - sweep_position));
+    float alpha = saturate(effect_color.a + glow * 0.38f);
+    float3 color = saturate(effect_color.rgb * (1.0f + glow * 1.9f));
+    return float4(SdrTextureToHdr10(color, hdr_display.w), alpha);
+}
+
+float4 hdr_premultiplied_effect_color(float4 color)
+{
+    // Effects are emissive and use the HDR highlight target, not scene paper white.
+    float3 hdr = SdrTextureToPremultipliedHdr10(color.rgb * color.a, color.a, hdr_display.w);
+    return float4(hdr, color.a);
+}
+
 float multitexture_fill_mask(float4 base_color)
 {
     float red_dominance = base_color.r - max(base_color.g, base_color.b);
@@ -155,7 +180,7 @@ vs_output vs_main(vs_input input)
     return output;
 }
 
-float4 ps_main(vs_output input) : SV_Target
+float4 ps_sdr(vs_output input) : SV_Target
 {
     float4 base_color = model_color;
     if (has_texture())
@@ -192,4 +217,49 @@ float4 ps_main(vs_output input) : SV_Target
     float3 lit_color = base_color.rgb * (ambient + diffuse) + specular;
 
     return float4(saturate(lit_color) * base_color.a, base_color.a);
+}
+
+float4 ps_hdr(vs_output input) : SV_Target
+{
+    float4 base_color = model_color;
+    if (has_hdr_texture())
+        base_color = model_texture.Sample(model_sampler, input.tex_coord);
+
+    float4 animated_overlay = sample_animated_overlay(input.tex_coord);
+    // Glow effects are emissive and should not be affected by scene lighting.
+    if (base_color.a < effect_alpha_cutoff)
+    {
+        return uses_radial_sweep_animation()
+            ? hdr_spatial_sweep_effect(animated_overlay, input.local_position)
+            : hdr_premultiplied_effect_color(animated_overlay);
+    }
+
+    float3 normal = safe_normalize(input.normal, float3(0.0f, 0.0f, 1.0f));
+    float3 light_direction = safe_normalize(
+        light_position_and_specular_strength.xyz - input.world_position,
+        float3(0.0f, -0.7071f, 0.7071f));
+    float3 view_direction = safe_normalize(
+        camera_position_and_shininess.xyz - input.world_position,
+        float3(0.0f, -0.7071f, 0.7071f));
+    float diffuse_amount = saturate(dot(normal, light_direction));
+    float3 reflection_direction = reflect(-light_direction, normal);
+    float specular_amount = diffuse_amount > 0.0f
+        ? pow(saturate(dot(reflection_direction, view_direction)), max(camera_position_and_shininess.w, 1.0f))
+        : 0.0f;
+
+    float4 lerped = lerp(animated_overlay, base_color, base_color.a) * base_color.a;
+    float3 ambient = ambient_color_and_intensity.rgb * saturate(ambient_color_and_intensity.w);
+    float3 diffuse = light_color_and_diffuse_intensity.rgb *
+        (diffuse_amount * max(light_color_and_diffuse_intensity.w, 0.0f));
+    float3 specular = light_color_and_diffuse_intensity.rgb *
+        (specular_amount * max(light_position_and_specular_strength.w, 0.0f));
+    float3 hdr = SdrLitTextureToHdr10(
+        lerped.rgb,
+        ambient,
+        diffuse,
+        specular,
+        hdr_display.x,
+        hdr_display.z,
+        hdr_display.w);
+    return float4(hdr, base_color.a);
 }

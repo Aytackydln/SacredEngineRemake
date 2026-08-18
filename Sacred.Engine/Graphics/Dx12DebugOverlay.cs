@@ -239,7 +239,7 @@ public unsafe class Dx12DebugOverlay : IDisposable
             $"LIQUID {stats.LiquidDrawnTiles}/{stats.LiquidCandidateTiles} CACHE {stats.LiquidCachedTiles}",
             $"STATIC {stats.StaticDrawnObjects}/{stats.StaticCandidateObjects} MISSING {stats.StaticMissingObjects}  MODEL TEX R{rendererStats.ReadyModelTextureCount} A{rendererStats.LoadingModelTextureCount} G{rendererStats.UploadingModelTextureCount} F{rendererStats.FailedModelTextureCount}",
             $"MODEL {FormatActiveModel(scene)}",
-            $"TERRAIN HEIGHT {scene.Debug.ActorTerrainHeight:0.0}  STAIRS {(scene.Debug.StairsMapVisible ? "ON" : "OFF")}  BLOCKED {(scene.Debug.BlockedAreasVisible ? "ON" : "OFF")}",
+            $"TERRAIN HEIGHT {scene.Debug.ActorTerrainHeight:0.0}  STAIRS/DOORS {(scene.Debug.StairsMapVisible ? "ON" : "OFF")}  BLOCKED {(scene.Debug.BlockedAreasVisible ? "ON" : "OFF")}",
             $"CAMERA {camera.WorldCenter.X:0.0},{camera.WorldCenter.Y:0.0} SECTOR {world.CenterSector.X},{world.CenterSector.Y}"
         };
 

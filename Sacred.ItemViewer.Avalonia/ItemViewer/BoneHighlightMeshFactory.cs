@@ -1,5 +1,6 @@
 using System.Numerics;
 using Sacred.Granny;
+using Sacred.Granny.Meshes;
 
 namespace Sacred.ItemViewer.Avalonia.ItemViewer;
 

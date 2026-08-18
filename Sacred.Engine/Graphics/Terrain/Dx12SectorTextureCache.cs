@@ -166,6 +166,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
                 composed.BlockedAreaDebugTexture,
                 SrvCpuHandle(composition.BlockedAreaDebugSrvSlot));
             _textures.Add(composition.Coord, new SectorTexture(
+                composition.Composition,
                 composed.BaseTexture,
                 composed.LiquidCoverTexture,
                 composed.StairsDebugTexture,
@@ -182,7 +183,8 @@ internal sealed class Dx12SectorTextureCache : IDisposable
     {
         foreach (var image in images)
         {
-            if (_textures.ContainsKey(image.Coord))
+            if (_textures.TryGetValue(image.Coord, out var existing) &&
+                ReferenceEquals(existing.Composition, image))
                 continue;
 
             if (_pendingUploads.Contains(image.Coord))
@@ -280,6 +282,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
             var composed = _composer.Compose(request.Composition);
             return new SubmittedSectorComposition(
                 request.Composition.Coord,
+                request.Composition,
                 composed,
                 request.BaseSrvSlot,
                 request.LiquidCoverSrvSlot,
@@ -291,6 +294,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         {
             return new SubmittedSectorComposition(
                 request.Composition.Coord,
+                request.Composition,
                 null,
                 request.BaseSrvSlot,
                 request.LiquidCoverSrvSlot,
@@ -317,6 +321,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
 
     private sealed record SubmittedSectorComposition(
         SectorCoord Coord,
+        TerrainSectorComposition Composition,
         Dx12ComposedSector? Composed,
         int BaseSrvSlot,
         int LiquidCoverSrvSlot,
@@ -325,6 +330,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         Exception? Error);
 
     private sealed class SectorTexture(
+        TerrainSectorComposition composition,
         ID3D12Resource baseResource,
         ID3D12Resource liquidCoverResource,
         ID3D12Resource stairsDebugResource,
@@ -335,6 +341,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         int blockedAreaDebugSrvSlot,
         ulong lastUsedFrame)
     {
+        public TerrainSectorComposition Composition { get; } = composition;
         public ID3D12Resource BaseResource { get; } = baseResource;
         public ID3D12Resource LiquidCoverResource { get; } = liquidCoverResource;
         public ID3D12Resource StairsDebugResource { get; } = stairsDebugResource;

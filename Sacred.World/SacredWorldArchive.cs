@@ -23,15 +23,25 @@ public sealed class SacredWorldArchive : IDisposable
 
     private readonly FloorPakArchive _floorPak;
     private readonly StaticPakArchive _staticPak;
+    private readonly WldxLoader _wldxLoader;
     private readonly Dictionary<uint, KeyxSectorRecord> _entriesById = new();
     private readonly Dictionary<SectorCoord, uint> _sectorIdByGrid = new();
 
-    private readonly WldxLoader _wldxLoader;
-    private readonly SemaphoreSlim _sectorLoadLock = new(1, 1);
+    private readonly Dictionary<SectorCoord, Task<Sector>> _sectorLoadTasks = new();
+    private readonly Dictionary<SectorCoord, Sector> _loadedSectors = new();
+    private readonly List<IndoorTileGroup> _loadedIndoorGroups = [];
+    private readonly object _sectorLoadTaskLock = new();
+    private readonly object _sectorLoadLock = new();
     private bool _disposed;
+    private WorldZoneMap _zoneMap = null!;
 
     public SectorCoord StartSector { get; private set; }
     public SacredStairsMap StairsMap { get; }
+
+    public WorldZone GetZone(float worldX, float worldY) =>
+        _zoneMap.GetZone(new SectorCoord(
+            (int)MathF.Floor(worldX / SectorW),
+            (int)MathF.Floor(worldY / SectorH)));
 
     public bool TryGetMinimapTextureName(SectorCoord coord, out string textureName)
     {
@@ -52,9 +62,9 @@ public sealed class SacredWorldArchive : IDisposable
         StaticPakArchive staticPak,
         SacredStairsMap stairsMap)
     {
-        _wldxLoader = new WldxLoader(wldxStream);
         _floorPak = floorPak;
         _staticPak = staticPak;
+        _wldxLoader = new WldxLoader(wldxStream);
         StairsMap = stairsMap;
         LoadKeyx(keyxData);
         StartSector = _sectorIdByGrid.ContainsKey(BellevueSector)
@@ -75,25 +85,70 @@ public sealed class SacredWorldArchive : IDisposable
         if (!_sectorIdByGrid.TryGetValue(coord, out var sectorId))
             return null;
 
-        var entry = _entriesById[sectorId];
-
-        await _sectorLoadLock.WaitAsync();
-        try
+        Task<Sector> loadTask;
+        lock (_sectorLoadTaskLock)
         {
-            // Keep only the tile block in memory, and serialize extraction with parsing so
-            // queued sector loads cannot accumulate decompressed WLDX buffers.
-            var tiles = await _wldxLoader.ReadSectorTiles(entry, sectorId);
-            var ground = new TileLayer(SectorW, SectorH);
-            var floorOverlays = new FloorOverlayLayer(SectorW, SectorH);
-            var liquidSurfaces = new LiquidSurfaceLayer();
-            var staticObjects = new StaticObjectLayer();
-            var stairsCells = new StairsCellLayer();
-            var pathing = new WorldPathingLayer(SectorW, SectorH);
-            var elevation = new TerrainElevationLayer(SectorW, SectorH);
-            var staticTileVisits = new List<StaticTileVisit>();
-            for (var y = 0; y < SectorH; y++)
-            for (var x = 0; x < SectorW; x++)
+            if (!_sectorLoadTasks.TryGetValue(coord, out loadTask!))
             {
+                var entry = _entriesById[sectorId];
+                loadTask = Task.Run(() => LoadSector(coord, sectorId, entry));
+                _sectorLoadTasks.Add(coord, loadTask);
+            }
+        }
+
+        return await loadTask.ConfigureAwait(false);
+    }
+
+    private Sector LoadSector(SectorCoord coord, uint sectorId, KeyxSectorRecord entry)
+    {
+        lock (_sectorLoadLock)
+        {
+            var payload = _wldxLoader.LoadSector(sectorId, entry);
+            var sector = CreateSector(coord, entry, payload.OutdoorTiles);
+            LoadIndoorTileGroups(sector.IndoorTileGroups, coord, payload.IndoorGroups);
+            AssociateLoadedIndoorGroups(sector);
+            if (payload.IndoorGroups.Count > 0)
+                Console.WriteLine($"Sector loaded: {coord.X},{coord.Y}, indoor groups={payload.IndoorGroups.Count}.");
+            return sector;
+        }
+    }
+
+    private void AssociateLoadedIndoorGroups(Sector newlyLoadedSector)
+    {
+        foreach (var group in _loadedIndoorGroups)
+            if (Intersects(group, newlyLoadedSector.Coord))
+                newlyLoadedSector.IndoorTileGroups.Add(group);
+
+        foreach (var group in newlyLoadedSector.IndoorTileGroups.Groups)
+        {
+            if (_loadedIndoorGroups.All(existing => existing.Id != group.Id))
+                _loadedIndoorGroups.Add(group);
+            foreach (var loadedSector in _loadedSectors.Values)
+                if (Intersects(group, loadedSector.Coord))
+                    loadedSector.IndoorTileGroups.Add(group);
+        }
+
+        _loadedSectors[newlyLoadedSector.Coord] = newlyLoadedSector;
+    }
+
+    private static bool Intersects(IndoorTileGroup group, SectorCoord coord) =>
+        group.WorldX < (coord.X + 1) * SectorW && group.WorldX + group.Width > coord.X * SectorW &&
+        group.WorldY < (coord.Y + 1) * SectorH && group.WorldY + group.Height > coord.Y * SectorH;
+
+    private Sector CreateSector(SectorCoord coord, KeyxSectorRecord entry, byte[] tiles)
+    {
+        var ground = new TileLayer(SectorW, SectorH);
+        var floorOverlays = new FloorOverlayLayer(SectorW, SectorH);
+        var liquidSurfaces = new LiquidSurfaceLayer();
+        var staticObjects = new StaticObjectLayer();
+        var stairsCells = new StairsCellLayer();
+        var indoorTileGroups = new IndoorTileGroupLayer();
+        var pathing = new WorldPathingLayer(SectorW, SectorH);
+        var elevation = new TerrainElevationLayer(SectorW, SectorH);
+        var staticTileVisits = new List<StaticTileVisit>();
+        for (var y = 0; y < SectorH; y++)
+        for (var x = 0; x < SectorW; x++)
+        {
                 var tileOffset = (y * SectorW + x) * WldxTileRecord.Size;
                 var tile = WldxTileRecord.FromBytes(tiles.AsSpan(tileOffset, WldxTileRecord.Size));
                 ground[x, y] = tile.GroundTileId;
@@ -112,24 +167,88 @@ public sealed class SacredWorldArchive : IDisposable
 
                 LoadFloorOverlayChain(floorOverlays, x, y, tile.FloorChainHeadId);
                 LoadLiquidSurface(liquidSurfaces, x, y, tile, entry);
+        }
+
+        LoadStaticObjectChains(staticObjects, staticTileVisits);
+        LoadStairsCells(stairsCells, coord);
+        return new Sector(
+            coord,
+            entry.Zone,
+            ground,
+            floorOverlays,
+            liquidSurfaces,
+            staticObjects,
+            stairsCells,
+            indoorTileGroups,
+            pathing,
+            elevation);
+    }
+
+    private void LoadIndoorTileGroups(
+        IndoorTileGroupLayer layer,
+        SectorCoord ownerCoord,
+        IReadOnlyList<WldxIndoorGroupPayload> payloads)
+    {
+        for (var groupIndex = 0; groupIndex < payloads.Count; groupIndex++)
+        {
+            var payload = payloads[groupIndex];
+            var pathing = new WorldPathingLayer(payload.Width, payload.Height);
+            var presence = new IndoorTilePresenceLayer(payload.Width, payload.Height);
+            var triggers = new List<IndoorTriggerTile>();
+
+            for (var localY = 0; localY < payload.Height; localY++)
+            for (var localX = 0; localX < payload.Width; localX++)
+            {
+                var tileOffset = (localY * payload.Width + localX) * WldxTileRecord.Size;
+                var tileBytes = payload.Tiles.AsSpan(tileOffset, WldxTileRecord.Size);
+                var tile = WldxTileRecord.FromBytes(tileBytes);
+                var pathTile = new WorldPathTile(tile.PathFlags, tile.SurfaceType);
+                pathing[localX, localY] = pathTile;
+                presence[localX, localY] = HasAuthoredData(tileBytes);
+
+                // Older indoor sections commonly omit TriggerFlag on their door cells.
+                // Path type 9 is the stable authored door discriminator in both the
+                // outdoor and indoor grids, so retain it as a trigger regardless.
+                if (pathTile.Type == 9 || (tile.PathFlags & WorldPathTile.TriggerFlag) != 0)
+                {
+                    triggers.Add(new IndoorTriggerTile(
+                        payload.WorldX + localX,
+                        payload.WorldY + localY,
+                        pathing[localX, localY]));
+                }
             }
 
-            LoadStaticObjectChains(staticObjects, staticTileVisits);
-            LoadStairsCells(stairsCells, coord);
-            return new Sector(
-                coord,
-                ground,
-                floorOverlays,
-                liquidSurfaces,
-                staticObjects,
-                stairsCells,
+            byte surfaceLevel = 1;
+            for (var previousIndex = 0; previousIndex < groupIndex; previousIndex++)
+            {
+                var previous = payloads[previousIndex];
+                if (previous.WorldX == payload.WorldX && previous.WorldY == payload.WorldY &&
+                    previous.Width == payload.Width && previous.Height == payload.Height)
+                {
+                    surfaceLevel++;
+                }
+            }
+
+            layer.Add(new IndoorTileGroup(
+                new IndoorTileGroupId(ownerCoord, groupIndex),
+                payload.WorldX,
+                payload.WorldY,
+                payload.Width,
+                payload.Height,
+                payload.Kind,
+                surfaceLevel,
                 pathing,
-                elevation);
+                presence,
+                triggers));
         }
-        finally
-        {
-            _sectorLoadLock.Release();
-        }
+    }
+
+    private static bool HasAuthoredData(ReadOnlySpan<byte> tileBytes)
+    {
+        foreach (var value in tileBytes)
+            if (value != 0)
+                return true;
+        return false;
     }
 
     private void LoadStairsCells(StairsCellLayer layer, SectorCoord coord)
@@ -275,6 +394,11 @@ public sealed class SacredWorldArchive : IDisposable
             _entriesById[entry.Id] = entry;
             _sectorIdByGrid[coord] = entry.Id;
         }
+
+        _zoneMap = new WorldZoneMap(_sectorIdByGrid.Select(pair =>
+            new KeyValuePair<SectorCoord, WorldZone>(pair.Key, _entriesById[pair.Value].Zone)));
+        Console.WriteLine(
+            $"World zones loaded: outdoors={_zoneMap.OutdoorSectorCount} sectors, caves={_zoneMap.CaveSectorCount} sectors.");
     }
 
     private static int ReadEntryCount(byte[] data)
@@ -346,6 +470,5 @@ public sealed class SacredWorldArchive : IDisposable
         _wldxLoader.Dispose();
         _floorPak.Dispose();
         _staticPak.Dispose();
-        _sectorLoadLock.Dispose();
     }
 }

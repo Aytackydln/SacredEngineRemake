@@ -8,6 +8,7 @@ public readonly record struct WorldPathTile(byte Flags, byte TypeAndSurface)
 {
     public const byte TypeMask = 0x0F;
     public const byte RuntimeBlockedFlag = 0x08;
+    public const byte TriggerFlag = 0x04;
 
     public byte Type => (byte)(TypeAndSurface & TypeMask);
 

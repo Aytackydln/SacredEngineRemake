@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Sacred.Granny;
+using Sacred.Granny.Assets;
 
 namespace Sacred.Inventory.Effects;
 

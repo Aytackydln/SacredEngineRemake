@@ -3,7 +3,10 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
 using Sacred.Assets.Utils;
-using Sacred.Granny;
+using Sacred.Granny.Abstractions;
+using Sacred.Granny.Animation;
+using Sacred.Granny.Assets;
+using Sacred.Granny.Loading;
 
 namespace Sacred.Assets.Paks.Models;
 
@@ -20,19 +23,25 @@ public sealed class ModelsPakArchive : IDisposable
     private readonly SemaphoreSlim _streamLock = new(1, 1);
     private readonly FrozenDictionary<string, ModelPakRecord> _recordsByName;
     private readonly ModelsMetadataTable _metadata;
+    private readonly SwappableGrnAssetLoader _assetLoader;
     private bool _disposed;
 
     private ModelsPakArchive(
         FileStream stream,
         Dictionary<string, ModelPakRecord> recordsByName,
-        ModelsMetadataTable metadata)
+        ModelsMetadataTable metadata,
+        IGrnAssetLoader assetLoader)
     {
         _stream = stream;
         _recordsByName = recordsByName.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
         _metadata = metadata;
+        _assetLoader = new SwappableGrnAssetLoader(assetLoader);
     }
 
-    public static ModelsPakArchive Load(string path, string? metadataPath = null)
+    public static ModelsPakArchive Load(
+        string path,
+        string? metadataPath = null,
+        IGrnAssetLoader? assetLoader = null)
     {
         using var stopwatch = new LoggingStopwatch("Loading Models.pak... ");
 
@@ -92,7 +101,18 @@ public sealed class ModelsPakArchive : IDisposable
         var metadata = metadataPath is null
             ? ModelsMetadataTable.Empty
             : ModelsMetadataTable.Load(metadataPath);
-        return new ModelsPakArchive(stream, recordsByName, metadata);
+        return new ModelsPakArchive(
+            stream,
+            recordsByName,
+            metadata,
+            assetLoader ?? ManagedGrnAssetLoader.Instance);
+    }
+
+    public void ReplaceAssetLoader(IGrnAssetLoader assetLoader)
+    {
+        ArgumentNullException.ThrowIfNull(assetLoader);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _assetLoader.Replace(assetLoader);
     }
 
     public async Task<GrnAsset> LoadModelAsync(
@@ -104,7 +124,7 @@ public sealed class ModelsPakArchive : IDisposable
         var payload = await ReadPayloadAsync(record, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         var metadata = ReadModelPayloadMetadata(payload);
-        var asset = GrnAssetLoader.LoadFromBytes(
+        var asset = _assetLoader.LoadFromBytes(
             Path.GetFileNameWithoutExtension(modelName),
             payload,
             meshExtractionMode,
@@ -167,7 +187,7 @@ public sealed class ModelsPakArchive : IDisposable
             animationRecord,
             cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-        return Granny1MeshExtractor.TryExtractAnimation(
+        return _assetLoader.TryExtractAnimation(
             animationPayload,
             motionName,
             ReadModelPayloadMetadata(metadataPrefix).Scale);
@@ -201,7 +221,7 @@ public sealed class ModelsPakArchive : IDisposable
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        var asset = GrnAssetLoader.LoadCharacterFromBytes(
+        var asset = _assetLoader.LoadCharacterFromBytes(
             Path.GetFileNameWithoutExtension(baseModelName),
             basePayload,
             attachmentPayloads,
@@ -233,7 +253,7 @@ public sealed class ModelsPakArchive : IDisposable
             animationRecord,
             cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-        var animation = Granny1MeshExtractor.TryExtractAnimation(
+        var animation = _assetLoader.TryExtractAnimation(
             animationPayload,
             motionName,
             baseMetadata.Scale);
@@ -370,6 +390,7 @@ public sealed class ModelsPakArchive : IDisposable
             return;
 
         _disposed = true;
+        _assetLoader.Dispose();
         _stream.Dispose();
         _streamLock.Dispose();
     }

@@ -1,4 +1,5 @@
 ﻿using System.IO.Compression;
+using Sacred.Core.Pak.Texture;
 
 namespace Sacred.Assets.Paks.Texture;
 
@@ -10,12 +11,19 @@ public static class TexturePakDecoder
 
     public static TextureAsset Decode(TexturePakRecord record, ReadOnlySpan<byte> payload)
     {
-        var rgba = record.Type switch
+        var rgba = record.StorageFormat switch
         {
-            0 => DecodeArgb4444(payload, record.Width, record.Height),
-            3 => DecodeArgb4444(DecompressRle4444(payload, record.Width, record.Height), record.Width, record.Height),
-            4 => DecodeArgb4444(Inflate(payload), record.Width, record.Height),
-            6 => DecodeBgra(payload, record.Width, record.Height),
+            SacredTextureStorageFormat.Argb4444 =>
+                DecodeArgb4444(payload, record.Width, record.Height),
+            SacredTextureStorageFormat.RleArgb4444 =>
+                DecodeArgb4444(
+                    DecompressRle4444(payload, record.Width, record.Height),
+                    record.Width,
+                    record.Height),
+            SacredTextureStorageFormat.ZlibArgb4444 =>
+                DecodeArgb4444(Inflate(payload), record.Width, record.Height),
+            SacredTextureStorageFormat.Bgra8888 =>
+                DecodeBgra(payload, record.Width, record.Height),
             _ => throw new NotSupportedException($"Unsupported texture type {record.Type} for '{record.Name}'.")
         };
 

@@ -1,4 +1,5 @@
 using System.Numerics;
+using Sacred.Particles;
 
 namespace Sacred.Inventory.Effects;
 
@@ -20,7 +21,7 @@ internal static class WeaponGlowEffectBuilder
             unit * FlareSizeScale,
             FlareTexture,
             FlareColor,
-            EquipmentEffectTextureMode.WeaponGlowFlare);
+            ParticleTextureMode.WeaponGlowFlare);
     }
 
     public static void AddTrail(EffectMeshBuilder builder, Vector3 start, Vector3 end, float unit) =>
@@ -30,5 +31,5 @@ internal static class WeaponGlowEffectBuilder
             unit * 0.42f,
             TrailTexture,
             TrailColor,
-            EquipmentEffectTextureMode.Alpha);
+            ParticleTextureMode.Alpha);
 }

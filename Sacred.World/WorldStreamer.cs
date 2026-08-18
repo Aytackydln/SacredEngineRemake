@@ -38,6 +38,9 @@ public sealed class WorldStreamer : IDisposable
     public VisibleWorld VisibleWorld => Volatile.Read(ref _visibleWorld);
     public SectorCoord StartSector => _worldArchive.StartSector;
 
+    public WorldZone GetZone(Vector2 worldPosition) =>
+        _worldArchive.GetZone(worldPosition.X, worldPosition.Y);
+
     public void CenterOnSector(int sx, int sy)
     {
         RequestCenter(new SectorCoord(sx, sy));

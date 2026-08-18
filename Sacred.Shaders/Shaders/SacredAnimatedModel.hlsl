@@ -1,6 +1,6 @@
 // #pragma hlsl profile ps_5_0
 #pragma vertex vs_main
-#pragma fragment ps_main
+#pragma fragment ps_sdr
 
 cbuffer ModelConstants : register(b0)
 {
@@ -16,6 +16,7 @@ cbuffer SceneConstants : register(b1)
     float4 camera_position_and_shininess;
     float4 ambient_color_and_intensity;
     float4 light_color_and_diffuse_intensity;
+    float4 hdr_display; // x: scene paper white, y: UI paper white, z: sun diffuse nits, w: sun specular nits
 }
 
 Texture2D model_texture : register(t0);
@@ -142,8 +143,41 @@ vs_output vs_main(vs_input input)
     return output;
 }
 
-float4 ps_main(vs_output input) : SV_Target
+float4 ps_sdr(vs_output input) : SV_Target
 {
     float4 color = sample_animated_texture(model_texture, input.tex_coord);
     return color.rgba;
+}
+
+float4 ps_hdr(vs_output input) : SV_Target
+{
+    float4 color = sample_animated_texture(model_texture, input.tex_coord);
+
+    float3 normal = safe_normalize(input.normal, float3(0.0f, 0.0f, 1.0f));
+    float3 light_direction = safe_normalize(
+        light_position_and_specular_strength.xyz - input.world_position,
+        float3(0.0f, -0.7071f, 0.7071f));
+    float3 view_direction = safe_normalize(
+        camera_position_and_shininess.xyz - input.world_position,
+        float3(0.0f, -0.7071f, 0.7071f));
+    float diffuse_amount = saturate(dot(normal, light_direction));
+    float3 reflection_direction = reflect(-light_direction, normal);
+    float specular_amount = diffuse_amount > 0.0f
+        ? pow(saturate(dot(reflection_direction, view_direction)), max(camera_position_and_shininess.w, 1.0f))
+        : 0.0f;
+
+    float3 ambient = ambient_color_and_intensity.rgb * saturate(ambient_color_and_intensity.w);
+    float3 diffuse = light_color_and_diffuse_intensity.rgb *
+        (diffuse_amount * max(light_color_and_diffuse_intensity.w, 0.0f));
+    float3 specular = light_color_and_diffuse_intensity.rgb *
+        (specular_amount * max(light_position_and_specular_strength.w, 0.0f));
+    float3 hdr = SdrLitTextureToHdr10(
+        color.rgb,
+        ambient,
+        diffuse,
+        specular,
+        hdr_display.x,
+        hdr_display.z,
+        hdr_display.w);
+    return float4(hdr, color.a);
 }

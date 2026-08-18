@@ -1,6 +1,6 @@
 // #pragma hlsl profile ps_5_0
 #pragma vertex vs_main
-#pragma fragment ps_main
+#pragma fragment ps_sdr
 
 cbuffer ModelConstants : register(b0)
 {
@@ -98,7 +98,7 @@ float2 animated_tex_coord(float2 tex_coord)
     return tex_coord;
 }
 
-float4 ps_main(vs_output input) : SV_Target
+float4 ps_sdr(vs_output input) : SV_Target
 {
     float4 sampled = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord));
     float alpha = sampled.a * model_color.a * input.opacity;
@@ -107,4 +107,16 @@ float4 ps_main(vs_output input) : SV_Target
 
     float3 color = sampled.rgb * model_color.rgb;
     return float4(color, alpha);
+}
+
+float4 ps_hdr(vs_output input) : SV_Target
+{
+    float4 sampled = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord));
+    float alpha = sampled.a * model_color.a * input.opacity;
+    if (alpha < 0.1f)
+        discard;
+
+    float3 color = sampled.rgb * model_color.rgb;
+    float3 hdr_color = SdrTextureToPremultipliedHdr10(color, alpha, hdr_display.w);
+    return float4(hdr_color, alpha);
 }

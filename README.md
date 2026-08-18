@@ -22,6 +22,19 @@ In-game item and related logic, including graphics and inventory management.
 ### Sacred.Granny
 3D model and related data loader independant of libraries.
 
+`IGrnAssetLoader` supports both the managed Granny 1 parser and the original game's
+32-bit `Granny.dll`. The native implementation runs in the bundled x86
+`Sacred.Granny.Native.Worker` process so the x64 ItemViewer and DX12 engine remain
+64-bit. ItemViewer exposes the choice in its filter toolbar. The engine reads and
+writes `GRANNY_BACKEND : ManagedParser|GrannyDll` in `SacredEngineRemake.cfg`; in
+terminal mode, `set granny managed|native` changes the saved choice for the next
+launch.
+
+The DLL backend currently supplies geometry, indices, UVs, and render surfaces for
+standalone models. Character composition and editable animation tracks deliberately
+fall back to the managed implementation until the Granny 1 skeleton/animation API is
+mapped.
+
 ### Sacred.World
 Logic about game world. Compositing, paths, world scripts etc.
 

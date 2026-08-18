@@ -8,6 +8,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Granny;
+using Sacred.Granny.Assets;
+using Sacred.Granny.Meshes;
+using Sacred.Particles;
 using Sacred.Shaders;
 using Vortice;
 using Vortice.Direct3D;
@@ -723,21 +726,17 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
 
         foreach (var surface in _equipmentEffectSurfaces)
         {
-            if (surface.TextureMode is EquipmentEffectTextureMode.PoisonStatic or EquipmentEffectTextureMode.FirePop or EquipmentEffectTextureMode.MagicOrb)
-            {
-                _commandList.SetPipelineState(_itemParticlePipelineState);
-            }
-            else
-            {
-                _commandList.SetPipelineState(_itemGlowPipelineState);
-            }
+            var shaderKind = ParticleShaderCatalog.ForMode(surface.TextureMode);
+            _commandList.SetPipelineState(shaderKind == ParticleShaderKind.ItemGlow
+                ? _itemGlowPipelineState
+                : _itemParticlePipelineState);
 
             var texture = ResolveTexture(surface.TextureName);
             if (texture is null || surface.IndexCount <= 0 || surface.IndexStart >= mesh.IndexCount)
                 continue;
 
             var effectWorld = world;
-            if (surface.TextureMode == EquipmentEffectTextureMode.PoisonStatic &&
+            if (surface.TextureMode == ParticleTextureMode.PoisonStatic &&
                 surface.MotionVector.LengthSquared() > 0.0001f)
             {
                 var progress = (elapsedSeconds * 0.42f + surface.Phase) % 1.0f;

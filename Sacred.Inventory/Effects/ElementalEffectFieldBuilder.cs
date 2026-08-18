@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Sacred.Granny;
+using Sacred.Granny.Assets;
+using Sacred.Particles;
 
 namespace Sacred.Inventory.Effects;
 
@@ -25,7 +27,7 @@ internal static class ElementalEffectFieldBuilder
                 MinimumCount: 55,
                 MaximumCount: 160,
                 CollapsedCount: 4,
-                TextureMode: EquipmentEffectTextureMode.FirePop),
+                TextureMode: ParticleTextureMode.FirePop),
             [ElementKind.Magic] = new(
                 IsUniform: true,
                 SpreadScale: 0.12f,
@@ -36,7 +38,7 @@ internal static class ElementalEffectFieldBuilder
                 MinimumCount: null,
                 MaximumCount: null,
                 CollapsedCount: 1,
-                TextureMode: EquipmentEffectTextureMode.MagicOrb),
+                TextureMode: ParticleTextureMode.MagicOrb),
             [ElementKind.Poison] = new(
                 IsUniform: false,
                 SpreadScale: 1.85f,
@@ -47,7 +49,7 @@ internal static class ElementalEffectFieldBuilder
                 MinimumCount: 280,
                 MaximumCount: 280,
                 CollapsedCount: 4,
-                TextureMode: EquipmentEffectTextureMode.PoisonStatic)
+                TextureMode: ParticleTextureMode.PoisonStatic)
         };
 
     public static void Add(
@@ -99,8 +101,8 @@ internal static class ElementalEffectFieldBuilder
                 parameters.MaximumSizeScale,
                 random.NextFloat());
             var phase = parameters.TextureMode is
-                EquipmentEffectTextureMode.FirePop or
-                EquipmentEffectTextureMode.PoisonStatic
+                ParticleTextureMode.FirePop or
+                ParticleTextureMode.PoisonStatic
                 ? random.NextFloat()
                 : 0.0f;
             builder.AddBillboard(
@@ -110,7 +112,8 @@ internal static class ElementalEffectFieldBuilder
                 ElementGlowTexture,
                 element.Color,
                 parameters.TextureMode,
-                phase);
+                phase,
+                bindToAttachment: StaysBoundToWeapon(element.Kind));
         }
     }
 
@@ -136,7 +139,8 @@ internal static class ElementalEffectFieldBuilder
                 diameter,
                 ElementGlowTexture,
                 element.Color,
-                parameters.TextureMode);
+                parameters.TextureMode,
+                bindToAttachment: StaysBoundToWeapon(element.Kind));
         }
     }
 
@@ -178,7 +182,8 @@ internal static class ElementalEffectFieldBuilder
                 ElementGlowTexture,
                 element.Color,
                 parameters.TextureMode,
-                random.NextFloat());
+                random.NextFloat(),
+                bindToAttachment: StaysBoundToWeapon(element.Kind));
         }
     }
 
@@ -228,6 +233,11 @@ internal static class ElementalEffectFieldBuilder
     private static float Lerp(float start, float end, float amount) =>
         start + (end - start) * amount;
 
+    // Fire and poison are emitted particles. They begin at the weapon's bind-pose
+    // location, then their short shader lifetime lets them drift away independently
+    // instead of following the animated attachment bone.
+    private static bool StaysBoundToWeapon(ElementKind kind) => kind == ElementKind.Magic;
+
     private struct StableEffectRandom(uint state)
     {
         private uint _state = state;
@@ -251,7 +261,7 @@ internal static class ElementalEffectFieldBuilder
         int? MinimumCount,
         int? MaximumCount,
         int CollapsedCount,
-        EquipmentEffectTextureMode TextureMode);
+        ParticleTextureMode TextureMode);
 }
 
 internal enum ElementKind

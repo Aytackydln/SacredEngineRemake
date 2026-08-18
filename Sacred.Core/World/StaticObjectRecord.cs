@@ -6,6 +6,7 @@ namespace Sacred.Core.World;
 public readonly record struct StaticObjectRecord
 {
     public const int SerializedSize = 0x40;
+    public const uint AlternateSurfaceFlag = 0x00000008;
 
     [FieldOffset(0x00)]
     public readonly uint PayloadInstanceId;

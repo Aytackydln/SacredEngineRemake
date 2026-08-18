@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Sacred.Granny;
+using Sacred.Granny.Meshes;
 using Vortice.Direct3D12;
 using Vortice.DXGI;
 

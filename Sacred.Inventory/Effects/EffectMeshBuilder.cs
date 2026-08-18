@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Sacred.Granny;
+using Sacred.Granny.Meshes;
+using Sacred.Particles;
 
 namespace Sacred.Inventory.Effects;
 
@@ -11,6 +13,7 @@ internal sealed class EffectMeshBuilder
     private readonly List<ushort> _indices = [];
     private readonly List<EquipmentEffectSurface> _surfaces = [];
     private readonly List<string?> _vertexBoneNames = [];
+    private readonly List<bool> _vertexDetachesAfterSpawn = [];
     private string? _attachmentBoneName;
 
     public void BeginAttachment(string? attachmentBoneName) =>
@@ -22,24 +25,25 @@ internal sealed class EffectMeshBuilder
         float height,
         string textureName,
         Vector4 color,
-        EquipmentEffectTextureMode textureMode,
-        float phase = 0.0f)
+        ParticleTextureMode textureMode,
+        float phase = 0.0f,
+        bool bindToAttachment = true)
     {
         var halfWidth = width * 0.5f;
         var halfHeight = height * 0.5f;
         var usesPerParticlePhase = textureMode is
-            EquipmentEffectTextureMode.FirePop or
-            EquipmentEffectTextureMode.PoisonStatic;
+            ParticleTextureMode.FirePop or
+            ParticleTextureMode.PoisonStatic;
         var vertexMarker = 1.0f + (usesPerParticlePhase ? phase : 0.0f);
         var surfacePhase = usesPerParticlePhase ? 0.0f : phase;
         AddSurface(textureName, color, textureMode, surfacePhase, () =>
         {
             EnsureVertexCapacity();
             var start = (ushort)_vertices.Count;
-            AddVertex(center, new Vector3(-halfWidth, -halfHeight, vertexMarker), new Vector2(0.0f, 1.0f));
-            AddVertex(center, new Vector3( halfWidth, -halfHeight, vertexMarker), new Vector2(1.0f, 1.0f));
-            AddVertex(center, new Vector3( halfWidth,  halfHeight, vertexMarker), new Vector2(1.0f, 0.0f));
-            AddVertex(center, new Vector3(-halfWidth,  halfHeight, vertexMarker), new Vector2(0.0f, 0.0f));
+            AddVertex(center, new Vector3(-halfWidth, -halfHeight, vertexMarker), new Vector2(0.0f, 1.0f), bindToAttachment);
+            AddVertex(center, new Vector3( halfWidth, -halfHeight, vertexMarker), new Vector2(1.0f, 1.0f), bindToAttachment);
+            AddVertex(center, new Vector3( halfWidth,  halfHeight, vertexMarker), new Vector2(1.0f, 0.0f), bindToAttachment);
+            AddVertex(center, new Vector3(-halfWidth,  halfHeight, vertexMarker), new Vector2(0.0f, 0.0f), bindToAttachment);
             AddQuadIndices(start);
         });
     }
@@ -50,7 +54,7 @@ internal sealed class EffectMeshBuilder
         float width,
         string textureName,
         Vector4 color,
-        EquipmentEffectTextureMode textureMode)
+        ParticleTextureMode textureMode)
     {
         var direction = end - start;
         if (direction.LengthSquared() < 0.0001f)
@@ -80,13 +84,14 @@ internal sealed class EffectMeshBuilder
             new Mesh(vertices, _indices.ToArray()),
             _surfaces.ToArray(),
             Array.ConvertAll(vertices, static vertex => vertex.Position),
-            _vertexBoneNames.ToArray());
+            _vertexBoneNames.ToArray(),
+            _vertexDetachesAfterSpawn.ToArray());
     }
 
     private void AddSurface(
         string textureName,
         Vector4 color,
-        EquipmentEffectTextureMode textureMode,
+        ParticleTextureMode textureMode,
         float phase,
         Action addGeometry)
     {
@@ -128,10 +133,15 @@ internal sealed class EffectMeshBuilder
         AddQuadIndices(start);
     }
 
-    private void AddVertex(Vector3 position, Vector3 normal, Vector2 textureCoordinate)
+    private void AddVertex(
+        Vector3 position,
+        Vector3 normal,
+        Vector2 textureCoordinate,
+        bool bindToAttachment = true)
     {
         _vertices.Add(new VertexPositionNormalTexture(position, normal, textureCoordinate));
         _vertexBoneNames.Add(_attachmentBoneName);
+        _vertexDetachesAfterSpawn.Add(!bindToAttachment && _attachmentBoneName is not null);
     }
 
     private void EnsureVertexCapacity()

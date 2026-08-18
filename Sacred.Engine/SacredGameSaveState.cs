@@ -1,6 +1,8 @@
 using System.Numerics;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Scene.InGame;
+using Sacred.Granny;
+using Sacred.Granny.Abstractions;
 
 namespace Sacred.Engine;
 
@@ -15,6 +17,7 @@ public sealed record SacredGameSaveState
     public bool HdrEnabled { get; init; }
     public FramePacingMode FramePacingMode { get; init; } = FramePacingMode.VariableRefreshRate;
     public LowLatencyMode LowLatencyMode { get; init; } = LowLatencyMode.On;
+    public GrnBackendKind GrannyBackend { get; init; } = GrnBackendKind.ManagedParser;
     public WorldLightingMode WorldLightingMode { get; init; } = WorldLightingMode.TimedDayNightCycle;
     public bool StairsTilesVisible { get; init; }
     public bool BlockedTilesVisible { get; init; }

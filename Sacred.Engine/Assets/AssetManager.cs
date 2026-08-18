@@ -17,6 +17,8 @@ using Sacred.Core;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Pak.Weapon;
 using Sacred.Granny;
+using Sacred.Granny.Abstractions;
+using Sacred.Granny.Assets;
 using Sacred.Inventory.Actors;
 using Sacred.Inventory.Effects;
 
@@ -54,6 +56,7 @@ public sealed class AssetManager : IDisposable
     private readonly SemaphoreSlim _staticSpriteLock = new(1, 1);
     private readonly WorldSpriteLoadQueue _worldSpriteLoadQueue = new();
     private readonly MiniObjectSpriteLoader _miniObjectSprites;
+    private readonly WorldParticleSpriteLoader _worldParticleSprites;
 
     private readonly Dictionary<string, TextureFrameSequenceAsset?> _textureFrameSequences =
         new(StringComparer.OrdinalIgnoreCase);
@@ -89,6 +92,9 @@ public sealed class AssetManager : IDisposable
         _miniObjectSprites = new MiniObjectSpriteLoader(
             textureName => LoadTextureAsync(textureName),
             _worldSpriteLoadQueue);
+        _worldParticleSprites = new WorldParticleSpriteLoader(
+            textureName => LoadTextureAsync(textureName),
+            _worldSpriteLoadQueue);
         _modelsPak = ModelsPakArchive.Load(
             Path.Combine(pakDirectory, "models.pak"),
             Path.Combine(pakDirectory, "Models.tmp"));
@@ -119,6 +125,9 @@ public sealed class AssetManager : IDisposable
             .ToFrozenDictionary(static item => checked((ushort)item.IdemId));
         _mixedPak = mixedPak;
         _miniObjectSprites = new MiniObjectSpriteLoader(
+            textureName => LoadTextureAsync(textureName),
+            _worldSpriteLoadQueue);
+        _worldParticleSprites = new WorldParticleSpriteLoader(
             textureName => LoadTextureAsync(textureName),
             _worldSpriteLoadQueue);
         _modelsPak = modelsPak;
@@ -358,6 +367,11 @@ public sealed class AssetManager : IDisposable
             animationFrameCount,
             out sprite);
     }
+
+    public bool TryGetWorldParticleSpriteOrRequest(
+        Sacred.Particles.ParticleSpriteReference reference,
+        out StaticSpriteAsset? sprite) =>
+        _worldParticleSprites.TryGetOrRequest(reference, out sprite);
 
     public bool TryGetTextureFrameSequenceOrRequest(
         string frameNameFormat,
@@ -1004,6 +1018,7 @@ public sealed class AssetManager : IDisposable
         _staticSprites.Clear();
         _staticSpriteLoads.Clear();
         _miniObjectSprites.Clear();
+        _worldParticleSprites.Clear();
 
         _textureFrameSequenceLock.Wait();
         _textureFrameSequences.Clear();

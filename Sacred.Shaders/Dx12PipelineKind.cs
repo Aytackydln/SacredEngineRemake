@@ -10,6 +10,7 @@ public enum Dx12PipelineKind
     LightHalo,
     StaticModel,
     ModelShadow,
+    GroundShadow,
     TransparentModel,
     AnimatedModel,
     EffectModel,

@@ -24,7 +24,8 @@ internal sealed class Dx12ModelShadowPass
     private readonly ModelShaderConstantsUpdater _shaderConstants = new();
 
     private ID3D12RootSignature? _rootSignature;
-    private ID3D12PipelineState? _pipeline;
+    private ID3D12PipelineState? _directionalPipeline;
+    private ID3D12PipelineState? _groundPipeline;
 
     public Dx12ModelShadowPass(
         ID3D12GraphicsCommandList commandList,
@@ -42,16 +43,22 @@ internal sealed class Dx12ModelShadowPass
         _fallbackTextureSlot = fallbackTextureSlot;
     }
 
-    public void SetPipeline(ID3D12RootSignature rootSignature, ID3D12PipelineState pipeline)
+    public void SetPipeline(
+        ID3D12RootSignature rootSignature,
+        ID3D12PipelineState directionalPipeline,
+        ID3D12PipelineState groundPipeline)
     {
         _rootSignature = rootSignature;
-        _pipeline = pipeline;
+        _directionalPipeline = directionalPipeline;
+        _groundPipeline = groundPipeline;
     }
 
     public void DisposePipeline()
     {
-        _pipeline?.Dispose();
-        _pipeline = null;
+        _directionalPipeline?.Dispose();
+        _directionalPipeline = null;
+        _groundPipeline?.Dispose();
+        _groundPipeline = null;
         _rootSignature = null;
     }
 
@@ -62,16 +69,24 @@ internal sealed class Dx12ModelShadowPass
         int frameIndex)
     {
         if (models.Count == 0 ||
+            lighting.ShadowMode == SceneShadowMode.None ||
             lighting.ShadowOpacity <= 0.001f ||
-            lighting.DirectionToSun.Z <= 0.0f ||
-            _rootSignature is null ||
-            _pipeline is null)
+            _rootSignature is null)
         {
             return;
         }
 
+        if (lighting.ShadowMode == SceneShadowMode.SoftContact)
+        {
+            RecordGroundShadows(camera, models, lighting.ShadowOpacity);
+            return;
+        }
+
+        if (lighting.DirectionToSun.Z <= 0.0f || _directionalPipeline is null)
+            return;
+
         _commandList.SetGraphicsRootSignature(_rootSignature);
-        _commandList.SetPipelineState(_pipeline);
+        _commandList.SetPipelineState(_directionalPipeline);
         _commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         var viewProjection = camera.View * camera.Projection;
         var shadowParameters = PlanarShadowProjection.CreateParameters(
@@ -80,6 +95,44 @@ internal sealed class Dx12ModelShadowPass
         _rootConstants.Reset();
         foreach (var model in models)
             RecordModel(model, shadowParameters, viewProjection, frameIndex);
+    }
+
+    private unsafe void RecordGroundShadows(
+        SacredCamera camera,
+        IReadOnlyList<SceneModel> models,
+        float opacity)
+    {
+        if (_groundPipeline is null || _rootSignature is null)
+            return;
+
+        _commandList.SetGraphicsRootSignature(_rootSignature);
+        _commandList.SetPipelineState(_groundPipeline);
+        _commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
+        _rootConstants.Reset();
+        var viewProjection = camera.View * camera.Projection;
+        var constants = stackalloc float[ModelShaderLayout.ModelConstantsCount];
+        foreach (var model in models)
+        {
+            var radius = model.GroundShadowRadius * model.Scale;
+            var world = Matrix4x4.CreateScale(radius, radius, 1.0f) *
+                        Matrix4x4.CreateTranslation(
+                            model.Position.X,
+                            model.Position.Y,
+                            model.GroundPlaneZ);
+            _shaderConstants.WriteModelBase(
+                constants,
+                world * viewProjection,
+                world,
+                new Vector4(0.0f, 0.0f, 0.0f, opacity));
+            _shaderConstants.WriteTextureFlags(
+                constants + ModelShaderLayout.TextureFlagsOffset,
+                ModelShaderVariables.TextureModeNoTexture,
+                animationValue: 0.0f,
+                ShadowPainterDepth,
+                scaledAnimationTime: 0.0f);
+            SetConstants(constants);
+            _commandList.DrawInstanced(6, 1, 0, 0);
+        }
     }
 
     private unsafe void RecordModel(

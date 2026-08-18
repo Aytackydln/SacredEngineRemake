@@ -17,6 +17,7 @@ internal sealed class GameLoadingScene : IGameScene
     private InGameScene? _inGame;
     private Task? _worldPreparationTask;
     private string _displayedItem;
+    private bool _worldReady;
     private bool _switchRequested;
 
     public GameLoadingScene(
@@ -73,19 +74,28 @@ internal sealed class GameLoadingScene : IGameScene
         _worldPreparationTask.GetAwaiter().GetResult();
 
         SetScreen(1.0, "World ready");
-        _switchRequested = true;
-        _requestSwitch(GameSceneId.InGame);
+        _worldReady = true;
     }
 
-    public ValueTask RenderAsync(SceneRenderContext context)
+    public async ValueTask RenderAsync(SceneRenderContext context)
     {
         var preload = _inGame?.CreatePreloadRequest();
-        return context.Renderer.RenderScreenFrameAsync(
+        await context.Renderer.RenderScreenFrameAsync(
             _screen,
             context.VerticalSyncEnabled,
             context.FrameId,
             context.CancellationToken,
             preload);
+
+        // The scene manager applies a switch during Update. Request it only after the completed
+        // loading frame has been presented; otherwise it disposes this scene and immediately
+        // starts the first world frame while the final loading-screen presentation is in flight.
+        if (!_worldReady || _switchRequested)
+            return;
+
+        _switchRequested = true;
+        Console.WriteLine("World ready frame presented; switching to in-game scene.");
+        _requestSwitch(GameSceneId.InGame);
     }
 
     private void SetScreen(double progress, string item)

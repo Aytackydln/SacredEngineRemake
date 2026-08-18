@@ -10,6 +10,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Sacred.Granny;
+using Sacred.Granny.Assets;
 
 namespace Sacred.ItemViewer.Avalonia.ItemViewer;
 
@@ -108,7 +109,7 @@ public sealed class ModelViewerControl : UserControl
             _viewport.ShowModel(asset, previewRotation, _gridWidth, _gridHeight, rotationMode, pivotMode, pivotBoneName, effectScene);
             SetStatusText(asset.Mesh is null
                 ? $"{asset.Name}: GRN loaded, no mesh extracted."
-                : $"{asset.Name}: {asset.Mesh.Vertices.Length} vertices, {asset.Mesh.Indices.Length / 3} triangles | {_gridWidth}x{_gridHeight} cells | rot {FormatRotation(previewRotation)} | {rotationMode}/{pivotMode}");
+                : $"{asset.Name}: {asset.Mesh.Vertices.Length} vertices, {asset.Mesh.Indices.Length / 3} triangles | {asset.Backend} | {_gridWidth}x{_gridHeight} cells | rot {FormatRotation(previewRotation)} | {rotationMode}/{pivotMode}");
         });
     }
 

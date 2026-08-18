@@ -22,7 +22,9 @@ public sealed class TerrainRenderer
     private readonly List<SectorCoord> _sectorCoordsToRemove = new(9);
     private readonly List<SectorCoord> _completedSectorBuilds = new(9);
     private VisibleWorld? _preparedWorld;
+    private IndoorTileGroup? _activeIndoorGroup;
     private bool _worldChangedThisFrame;
+    private bool _indoorChangedThisFrame;
 
     public TerrainRenderStats LastStats { get; private set; }
     public ulong WorldSpriteRevision { get; private set; }
@@ -37,18 +39,24 @@ public sealed class TerrainRenderer
         _staticSpriteBuilder = new TerrainStaticSpriteBuilder(assets);
     }
 
-    public IReadOnlyList<TerrainSectorComposition> PrepareVisibleWorld(VisibleWorld world)
+    public IReadOnlyList<TerrainSectorComposition> PrepareVisibleWorld(
+        VisibleWorld world,
+        IndoorTileGroup? activeIndoorGroup = null)
     {
-        _worldChangedThisFrame = !ReferenceEquals(_preparedWorld, world);
-        if (_worldChangedThisFrame)
+        var previousIndoorGroup = _activeIndoorGroup;
+        var indoorChanged = previousIndoorGroup?.Id != activeIndoorGroup?.Id;
+        var worldChanged = !ReferenceEquals(_preparedWorld, world);
+        _activeIndoorGroup = activeIndoorGroup;
+        _worldChangedThisFrame = worldChanged;
+        _indoorChangedThisFrame = indoorChanged;
+        if (worldChanged)
         {
             _preparedWorld = world;
             SelectCandidateSectors(world);
             PruneSectorCache();
         }
-
         var sectorBuildCompleted = PumpCompletedSectorBuilds();
-        if (!_worldChangedThisFrame && !sectorBuildCompleted)
+        if (!worldChanged && !sectorBuildCompleted)
             return _visibleSectorImages;
 
         _visibleSectorImages.Clear();
@@ -110,7 +118,8 @@ public sealed class TerrainRenderer
     {
         var preparation = _staticSpriteBuilder.Prepare(
             _candidateSectors,
-            _worldChangedThisFrame,
+            _worldChangedThisFrame || _indoorChangedThisFrame,
+            _activeIndoorGroup,
             true);
         if (!preparation.Changed)
             return preparation.Sprites;
@@ -179,8 +188,11 @@ public sealed class TerrainRenderer
         {
             var task = _sectorBuildTasks[coord];
             _sectorBuildTasks.Remove(coord);
-            if (task.Status == TaskStatus.RanToCompletion && _neededSectorCoords.Contains(coord))
+            if (task.Status == TaskStatus.RanToCompletion &&
+                _neededSectorCoords.Contains(coord))
+            {
                 _sectorCache[coord] = task.Result;
+            }
         }
 
         return true;
@@ -192,7 +204,10 @@ public sealed class TerrainRenderer
             return cached;
 
         if (!_sectorBuildTasks.ContainsKey(sector.Coord) && CountPendingSectorBuilds() < MaxConcurrentSectorImageBuilds)
-            _sectorBuildTasks[sector.Coord] = Task.Run(() => _sectorCompositionBuilder.BuildAsync(sector));
+        {
+            _sectorBuildTasks[sector.Coord] = Task.Run(
+                () => _sectorCompositionBuilder.BuildAsync(sector));
+        }
 
         return null;
     }
@@ -212,6 +227,11 @@ public sealed class TerrainRenderer
 public readonly record struct TerrainStaticSprite(
     StaticSpriteAsset Sprite,
     bool IsUnlit,
+    bool IsParticleSprite,
+    bool IsMixedLightEmitter,
+    bool TransposeTexture,
+    float RenderWidth,
+    float RenderHeight,
     float IsoX,
     float IsoY,
     float DepthX,
@@ -225,12 +245,18 @@ public readonly record struct TerrainStaticSprite(
     int InsertionOrder);
 
 public readonly record struct TerrainWorldLight(
-    StaticSpriteAsset EmitterSprite,
     float IsoX,
     float IsoY,
     float Diameter,
     Vector3 Colour,
-    float Opacity);
+    float Opacity,
+    WorldLightShape Shape);
+
+public enum WorldLightShape : uint
+{
+    RadialHalo,
+    SparkleCluster
+}
 
 public readonly record struct TerrainLiquidSprite(
     TextureFrameSequenceAsset Animation,

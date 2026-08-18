@@ -39,6 +39,17 @@ public static class StaticSpriteShaderLayout
     public const int TextureTableRootParameter = 2;
 }
 
+public static class LightHaloShaderLayout
+{
+    public const int SceneConstantsCount = LightHaloSceneConstants.FloatCount;
+
+    public const int SceneConstantsRegister = 0; // HLSL: register(b0)
+    public const int InstanceBufferRegister = 0; // HLSL: register(t0)
+
+    public const int SceneConstantsRootParameter = 0;
+    public const int InstanceBufferRootParameter = 1;
+}
+
 public static class WorldQuadShaderLayout
 {
     public const int RootConstantsRegister = 0; // HLSL: register(b0)

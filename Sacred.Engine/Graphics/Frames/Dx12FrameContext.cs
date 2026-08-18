@@ -17,6 +17,9 @@ internal sealed class Dx12FrameContext : IDisposable
     private ID3D12Resource? _spriteInstanceBuffer;
     private nint _spriteInstanceBufferMapped;
     private int _spriteInstanceCapacity;
+    private ID3D12Resource? _lightHaloInstanceBuffer;
+    private nint _lightHaloInstanceBufferMapped;
+    private int _lightHaloInstanceCapacity;
 
     public Dx12FrameContext(int index, ID3D12CommandAllocator commandAllocator)
     {
@@ -31,6 +34,9 @@ internal sealed class Dx12FrameContext : IDisposable
     public ID3D12Resource SpriteInstanceBuffer =>
         _spriteInstanceBuffer ?? throw new InvalidOperationException("The sprite instance buffer has not been created.");
     public nint SpriteInstanceBufferMapped => _spriteInstanceBufferMapped;
+    public ID3D12Resource LightHaloInstanceBuffer =>
+        _lightHaloInstanceBuffer ?? throw new InvalidOperationException("The light-halo instance buffer has not been created.");
+    public nint LightHaloInstanceBufferMapped => _lightHaloInstanceBufferMapped;
 
     public void RetireResource(ID3D12Resource resource) => _retiredResources.Add(resource);
 
@@ -61,13 +67,44 @@ internal sealed class Dx12FrameContext : IDisposable
         int instanceStride,
         int requiredCapacity)
     {
-        if (_spriteInstanceBuffer is not null && _spriteInstanceCapacity >= requiredCapacity)
+        EnsureInstanceCapacity(
+            device,
+            instanceStride,
+            requiredCapacity,
+            ref _spriteInstanceBuffer,
+            ref _spriteInstanceBufferMapped,
+            ref _spriteInstanceCapacity);
+    }
+
+    public unsafe void EnsureLightHaloInstanceCapacity(
+        ID3D12Device device,
+        int instanceStride,
+        int requiredCapacity)
+    {
+        EnsureInstanceCapacity(
+            device,
+            instanceStride,
+            requiredCapacity,
+            ref _lightHaloInstanceBuffer,
+            ref _lightHaloInstanceBufferMapped,
+            ref _lightHaloInstanceCapacity);
+    }
+
+    private static unsafe void EnsureInstanceCapacity(
+        ID3D12Device device,
+        int instanceStride,
+        int requiredCapacity,
+        ref ID3D12Resource? buffer,
+        ref nint mappedAddress,
+        ref int capacity)
+    {
+        if (buffer is not null && capacity >= requiredCapacity)
             return;
 
-        DisposeSpriteInstanceBuffer();
+        DisposeInstanceBuffer(ref buffer, ref mappedAddress, ref capacity);
 
-        _spriteInstanceCapacity = Math.Max(256, RoundUpToPowerOfTwo(requiredCapacity));
-        var bufferBytes = checked((ulong)(_spriteInstanceCapacity * instanceStride));
+        capacity = Math.Max(256, RoundUpToPowerOfTwo(requiredCapacity));
+        var bufferBytes = checked((ulong)(capacity * instanceStride));
         var description = new ResourceDescription(
             ResourceDimension.Buffer,
             0,
@@ -81,7 +118,7 @@ internal sealed class Dx12FrameContext : IDisposable
             TextureLayout.RowMajor,
             ResourceFlags.None);
 
-        _spriteInstanceBuffer = device.CreateCommittedResource(
+        buffer = device.CreateCommittedResource(
             new HeapProperties(HeapType.Upload, 0, 0),
             HeapFlags.None,
             description,
@@ -89,13 +126,17 @@ internal sealed class Dx12FrameContext : IDisposable
             null);
 
         void* mapped;
-        _spriteInstanceBuffer.Map(0, null, &mapped).CheckError();
-        _spriteInstanceBufferMapped = (nint)mapped;
+        buffer.Map(0, null, &mapped).CheckError();
+        mappedAddress = (nint)mapped;
     }
 
     public void Dispose()
     {
         DisposeSpriteInstanceBuffer();
+        DisposeInstanceBuffer(
+            ref _lightHaloInstanceBuffer,
+            ref _lightHaloInstanceBufferMapped,
+            ref _lightHaloInstanceCapacity);
 
         foreach (var resource in _retiredResources)
             resource.Dispose();
@@ -106,14 +147,25 @@ internal sealed class Dx12FrameContext : IDisposable
 
     private void DisposeSpriteInstanceBuffer()
     {
-        if (_spriteInstanceBuffer is null)
+        DisposeInstanceBuffer(
+            ref _spriteInstanceBuffer,
+            ref _spriteInstanceBufferMapped,
+            ref _spriteInstanceCapacity);
+    }
+
+    private static void DisposeInstanceBuffer(
+        ref ID3D12Resource? buffer,
+        ref nint mappedAddress,
+        ref int capacity)
+    {
+        if (buffer is null)
             return;
 
-        _spriteInstanceBuffer.Unmap(0, null);
-        _spriteInstanceBuffer.Dispose();
-        _spriteInstanceBuffer = null;
-        _spriteInstanceBufferMapped = 0;
-        _spriteInstanceCapacity = 0;
+        buffer.Unmap(0, null);
+        buffer.Dispose();
+        buffer = null;
+        mappedAddress = 0;
+        capacity = 0;
     }
 
     private static int RoundUpToPowerOfTwo(int value)

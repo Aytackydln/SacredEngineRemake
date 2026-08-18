@@ -1,4 +1,6 @@
-﻿namespace Sacred.Assets.Paks.Texture;
+﻿using Sacred.Core.Pak.Texture;
+
+namespace Sacred.Assets.Paks.Texture;
 
 public readonly record struct TexturePakRecord(
     string Name,
@@ -6,4 +8,8 @@ public readonly record struct TexturePakRecord(
     int Size,
     ushort Width,
     ushort Height,
-    byte Type);
+    byte Type)
+{
+    public SacredTextureStorageFormat StorageFormat =>
+        (SacredTextureStorageFormat)Type;
+}

@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Core.Pak.Items;
+using Sacred.World.Particles;
 
 namespace Sacred.Engine.Assets;
 
@@ -14,15 +14,10 @@ namespace Sacred.Engine.Assets;
 /// </summary>
 internal sealed class MiniObjectSpriteLoader
 {
-    private const int AtlasSize = 256;
-    private const int SpriteAnchorX = 48;
-    // Static.pak stores animation duration in 50 Hz engine ticks.
-    private const float AnimationTickDurationSeconds = 0.02f;
-
     private readonly Func<string, Task<TextureAsset>> _loadTextureAsync;
     private readonly WorldSpriteLoadQueue _loadQueue;
-    private readonly Dictionary<MiniObjectSpriteKey, StaticSpriteAsset?> _sprites = [];
-    private readonly HashSet<MiniObjectSpriteKey> _loads = [];
+    private readonly Dictionary<MiniObjectTextureReference, StaticSpriteAsset?> _sprites = [];
+    private readonly HashSet<MiniObjectTextureReference> _loads = [];
     private readonly SemaphoreSlim _lock = new(1, 1);
 
     public MiniObjectSpriteLoader(
@@ -43,8 +38,8 @@ internal sealed class MiniObjectSpriteLoader
         out StaticSpriteAsset? sprite)
     {
         sprite = null;
-        if (!TryCreateKey(
-                item.ModelDesc.ModelName,
+        if (!WorldParticleMapper.TryResolveMiniObject(
+                item,
                 sourceX,
                 sourceY,
                 sourceSize,
@@ -86,17 +81,24 @@ internal sealed class MiniObjectSpriteLoader
         }
     }
 
-    private async Task<StaticSpriteAsset?> LoadAndCacheAsync(MiniObjectSpriteKey key)
+    private async Task<StaticSpriteAsset?> LoadAndCacheAsync(MiniObjectTextureReference key)
     {
         StaticSpriteAsset? sprite;
         try
         {
             var atlas = await _loadTextureAsync(key.TextureName).ConfigureAwait(false);
             sprite = BuildSprite(atlas, key);
+            if (key.FrameCount > 1)
+            {
+                Console.WriteLine(sprite is null
+                    ? $"Animated mini-object atlas rejected: {key.TextureName} ({key.AtlasColumns}x{key.AtlasRows}, {key.FrameCount} frames)."
+                    : $"Animated mini-object atlas loaded: {key.TextureName} ({key.AtlasColumns}x{key.AtlasRows}, {key.FrameCount} frames).");
+            }
         }
-        catch (Exception)
+        catch (Exception exception)
         {
             sprite = null;
+            Console.WriteLine($"Mini-object atlas failed: {key.TextureName}: {exception.Message}");
         }
 
         await _lock.WaitAsync().ConfigureAwait(false);
@@ -113,7 +115,7 @@ internal sealed class MiniObjectSpriteLoader
         return sprite;
     }
 
-    private static StaticSpriteAsset? BuildSprite(TextureAsset atlas, MiniObjectSpriteKey key)
+    private static StaticSpriteAsset? BuildSprite(TextureAsset atlas, MiniObjectTextureReference key)
     {
         if (key.FrameCount > 0)
         {
@@ -133,7 +135,7 @@ internal sealed class MiniObjectSpriteLoader
                 0,
                 atlas.Rgba8,
                 key.FrameCount,
-                key.FrameDurationTicks * AnimationTickDurationSeconds);
+                key.FrameDurationSeconds);
         }
 
         if (key.SourceX + key.SourceSize > atlas.Width ||
@@ -149,68 +151,13 @@ internal sealed class MiniObjectSpriteLoader
                 .CopyTo(rgba.AsSpan(y * key.SourceSize * 4, key.SourceSize * 4));
         }
 
-        return new StaticSpriteAsset(0, key.SourceSize, key.SourceSize, SpriteAnchorX, 0, rgba);
+        return new StaticSpriteAsset(
+            0,
+            key.SourceSize,
+            key.SourceSize,
+            48,
+            0,
+            rgba);
     }
 
-    private static bool TryCreateKey(
-        string modelName,
-        byte sourceX,
-        byte sourceY,
-        byte sourceSize,
-        byte animationFrameDurationTicks,
-        byte animationFrameCount,
-        out MiniObjectSpriteKey key)
-    {
-        key = default;
-        const string prefix = "MiniObjTex";
-        if (!modelName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
-            !int.TryParse(modelName.AsSpan(prefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var atlasIndex))
-        {
-            return false;
-        }
-
-        if (animationFrameCount > 0)
-        {
-            if (sourceX == 0 || sourceY == 0 || animationFrameDurationTicks == 0 ||
-                animationFrameCount > sourceX * sourceY)
-            {
-                return false;
-            }
-
-            key = new MiniObjectSpriteKey(
-                $"MINIOBJ{sourceX}X{sourceY}_{animationFrameCount}_{animationFrameDurationTicks}_{atlasIndex}.TGA",
-                0,
-                0,
-                0,
-                sourceX,
-                sourceY,
-                animationFrameCount,
-                animationFrameDurationTicks);
-            return true;
-        }
-
-        if (sourceSize == 0 || AtlasSize % sourceSize != 0)
-            return false;
-
-        key = new MiniObjectSpriteKey(
-            $"MINIOBJ{AtlasSize / sourceSize}_{atlasIndex}.TGA",
-            sourceX,
-            sourceY,
-            sourceSize,
-            0,
-            0,
-            0,
-            0);
-        return true;
-    }
-
-    private readonly record struct MiniObjectSpriteKey(
-        string TextureName,
-        int SourceX,
-        int SourceY,
-        int SourceSize,
-        int AtlasColumns,
-        int AtlasRows,
-        int FrameCount,
-        byte FrameDurationTicks);
 }

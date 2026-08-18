@@ -68,19 +68,28 @@ public sealed class SacredStairsMap
     public bool TryGetZone(
         float worldX,
         float worldY,
+        byte surfaceLevel,
         out WorldStairsZone zone) =>
         _zonesByCell.TryGetValue(
             new StairsCellKey(
                 (int)MathF.Floor(worldX),
-                (int)MathF.Floor(worldY)),
+                (int)MathF.Floor(worldY),
+                surfaceLevel),
             out zone!);
+
+    public bool TryGetZone(
+        float worldX,
+        float worldY,
+        out WorldStairsZone zone) =>
+        TryGetZone(worldX, worldY, 0, out zone);
 
     public bool TryGetLink(
         float worldX,
         float worldY,
+        byte surfaceLevel,
         out WorldStairsLink link)
     {
-        if (TryGetZone(worldX, worldY, out var zone) &&
+        if (TryGetZone(worldX, worldY, surfaceLevel, out var zone) &&
             _linksByAnchor.TryGetValue(zone.Anchor.ToPacked(), out link!))
         {
             return true;
@@ -89,6 +98,12 @@ public sealed class SacredStairsMap
         link = null!;
         return false;
     }
+
+    public bool TryGetLink(
+        float worldX,
+        float worldY,
+        out WorldStairsLink link) =>
+        TryGetLink(worldX, worldY, 0, out link);
 
     public IEnumerable<WorldStairsCell> EnumerateCells(
         int minimumX,
@@ -139,7 +154,42 @@ public sealed class SacredStairsMap
         var links = new Dictionary<uint, WorldStairsLink>();
         var linkedZones = new HashSet<uint>();
         BuildArrivalMarkerLinks(zones, positions, links, linkedZones);
+        BuildSurfaceLevelLinks(zones, links, linkedZones);
         return links.Values.ToArray();
+    }
+
+    /// <summary>
+    /// Indoor stair endpoints are authored at the same X/Y with distinct surface metadata.
+    /// They do not have DefPos teleport markers because they stay within one building.
+    /// </summary>
+    private static void BuildSurfaceLevelLinks(
+        IEnumerable<WorldStairsZone> zones,
+        Dictionary<uint, WorldStairsLink> links,
+        HashSet<uint> linkedZones)
+    {
+        foreach (var stack in zones.GroupBy(static zone => (zone.Anchor.X, zone.Anchor.Y)))
+        {
+            var endpoints = stack
+                .Where(zone => !linkedZones.Contains(zone.Anchor.ToPacked()))
+                .OrderBy(static zone => zone.Anchor.Metadata)
+                .ToArray();
+            if (endpoints.Length != 2 ||
+                endpoints[0].Anchor.Metadata == endpoints[1].Anchor.Metadata)
+            {
+                continue;
+            }
+
+            var lower = endpoints[0];
+            var upper = endpoints[1];
+            AddTwoWayLink(
+                $"surface:{stack.Key.X}:{stack.Key.Y}",
+                lower,
+                new WorldStairsDestination(upper.Anchor.X, upper.Anchor.Y),
+                upper,
+                new WorldStairsDestination(lower.Anchor.X, lower.Anchor.Y),
+                links,
+                linkedZones);
+        }
     }
 
     private static void BuildArrivalMarkerLinks(
@@ -238,10 +288,10 @@ public sealed class SacredStairsMap
         return zone is not null && bestDistance <= maximumDistance;
     }
 
-    private readonly record struct StairsCellKey(int X, int Y)
+    private readonly record struct StairsCellKey(int X, int Y, byte SurfaceLevel)
     {
         public static StairsCellKey From(WorldStairsCoordinate coordinate) =>
-            new(coordinate.X, coordinate.Y);
+            new(coordinate.X, coordinate.Y, coordinate.Metadata);
     }
 
     private readonly record struct ArrivalPair(

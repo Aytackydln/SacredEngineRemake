@@ -6,4 +6,8 @@ public readonly record struct TextureImageInfo(
     ushort Height,
     byte RepeatedTypeId,
     uint RepeatedCompressedSize
-);
+)
+{
+    public SacredTextureStorageFormat StorageFormat =>
+        (SacredTextureStorageFormat)RepeatedTypeId;
+}

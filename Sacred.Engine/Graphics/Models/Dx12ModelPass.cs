@@ -7,7 +7,9 @@ using Sacred.Engine.Graphics.Swapchain;
 using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
 using Sacred.Granny;
+using Sacred.Granny.Meshes;
 using Sacred.Inventory.Effects;
+using Sacred.Particles;
 using Sacred.Shaders;
 using Vortice.Direct3D;
 using Vortice.Direct3D12;
@@ -67,7 +69,10 @@ internal sealed class Dx12ModelPass
     public void SetPipeline(Dx12CreatedPipelineGroup pipeline)
     {
         _rootSignature = pipeline.RootSignature;
-        _shadowPass.SetPipeline(pipeline.RootSignature, pipeline[Dx12PipelineKind.ModelShadow]);
+        _shadowPass.SetPipeline(
+            pipeline.RootSignature,
+            pipeline[Dx12PipelineKind.ModelShadow],
+            pipeline[Dx12PipelineKind.GroundShadow]);
         _staticPipeline = pipeline[Dx12PipelineKind.StaticModel];
         _transparentModelPipeline = pipeline[Dx12PipelineKind.TransparentModel];
         _animatedPipeline = pipeline[Dx12PipelineKind.AnimatedModel];
@@ -274,19 +279,15 @@ internal sealed class Dx12ModelPass
             if (texture is null || surface.IndexCount <= 0 || surface.IndexStart >= mesh.IndexCount)
                 continue;
 
-            var usesDenseComposition = surface.TextureMode is
-                EquipmentEffectTextureMode.MagicOrb or
-                EquipmentEffectTextureMode.FirePop or
-                EquipmentEffectTextureMode.PoisonStatic;
-
-            if (surface.TextureMode is EquipmentEffectTextureMode.WeaponGlowFlare or EquipmentEffectTextureMode.Luminance or EquipmentEffectTextureMode.Atlas4X4)
+            var shaderKind = ParticleShaderCatalog.ForMode(surface.TextureMode);
+            _commandList.SetPipelineState(shaderKind switch
             {
-                _commandList.SetPipelineState(_itemGlowPipeline);
-            }
-            else
-            {
-                _commandList.SetPipelineState(usesDenseComposition ? _denseParticlePipeline : _transparentParticlePipeline);
-            }
+                ParticleShaderKind.ItemGlow => _itemGlowPipeline,
+                ParticleShaderKind.DenseItemParticle => _denseParticlePipeline,
+                ParticleShaderKind.ItemParticle => _transparentParticlePipeline,
+                _ => throw new InvalidOperationException(
+                    $"Particle mode {surface.TextureMode} selected unsupported model shader {shaderKind}.")
+            });
 
             _shaderConstants.WriteModelBase(constants, viewProjection, model.Transform, surface.Color);
             _shaderConstants.WriteTextureFlags(

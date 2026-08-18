@@ -4,7 +4,7 @@ using Sacred.Assets.Paks.Texture;
 
 namespace Sacred.Engine.Rendering;
 
-/// <summary>Creates 100x50 source diamonds for the stairs-zone debug layer.</summary>
+/// <summary>Creates 100x50 source diamonds for the stairs and indoor-door debug layer.</summary>
 internal sealed class StairsDebugTileSourceFactory
 {
     private const int Width = 100;

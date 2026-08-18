@@ -52,7 +52,9 @@ public static class Dx12PipelineCatalog
             ]);
     }
 
-    public static Dx12PipelineGroupDefinition CreateStaticSprites(Dx12ShaderSet shaders)
+    public static Dx12PipelineGroupDefinition CreateStaticSprites(
+        Dx12ShaderSet shaders,
+        bool hdrOutput = false)
     {
         var rootParameters = new[]
         {
@@ -76,7 +78,7 @@ public static class Dx12PipelineCatalog
                     Dx12PipelineKind.StaticSprite,
                     shaders.StaticSpriteVertexShader,
                     shaders.StaticSpritePixelShader,
-                    BlendDescription.AlphaBlend,
+                    hdrOutput ? CreatePremultipliedBlend() : BlendDescription.AlphaBlend,
                     RasterizerDescription.CullNone,
                     CreateLessEqualDepth(),
                     usesDepthBuffer: true),
@@ -84,19 +86,40 @@ public static class Dx12PipelineCatalog
                     Dx12PipelineKind.LiquidSprite,
                     shaders.StaticSpriteVertexShader,
                     shaders.StaticSpritePixelShader,
-                    CreateLiquidSpriteBlend(),
-                    RasterizerDescription.CullNone,
-                    DepthStencilDescription.None,
-                    usesDepthBuffer: false),
-                Pipeline(
-                    Dx12PipelineKind.LightHalo,
-                    shaders.StaticSpriteVertexShader,
-                    shaders.StaticSpritePixelShader,
-                    CreatePremultipliedBlend(),
+                    hdrOutput ? CreatePremultipliedBlend() : CreateLiquidSpriteBlend(),
                     RasterizerDescription.CullNone,
                     DepthStencilDescription.None,
                     usesDepthBuffer: false)
             ]);
+    }
+
+    public static Dx12PipelineGroupDefinition CreateLightHalos(Dx12ShaderSet shaders)
+    {
+        var rootParameters = new[]
+        {
+            new RootParameter(
+                new RootConstants(
+                    LightHaloShaderLayout.SceneConstantsRegister,
+                    0,
+                    LightHaloShaderLayout.SceneConstantsCount),
+                ShaderVisibility.All),
+            new RootParameter(
+                RootParameterType.ShaderResourceView,
+                new RootDescriptor(LightHaloShaderLayout.InstanceBufferRegister, 0),
+                ShaderVisibility.Vertex)
+        };
+
+        return new Dx12PipelineGroupDefinition(
+            rootParameters,
+            [],
+            [Pipeline(
+                Dx12PipelineKind.LightHalo,
+                shaders.LightHaloVertexShader,
+                shaders.LightHaloPixelShader,
+                CreatePremultipliedBlend(),
+                RasterizerDescription.CullNone,
+                DepthStencilDescription.None,
+                usesDepthBuffer: false)]);
     }
 
     public static Dx12PipelineGroupDefinition CreateModels(
@@ -129,6 +152,8 @@ public static class Dx12PipelineCatalog
         {
             ModelPipeline(Dx12PipelineKind.ModelShadow, shaders.ModelShadowVertexShader, shaders.ModelShadowPixelShader,
                 BlendDescription.AlphaBlend, RasterizerDescription.CullNone, shadowDepth),
+            Pipeline(Dx12PipelineKind.GroundShadow, shaders.GroundShadowVertexShader, shaders.GroundShadowPixelShader,
+                BlendDescription.AlphaBlend, RasterizerDescription.CullNone, shadowDepth, usesDepthBuffer: true),
             ModelPipeline(Dx12PipelineKind.StaticModel, shaders.ModelVertexShader, shaders.ModelPixelShader,
                 BlendDescription.AlphaBlend, RasterizerDescription.CullClockwise, depth),
             ModelPipeline(Dx12PipelineKind.TransparentModel, shaders.ModelVertexShader, shaders.ModelPixelShader,

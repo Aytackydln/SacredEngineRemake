@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Sacred.Core.World.Sector;
 
 namespace Sacred.Core.World;
 
@@ -15,8 +16,13 @@ public readonly record struct KeyxSectorRecord
     [FieldOffset(0x0D8)] public readonly uint TilesSize;
     [FieldOffset(0x0EC)] public readonly uint CompressedOffset;
     [FieldOffset(0x0F0)] public readonly uint CompressedSize;
+    [FieldOffset(0x1CC)] public readonly SectorEnvironmentFlags EnvironmentFlags;
     [FieldOffset(0x2E0)] public readonly byte Style90;
     [FieldOffset(0x2E1)] public readonly byte StyleA0;
+
+    public WorldZone Zone => (EnvironmentFlags & SectorEnvironmentFlags.Dungeon) != 0
+        ? WorldZone.Cave
+        : WorldZone.Outdoors;
 
     public static KeyxSectorRecord FromBytes(ReadOnlySpan<byte> data)
     {

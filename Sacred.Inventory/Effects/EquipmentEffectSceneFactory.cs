@@ -4,6 +4,8 @@ using System.Linq;
 using System.Numerics;
 using Sacred.Core.Pak.Weapon;
 using Sacred.Granny;
+using Sacred.Granny.Assets;
+using Sacred.Particles;
 
 namespace Sacred.Inventory.Effects;
 
@@ -78,7 +80,7 @@ public static class EquipmentEffectSceneFactory
                 flameHeight,
                 FireTexture,
                 new Vector4(1.0f, 0.72f, 0.42f, 0.94f),
-                EquipmentEffectTextureMode.Atlas4X4);
+                ParticleTextureMode.Atlas4X4);
         }
         else if (primaryEmitter != default)
         {
@@ -107,7 +109,7 @@ public static class EquipmentEffectSceneFactory
                     unit * 6.5f,
                     OrbTexture,
                     new Vector4(0.42f, 0.66f, 1.0f, 0.78f),
-                    EquipmentEffectTextureMode.Luminance);
+                    ParticleTextureMode.Luminance);
         }
 
         if (standardEffects.Length == 0)
@@ -138,7 +140,7 @@ public static class EquipmentEffectSceneFactory
                     unit * 0.62f,
                     BouncyLineTexture,
                     streakColor,
-                    EquipmentEffectTextureMode.BouncyAlpha);
+                    ParticleTextureMode.BouncyAlpha);
             }
         }
 
@@ -169,7 +171,7 @@ public static class EquipmentEffectSceneFactory
             unit * 0.68f,
             BouncyLineTexture,
             color,
-            EquipmentEffectTextureMode.BouncyAlpha);
+            ParticleTextureMode.BouncyAlpha);
     }
 
     private static EffectAnchorPoint[] OfKind(

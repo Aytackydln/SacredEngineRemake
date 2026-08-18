@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Assets.Paks.Texture;
+using Sacred.Core.World.Pathing;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
 using Sacred.World.Geometry;
@@ -68,12 +69,13 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
         var baseTiles = new List<TerrainCompositionTile>(Sector.TileCount * Sector.TileCount + sector.FloorOverlays.Count);
         var coverTiles = new List<TerrainCompositionTile>(sector.FloorOverlays.Count);
         var stairsDebugTiles = new List<TerrainCompositionTile>(sector.StairsCells.Count);
+        var debugDoorTiles = new HashSet<(int X, int Y)>();
         var blockedAreaDebugTiles = new List<TerrainCompositionTile>();
 
         var groundCandidateTiles = Sector.TileCount * Sector.TileCount;
         var groundDrawnTiles = 0;
         var groundMissingTiles = 0;
-        var floorCandidateTiles = sector.FloorOverlays.Count;
+        var floorCandidateTiles = 0;
         var floorDrawnTiles = 0;
         var floorMissingTiles = 0;
 
@@ -108,7 +110,8 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
                 continue;
             }
 
-            baseTiles.Add(new TerrainCompositionTile(item.ScreenX, item.ScreenY, source, null));
+            var compositionTile = new TerrainCompositionTile(item.ScreenX, item.ScreenY, source, null);
+            baseTiles.Add(compositionTile);
             groundDrawnTiles++;
         }
 
@@ -119,7 +122,8 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
             var iso = IsometricProjection.WorldToIso(localX, localY);
             foreach (var overlay in sector.FloorOverlays[localX, localY])
             {
-                drawTiles.Add(new DrawTile(
+                floorCandidateTiles++;
+                var drawTile = new DrawTile(
                     localX + localY,
                     localY,
                     (int)MathF.Round(iso.X - SectorImageOriginX),
@@ -127,7 +131,8 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
                     overlay.PrimaryTileId,
                     overlay.SecondaryTileId,
                     overlay.ChainDepth,
-                    overlay.ChainDepth >= liquidInsertionDepths[localY * Sector.TileCount + localX]));
+                    overlay.ChainDepth >= liquidInsertionDepths[localY * Sector.TileCount + localX]);
+                drawTiles.Add(drawTile);
             }
         }
 
@@ -167,6 +172,50 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
                 null));
         }
 
+        foreach (var group in sector.IndoorTileGroups.Groups)
+        foreach (var entrance in group.Entrances)
+        {
+            if (entrance.WorldX < sector.Coord.X * Sector.TileCount ||
+                entrance.WorldX >= (sector.Coord.X + 1) * Sector.TileCount ||
+                entrance.WorldY < sector.Coord.Y * Sector.TileCount ||
+                entrance.WorldY >= (sector.Coord.Y + 1) * Sector.TileCount)
+            {
+                continue;
+            }
+
+            if (!debugDoorTiles.Add((entrance.WorldX, entrance.WorldY)))
+                continue;
+
+            var localX = entrance.WorldX - sector.Coord.X * Sector.TileCount;
+            var localY = entrance.WorldY - sector.Coord.Y * Sector.TileCount;
+            var iso = IsometricProjection.WorldToIso(localX, localY);
+            stairsDebugTiles.Add(new TerrainCompositionTile(
+                (int)MathF.Round(iso.X - SectorImageOriginX),
+                (int)MathF.Round(iso.Y - SectorImageOriginY),
+                _stairsDebugTiles.Get(isAnchor: true),
+                null));
+        }
+
+        for (var localY = 0; localY < Sector.TileCount; localY++)
+        for (var localX = 0; localX < Sector.TileCount; localX++)
+        {
+            var pathTile = sector.Pathing[localX, localY];
+            if (pathTile.Type != 9)
+                continue;
+
+            var worldX = sector.Coord.X * Sector.TileCount + localX;
+            var worldY = sector.Coord.Y * Sector.TileCount + localY;
+            if (!debugDoorTiles.Add((worldX, worldY)))
+                continue;
+
+            var iso = IsometricProjection.WorldToIso(localX, localY);
+            stairsDebugTiles.Add(new TerrainCompositionTile(
+                (int)MathF.Round(iso.X - SectorImageOriginX),
+                (int)MathF.Round(iso.Y - SectorImageOriginY),
+                _stairsDebugTiles.Get(isAnchor: true),
+                null));
+        }
+
         for (var localY = 0; localY < Sector.TileCount; localY++)
         for (var localX = 0; localX < Sector.TileCount; localX++)
         {
@@ -183,7 +232,6 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
 
         var stairsDebugBounds = CropDebugTiles(stairsDebugTiles);
         var blockedAreaDebugBounds = CropDebugTiles(blockedAreaDebugTiles);
-
         return new TerrainSectorComposition(
             sector.Coord,
             sectorOriginIso.X + SectorImageOriginX,

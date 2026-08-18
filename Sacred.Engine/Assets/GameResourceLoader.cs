@@ -15,6 +15,9 @@ using Sacred.Core;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Pak.Weapon;
 using Sacred.Core.World.Stairs;
+using Sacred.Granny;
+using Sacred.Granny.Abstractions;
+using Sacred.Granny.Loading;
 using Sacred.World;
 
 namespace Sacred.Engine.Assets;
@@ -29,6 +32,7 @@ internal sealed class GameResourceLoader : IDisposable
     private readonly string _gameDirectory;
     private readonly string _pakDirectory;
     private readonly string _worldDirectory;
+    private readonly GrnBackendKind _grannyBackend;
 
     private TexturePakArchive? _texturePak;
     private ItemsPakEntry[]? _items;
@@ -42,12 +46,16 @@ internal sealed class GameResourceLoader : IDisposable
     private SacredStairsMap? _stairsMap;
     private FileStream? _wldxStream;
     private FloorPakArchive? _floorPak;
+    private SacredWorldArchive? _worldArchive;
     private bool _ownershipTransferred;
     private bool _disposed;
 
-    public GameResourceLoader(SacredGameDirectories directories)
+    public GameResourceLoader(
+        SacredGameDirectories directories,
+        GrnBackendKind grannyBackend = GrnBackendKind.ManagedParser)
     {
         _directories = directories ?? throw new ArgumentNullException(nameof(directories));
+        _grannyBackend = grannyBackend;
         _pakDirectory = Path.GetDirectoryName(directories.TexturesPakPath)
             ?? throw new InvalidDataException("Cannot infer the PAK directory from Texture.pak.");
         _gameDirectory = Directory.GetParent(_pakDirectory)?.FullName
@@ -73,7 +81,8 @@ internal sealed class GameResourceLoader : IDisposable
         new("stairs data", LoadStairsMap),
         new("sectors.keyx", LoadKeyx),
         new("sectors.wldx", OpenWldx),
-        new("Floor.pak", LoadFloorPak)
+        new("Floor.pak", LoadFloorPak),
+        new("world sectors", LoadWorldArchive)
     ];
 
     public LoadedGameResources TransferToRuntime()
@@ -85,26 +94,17 @@ internal sealed class GameResourceLoader : IDisposable
         var texturePak = Require(_texturePak, "Texture.pak");
         var items = Require(_items, "Items.pak");
         var modelsPak = Require(_modelsPak, "Models.pak");
-        var staticPak = Require(_staticPak, "Static.pak");
         var mixedPak = Require(_mixedPak, "Mixed.pak");
         var tilesPak = Require(_tilesPak, "Tiles.pak");
         var equipment = Require(_equipment, "Weapons.pak");
-        var stairsMap = Require(_stairsMap, "stairs data");
-        var keyxData = Require(_keyxData, "sectors.keyx");
-        var wldxStream = Require(_wldxStream, "sectors.wldx");
-        var floorPak = Require(_floorPak, "Floor.pak");
+        var worldArchive = Require(_worldArchive, "world sectors");
 
         AssetManager? assets = null;
         SacredWorldArchive? world = null;
         try
         {
             assets = new AssetManager(texturePak, tilesPak, items, equipment, mixedPak, modelsPak);
-            world = SacredWorldArchiveFactory.Create(
-                keyxData,
-                wldxStream,
-                floorPak,
-                staticPak,
-                stairsMap);
+            world = worldArchive;
             _ownershipTransferred = true;
             ReleaseTransferredReferences();
             return new LoadedGameResources(assets, world);
@@ -125,9 +125,22 @@ internal sealed class GameResourceLoader : IDisposable
         _itemsByModelId = _items.ToFrozenDictionary(static item => item.ItemIndex);
     }
 
-    private void LoadModelsPak() => _modelsPak = ModelsPakArchive.Load(
-        Path.Combine(_pakDirectory, "models.pak"),
-        Path.Combine(_pakDirectory, "Models.tmp"));
+    private void LoadModelsPak()
+    {
+        var assetLoader = GrnAssetLoaderFactory.Create(_grannyBackend, _gameDirectory);
+        try
+        {
+            _modelsPak = ModelsPakArchive.Load(
+                Path.Combine(_pakDirectory, "models.pak"),
+                Path.Combine(_pakDirectory, "Models.tmp"),
+                assetLoader);
+        }
+        catch
+        {
+            assetLoader.Dispose();
+            throw;
+        }
+    }
 
     private void LoadStaticPak() => _staticPak = StaticPakArchive.Load(Path.Combine(_worldDirectory, "Static.pak"));
 
@@ -158,6 +171,22 @@ internal sealed class GameResourceLoader : IDisposable
 
     private void LoadFloorPak() => _floorPak = FloorPakArchive.Load(Path.Combine(_worldDirectory, "Floor.pak"));
 
+    private void LoadWorldArchive()
+    {
+        _worldArchive = SacredWorldArchiveFactory.Create(
+            Require(_keyxData, "sectors.keyx"),
+            Require(_wldxStream, "sectors.wldx"),
+            Require(_floorPak, "Floor.pak"),
+            Require(_staticPak, "Static.pak"),
+            Require(_stairsMap, "stairs data"));
+
+        _keyxData = null;
+        _wldxStream = null;
+        _floorPak = null;
+        _staticPak = null;
+        _stairsMap = null;
+    }
+
     private static T Require<T>(T? value, string resourceName) where T : class =>
         value ?? throw new InvalidOperationException($"{resourceName} has not been loaded.");
 
@@ -175,6 +204,7 @@ internal sealed class GameResourceLoader : IDisposable
         _keyxData = null;
         _wldxStream = null;
         _floorPak = null;
+        _worldArchive = null;
     }
 
     public void Dispose()
@@ -189,6 +219,7 @@ internal sealed class GameResourceLoader : IDisposable
         _wldxStream?.Dispose();
         _floorPak?.Dispose();
         _staticPak?.Dispose();
+        _worldArchive?.Dispose();
         _modelsPak?.Dispose();
         _texturePak?.Dispose();
     }

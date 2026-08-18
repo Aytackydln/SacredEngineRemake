@@ -22,7 +22,6 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Shaders\*.hlsl" />
-    <EmbeddedResource Include="ShadersHdr\*.hlsl" />
   </ItemGroup>
 
 </Project>

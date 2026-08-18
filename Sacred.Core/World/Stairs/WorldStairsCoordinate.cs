@@ -1,6 +1,6 @@
 namespace Sacred.Core.World.Stairs;
 
-/// <summary>A treppe.bin coordinate with packed X/Y components and opaque high metadata.</summary>
+/// <summary>A treppe.bin coordinate with packed X/Y components and its authored surface level.</summary>
 public readonly record struct WorldStairsCoordinate(int X, int Y, byte Metadata)
 {
     public const int HorizontalCoordinateBits = 13;

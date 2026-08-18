@@ -1,133 +1,98 @@
-﻿using System.IO.Compression;
+using System.IO.Compression;
 using Sacred.Core.World;
 using Sacred.Core.World.Sector;
 
 namespace Sacred.World;
 
-public sealed class WldxLoader : IDisposable
+/// <summary>Extracts a complete sector payload when that sector streams into view.</summary>
+public sealed class WldxLoader(FileStream wldxStream) : IDisposable
 {
     private const int SectorW = Sector.TileCount;
     private const int SectorH = Sector.TileCount;
 
-    private readonly SemaphoreSlim _wldxLock = new(1, 1);
-    private readonly FileStream _wldxStream;
+    private readonly object _streamLock = new();
 
-    public WldxLoader(FileStream wldxStream) =>
-        _wldxStream = wldxStream ?? throw new ArgumentNullException(nameof(wldxStream));
-
-    public async Task<byte[]> ReadSectorTiles(
-        KeyxSectorRecord entry,
-        uint sectorId,
-        CancellationToken cancellationToken = default)
+    public WldxSectorPayload LoadSector(uint sectorId, KeyxSectorRecord entry)
     {
-        var requiredTileBytes = checked(SectorW * SectorH * WldxTileRecord.Size);
+        const int requiredTileBytes = checked(SectorW * SectorH * WldxTileRecord.Size);
         if (entry.TilesRelativeOffset < 0 || entry.TilesSize < requiredTileBytes)
             throw new InvalidDataException($"Sector {sectorId} has an invalid tile block.");
-
-        await _wldxLock.WaitAsync(cancellationToken);
-        try
-        {
-            ValidateCompressedBlock(entry, sectorId);
-            _wldxStream.Position = entry.CompressedOffset;
-
-            await using var zlib = new ZLibStream(_wldxStream, CompressionMode.Decompress, leaveOpen: true);
-            await SkipExactlyAsync(zlib, entry.TilesRelativeOffset, sectorId, cancellationToken);
-
-            var tiles = GC.AllocateUninitializedArray<byte>(requiredTileBytes);
-            try
-            {
-                await zlib.ReadExactlyAsync(tiles, cancellationToken);
-            }
-            catch (EndOfStreamException exception)
-            {
-                throw new InvalidDataException($"Sector {sectorId} has a truncated tile block.", exception);
-            }
-
-            return tiles;
-        }
-        finally
-        {
-            _wldxLock.Release();
-        }
-    }
-
-    public async Task<byte[]> ReadWldx(
-        KeyxSectorRecord entry,
-        uint sectorId,
-        CancellationToken cancellationToken = default)
-    {
-        var compressed = await ReadWldxCompressed(entry, sectorId, cancellationToken);
-
-        byte[] decompressed;
-        using (var compressedStream = new MemoryStream(compressed, writable: false))
-        await using (var zlib = new ZLibStream(compressedStream, CompressionMode.Decompress))
-        using (var output = new MemoryStream())
-        {
-            await zlib.CopyToAsync(output, cancellationToken);
-            decompressed = output.ToArray();
-        }
-
-        if (entry.TilesRelativeOffset < 0 ||
-            entry.TilesSize < SectorW * SectorH * WldxTileRecord.Size ||
-            entry.TilesRelativeOffset + entry.TilesSize > decompressed.Length)
-            throw new InvalidDataException($"Sector {sectorId} has an invalid tile block.");
-
-        return decompressed;
-    }
-
-    private async Task<byte[]> ReadWldxCompressed(
-        KeyxSectorRecord entry,
-        uint sectorId,
-        CancellationToken cancellationToken)
-    {
-        await _wldxLock.WaitAsync(cancellationToken);
-        try
-        {
-            ValidateCompressedBlock(entry, sectorId);
-            _wldxStream.Position = entry.CompressedOffset;
-
-            var compressed = new byte[(int)entry.CompressedSize];
-            await _wldxStream.ReadExactlyAsync(compressed, cancellationToken);
-            return compressed;
-        }
-        finally
-        {
-            _wldxLock.Release();
-        }
-    }
-
-    private void ValidateCompressedBlock(KeyxSectorRecord entry, uint sectorId)
-    {
         if (entry.CompressedSize > int.MaxValue ||
-            (ulong)entry.CompressedOffset + entry.CompressedSize > (ulong)_wldxStream.Length)
+            (ulong)entry.CompressedOffset + entry.CompressedSize > (ulong)wldxStream.Length)
         {
             throw new InvalidDataException($"Sector {sectorId} has an invalid compressed block.");
         }
-    }
 
-    private static async Task SkipExactlyAsync(
-        Stream stream,
-        int byteCount,
-        uint sectorId,
-        CancellationToken cancellationToken)
-    {
-        var remaining = byteCount;
-        var scratch = new byte[Math.Min(8192, Math.Max(1, remaining))];
-        while (remaining > 0)
+        lock (_streamLock)
         {
-            var read = await stream.ReadAsync(
-                scratch.AsMemory(0, Math.Min(scratch.Length, remaining)),
-                cancellationToken);
-            if (read == 0)
-                throw new InvalidDataException($"Sector {sectorId} ends before its tile block.");
+            wldxStream.Position = entry.CompressedOffset;
+            using var zlib = new ZLibStream(wldxStream, CompressionMode.Decompress, leaveOpen: true);
+            using var decompressed = new MemoryStream(checked((int)Math.Max(entry.TilesSize, requiredTileBytes)));
+            zlib.CopyTo(decompressed);
+            var data = decompressed.GetBuffer().AsSpan(0, checked((int)decompressed.Length));
+            var tilesEnd = checked(entry.TilesRelativeOffset + requiredTileBytes);
+            if (tilesEnd > data.Length)
+                throw new InvalidDataException($"Sector {sectorId} has a truncated tile block.");
 
-            remaining -= read;
+            return new WldxSectorPayload(
+                data.Slice(entry.TilesRelativeOffset, requiredTileBytes).ToArray(),
+                ReadIndoorGroups(data, tilesEnd));
         }
     }
 
-    public void Dispose()
+    private static WldxIndoorGroupPayload[] ReadIndoorGroups(
+        ReadOnlySpan<byte> data,
+        int tilesEnd)
     {
-        _wldxStream.Dispose();
-        _wldxLock.Dispose();
+        const int postTileHeaderSize = 0x24;
+        const int descriptorSize = 0x24;
+        const uint indoorTileKind = 6;
+
+        var groups = new List<WldxIndoorGroupPayload>();
+        var descriptorOffset = checked(tilesEnd + postTileHeaderSize);
+        while (descriptorOffset <= data.Length - descriptorSize)
+        {
+            var descriptor = data.Slice(descriptorOffset, descriptorSize);
+            var worldX = BitConverter.ToInt32(descriptor[..4]);
+            var worldY = BitConverter.ToInt32(descriptor.Slice(4, 4));
+            var width = BitConverter.ToUInt16(descriptor.Slice(8, 2));
+            var height = BitConverter.ToUInt16(descriptor.Slice(10, 2));
+            var kind = BitConverter.ToUInt32(descriptor.Slice(12, 4));
+            var tilesOffset = BitConverter.ToUInt32(descriptor.Slice(16, 4));
+            var tilesSize = BitConverter.ToUInt32(descriptor.Slice(20, 4));
+
+            var expectedSize = (ulong)width * height * WldxTileRecord.Size;
+            if (worldX < 0 || worldY < 0 || width == 0 || height == 0 ||
+                kind != indoorTileKind || tilesSize != expectedSize ||
+                tilesOffset > data.Length || tilesSize > data.Length - tilesOffset)
+            {
+                break;
+            }
+
+            groups.Add(new WldxIndoorGroupPayload(
+                worldX,
+                worldY,
+                width,
+                height,
+                kind,
+                data.Slice(checked((int)tilesOffset), checked((int)tilesSize)).ToArray()));
+            descriptorOffset += descriptorSize;
+        }
+
+        return groups.ToArray();
     }
+
+    public void Dispose() => wldxStream.Dispose();
 }
+
+public sealed record WldxSectorPayload(
+    byte[] OutdoorTiles,
+    IReadOnlyList<WldxIndoorGroupPayload> IndoorGroups);
+
+public sealed record WldxIndoorGroupPayload(
+    int WorldX,
+    int WorldY,
+    int Width,
+    int Height,
+    uint Kind,
+    byte[] Tiles);

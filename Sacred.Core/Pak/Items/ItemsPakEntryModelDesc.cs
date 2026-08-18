@@ -13,12 +13,16 @@ public readonly record struct ItemsPakEntryModelDesc(
     ushort StaticSpriteFrameCount, // 2 bytes at offset 44; consecutive mixed.pak groups used by animated static sprites
     byte RenderClass, // 1 byte at offset 46; affects static object draw ordering
     ushort ModelTransformFlags, // 2 bytes at offset 48; low byte is the frame duration in 10 ms units for animated static sprites
-    ushort ModelExtent, // 2 bytes at offset 50; character rows contain values like 120..200
+    ushort ModelExtent, // 2 bytes at offset 50; visual extent, including SimpleLight halo sizes 220/300/450
     string ModelName, // null-terminated string at 55, max length 32 bytes (including null terminator)
     uint EffectTextureId, // 4 bytes at offset 102; texture.pak descriptor index for model effect/fill/animated texture
     ushort Unknown112 // 2 bytes at offset 112; not the animated-texture speed
 )
 {
+    public const uint UnlitGraphicFlag = 0x00020000;
+    public const uint LowRenderClassMask = 0x0000000F;
+    public const uint WorldLightRenderClass = 0x00000009;
+
     private static readonly Encoding SacredEncoding = Encoding.GetEncoding("iso-8859-1");
 
     public static IEnumerable<ItemsPakEntryModelDesc> ReadMany(
@@ -94,4 +98,13 @@ public readonly record struct ItemsPakEntryModelDesc(
 
         return SacredEncoding.GetString(stringBytes[..nullIndex]);
     }
+
+    /// <summary>
+    /// Items.pak low render class 9. A texture-free, unlit entry is an authored
+    /// light-volume marker when paired with a positive extent. This render
+    /// class is also shared by ordinary mixed world sprites, so it is not an
+    /// emitter discriminator by itself.
+    /// </summary>
+    public bool UsesWorldLightRenderClass =>
+        (GraphicRenderFlags & LowRenderClassMask) == WorldLightRenderClass;
 }

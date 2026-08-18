@@ -20,6 +20,9 @@ using Sacred.Core;
 using Sacred.Core.GameRes;
 using Sacred.Core.Pak.Weapon;
 using Sacred.Granny;
+using Sacred.Granny.Abstractions;
+using Sacred.Granny.Assets;
+using Sacred.Granny.Loading;
 
 namespace Sacred.ItemViewer.Avalonia.ItemViewer;
 
@@ -43,11 +46,15 @@ public partial class SacredItemDataTable : UserControl
     private TexturePakArchive _texturePakArchive = null!;
     private CancellationTokenSource? _modelLoadCancellation;
     private SacredItemDataModel? _confirmablePreviewItem;
+    private GrnBackendKind _grannyBackend = GrnBackendKind.ManagedParser;
+    private bool _changingGrannyBackend;
     private bool _hasLoaded;
 
     public SacredItemDataTable()
     {
         InitializeComponent();
+        GrannyBackendComboBox.ItemsSource = Enum.GetValues<GrnBackendKind>();
+        GrannyBackendComboBox.SelectedItem = _grannyBackend;
         ModelViewerPanel.Children.Add(_modelViewer);
         PreviewRotationModeComboBox.ItemsSource = ItemPreviewRotationModeFactory.GetValues();
         PreviewRotationModeComboBox.SelectedItem = ItemPreviewRotationMode.LegacyCurrent;
@@ -107,6 +114,16 @@ public partial class SacredItemDataTable : UserControl
         _savedEnumFilters = savedSettings.EnumFilters;
         _favoriteItemIds = _favoriteStore.Load();
         _previewConfirmationsByItemId = _previewConfirmationStore.LoadByItemId();
+        _grannyBackend = savedSettings.GrannyBackend;
+        _changingGrannyBackend = true;
+        try
+        {
+            GrannyBackendComboBox.SelectedItem = _grannyBackend;
+        }
+        finally
+        {
+            _changingGrannyBackend = false;
+        }
         _gameDir = await PromptForGameDirectoryAsync(savedSettings.GameDirectory);
         SaveSettings(savedSettings.FilterHasModel);
 
@@ -121,12 +138,66 @@ public partial class SacredItemDataTable : UserControl
         _tableViewModel.FilterHasModelChanged += OnFilterHasModelChanged;
         DataContext = _tableViewModel;
         var pakDirectory = Path.Combine(_gameDir, "pak");
-        _modelsPakArchive = ModelsPakArchive.Load(Path.Combine(pakDirectory, "models.pak"));
+        _modelsPakArchive = ModelsPakArchive.Load(
+            Path.Combine(pakDirectory, "models.pak"),
+            assetLoader: GrnAssetLoaderFactory.Create(_grannyBackend, _gameDir));
         _texturePakArchive = TexturePakArchive.LoadFromDirectory(pakDirectory);
 
         BuildEnumFilters();
         _tableViewModel.LoadPage(0);
         DataGrid.IsVisible = true;
+    }
+
+    private async void GrannyBackendComboBox_OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_changingGrannyBackend ||
+            GrannyBackendComboBox.SelectedItem is not GrnBackendKind selectedBackend ||
+            selectedBackend == _grannyBackend)
+            return;
+
+        var previousBackend = _grannyBackend;
+        if (!_hasLoaded || _modelsPakArchive is null)
+        {
+            _grannyBackend = selectedBackend;
+            return;
+        }
+
+        try
+        {
+            if (_modelLoadCancellation is not null)
+                await _modelLoadCancellation.CancelAsync();
+            var loader = GrnAssetLoaderFactory.Create(selectedBackend, _gameDir);
+            _modelsPakArchive.ReplaceAssetLoader(loader);
+            _grannyBackend = selectedBackend;
+            SaveSettings(_tableViewModel.FilterHasModel);
+            Console.WriteLine($"ItemViewer Granny implementation switched to {loader.DisplayName}.");
+
+            if (DataGrid.SelectedItem is SacredItemDataModel selectedItem &&
+                !string.IsNullOrWhiteSpace(selectedItem.ModelName))
+            {
+                _modelViewer.ShowStatus($"{selectedItem.ModelName}: reloading with {loader.DisplayName}...");
+                var rotationMode = SelectedRotationMode;
+                var pivotMode = SelectedPivotMode;
+                _ = Task.Run(() => LoadModel(selectedItem, rotationMode, pivotMode));
+            }
+            else
+            {
+                _modelViewer.ShowStatus($"Granny implementation: {loader.DisplayName}.");
+            }
+        }
+        catch (Exception exception) when (exception is FileNotFoundException or InvalidDataException or NotSupportedException)
+        {
+            _changingGrannyBackend = true;
+            try
+            {
+                GrannyBackendComboBox.SelectedItem = previousBackend;
+            }
+            finally
+            {
+                _changingGrannyBackend = false;
+            }
+            _modelViewer.ShowStatus($"Could not select {selectedBackend}: {exception.Message}");
+        }
     }
 
     private static SacredGameDirectories CreateGameDirectories(string gameDir)
@@ -168,7 +239,8 @@ public partial class SacredItemDataTable : UserControl
         _filterSaveStore.Save(new SacredItemFilterSettings(
             _savedEnumFilters,
             filterHasModel,
-            _gameDir));
+            _gameDir,
+            _grannyBackend));
     }
 
     private void BuildEnumFilters()
@@ -440,6 +512,8 @@ public partial class SacredItemDataTable : UserControl
 
         var text = new StringBuilder();
         text.AppendLine($"Name: {asset.Name}");
+        text.AppendLine($"Granny implementation: {asset.Backend}" +
+                        (string.IsNullOrWhiteSpace(asset.BackendDetail) ? string.Empty : $" — {asset.BackendDetail}"));
         text.AppendLine($"File size: {asset.RawBytes.Length:N0} bytes");
         text.AppendLine($"Damage: physical {FormatRange(item.Damage.Physical)}, fire {FormatRange(item.Damage.Fire)}, magic {FormatRange(item.Damage.Magic)}, poison {FormatRange(item.Damage.Poison)}");
         var effectAnchors = diagnostics.Slices

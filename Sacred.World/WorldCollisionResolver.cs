@@ -8,7 +8,9 @@ namespace Sacred.World;
 /// Blocked records occupy their authored unit tile (<c>x..x+1, y..y+1</c>), and
 /// rounded-corner sweeps let the actor slide naturally without treating it as a box.
 /// </summary>
-public sealed class WorldCollisionResolver(WorldStreamer worldStreamer)
+public sealed class WorldCollisionResolver(
+    WorldStreamer worldStreamer,
+    Func<IndoorTileGroup?> activeIndoorGroup)
 {
     public const float CharacterRadius = 0.28f;
 
@@ -17,7 +19,13 @@ public sealed class WorldCollisionResolver(WorldStreamer worldStreamer)
     private const int MaximumSlideIterations = 4;
 
     private readonly Dictionary<SectorCoord, Sector> _sectors = new(capacity: 9);
+    private readonly List<IndoorTileGroup> _indoorGroups = [];
     private VisibleWorld? _cachedWorld;
+
+    public WorldCollisionResolver(WorldStreamer worldStreamer)
+        : this(worldStreamer, static () => null)
+    {
+    }
 
     public Vector2 ResolveMovement(Vector2 start, Vector2 intendedEnd)
     {
@@ -83,6 +91,9 @@ public sealed class WorldCollisionResolver(WorldStreamer worldStreamer)
     public bool IsBlocked(int worldTileX, int worldTileY)
     {
         RefreshSectorIndex();
+        if (TryGetIndoorTile(worldTileX, worldTileY, out var indoorGroup, out var indoorX, out var indoorY))
+            return indoorGroup.Pathing.IsBlocked(indoorX, indoorY);
+
         return TryGetSectorTile(worldTileX, worldTileY, out var sector, out var localX, out var localY) &&
                sector.Pathing.IsBlocked(localX, localY);
     }
@@ -202,9 +213,52 @@ public sealed class WorldCollisionResolver(WorldStreamer worldStreamer)
         }
     }
 
-    private bool IsMovementBlockedFromCache(int worldTileX, int worldTileY) =>
-        !TryGetSectorTile(worldTileX, worldTileY, out var sector, out var localX, out var localY) ||
-        sector.Pathing.IsBlocked(localX, localY);
+    private bool IsMovementBlockedFromCache(int worldTileX, int worldTileY)
+    {
+        if (TryGetIndoorTile(worldTileX, worldTileY, out var indoorGroup, out var indoorX, out var indoorY))
+            return indoorGroup.Pathing.IsBlocked(indoorX, indoorY);
+
+        return !TryGetSectorTile(worldTileX, worldTileY, out var sector, out var localX, out var localY) ||
+               sector.Pathing.IsBlocked(localX, localY);
+    }
+
+    private bool TryGetIndoorTile(
+        int worldTileX,
+        int worldTileY,
+        out IndoorTileGroup group,
+        out int localX,
+        out int localY)
+    {
+        if (activeIndoorGroup() is { } active)
+        {
+            if (active.TryGetAuthoredLocalTile(worldTileX, worldTileY, out localX, out localY))
+            {
+                group = active;
+                return true;
+            }
+
+            group = null!;
+            localX = 0;
+            localY = 0;
+            return false;
+        }
+
+        foreach (var candidate in _indoorGroups)
+        {
+            if (candidate.SurfaceLevel != 1)
+                continue;
+            if (!candidate.TryGetAuthoredLocalTile(worldTileX, worldTileY, out localX, out localY))
+                continue;
+
+            group = candidate;
+            return true;
+        }
+
+        group = null!;
+        localX = 0;
+        localY = 0;
+        return false;
+    }
 
     private bool TryGetSectorTile(
         int worldTileX,
@@ -229,8 +283,15 @@ public sealed class WorldCollisionResolver(WorldStreamer worldStreamer)
 
         _cachedWorld = visibleWorld;
         _sectors.Clear();
+        _indoorGroups.Clear();
+        var indoorGroupIds = new HashSet<IndoorTileGroupId>();
         foreach (var sector in visibleWorld.Sectors)
+        {
             _sectors[sector.Coord] = sector;
+            foreach (var group in sector.IndoorTileGroups.Groups)
+                if (indoorGroupIds.Add(group.Id))
+                    _indoorGroups.Add(group);
+        }
     }
 
     private static int FloorDiv(int value, int divisor)

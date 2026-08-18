@@ -1,6 +1,6 @@
 // #pragma hlsl profile ps_5_0
 #pragma vertex vs_main
-#pragma fragment ps_main
+#pragma fragment ps_sdr
 
 cbuffer ModelConstants : register(b0)
 {
@@ -16,6 +16,7 @@ cbuffer SceneConstants : register(b1)
     float4 camera_position_and_shininess;
     float4 ambient_color_and_intensity;
     float4 light_color_and_diffuse_intensity;
+    float4 hdr_display; // x: scene paper white, y: UI paper white, z: sun diffuse nits, w: sun specular nits
 }
 
 Texture2D model_texture : register(t0);
@@ -117,7 +118,7 @@ vs_output vs_main(vs_input input)
     return output;
 }
 
-float4 ps_main(vs_output input) : SV_Target
+float4 ps_sdr(vs_output input) : SV_Target
 {
     float4 base_color = model_color;
     if (has_texture())
@@ -156,4 +157,50 @@ float4 ps_main(vs_output input) : SV_Target
     float3 lit_color = base_color.rgb * (ambient + diffuse) + specular;
 
     return float4(saturate(lit_color), base_color.a);
+}
+
+float4 ps_hdr(vs_output input) : SV_Target
+{
+    float4 base_color = model_color;
+    if (has_texture())
+    {
+        base_color = model_texture.Sample(model_sampler, input.tex_coord);
+
+        if (has_alpha_overlay_texture())
+            base_color = alpha_blend(base_color, model_overlay_texture.Sample(model_sampler, input.tex_coord));
+        else if (has_multitexture_fill_overlay())
+            base_color = apply_multitexture_fill(base_color, model_overlay_texture.Sample(model_sampler, input.tex_coord));
+    }
+
+    float alpha_cutoff = has_texture() ? 0.10f : 0.0f;
+    if (base_color.a < alpha_cutoff)
+        discard;
+
+    float3 normal = safe_normalize(input.normal, float3(0.0f, 0.0f, 1.0f));
+    float3 light_direction = safe_normalize(
+        light_position_and_specular_strength.xyz - input.world_position,
+        float3(0.0f, -0.7071f, 0.7071f));
+    float3 view_direction = safe_normalize(
+        camera_position_and_shininess.xyz - input.world_position,
+        float3(0.0f, -0.7071f, 0.7071f));
+    float diffuse_amount = saturate(dot(normal, light_direction));
+    float3 reflection_direction = reflect(-light_direction, normal);
+    float specular_amount = diffuse_amount > 0.0f
+        ? pow(saturate(dot(reflection_direction, view_direction)), max(camera_position_and_shininess.w, 1.0f))
+        : 0.0f;
+
+    float3 ambient = ambient_color_and_intensity.rgb * saturate(ambient_color_and_intensity.w);
+    float3 diffuse = light_color_and_diffuse_intensity.rgb *
+        (diffuse_amount * max(light_color_and_diffuse_intensity.w, 0.0f));
+    float3 specular = light_color_and_diffuse_intensity.rgb *
+        (specular_amount * max(light_position_and_specular_strength.w, 0.0f));
+    float3 hdr = SdrLitTextureToHdr10(
+        base_color.rgb,
+        ambient,
+        diffuse,
+        specular,
+        hdr_display.x,
+        hdr_display.z,
+        hdr_display.w);
+    return float4(hdr, base_color.a);
 }

@@ -6,4 +6,8 @@ public readonly record struct SacredTextureInfo(
     long DataOffset,
     TextureImageInfo ImageInfo,
     SacredPakFile PakFile
-);
+)
+{
+    public SacredTextureStorageFormat StorageFormat =>
+        (SacredTextureStorageFormat)TypeId;
+}

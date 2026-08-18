@@ -10,14 +10,16 @@ internal sealed class StairsTraversalController(SacredStairsMap stairsMap)
 
     private WorldStairsZone? _blockedDestinationZone;
 
-    public bool IsStairsAt(Vector2 worldPosition) =>
+    public bool IsStairsAt(Vector2 worldPosition, byte surfaceLevel) =>
         stairsMap.TryGetLink(
             worldPosition.X,
             worldPosition.Y,
+            surfaceLevel,
             out _);
 
-    public bool Update(SacredCamera camera)
+    public bool Update(SacredCamera camera, byte surfaceLevel, out byte destinationSurfaceLevel)
     {
+        destinationSurfaceLevel = surfaceLevel;
         var actorPosition = camera.WorldCenter;
         if (_blockedDestinationZone is { } blockedZone)
         {
@@ -35,12 +37,14 @@ internal sealed class StairsTraversalController(SacredStairsMap stairsMap)
         if (!stairsMap.TryGetLink(
                 actorPosition.X,
                 actorPosition.Y,
+                surfaceLevel,
                 out var link))
         {
             return false;
         }
 
         var destination = link.Destination;
+        destinationSurfaceLevel = link.TargetZone.Anchor.Metadata;
         _blockedDestinationZone = link.TargetZone;
         camera.StopMoving();
         camera.CenterOnTile(destination.X, destination.Y);

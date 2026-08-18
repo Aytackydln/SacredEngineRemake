@@ -69,6 +69,7 @@ public sealed class Dx12Renderer : IDisposable
     private Dx12ModelGeometryCache? _modelGeometryCache;
     private Dx12ModelPass? _modelPass;
     private Dx12SpritePass? _spritePass;
+    private Dx12LightHaloPass? _lightHaloPass;
     private Dx12MinimapPass? _minimapPass;
 
     private Dx12DebugOverlay _debugOverlay = null!;
@@ -182,6 +183,7 @@ public sealed class Dx12Renderer : IDisposable
             _srvDescriptorSize,
             FirstStaticSpriteSrvSlot,
             FrameCount);
+        _lightHaloPass = new Dx12LightHaloPass(_device, _commandList, FrameCount);
         _minimapPass = new Dx12MinimapPass(
             _commandList,
             _textureUploader,
@@ -245,7 +247,9 @@ public sealed class Dx12Renderer : IDisposable
         {
             EnsureWorldInitialized();
             worldPreload.Camera.SetViewportSize(_renderWidth, _renderHeight);
-            sectorImages = _terrain!.PrepareVisibleWorld(worldPreload.World);
+            sectorImages = _terrain!.PrepareVisibleWorld(
+                worldPreload.World,
+                worldPreload.Scene.Indoor.ActiveGroup);
             liquidSprites = _terrain.PrepareVisibleLiquidSprites();
             staticSprites = _terrain.PrepareVisibleStaticSprites();
             worldLights = _terrain.VisibleWorldLights;
@@ -261,7 +265,6 @@ public sealed class Dx12Renderer : IDisposable
             _spritePass!.PrepareTextures(
                 liquidSprites!,
                 staticSprites!,
-                worldLights!,
                 CurrentFrame,
                 _terrain!.WorldSpriteRevision);
             UpdateWorldPreparationStatus(worldPreload.World, sectorImages!);
@@ -326,7 +329,7 @@ public sealed class Dx12Renderer : IDisposable
         camera.SetViewportSize(_renderWidth, _renderHeight);
 
         _latency.Mark(LatencyMarker.RenderSubmitStart, frameId);
-        var sectorImages = _terrain!.PrepareVisibleWorld(world);
+        var sectorImages = _terrain!.PrepareVisibleWorld(world, scene.Indoor.ActiveGroup);
         var liquidSprites = _terrain.PrepareVisibleLiquidSprites();
         var staticSprites = _terrain.PrepareVisibleStaticSprites();
         var worldLights = _terrain.VisibleWorldLights;
@@ -338,7 +341,6 @@ public sealed class Dx12Renderer : IDisposable
         _spritePass!.PrepareTextures(
             liquidSprites,
             staticSprites,
-            worldLights,
             CurrentFrame,
             _terrain!.WorldSpriteRevision);
         if (scene.Minimap.IsVisible)
@@ -546,6 +548,10 @@ public sealed class Dx12Renderer : IDisposable
             _device, shaders.StaticSprites, _swapChain.BackBufferFormat, DepthBufferFormat);
         _spritePass!.SetPipeline(staticSprites);
 
+        var lightHalos = Dx12RendererPipelineFactory.Create(
+            _device, shaders.LightHalos, _swapChain.BackBufferFormat);
+        _lightHaloPass!.SetPipeline(lightHalos);
+
         var models = Dx12RendererPipelineFactory.Create(
             _device, shaders.Models, _swapChain.BackBufferFormat, DepthBufferFormat);
         _modelPass!.SetPipeline(models);
@@ -611,6 +617,7 @@ public sealed class Dx12Renderer : IDisposable
     {
         _modelPass?.DisposePipeline();
         _spritePass?.DisposePipeline();
+        _lightHaloPass?.DisposePipeline();
         _pipelineState?.Dispose();
         _pipelineState = null!;
         _terrainLiquidCoverPipelineState?.Dispose();
@@ -792,11 +799,17 @@ public sealed class Dx12Renderer : IDisposable
             camera,
             liquidSprites,
             staticSprites,
-            worldLights,
             CurrentFrame,
             _renderWidth,
             _renderHeight,
             _terrain!.WorldSpriteRevision);
+        var lightHaloInstanceCount = _lightHaloPass!.PrepareInstances(
+            camera,
+            worldLights,
+            CurrentFrame,
+            _renderWidth,
+            _renderHeight,
+            _terrain.WorldSpriteRevision);
 
         // Terrain and sprites must use this exact transform for the whole frame. Do not
         // independently rederive it per pass: tiny rounding differences open moving seams.
@@ -847,22 +860,6 @@ public sealed class Dx12Renderer : IDisposable
                 true,
                 constants);
 
-            if (scene.Debug.StairsMapVisible && image.HasStairsDebugData)
-            {
-                var debugPosition = screenTransform.ToScreen(
-                    image.IsoX + image.StairsDebugOffsetX,
-                    image.IsoY + image.StairsDebugOffsetY);
-                RecordTerrainLayer(
-                    texture.StairsDebugSrvSlot,
-                    debugPosition.X,
-                    debugPosition.Y,
-                    screenTransform.Scale(image.StairsDebugWidth),
-                    screenTransform.Scale(image.StairsDebugHeight),
-                    1.0f,
-                    true,
-                    constants);
-            }
-
             if (scene.Debug.BlockedAreasVisible && image.HasBlockedAreaDebugData)
             {
                 var debugPosition = screenTransform.ToScreen(
@@ -896,7 +893,38 @@ public sealed class Dx12Renderer : IDisposable
             CurrentFrame,
             _renderWidth,
             _renderHeight);
-        _modelPass.Record(
+
+        if (scene.Debug.StairsMapVisible)
+        {
+            // Trigger diagnostics intentionally sit above world art.
+            _commandList.OMSetRenderTargets(rtv, null);
+            foreach (var image in sectorImages)
+            {
+                if (!_sectorTextureCache!.TryGet(image.Coord, out var texture))
+                    continue;
+
+                if (scene.Debug.StairsMapVisible && image.HasStairsDebugData)
+                {
+                    var debugPosition = screenTransform.ToScreen(
+                        image.IsoX + image.StairsDebugOffsetX,
+                        image.IsoY + image.StairsDebugOffsetY);
+                    RecordTerrainLayer(
+                        texture.StairsDebugSrvSlot,
+                        debugPosition.X,
+                        debugPosition.Y,
+                        screenTransform.Scale(image.StairsDebugWidth),
+                        screenTransform.Scale(image.StairsDebugHeight),
+                        1.0f,
+                        true,
+                        constants);
+                }
+            }
+
+            _commandList.OMSetRenderTargets(rtv, dsv);
+            _commandList.ClearDepthStencilView(dsv, ClearFlags.Depth, 1.0f, 0, 0, Array.Empty<RawRect>());
+        }
+
+        _modelPass!.Record(
             camera,
             scene.Models,
             scene.Lighting,
@@ -906,10 +934,9 @@ public sealed class Dx12Renderer : IDisposable
         // World light halos are screen-space overlays in the original renderer.
         // Record them after every depth-tested world object so they cannot be occluded.
         _commandList.OMSetRenderTargets(rtv, null);
-        _spritePass.RecordLights(
-            spriteBatch,
+        _lightHaloPass.Record(
+            lightHaloInstanceCount,
             scene.Lighting.NightBlend,
-            _swapChain.DisplayProfile.ScenePaperWhiteNits,
             scene.Lighting.UnlitStaticSpriteWhiteNits,
             CurrentFrame,
             _renderWidth,
@@ -919,7 +946,8 @@ public sealed class Dx12Renderer : IDisposable
         _commandList.SetPipelineState(_pipelineState);
 
         _commandList.OMSetRenderTargets(rtv, null);
-        _debugOverlay!.RecordDebugOverlay(_renderWidth, _renderHeight, _swapChain.DisplayProfile.UiPaperWhiteNits);
+        if (scene.Debug.OverlaysVisible)
+            _debugOverlay!.RecordDebugOverlay(_renderWidth, _renderHeight, _swapChain.DisplayProfile.UiPaperWhiteNits);
         if (scene.Minimap.IsVisible)
         {
             _minimapPass!.Record(

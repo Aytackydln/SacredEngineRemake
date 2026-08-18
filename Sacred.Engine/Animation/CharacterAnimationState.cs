@@ -1,6 +1,9 @@
 using System;
 using Sacred.Engine.Assets;
 using Sacred.Granny;
+using Sacred.Granny.Animation;
+using Sacred.Granny.Assets;
+using Sacred.Granny.Meshes;
 using Sacred.Inventory.Effects;
 
 namespace Sacred.Engine.Animation;
@@ -91,7 +94,7 @@ internal sealed class CharacterAnimationState
 
         _timeSinceLastPose %= MinimumPoseIntervalSeconds;
         _animatedMesh.Apply(_stateTimeSeconds);
-        _equipmentEffects?.ApplyPose(_animatedMesh);
+        _equipmentEffects?.ApplyPose(_animatedMesh, animationDelta);
     }
 
     private void SetState(CharacterAnimationStateId state, bool restart = false)

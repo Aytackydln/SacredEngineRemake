@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Sacred.Core.World.Sector;
 
 namespace Sacred.Engine.Scene.InGame;
 
@@ -20,6 +21,7 @@ public sealed class WorldLightingController
     private const float DayDurationSeconds = 15.0f;
     private const float NightDurationSeconds = 10.0f;
     private const float TransitionDurationSeconds = 5.0f;
+    private const float IndoorContactShadowOpacity = 0.32f;
 
     private const float CycleDurationSeconds =
         DayDurationSeconds + NightDurationSeconds + TransitionDurationSeconds * 2.0f;
@@ -29,6 +31,7 @@ public sealed class WorldLightingController
         TransitionDurationSeconds + DayDurationSeconds + TransitionDurationSeconds;
 
     private float _cycleElapsedSeconds;
+    private bool _zoneInitialized;
 
     public WorldLightingController(WorldLightingMode mode = WorldLightingMode.TimedDayNightCycle)
     {
@@ -37,6 +40,7 @@ public sealed class WorldLightingController
     }
 
     public WorldLightingMode Mode { get; private set; }
+    public WorldZone CurrentZone { get; private set; } = WorldZone.Outdoors;
 
     public void CycleMode()
     {
@@ -58,27 +62,64 @@ public sealed class WorldLightingController
     }
 
     /// <returns><see langword="true"/> when a timed cycle enters a new lighting phase.</returns>
-    public bool Update(float elapsedSeconds, SceneLighting lighting, Vector3 focusPosition)
+    public bool Update(float elapsedSeconds, SceneLighting lighting, Vector3 focusPosition) =>
+        Update(elapsedSeconds, lighting, focusPosition, WorldZone.Outdoors);
+
+    /// <returns><see langword="true"/> when the visible lighting description changes.</returns>
+    public bool Update(
+        float elapsedSeconds,
+        SceneLighting lighting,
+        Vector3 focusPosition,
+        WorldZone zone)
     {
         var previousPhase = GetCyclePhase();
+        var zoneChanged = !_zoneInitialized || CurrentZone != zone;
+        CurrentZone = zone;
+        _zoneInitialized = true;
         if (Mode == WorldLightingMode.TimedDayNightCycle)
         {
             _cycleElapsedSeconds = (_cycleElapsedSeconds + MathF.Max(0.0f, elapsedSeconds)) %
                                    CycleDurationSeconds;
         }
+
+        if (zone == WorldZone.Cave)
+        {
+            ApplyProfile(1.0f, lighting);
+            ApplyCelestialLighting(lighting, focusPosition, dayTime: 0.0f);
+            lighting.ShadowMode = SceneShadowMode.None;
+            lighting.ShadowOpacity = 0.0f;
+        }
         else if (Mode == WorldLightingMode.PitchBlack)
         {
             ApplyPitchBlack(lighting);
             ApplyCelestialLighting(lighting, focusPosition);
-            return false;
+        }
+        else
+        {
+            ApplyProfile(GetNightBlend(), lighting);
+            ApplyCelestialLighting(lighting, focusPosition);
+            if (zone == WorldZone.Indoors)
+            {
+                lighting.ShadowMode = SceneShadowMode.SoftContact;
+                lighting.ShadowOpacity = IndoorContactShadowOpacity;
+            }
         }
 
-        ApplyProfile(GetNightBlend(), lighting);
-        ApplyCelestialLighting(lighting, focusPosition);
-        return Mode == WorldLightingMode.TimedDayNightCycle && previousPhase != GetCyclePhase();
+        if (zoneChanged)
+            Console.WriteLine($"Lighting zone: {zone}");
+
+        return zoneChanged ||
+               Mode == WorldLightingMode.TimedDayNightCycle && previousPhase != GetCyclePhase();
     }
 
-    public string DisplayName => Mode switch
+    public string DisplayName => CurrentZone switch
+    {
+        WorldZone.Cave => "Cave: Night",
+        WorldZone.Indoors => $"Indoors: {ModeDisplayName}",
+        _ => ModeDisplayName,
+    };
+
+    private string ModeDisplayName => Mode switch
     {
         WorldLightingMode.Day => "Day",
         WorldLightingMode.Night => "Night",
@@ -142,14 +183,23 @@ public sealed class WorldLightingController
         lighting.NightBlend = blend;
     }
 
-    private void ApplyCelestialLighting(SceneLighting lighting, Vector3 focusPosition)
+    private void ApplyCelestialLighting(
+        SceneLighting lighting,
+        Vector3 focusPosition,
+        float? dayTime = null)
     {
-        var solar = SolarLightingCalculator.Calculate(GetCelestialTime(), lighting.NightBlend, focusPosition);
+        var solar = SolarLightingCalculator.Calculate(
+            dayTime ?? GetCelestialTime(),
+            lighting.NightBlend,
+            focusPosition);
         lighting.LightPosition = solar.LightPosition;
         lighting.DirectionToLight = solar.DirectionToLight;
         lighting.DirectionToSun = solar.DirectionToSun;
         lighting.SunHeight = solar.SunHeight;
         lighting.ShadowOpacity = Mode == WorldLightingMode.PitchBlack ? 0.0f : solar.ShadowOpacity;
+        lighting.ShadowMode = lighting.ShadowOpacity > 0.0f
+            ? SceneShadowMode.Directional
+            : SceneShadowMode.None;
     }
 
     private float GetCelestialTime()
@@ -199,6 +249,7 @@ public sealed class WorldLightingController
         lighting.UnlitStaticSpriteWhiteNits = SceneLighting.DefaultUnlitStaticSpriteWhiteNits;
         lighting.NightBlend = 1;
         lighting.ShadowOpacity = 0;
+        lighting.ShadowMode = SceneShadowMode.None;
     }
 
     private static float SmoothStep(float value)

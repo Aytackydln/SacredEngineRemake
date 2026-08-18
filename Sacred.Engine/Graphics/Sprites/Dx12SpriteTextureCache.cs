@@ -55,7 +55,6 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
     public void Prepare(
         IReadOnlyList<TerrainLiquidSprite> liquidSprites,
         IReadOnlyList<TerrainStaticSprite> staticSprites,
-        IReadOnlyList<TerrainWorldLight> worldLights,
         Dx12FrameContext frame,
         ulong spriteRevision)
     {
@@ -63,7 +62,7 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
             return;
 
         var liquidsReady = PrepareLiquidTextures(liquidSprites, frame);
-        var staticsReady = PrepareStaticTextures(staticSprites, worldLights, frame);
+        var staticsReady = PrepareStaticTextures(staticSprites, frame);
         if (liquidsReady && staticsReady)
             _preparedSpriteRevision = spriteRevision;
     }
@@ -155,7 +154,6 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
 
     private bool PrepareStaticTextures(
         IReadOnlyList<TerrainStaticSprite> sprites,
-        IReadOnlyList<TerrainWorldLight> lights,
         Dx12FrameContext frame)
     {
         if (_freeSrvSlots.Count == 0)
@@ -165,14 +163,6 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
         foreach (var visibleSprite in sprites)
         {
             if (TryPrepareStaticTexture(visibleSprite.Sprite, frame))
-                attempted++;
-            if (attempted == StaticUploadBatchSize)
-                return false;
-        }
-
-        foreach (var light in lights)
-        {
-            if (TryPrepareStaticTexture(light.EmitterSprite, frame))
                 attempted++;
             if (attempted == StaticUploadBatchSize)
                 return false;
@@ -194,11 +184,18 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
         ID3D12Resource? resource = null;
         try
         {
+            var rgba = sprite.Rgba;
+            SpriteTransparentEdgePadding.Apply(
+                rgba,
+                sprite.AtlasWidth,
+                sprite.AtlasHeight,
+                sprite.Width,
+                sprite.Height);
             resource = _uploader.UploadRgbaTexture(
                 _commandList,
                 sprite.AtlasWidth,
                 sprite.AtlasHeight,
-                sprite.Rgba,
+                rgba,
                 frame.TransientResources);
             _uploader.CreateShaderResourceView(resource, SrvCpuHandle(slot));
             _staticTextures[sprite] = new SpriteTexture(resource, slot);

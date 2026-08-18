@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Sacred.Assets.Paks.Texture;
+using Sacred.Core.World.Sector;
 using Sacred.Granny;
+using Sacred.Granny.Meshes;
 using Sacred.Inventory.Effects;
 
 namespace Sacred.Engine.Scene;
@@ -14,6 +16,7 @@ public sealed class SceneState
     public IReadOnlyList<SceneModel> Models => _models;
     public SceneLighting Lighting { get; } = new();
     public SceneDebugState Debug { get; } = new();
+    public IndoorSceneState Indoor { get; } = new();
     public MinimapOverlayState Minimap { get; } = new();
 
     /// <summary>Changes only when model geometry or material bindings change.</summary>
@@ -40,6 +43,11 @@ public sealed class SceneState
     }
 }
 
+public sealed class IndoorSceneState
+{
+    public IndoorTileGroup? ActiveGroup { get; internal set; }
+}
+
 public sealed class MinimapOverlayState
 {
     public bool IsVisible { get; internal set; }
@@ -48,6 +56,7 @@ public sealed class MinimapOverlayState
 
 public sealed class SceneDebugState
 {
+    public bool OverlaysVisible { get; set; } = true;
     public bool StairsMapVisible { get; set; }
     public bool BlockedAreasVisible { get; set; }
     public float ActorTerrainHeight { get; set; }
@@ -72,6 +81,14 @@ public sealed class SceneLighting
     /// <summary>Normalized solar elevation: zero at/below the horizon and one at noon.</summary>
     public float SunHeight { get; set; } = 1.0f;
     public float ShadowOpacity { get; set; } = 0.42f;
+    public SceneShadowMode ShadowMode { get; set; } = SceneShadowMode.Directional;
+}
+
+public enum SceneShadowMode
+{
+    None,
+    Directional,
+    SoftContact,
 }
 
 /// <summary>A mutable scene instance with a transform cached for the render hot path.</summary>
@@ -98,6 +115,7 @@ public sealed class SceneModel
         TextureAliases = textureAliases;
         EquipmentEffects = equipmentEffects;
         GroundPlaneZ = groundPlaneZ ?? position.Z;
+        GroundShadowRadius = CalculateGroundShadowRadius(mesh);
         RebuildTransform();
     }
 
@@ -107,6 +125,7 @@ public sealed class SceneModel
     public Vector2 DepthAnchor { get; private set; }
     public Vector3 Rotation { get; private set; }
     public float Scale { get; }
+    public float GroundShadowRadius { get; private set; }
     public float GroundPlaneZ { get; private set; }
     public IReadOnlyDictionary<string, ModelTextureReference>? TextureAliases { get; }
     public EquipmentEffectScene? EquipmentEffects { get; }
@@ -140,6 +159,7 @@ public sealed class SceneModel
             return false;
 
         Mesh = mesh;
+        GroundShadowRadius = CalculateGroundShadowRadius(mesh);
         return true;
     }
 
@@ -158,5 +178,24 @@ public sealed class SceneModel
         _transform = Matrix4x4.CreateScale(Scale) *
                      Matrix4x4.CreateFromYawPitchRoll(Rotation.X, Rotation.Y, Rotation.Z) *
                      Matrix4x4.CreateTranslation(Position);
+    }
+
+    private static float CalculateGroundShadowRadius(Mesh mesh)
+    {
+        if (mesh.Vertices.Length == 0)
+            return 6.0f;
+
+        var minimum = mesh.Vertices[0].Position;
+        var maximum = minimum;
+        foreach (var vertex in mesh.Vertices.AsSpan(1))
+        {
+            minimum = Vector3.Min(minimum, vertex.Position);
+            maximum = Vector3.Max(maximum, vertex.Position);
+        }
+
+        var size = maximum - minimum;
+        var horizontalRadius = MathF.Max(size.X, size.Y) * 0.575f;
+        var heightRadius = size.Z * 0.10f;
+        return MathF.Max(6.0f, MathF.Max(horizontalRadius, heightRadius));
     }
 }

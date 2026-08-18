@@ -9,6 +9,8 @@ using System.Text;
 using Sacred.Engine;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Scene.InGame;
+using Sacred.Granny;
+using Sacred.Granny.Abstractions;
 
 namespace SacredRemake;
 
@@ -22,6 +24,7 @@ internal static class SacredEngineRemakeConfig
     private const string WindowedHeightKey = "WINDOWED_HEIGHT";
     private const string FramePacingKey = "FRAME_PACING";
     private const string LowLatencyKey = "LOW_LATENCY";
+    private const string GrannyBackendKey = "GRANNY_BACKEND";
     private const string WorldLightingKey = "WORLD_LIGHTING";
     private const string StairsTilesKey = "STAIRS_TILES";
     private const string BlockedTilesKey = "BLOCKED_TILES";
@@ -52,6 +55,7 @@ internal static class SacredEngineRemakeConfig
                 HdrEnabled = ReadBoolean(values, HdrKey),
                 FramePacingMode = ReadEnum(values, FramePacingKey, FramePacingMode.VariableRefreshRate),
                 LowLatencyMode = ReadEnum(values, LowLatencyKey, LowLatencyMode.On),
+                GrannyBackend = ReadEnum(values, GrannyBackendKey, GrnBackendKind.ManagedParser),
                 WorldLightingMode = ReadEnum(values, WorldLightingKey, WorldLightingMode.TimedDayNightCycle),
                 StairsTilesVisible = ReadBoolean(values, StairsTilesKey),
                 BlockedTilesVisible = ReadBoolean(values, BlockedTilesKey),
@@ -117,6 +121,7 @@ internal static class SacredEngineRemakeConfig
             $"{HdrKey} : {FormatBoolean(state.HdrEnabled)}",
             $"{FramePacingKey} : {state.FramePacingMode}",
             $"{LowLatencyKey} : {state.LowLatencyMode}",
+            $"{GrannyBackendKey} : {state.GrannyBackend}",
             $"{WorldLightingKey} : {state.WorldLightingMode}",
             $"{StairsTilesKey} : {FormatBoolean(state.StairsTilesVisible)}",
             $"{BlockedTilesKey} : {FormatBoolean(state.BlockedTilesVisible)}",

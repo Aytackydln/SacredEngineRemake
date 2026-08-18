@@ -1,4 +1,6 @@
-﻿using System.Text;
+﻿using System.Runtime.InteropServices;
+using System.Text;
+using Sacred.Core.Pak.Mixed;
 
 namespace Sacred.Assets.Paks.Mixed;
 
@@ -22,7 +24,7 @@ public sealed class MixedPakData
             var descriptor = descriptors[(int)mixedId];
             var offset = descriptor.Offset;
             var size = descriptor.Size;
-            if (offset == 0 || size <= 0x10 || offset > int.MaxValue || size > int.MaxValue)
+            if (offset == 0 || size <= MixedPakGroupLayout.SerializedSize || offset > int.MaxValue || size > int.MaxValue)
                 continue;
 
             var recordOffset = (int)offset;
@@ -30,17 +32,19 @@ public sealed class MixedPakData
             if (recordOffset + recordSize > data.Length)
                 continue;
 
+            var header = MemoryMarshal.Read<MixedPakGroupLayout>(
+                data.Slice(recordOffset, MixedPakGroupLayout.SerializedSize));
             var pieceCount = Math.Min(
-                BitConverter.ToUInt32(data.Slice(recordOffset, 4)),
-                (uint)Math.Max(0, (recordSize - 0x10) / 0x40));
+                header.PieceCount,
+                (uint)Math.Max(0, (recordSize - MixedPakGroupLayout.SerializedSize) / MixedPakPieceLayout.SerializedSize));
             if (pieceCount == 0)
                 continue;
 
             var pieces = new List<MixedCutoutRecord>((int)pieceCount);
-            var pieceOffset = recordOffset + 0x10;
+            var pieceOffset = recordOffset + MixedPakGroupLayout.SerializedSize;
             for (uint pieceIndex = 0; pieceIndex < pieceCount; pieceIndex++)
             {
-                if (pieceOffset + 0x40 > data.Length)
+                if (pieceOffset + MixedPakPieceLayout.SerializedSize > data.Length)
                     break;
 
                 var name = PakDataHelpers.ReadCString(data, pieceOffset, 0x20, NameEncoding);
@@ -51,13 +55,14 @@ public sealed class MixedPakData
                     BitConverter.ToUInt16(data.Slice(rec + 0x06, 2)),
                     BitConverter.ToInt16(data.Slice(rec + 0x08, 2)),
                     BitConverter.ToInt16(data.Slice(rec + 0x0A, 2)),
+                    BitConverter.ToUInt32(data.Slice(rec + 0x0C, 4)),
                     BitConverter.ToSingle(data.Slice(rec + 0x10, 4)),
                     BitConverter.ToSingle(data.Slice(rec + 0x14, 4)),
                     BitConverter.ToSingle(data.Slice(rec + 0x18, 4)),
                     BitConverter.ToSingle(data.Slice(rec + 0x1C, 4)));
                 pieces.Add(piece);
                 _cutoutIdToGroup.TryAdd(piece.CutoutId, mixedId);
-                pieceOffset += 0x40;
+                pieceOffset += MixedPakPieceLayout.SerializedSize;
             }
 
             if (pieces.Count > 0)

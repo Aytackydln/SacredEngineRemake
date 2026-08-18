@@ -8,6 +8,7 @@ using Avalonia.Input;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using Sacred.Granny;
+using Sacred.Granny.Assets;
 
 namespace Sacred.ItemViewer.Avalonia.ItemViewer;
 

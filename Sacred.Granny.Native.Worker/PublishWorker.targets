@@ -1,0 +1,32 @@
+<Project>
+  <PropertyGroup>
+    <GrannyNativeWorkerProject>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'Sacred.Granny.Native.Worker.csproj'))</GrannyNativeWorkerProject>
+    <GrannyNativeWorkerOutputName>GrannyNative</GrannyNativeWorkerOutputName>
+    <GrannyNativeWorkerIntermediateDirectory>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', 'obj', 'GrannyNativeWorker', '$(Configuration)'))\</GrannyNativeWorkerIntermediateDirectory>
+    <GrannyNativeWorkerCompilationDirectory>$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)', 'obj', 'GrannyNativeWorkerBin', '$(Configuration)'))\</GrannyNativeWorkerCompilationDirectory>
+  </PropertyGroup>
+
+  <Target Name="PublishGrannyNativeWorkerForBuild"
+          AfterTargets="Build"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(IsCrossTargetingBuild)' != 'true'">
+    <PropertyGroup>
+      <GrannyNativeWorkerBuildDirectory>$([MSBuild]::NormalizePath('$(TargetDir)', '$(GrannyNativeWorkerOutputName)'))\</GrannyNativeWorkerBuildDirectory>
+    </PropertyGroup>
+    <MSBuild Projects="$(GrannyNativeWorkerProject)"
+             Targets="Publish"
+             BuildInParallel="false"
+             Properties="Configuration=$(Configuration);IntermediateOutputPath=$(GrannyNativeWorkerIntermediateDirectory);OutputPath=$(GrannyNativeWorkerCompilationDirectory);PublishDir=$(GrannyNativeWorkerBuildDirectory)" />
+  </Target>
+
+  <Target Name="PublishGrannyNativeWorkerForPublish"
+          AfterTargets="Publish"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(PublishDir)' != ''">
+    <PropertyGroup>
+      <GrannyNativeWorkerPublishDirectory>$([MSBuild]::NormalizePath('$(PublishDir)', '$(GrannyNativeWorkerOutputName)'))\</GrannyNativeWorkerPublishDirectory>
+    </PropertyGroup>
+    <MSBuild Projects="$(GrannyNativeWorkerProject)"
+             Targets="Publish"
+             BuildInParallel="false"
+             Properties="Configuration=$(Configuration);IntermediateOutputPath=$(GrannyNativeWorkerIntermediateDirectory);OutputPath=$(GrannyNativeWorkerCompilationDirectory);PublishDir=$(GrannyNativeWorkerPublishDirectory)" />
+  </Target>
+</Project>

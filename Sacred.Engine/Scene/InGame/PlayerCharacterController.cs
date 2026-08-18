@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using Sacred.Engine.Animation;
 using Sacred.Engine.Assets;
 using Sacred.Granny;
+using Sacred.Granny.Assets;
+using Sacred.Granny.Meshes;
 using Sacred.World.Geometry;
 
 namespace Sacred.Engine.Scene.InGame;

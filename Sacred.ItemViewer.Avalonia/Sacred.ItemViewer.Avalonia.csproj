@@ -43,8 +43,11 @@
     <ItemGroup>
         <ProjectReference Include="..\Sacred.Assets\Sacred.Assets.csproj"/>
         <ProjectReference Include="..\Sacred.Granny\Sacred.Granny.csproj"/>
+        <ProjectReference Include="..\Sacred.Particles\Sacred.Particles.csproj"/>
         <ProjectReference Include="..\Sacred.Shaders\Sacred.Shaders.csproj"/>
         <ProjectReference Include="..\Sacred.Inventory\Sacred.Inventory.csproj"/>
     </ItemGroup>
+
+    <Import Project="..\Sacred.Granny.Native.Worker\PublishWorker.targets" />
 </Project>
 

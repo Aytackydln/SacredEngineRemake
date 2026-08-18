@@ -11,6 +11,8 @@ public sealed class SacredCamera
     public const float WalkingBaseSpeed = 2.0f;
     public const float RunningBaseSpeed = 12.0f;
     private const float JoystickDeadzone = 0.1f;
+    private const float JoystickAntiDeadzone = 0.2f;
+    private const float JoystickMaximumMovementInput = 0.8f;
     private const float JoystickRotationDeadzone = 0.075f;
 
     private static readonly Matrix3x2 IsometricRotation = Matrix3x2.CreateRotation(-MathF.PI / 4);
@@ -244,7 +246,7 @@ public sealed class SacredCamera
         if (joystickLengthSquared > JoystickDeadzone * JoystickDeadzone)
         {
             var joystickLength = MathF.Min(MathF.Sqrt(joystickLengthSquared), 1.0f);
-            joystickMovementScale = (joystickLength - JoystickDeadzone) / (1.0f - JoystickDeadzone);
+            joystickMovementScale = ApplyMovementStickResponse(joystickLength);
             return Vector2.Transform(joystick / MathF.Sqrt(joystickLengthSquared), IsometricRotation);
         }
         if (joystickLengthSquared >= JoystickRotationDeadzone * JoystickRotationDeadzone)
@@ -281,6 +283,16 @@ public sealed class SacredCamera
 
     private static float ApplyDeadzone(float value) =>
         MathF.Abs(value) < JoystickDeadzone ? 0.0f : value;
+
+    private static float ApplyMovementStickResponse(float inputMagnitude)
+    {
+        var normalizedInput = Math.Clamp(
+            (inputMagnitude - JoystickDeadzone) /
+            (JoystickMaximumMovementInput - JoystickDeadzone),
+            0.0f,
+            1.0f);
+        return JoystickAntiDeadzone + normalizedInput * (1.0f - JoystickAntiDeadzone);
+    }
 
     private readonly record struct MovementResult(bool Moved, bool ReachedIntendedEnd);
 

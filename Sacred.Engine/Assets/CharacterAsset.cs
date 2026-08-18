@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Sacred.Assets.Paks.Models;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Granny;
+using Sacred.Granny.Assets;
 using Sacred.Inventory.Effects;
 
 namespace Sacred.Engine.Assets;

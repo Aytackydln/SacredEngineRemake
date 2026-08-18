@@ -7,18 +7,31 @@
 
     <SingleFile>true</SingleFile>
     <SelfContained>true</SelfContained>
-    <Aot>true</Aot>
     <PublishAot>true</PublishAot>
     <PublishTrimmed>true</PublishTrimmed>
-    <StripSymbols>true</StripSymbols>
-    <OptimizationPreference>Speed</OptimizationPreference>
-    <StackTraceSupport>false</StackTraceSupport>
     <RootNamespace>SacredRemake</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Sacred.Engine\Sacred.Engine.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="..\..\Assets\models\**\*.*" Link="assets\models\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+
+    <Optimize>false</Optimize>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <ImportWindowsDesktopTargets>true</ImportWindowsDesktopTargets>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+
+    <Optimize>true</Optimize>
+    <ReadyToRun>true</ReadyToRun>
+    <ReadyToRunComposite>true</ReadyToRunComposite>
+    <StripSymbols>true</StripSymbols>
+    <Aot>true</Aot>
+    <OptimizationPreference>Speed</OptimizationPreference>
+    <StackTraceSupport>false</StackTraceSupport>
+  </PropertyGroup>
 </Project>

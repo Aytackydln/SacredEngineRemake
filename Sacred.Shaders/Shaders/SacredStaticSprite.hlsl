@@ -1,7 +1,7 @@
 // This shader intentionally targets Shader Model 5.0.  It avoids resource
 // arrays, which Proton's D3DCompiler implementation cannot compile.
 #pragma vertex vs_main
-#pragma fragment ps_main
+#pragma fragment ps_sdr
 
 struct SpriteInstance
 {
@@ -137,6 +137,8 @@ float4 sample_sprite_texture(Texture2D texture_to_sample, vertex_output input)
     uint frame_column = frame_index % atlas_columns;
     uint frame_row = frame_index / atlas_columns;
     float2 frame_uv = input.tex_coord;
+    if ((input.flags & 2) != 0)
+        frame_uv = input.tex_coord.yx;
     if ((input.flags & 1) != 0)
     {
         // Water frames are authored as top-down 128x128 textures spanning a
@@ -156,26 +158,18 @@ float4 sample_sprite_texture(Texture2D texture_to_sample, vertex_output input)
     return texture_to_sample.Sample(sampler0, atlas_uv);
 }
 
-pixel_output ps_main(vertex_output input)
+float mixed_light_emission(float3 colour)
 {
-    bool is_light_halo = (input.flags & 0x40000000u) != 0;
-    if (is_light_halo)
-    {
-        float2 radial_position = input.tex_coord * 2.0f - 1.0f;
-        float radius = length(radial_position);
-        if (radius >= 1.0f)
-            discard;
+    // LICHTER_* mixed sprites contain both normally-lit stone/metal and the
+    // actual blue-white emitter. Preserve the former while allowing only the
+    // chromatic bowl and very bright glint pixels to remain luminous at night.
+    float blue_dominance = saturate((colour.b - colour.r - 0.04f) * 6.0f);
+    float white_glint = saturate((max(colour.r, max(colour.g, colour.b)) - 0.80f) * 5.0f);
+    return max(blue_dominance, white_glint);
+}
 
-        float falloff = saturate(1.0f - radius);
-        falloff *= falloff;
-        float alpha = falloff * input.corner_alpha.w * saturate(ambient_intensity);
-
-        pixel_output halo_output;
-        halo_output.color = float4(input.corner_alpha.rgb * alpha, alpha);
-        halo_output.depth = input.depth;
-        return halo_output;
-    }
-
+pixel_output ps_sdr(vertex_output input)
+{
     float4 color = sample_sprite_texture(static_texture, input);
 
     if (color.a == 0)
@@ -187,14 +181,64 @@ pixel_output ps_main(vertex_output input)
     if (is_liquid)
         color.a *= liquid_corner_alpha(input.tex_coord, input.corner_alpha);
 
-    if (color.a < (is_liquid ? (1.0f / 255.0f) : alpha_cutoff))
+    bool is_particle = !is_liquid && (input.flags & 0x40000000u) != 0;
+    bool is_mixed_light = !is_liquid && (input.flags & 0x20000000u) != 0;
+    if (is_particle)
+    {
+        // Several original PARTICLE_*.TGA atlases store emissive RGB on an
+        // opaque black background. Treat brightness as additional coverage so
+        // those atlases use their intended black-key particle composition,
+        // while preserving authored alpha on textures which have it.
+        color.a *= max(color.r, max(color.g, color.b));
+    }
+    if (color.a < (is_liquid || is_particle || is_mixed_light ? (1.0f / 255.0f) : alpha_cutoff))
         discard;
 
     bool is_unlit = !is_liquid && (input.flags & 0x80000000u) != 0;
-    color.rgb *= is_unlit ? 1.0f : ambient_intensity;
+    float emission = is_mixed_light ? mixed_light_emission(color.rgb) : 0.0f;
+    color.rgb *= is_unlit ? 1.0f : lerp(ambient_intensity, 1.0f, emission);
 
     pixel_output output;
     output.color = color;
+    output.depth = input.depth;
+    return output;
+}
+
+pixel_output ps_hdr(vertex_output input)
+{
+    float4 tex = sample_sprite_texture(static_texture, input);
+
+    bool is_liquid = (input.flags & 1) != 0;
+    if (is_liquid)
+    {
+        tex.a *= liquid_corner_alpha(input.tex_coord, input.corner_alpha);
+        if (tex.a < 1.0f / 255.0f)
+            discard;
+    }
+    else
+    {
+        bool is_particle = (input.flags & 0x40000000u) != 0;
+        bool is_mixed_light = (input.flags & 0x20000000u) != 0;
+        if (is_particle)
+            tex.a *= max(tex.r, max(tex.g, tex.b));
+        if (tex.a < (is_particle || is_mixed_light ? (1.0f / 255.0f) : alpha_cutoff))
+            discard;
+    }
+
+    bool is_unlit = !is_liquid && (input.flags & 0x80000000u) != 0;
+    bool is_mixed_light = !is_liquid && (input.flags & 0x20000000u) != 0;
+    float emission = is_mixed_light ? mixed_light_emission(tex.rgb) : 0.0f;
+    tex.rgb *= is_unlit ? 1.0f : lerp(ambient_intensity, 1.0f, emission);
+    float nits = is_unlit
+        ? unlit_white_nits
+        : lerp(scene_paper_white, unlit_white_nits, emission);
+
+    pixel_output output;
+    // Fixed-function blending happens in the PQ-encoded back buffer. Premultiply
+    // the encoded value so the blend unit applies coverage exactly once; encoding
+    // coverage as luminance first makes translucent edges too bright, especially
+    // against night terrain.
+    output.color = float4(SdrTextureToHdr10(tex.rgb, nits) * tex.a, tex.a);
     output.depth = input.depth;
     return output;
 }

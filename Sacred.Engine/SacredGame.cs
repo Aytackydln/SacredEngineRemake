@@ -11,6 +11,7 @@ using Sacred.Engine.Latency;
 using Sacred.Engine.Platform;
 using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
+using Sacred.Granny.Abstractions;
 
 namespace Sacred.Engine;
 
@@ -31,6 +32,7 @@ public sealed class SacredGame : IDisposable
 
     private InGameScene? _inGameScene;
     private FramePacingMode _mode;
+    private GrnBackendKind _grannyBackend;
     private string _framePacingStatus = string.Empty;
     private bool _disposed;
 
@@ -39,6 +41,7 @@ public sealed class SacredGame : IDisposable
         ArgumentNullException.ThrowIfNull(gameDirectories);
         _initialSaveState = NormalizeSaveState(saveState ?? new SacredGameSaveState());
         _mode = _initialSaveState.FramePacingMode;
+        _grannyBackend = _initialSaveState.GrannyBackend;
         _gameDirectory = ResolveGameDirectory(gameDirectories);
         _latency = LowLatencySystem.CreateDefault();
         _window = new Win32Window(
@@ -49,7 +52,7 @@ public sealed class SacredGame : IDisposable
         _displayRefreshRateHz = _window.DisplayRefreshRateHz;
         _renderer = new Dx12Renderer(_window, _gameDirectory, _latency, _initialSaveState.HdrEnabled);
         _latency.SetMode(_initialSaveState.LowLatencyMode, 0);
-        _resourceLoader = new GameResourceLoader(gameDirectories);
+        _resourceLoader = new GameResourceLoader(gameDirectories, _grannyBackend);
         _engineInput = new EngineInputController(
             _window.Input,
             _renderer,
@@ -76,6 +79,7 @@ public sealed class SacredGame : IDisposable
         HdrEnabled = _renderer.IsHdrEnabled,
         FramePacingMode = _mode,
         LowLatencyMode = _latency.Mode,
+        GrannyBackend = _grannyBackend,
         WorldLightingMode = _inGameScene?.WorldLightingMode ?? _initialSaveState.WorldLightingMode,
         StairsTilesVisible = _inGameScene?.StairsTilesVisible ?? _initialSaveState.StairsTilesVisible,
         BlockedTilesVisible = _inGameScene?.BlockedTilesVisible ?? _initialSaveState.BlockedTilesVisible,
@@ -193,7 +197,6 @@ public sealed class SacredGame : IDisposable
             await clock.WaitForFrameStartAsync(_mode, cancellationToken);
             _latency.SetMode(_latency.Mode, _mode == FramePacingMode.VSync ? 0 : clock.TargetFrameRate);
 
-            frameId++;
             _latency.BeginFrame(frameId);
             _latency.SleepBeforeInput(frameId);
 
@@ -217,6 +220,7 @@ public sealed class SacredGame : IDisposable
                 _framePacingStatus,
                 frameId,
                 cancellationToken));
+            frameId++;
         }
     }
 
@@ -231,7 +235,7 @@ public sealed class SacredGame : IDisposable
         switch (command)
         {
             case HelpCheatCommand:
-                Console.WriteLine("Cheats: teleport <x> <y>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set character next; set hdr <on|off>; set pacing <vrr|vsync|limit>; set latency <off|on|boost>.");
+                Console.WriteLine("Cheats: teleport <x> <y>; set overlays <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set character next; set hdr <on|off>; set pacing <vrr|vsync|limit>; set latency <off|on|boost>; set granny <managed|native>.");
                 return;
             case TeleportCheatCommand teleport:
                 if (_inGameScene is null)
@@ -291,6 +295,11 @@ public sealed class SacredGame : IDisposable
                 UpdateWindowTitle();
                 message = $"low latency set to {latencyMode}";
                 return true;
+            case "granny" when TryParseGrannyBackend(value, out var grannyBackend):
+                _grannyBackend = grannyBackend;
+                UpdateWindowTitle();
+                message = $"Granny implementation set to {FormatGrannyBackend(grannyBackend)}; restart to reload game assets";
+                return true;
             default:
                 message = "Unknown option. Type 'help' for commands.";
                 return false;
@@ -342,6 +351,21 @@ public sealed class SacredGame : IDisposable
                value.Equals("onplusboost", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool TryParseGrannyBackend(string value, out GrnBackendKind backend)
+    {
+        backend = value.ToLowerInvariant() switch
+        {
+            "native" or "dll" or "granny.dll" => GrnBackendKind.GrannyDll,
+            "managed" or "parser" => GrnBackendKind.ManagedParser,
+            _ => default
+        };
+        return value.Equals("native", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("dll", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("granny.dll", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("managed", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("parser", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string ResolveGameDirectory(SacredGameDirectories gameDirectories)
     {
         var pakDirectory = Path.GetDirectoryName(gameDirectories.TexturesPakPath);
@@ -366,6 +390,9 @@ public sealed class SacredGame : IDisposable
             LowLatencyMode = Enum.IsDefined(state.LowLatencyMode)
                 ? state.LowLatencyMode
                 : LowLatencyMode.On,
+            GrannyBackend = Enum.IsDefined(state.GrannyBackend)
+                ? state.GrannyBackend
+                : GrnBackendKind.ManagedParser,
             WorldLightingMode = Enum.IsDefined(state.WorldLightingMode)
                 ? state.WorldLightingMode
                 : WorldLightingMode.TimedDayNightCycle,
@@ -388,9 +415,18 @@ public sealed class SacredGame : IDisposable
 
         _framePacingStatus = FormatFramePacingMode();
         var lighting = _inGameScene?.LightingDisplayName ?? "not active";
+        var granny = _grannyBackend == _initialSaveState.GrannyBackend
+            ? FormatGrannyBackend(_grannyBackend)
+            : $"{FormatGrannyBackend(_initialSaveState.GrannyBackend)} (next: {FormatGrannyBackend(_grannyBackend)})";
         _window.SetTitle(
-            $"SacredEngineRemake - Scene: {_scenes.ActiveSceneId} - Pacing: {_framePacingStatus} - Lighting: {lighting} - Low Latency: {lowLatencyMode} ({_latency.ActiveBackendName})");
+            $"SacredEngineRemake - Scene: {_scenes.ActiveSceneId} - Pacing: {_framePacingStatus} - Lighting: {lighting} - Granny: {granny} - Low Latency: {lowLatencyMode} ({_latency.ActiveBackendName})");
     }
+
+    private static string FormatGrannyBackend(GrnBackendKind backend) => backend switch
+    {
+        GrnBackendKind.GrannyDll => "Granny.dll",
+        _ => "Managed"
+    };
 
     private string FormatFramePacingMode() => _mode switch
     {
