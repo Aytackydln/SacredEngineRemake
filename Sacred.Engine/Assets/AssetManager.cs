@@ -16,11 +16,11 @@ using Sacred.Assets.Paks.Weapon;
 using Sacred.Core;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Pak.Weapon;
-using Sacred.Granny;
 using Sacred.Granny.Abstractions;
 using Sacred.Granny.Assets;
 using Sacred.Inventory.Actors;
 using Sacred.Inventory.Effects;
+using Sacred.Particles;
 
 namespace Sacred.Engine.Assets;
 
@@ -90,7 +90,7 @@ public sealed class AssetManager : IDisposable
             .ToFrozenDictionary(static equipment => checked((ushort)equipment.IdemId));
         _mixedPak = MixedPakArchive.Load(Path.Combine(pakDirectory, "mixed.pak"));
         _miniObjectSprites = new MiniObjectSpriteLoader(
-            textureName => LoadTextureAsync(textureName),
+            textureId => LoadTextureAsync(textureId),
             _worldSpriteLoadQueue);
         _worldParticleSprites = new WorldParticleSpriteLoader(
             textureName => LoadTextureAsync(textureName),
@@ -125,7 +125,7 @@ public sealed class AssetManager : IDisposable
             .ToFrozenDictionary(static item => checked((ushort)item.IdemId));
         _mixedPak = mixedPak;
         _miniObjectSprites = new MiniObjectSpriteLoader(
-            textureName => LoadTextureAsync(textureName),
+            textureId => LoadTextureAsync(textureId),
             _worldSpriteLoadQueue);
         _worldParticleSprites = new WorldParticleSpriteLoader(
             textureName => LoadTextureAsync(textureName),
@@ -147,6 +147,17 @@ public sealed class AssetManager : IDisposable
             MaxTextureCacheEntries,
             runOnWorker: true,
             cancellationToken);
+    }
+
+    public Task<TextureAsset> LoadTextureAsync(uint textureId, CancellationToken cancellationToken = default)
+    {
+        if (!_texturePak.TryGetTextureName(textureId, out var textureName))
+        {
+            return Task.FromException<TextureAsset>(
+                new FileNotFoundException($"Texture entry #{textureId} was not found."));
+        }
+
+        return LoadTextureAsync(textureName, cancellationToken);
     }
 
     public Task<TextureAsset> LoadModelTextureAsync(string textureName, CancellationToken cancellationToken = default)
@@ -369,7 +380,7 @@ public sealed class AssetManager : IDisposable
     }
 
     public bool TryGetWorldParticleSpriteOrRequest(
-        Sacred.Particles.ParticleSpriteReference reference,
+        ParticleSpriteReference reference,
         out StaticSpriteAsset? sprite) =>
         _worldParticleSprites.TryGetOrRequest(reference, out sprite);
 

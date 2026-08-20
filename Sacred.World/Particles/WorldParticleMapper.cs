@@ -1,5 +1,3 @@
-using System.Globalization;
-using System.Numerics;
 using Sacred.Core.Pak.Items;
 using Sacred.Particles;
 
@@ -10,13 +8,7 @@ public static class WorldParticleMapper
 {
     private const int MiniObjectAtlasSize = 256;
     private const float EngineTickDurationSeconds = 0.02f;
-    private static readonly ParticleSpriteReference TorchFireSprite = new(
-        "particle_fire02.tga",
-        4,
-        4,
-        16,
-        0.06f,
-        ParticleShaderKind.ItemParticle);
+
     public static bool TryResolveMiniObject(
         ItemsPakEntry item,
         byte sourceXOrAtlasColumns,
@@ -27,21 +19,14 @@ public static class WorldParticleMapper
         out MiniObjectTextureReference reference)
     {
         reference = default;
-        const string prefix = "MiniObjTex";
-        var modelName = item.ModelDesc.ModelName;
-        if (!modelName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
-            !int.TryParse(
-                modelName.AsSpan(prefix.Length),
-                NumberStyles.None,
-                CultureInfo.InvariantCulture,
-                out var atlasIndex))
-        {
+        var descriptor = item.ModelDesc;
+        if (!descriptor.UsesMiniObjectTexture)
             return false;
-        }
 
         if (frameCount > 0)
         {
-            if (sourceXOrAtlasColumns == 0 ||
+            if (!descriptor.UsesAnimatedMiniObjectRenderClass ||
+                sourceXOrAtlasColumns == 0 ||
                 sourceYOrAtlasRows == 0 ||
                 frameDurationTicks == 0 ||
                 frameCount > sourceXOrAtlasColumns * sourceYOrAtlasRows)
@@ -50,8 +35,7 @@ public static class WorldParticleMapper
             }
 
             reference = new MiniObjectTextureReference(
-                $"MINIOBJ{sourceXOrAtlasColumns}X{sourceYOrAtlasRows}_" +
-                $"{frameCount}_{frameDurationTicks}_{atlasIndex}.TGA",
+                descriptor.MiniObjectTextureId,
                 0,
                 0,
                 0,
@@ -63,11 +47,15 @@ public static class WorldParticleMapper
             return true;
         }
 
-        if (sourceSize == 0 || MiniObjectAtlasSize % sourceSize != 0)
+        if (!descriptor.UsesStaticMiniObjectRenderClass ||
+            sourceSize == 0 ||
+            MiniObjectAtlasSize % sourceSize != 0)
+        {
             return false;
+        }
 
         reference = new MiniObjectTextureReference(
-            $"MINIOBJ{MiniObjectAtlasSize / sourceSize}_{atlasIndex}.TGA",
+            descriptor.MiniObjectTextureId,
             sourceXOrAtlasColumns,
             sourceYOrAtlasRows,
             sourceSize,
@@ -80,51 +68,52 @@ public static class WorldParticleMapper
     }
 
     /// <summary>
-    /// Resolves a texture-free SimpleLight marker. These Items.pak entries have
-    /// no mixed group or texture; their extent is the only authored size value.
-    /// Colour is deliberately absent because it is not encoded by the marker.
+    /// Resolves the visible halo carried by an animated mini-object. Items.pak
+    /// supplies the unlit/render-class flags and extent; Static.pak supplies the
+    /// atlas animation parameters.
     /// </summary>
-    public static bool TryResolveProceduralHalo(
+    public static bool TryResolveAnimatedSpriteHalo(
         ItemsPakEntry item,
-        out ProceduralHaloReference reference)
+        MiniObjectTextureReference sprite,
+        out AnimatedSpriteHaloReference reference)
     {
         reference = default;
-        if (item.ModelDesc.ModelExtent == 0 ||
-            item.MixedBaseGroupId != 0 ||
-            !item.ModelDesc.ModelName.StartsWith("SimpleLight", StringComparison.OrdinalIgnoreCase) ||
-            (item.GraphicRenderFlags & ItemsPakEntryModelDesc.UnlitGraphicFlag) == 0 ||
-            !item.ModelDesc.UsesWorldLightRenderClass)
-        {
+        if (!item.ModelDesc.EmitsAnimatedSpriteHalo || sprite.FrameCount <= 1)
             return false;
-        }
 
-        reference = new ProceduralHaloReference(
+        reference = new AnimatedSpriteHaloReference(
             item.ModelDesc.ModelExtent,
             ParticleShaderKind.ProceduralHalo);
         return true;
     }
 
     /// <summary>
-    /// Resolves the authored blue world-light composites. Their stand/tree art
-    /// remains a normal mixed sprite; this classification only selects the
-    /// emissive alpha treatment needed by the glow and star pixels.
+    /// Resolves an invisible authored illumination volume. Rendering actual
+    /// world illumination is deliberately separate from the visible halo pass.
+    /// </summary>
+    public static bool TryResolveWorldLightMarker(
+        ItemsPakEntry item,
+        out WorldLightMarkerReference reference)
+    {
+        reference = default;
+        if (!item.ModelDesc.IsWorldLightMarker)
+            return false;
+
+        reference = new WorldLightMarkerReference(item.ModelDesc.ModelExtent);
+        return true;
+    }
+
+    /// <summary>
+    /// Selects mixed sprites whose numeric Items.pak fields permit embedded
+    /// emission. Decoded sprite pixels make the final decision in the renderer.
     /// </summary>
     public static bool TryResolveMixedLightEmitter(
         ItemsPakEntry item,
         out MixedLightEmitterReference reference)
     {
         reference = default;
-        if (item.MixedBaseGroupId == 0 ||
-            !item.ModelDesc.ModelName.StartsWith("LICHTER_", StringComparison.OrdinalIgnoreCase) ||
-            !item.ModelDesc.UsesWorldLightRenderClass ||
-            item.ModelDesc.ModelTransformFlags != 0x0100 ||
-            item.ModelDesc.ModelExtent != 0 ||
-            item.ModelDesc.TextureId != 0 ||
-            item.EffectTextureId != 0 ||
-            item.StaticSpriteFrameCount != 0)
-        {
+        if (!item.ModelDesc.MayContainMixedSpriteEmission)
             return false;
-        }
 
         reference = new MixedLightEmitterReference(
             item.MixedBaseGroupId,
@@ -132,58 +121,10 @@ public static class WorldParticleMapper
             ParticleShaderKind.ProceduralSparkle);
         return true;
     }
-
-    /// <summary>
-    /// Resolves particle sockets built into mixed world fixtures. Their flames
-    /// are not present in the mixed.pak cutouts, so the original particle atlas
-    /// is attached to the decoded fixture sprite.
-    /// </summary>
-    public static bool TryResolveFixtureEmitter(
-        ItemsPakEntry item,
-        out WorldParticleEmitterReference reference)
-    {
-        reference = default;
-        if (item.MixedBaseGroupId == 0 ||
-            item.ModelDesc.TextureId != 0 || item.EffectTextureId != 0)
-        {
-            return false;
-        }
-
-        if (item.ModelDesc.ModelName.Equals("DungeonA79", StringComparison.OrdinalIgnoreCase))
-        {
-            reference = new WorldParticleEmitterReference(
-                TorchFireSprite,
-                108.0f,
-                45.0f,
-                64.0f,
-                64.0f,
-                new Vector3(1.0f, 0.34f, 0.04f),
-                150.0f,
-                0.20f);
-            return true;
-        }
-
-        if (item.ModelDesc.ModelName.Equals("Coalpot 1", StringComparison.OrdinalIgnoreCase))
-        {
-            reference = new WorldParticleEmitterReference(
-                TorchFireSprite,
-                -185.0f,
-                -158.0f,
-                215.0f,
-                210.0f,
-                new Vector3(1.0f, 0.24f, 0.03f),
-                210.0f,
-                0.22f,
-                TransposeTexture: true);
-            return true;
-        }
-
-        return false;
-    }
 }
 
 public readonly record struct MiniObjectTextureReference(
-    string TextureName,
+    uint TextureId,
     int SourceX,
     int SourceY,
     int SourceSize,
@@ -193,9 +134,11 @@ public readonly record struct MiniObjectTextureReference(
     float FrameDurationSeconds,
     ParticleShaderKind Shader);
 
-public readonly record struct ProceduralHaloReference(
+public readonly record struct AnimatedSpriteHaloReference(
     ushort Extent,
     ParticleShaderKind Shader);
+
+public readonly record struct WorldLightMarkerReference(ushort Extent);
 
 public readonly record struct MixedLightEmitterReference(
     uint MixedGroupId,

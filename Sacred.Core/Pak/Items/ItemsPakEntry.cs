@@ -6,6 +6,7 @@ public readonly record struct ItemsPakEntry(
 )
 {
     public ushort ItemIndex => EntryInfo.ItemIndex;
+    public uint MiniObjectTextureId => ModelDesc.MiniObjectTextureId;
     public uint MixedBaseGroupId => ModelDesc.MixedBaseGroupId;
     public uint GraphicRenderFlags => ModelDesc.GraphicRenderFlags;
     public byte RenderClass => ModelDesc.RenderClass;

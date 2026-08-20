@@ -1,8 +1,8 @@
-using System.Globalization;
 using Sacred.Assets.Paks.Mixed;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.World.Sector;
+using Sacred.World.Particles;
 
 namespace Sacred.World.Rendering;
 
@@ -12,7 +12,6 @@ public sealed class WorldStaticSpriteProvider(
     MixedPakArchive mixed,
     IReadOnlyDictionary<ushort, ItemsPakEntry> items)
 {
-    private const int MiniObjectAtlasSize = 256;
     private const int MiniObjectAnchorX = 48;
 
     private readonly Dictionary<SpriteKey, Task<WorldStaticSprite?>> _loads = [];
@@ -31,11 +30,11 @@ public sealed class WorldStaticSpriteProvider(
         Func<Task<WorldStaticSprite?>> factory;
         if (item.Value.MixedBaseGroupId != 0 && mixed.ResolveGroupId(item.Value.MixedBaseGroupId) is { } groupId)
         {
-            key = new SpriteKey(groupId, string.Empty, 0, 0, 0);
+            key = new SpriteKey(groupId, 0, 0, 0, 0);
             factory = () => LoadMixedAsync(groupId);
         }
         else if (TryGetMiniObject(
-                     item.Value.ModelDesc.ModelName,
+                     item.Value,
                      staticObject.SpriteParam2E,
                      staticObject.SpriteParam2F,
                      staticObject.OrientationOrFrame,
@@ -43,7 +42,7 @@ public sealed class WorldStaticSpriteProvider(
                      staticObject.AnimationFrameCount,
                      out var mini))
         {
-            key = new SpriteKey(0, mini.TextureName, mini.SourceX, mini.SourceY, mini.SourceSize);
+            key = new SpriteKey(0, mini.TextureId, mini.SourceX, mini.SourceY, mini.SourceSize);
             factory = () => LoadMiniObjectAsync(mini);
         }
         else
@@ -121,7 +120,7 @@ public sealed class WorldStaticSpriteProvider(
         TextureAsset atlas;
         try
         {
-            atlas = await LoadTextureAsync(source.TextureName).ConfigureAwait(false);
+            atlas = await textures.LoadTextureAsync(source.TextureId).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is FileNotFoundException or InvalidDataException or NotSupportedException)
         {
@@ -201,7 +200,7 @@ public sealed class WorldStaticSpriteProvider(
     }
 
     private static bool TryGetMiniObject(
-        string modelName,
+        ItemsPakEntry item,
         byte sourceX,
         byte sourceY,
         byte sourceSize,
@@ -210,23 +209,30 @@ public sealed class WorldStaticSpriteProvider(
         out MiniObjectSource source)
     {
         source = default;
-        const string prefix = "MiniObjTex";
-        if (!modelName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
-            !int.TryParse(modelName.AsSpan(prefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var atlasIndex))
-            return false;
-        if (frameCount > 0 && sourceX > 0 && sourceY > 0 && frameDuration > 0 && frameCount <= sourceX * sourceY)
+        if (!WorldParticleMapper.TryResolveMiniObject(
+                item,
+                sourceX,
+                sourceY,
+                sourceSize,
+                frameDuration,
+                frameCount,
+                out var reference))
         {
-            source = new MiniObjectSource($"MINIOBJ{sourceX}X{sourceY}_{frameCount}_{frameDuration}_{atlasIndex}.TGA", 0, 0, 0, sourceX, sourceY);
-            return true;
-        }
-        if (sourceSize == 0 || MiniObjectAtlasSize % sourceSize != 0)
             return false;
-        source = new MiniObjectSource($"MINIOBJ{MiniObjectAtlasSize / sourceSize}_{atlasIndex}.TGA", sourceX, sourceY, sourceSize, 0, 0);
+        }
+
+        source = new MiniObjectSource(
+            reference.TextureId,
+            reference.SourceX,
+            reference.SourceY,
+            reference.SourceSize,
+            reference.AtlasColumns,
+            reference.AtlasRows);
         return true;
     }
 
-    private readonly record struct SpriteKey(uint GroupId, string TextureName, int SourceX, int SourceY, int SourceSize);
-    private readonly record struct MiniObjectSource(string TextureName, int SourceX, int SourceY, int SourceSize, int AtlasColumns, int AtlasRows);
+    private readonly record struct SpriteKey(uint GroupId, uint TextureId, int SourceX, int SourceY, int SourceSize);
+    private readonly record struct MiniObjectSource(uint TextureId, int SourceX, int SourceY, int SourceSize, int AtlasColumns, int AtlasRows);
     private readonly record struct SpriteBlit(
         TextureAsset Atlas,
         int SourceLeft,

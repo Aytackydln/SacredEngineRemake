@@ -18,6 +18,13 @@ internal readonly struct ItemsPakEntryModelDescLayout
     [FieldOffset(0)]
     public readonly uint GraphicRenderFlags;
 
+    /// <summary>
+    /// Texture.pak descriptor index used by atlas-backed mini objects. Static.pak
+    /// bytes 0x2e..0x32 select a region or animation from this texture.
+    /// </summary>
+    [FieldOffset(4)]
+    public readonly uint MiniObjectTextureId;
+
     [FieldOffset(8)]
     public readonly uint TextureId;
 

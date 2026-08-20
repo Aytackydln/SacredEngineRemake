@@ -6,9 +6,9 @@ using Sacred.Assets.Paks.Texture;
 namespace Sacred.Engine.Rendering;
 
 /// <summary>
-/// Derives a local light source from the authored blue-white pixels inside a
-/// LICHTER mixed sprite. The surrounding fixture remains an ordinary static
-/// sprite and is never used to position or colour the emitted light.
+/// Derives a local glow from authored blue-white pixels in a class-9 mixed
+/// sprite. Numeric Items.pak fields select candidates; pixel evidence prevents
+/// ordinary class-9 props from being treated as emitters.
 /// </summary>
 internal sealed class MixedLightAppearanceCache
 {
@@ -41,6 +41,9 @@ internal sealed class MixedLightAppearanceCache
             return null;
 
         double weightSum = 0;
+        double blueWeightSum = 0;
+        var bluePixelCount = 0;
+        var brightBluePixelCount = 0;
         double xSum = 0;
         double ySum = 0;
         double redSum = 0;
@@ -59,11 +62,17 @@ internal sealed class MixedLightAppearanceCache
             var red = rgba[pixel] / 255.0;
             var green = rgba[pixel + 1] / 255.0;
             var blue = rgba[pixel + 2] / 255.0;
-            var blueSignal = Math.Max(0.0, blue - red - 0.04);
-            var whiteSignal = Math.Max(0.0, Math.Max(red, Math.Max(green, blue)) - 0.80);
-            var weight = alpha * Math.Max(blueSignal, whiteSignal);
+            var blueSignal = blue > 0.40
+                ? Math.Max(0.0, Math.Min(blue - red - 0.12, blue - green - 0.04))
+                : 0.0;
+            var weight = alpha * blueSignal;
             if (weight <= 0.01)
                 continue;
+
+            blueWeightSum += weight;
+            bluePixelCount++;
+            if (blue > 0.65 && blue - red > 0.20 && blue - green > 0.06)
+                brightBluePixelCount++;
 
             weightSum += weight;
             xSum += (x + 0.5) * weight;
@@ -77,8 +86,17 @@ internal sealed class MixedLightAppearanceCache
             bottom = Math.Max(bottom, y + 1);
         }
 
-        if (weightSum <= double.Epsilon)
+        // Real embedded emitters have a compact core dominated by saturated,
+        // bright blue pixels. Large blue materials such as quest flags have
+        // many weak-blue cloth pixels but only sparse bright highlights.
+        if (weightSum <= double.Epsilon ||
+            blueWeightSum <= 1.0 ||
+            bluePixelCount < 16 ||
+            brightBluePixelCount < 16 ||
+            brightBluePixelCount * 4 < bluePixelCount)
+        {
             return null;
+        }
 
         var colour = new Vector3(
             (float)(redSum / weightSum),

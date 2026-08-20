@@ -9,19 +9,19 @@ using Sacred.World.Particles;
 namespace Sacred.Engine.Assets;
 
 /// <summary>
-/// Loads the atlas-backed <c>MiniObjTex*</c> world decals. These use a static
-/// record's three sprite parameters instead of a mixed.pak sprite group.
+/// Loads atlas-backed world decals by their Items.pak Texture.pak entry ID.
+/// Static.pak supplies the region or animation parameters.
 /// </summary>
 internal sealed class MiniObjectSpriteLoader
 {
-    private readonly Func<string, Task<TextureAsset>> _loadTextureAsync;
+    private readonly Func<uint, Task<TextureAsset>> _loadTextureAsync;
     private readonly WorldSpriteLoadQueue _loadQueue;
     private readonly Dictionary<MiniObjectTextureReference, StaticSpriteAsset?> _sprites = [];
     private readonly HashSet<MiniObjectTextureReference> _loads = [];
     private readonly SemaphoreSlim _lock = new(1, 1);
 
     public MiniObjectSpriteLoader(
-        Func<string, Task<TextureAsset>> loadTextureAsync,
+        Func<uint, Task<TextureAsset>> loadTextureAsync,
         WorldSpriteLoadQueue loadQueue)
     {
         _loadTextureAsync = loadTextureAsync;
@@ -86,19 +86,19 @@ internal sealed class MiniObjectSpriteLoader
         StaticSpriteAsset? sprite;
         try
         {
-            var atlas = await _loadTextureAsync(key.TextureName).ConfigureAwait(false);
+            var atlas = await _loadTextureAsync(key.TextureId).ConfigureAwait(false);
             sprite = BuildSprite(atlas, key);
             if (key.FrameCount > 1)
             {
                 Console.WriteLine(sprite is null
-                    ? $"Animated mini-object atlas rejected: {key.TextureName} ({key.AtlasColumns}x{key.AtlasRows}, {key.FrameCount} frames)."
-                    : $"Animated mini-object atlas loaded: {key.TextureName} ({key.AtlasColumns}x{key.AtlasRows}, {key.FrameCount} frames).");
+                    ? $"Animated mini-object atlas rejected: texture #{key.TextureId} ({key.AtlasColumns}x{key.AtlasRows}, {key.FrameCount} frames)."
+                    : $"Animated mini-object atlas loaded: {atlas.Name} (#{key.TextureId}, {key.AtlasColumns}x{key.AtlasRows}, {key.FrameCount} frames).");
             }
         }
         catch (Exception exception)
         {
             sprite = null;
-            Console.WriteLine($"Mini-object atlas failed: {key.TextureName}: {exception.Message}");
+            Console.WriteLine($"Mini-object atlas failed: texture #{key.TextureId}: {exception.Message}");
         }
 
         await _lock.WaitAsync().ConfigureAwait(false);

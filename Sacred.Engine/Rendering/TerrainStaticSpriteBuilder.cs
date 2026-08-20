@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Sacred.Core.Pak.Items;
+using System.Numerics;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
 using Sacred.World.Particles;
@@ -18,12 +18,10 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
     private const float ObjectShiftX = 47.8f;
     private const float ObjectShiftY = -0.3f;
     private const float LightHaloDiameterScale = 1.2f;
-    private static readonly System.Numerics.Vector3 DefaultProceduralHaloColour =
-        new(1.0f, 0.64f, 0.24f);
-    private const float ProceduralHaloOpacity = 0.12f;
 
     private readonly List<TerrainStaticSprite> _visibleSprites = new(1024);
     private readonly List<TerrainWorldLight> _visibleLights = new(64);
+    private readonly AnimatedSpriteHaloAppearanceCache _animatedSpriteHaloAppearanceCache = new();
     private readonly MixedLightAppearanceCache _mixedLightAppearanceCache = new();
     private bool _assetRequestsPending = true;
     private bool _nightObjectsVisible;
@@ -47,9 +45,9 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
         var candidateObjects = 0;
         var missingObjects = 0;
         var animatedSpriteCount = 0;
-        var fixtureParticleEmitterCount = 0;
+        var animatedSpriteHaloCount = 0;
         var mixedLightEmitterCount = 0;
-        var proceduralHaloCount = 0;
+        var worldLightMarkerCount = 0;
         var requestsPending = false;
         foreach (var sector in sectors)
         {
@@ -73,25 +71,20 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                                              staticObject.MiniObjectSourceSize,
                                              staticObject.MiniObjectFrameDurationTicks,
                                              staticObject.MiniObjectFrameCount,
-                                         out miniObjectReference) &&
+                                             out miniObjectReference) &&
                                          miniObjectReference.FrameCount > 1;
                 if (!IsVisibleOnSurface(staticObject, activeIndoorGroup))
                     continue;
 
                 if (item is { } haloItem &&
-                    WorldParticleMapper.TryResolveProceduralHalo(
+                    WorldParticleMapper.TryResolveWorldLightMarker(
                         haloItem,
-                        out var haloReference))
+                        out _))
                 {
-                    var diameter = haloReference.Extent * LightHaloDiameterScale;
-                    _visibleLights.Add(new TerrainWorldLight(
-                        footX - diameter * 0.5f,
-                        footY - diameter * 0.5f,
-                        diameter,
-                        DefaultProceduralHaloColour,
-                        ProceduralHaloOpacity,
-                        WorldLightShape.RadialHalo));
-                    proceduralHaloCount++;
+                    // This record is an invisible illumination volume, not a
+                    // visible halo sprite. Keep it classified for the future
+                    // scene-lighting pass without drawing it as an effect.
+                    worldLightMarkerCount++;
                     continue;
                 }
 
@@ -126,11 +119,6 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                     continue;
                 }
 
-                var isMixedLightEmitter = item is { } mixedLightItem &&
-                                          WorldParticleMapper.TryResolveMixedLightEmitter(
-                                              mixedLightItem,
-                                              out _);
-
                 var renderWidth = sprite.Width;
                 var renderHeight = sprite.Height;
                 var spriteIsoX = footX - sprite.AnchorX;
@@ -146,8 +134,33 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                     sprite.FrameCount <= 1)
                     continue;
 
-                if (isMixedLightEmitter &&
-                         _mixedLightAppearanceCache.TryGet(sprite, out var lightAppearance))
+                if (item is { } animatedHaloItem &&
+                    WorldParticleMapper.TryResolveAnimatedSpriteHalo(
+                        animatedHaloItem,
+                        miniObjectReference,
+                        out var haloReference) &&
+                    _animatedSpriteHaloAppearanceCache.TryGet(sprite, out var haloAppearance))
+                {
+                    var diameter = haloReference.Extent * LightHaloDiameterScale;
+                    _visibleLights.Add(new TerrainWorldLight(
+                        spriteIsoX + haloAppearance.CenterX - diameter * 0.5f,
+                        spriteIsoY + haloAppearance.CenterY - diameter * 0.5f,
+                        diameter,
+                        haloAppearance.Colour,
+                        AnimatedSpriteHaloAppearanceCache.HaloOpacity,
+                        WorldLightShape.RadialHalo));
+                    animatedSpriteHaloCount++;
+                }
+
+                MixedLightAppearance lightAppearance = default;
+                var isMixedLightEmitter = item is { } mixedLightItem &&
+                                          WorldParticleMapper.TryResolveMixedLightEmitter(
+                                              mixedLightItem,
+                                              out _) &&
+                                          _mixedLightAppearanceCache.TryGet(
+                                              sprite,
+                                              out lightAppearance);
+                if (isMixedLightEmitter)
                 {
                     _visibleLights.Add(new TerrainWorldLight(
                         spriteIsoX + lightAppearance.CenterX - lightAppearance.Diameter * 0.5f,
@@ -161,29 +174,14 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                         spriteIsoX + lightAppearance.CenterX - sparkleDiameter * 0.5f,
                         spriteIsoY + lightAppearance.EmitterTop - sparkleDiameter * 0.72f,
                         sparkleDiameter,
-                        new System.Numerics.Vector3(0.68f, 0.76f, 1.0f),
+                        new Vector3(0.68f, 0.76f, 1.0f),
                         0.72f,
                         WorldLightShape.SparkleCluster));
                 }
 
-                if (item is { } fixtureItem &&
-                    WorldParticleMapper.TryResolveFixtureEmitter(fixtureItem, out var fixtureEmitter))
-                {
-                    if (TryAddParticleEmitter(
-                            fixtureEmitter,
-                            spriteIsoX,
-                            spriteIsoY,
-                            staticObject,
-                            out var pending))
-                    {
-                        fixtureParticleEmitterCount++;
-                    }
-                    requestsPending |= pending;
-                }
-
                 _visibleSprites.Add(new TerrainStaticSprite(
                     sprite,
-                    IsUnlit(item),
+                    false,
                     false,
                     isMixedLightEmitter,
                     false,
@@ -212,82 +210,28 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
         if (!requestsPending)
             LogParticleSummary(
                 animatedSpriteCount,
-                fixtureParticleEmitterCount,
+                animatedSpriteHaloCount,
                 mixedLightEmitterCount,
-                proceduralHaloCount);
+                worldLightMarkerCount);
         return new TerrainStaticPreparation(_visibleSprites, _visibleLights, true, candidateObjects, missingObjects);
-    }
-
-    private bool TryAddParticleEmitter(
-        WorldParticleEmitterReference reference,
-        float anchorX,
-        float anchorY,
-        StaticWorldObject source,
-        out bool requestPending)
-    {
-        requestPending = false;
-        if (!assets.TryGetWorldParticleSpriteOrRequest(reference.Sprite, out var particleSprite))
-        {
-            requestPending = true;
-            return false;
-        }
-
-        if (particleSprite is null)
-            return false;
-
-        var particleX = anchorX + reference.OffsetX;
-        var particleY = anchorY + reference.OffsetY;
-        _visibleSprites.Add(new TerrainStaticSprite(
-            particleSprite,
-            true,
-            true,
-            false,
-            reference.TransposeTexture,
-            reference.Width,
-            reference.Height,
-            particleX,
-            particleY,
-            anchorX,
-            anchorY,
-            source.SurfaceRenderLayer,
-            EngineQueueIndex(source) + 1,
-            source.TileDepth,
-            source.TileWorldY,
-            source.TileWorldX,
-            source.ChainDepth,
-            source.InsertionOrder));
-
-        var lightCenterX = particleX + reference.Width * 0.5f;
-        var lightCenterY = particleY + reference.Height * 0.5f;
-        _visibleLights.Add(new TerrainWorldLight(
-            lightCenterX - reference.LightDiameter * 0.5f,
-            lightCenterY - reference.LightDiameter * 0.5f,
-            reference.LightDiameter,
-            reference.LightColour,
-            reference.LightOpacity,
-            WorldLightShape.RadialHalo));
-        return true;
     }
 
     private void LogParticleSummary(
         int animatedSprites,
-        int fixtureParticleEmitters,
+        int animatedSpriteHalos,
         int mixedLightEmitters,
-        int proceduralHalos)
+        int worldLightMarkers)
     {
         var summary = $"World effects ready: animated static sprites={animatedSprites}, " +
-                      $"fixture particle emitters={fixtureParticleEmitters}, " +
+                      $"animated sprite halos={animatedSpriteHalos}, " +
                       $"mixed light emitters={mixedLightEmitters}, " +
-                      $"authored light markers={proceduralHalos}.";
+                      $"authored light markers={worldLightMarkers}.";
         if (summary == _lastParticleSummary)
             return;
 
         _lastParticleSummary = summary;
         Console.WriteLine(summary);
     }
-
-    private static bool IsUnlit(ItemsPakEntry? item) =>
-        (item?.GraphicRenderFlags & ItemsPakEntryModelDesc.UnlitGraphicFlag) != 0;
 
     private static bool IsVisibleOnSurface(
         StaticWorldObject staticObject,

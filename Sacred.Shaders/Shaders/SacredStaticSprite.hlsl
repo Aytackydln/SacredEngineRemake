@@ -160,9 +160,9 @@ float4 sample_sprite_texture(Texture2D texture_to_sample, vertex_output input)
 
 float mixed_light_emission(float3 colour)
 {
-    // LICHTER_* mixed sprites contain both normally-lit stone/metal and the
-    // actual blue-white emitter. Preserve the former while allowing only the
-    // chromatic bowl and very bright glint pixels to remain luminous at night.
+    // Some class-9 mixed sprites contain both normally-lit fixture art and an
+    // embedded blue-white emitter. Preserve the former while allowing only the
+    // chromatic and very bright glint pixels to remain luminous at night.
     float blue_dominance = saturate((colour.b - colour.r - 0.04f) * 6.0f);
     float white_glint = saturate((max(colour.r, max(colour.g, colour.b)) - 0.80f) * 5.0f);
     return max(blue_dominance, white_glint);
