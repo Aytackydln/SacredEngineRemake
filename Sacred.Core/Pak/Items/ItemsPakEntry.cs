@@ -10,6 +10,7 @@ public readonly record struct ItemsPakEntry(
 )
 {
     public const uint LightEmittingGraphicFlag = 0x00020000;
+    public const uint ExtendedMixedSpriteGraphicFlag = 0x00010000;
     public const uint LowRenderClassMask = 0x0000000F;
     public const uint AnimatedMiniObjectRenderClass = 0x00000008;
     public const uint MixedSpriteOrLightMarkerRenderClass = 0x00000009;

@@ -138,7 +138,7 @@ public readonly record struct AnimatedSpriteHaloReference(
     ushort Extent,
     ParticleShaderKind Shader);
 
-public readonly record struct WorldLightMarkerReference(ushort Extent);
+public readonly record struct WorldLightMarkerReference(ushort Radius);
 
 public readonly record struct MixedLightEmitterReference(
     uint MixedGroupId,

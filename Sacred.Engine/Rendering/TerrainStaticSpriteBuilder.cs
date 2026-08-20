@@ -17,7 +17,11 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
     private const uint FrontGraphicFlag = 0x00800000;
     private const float ObjectShiftX = 47.8f;
     private const float ObjectShiftY = -0.3f;
-    private const float LightHaloDiameterScale = 1.2f;
+    private const float AnimatedLightDiameterScale = 1.0f;
+    private const float AnimatedSurfaceLightDiameterScale = 2.0f;
+    private const float LargeUnlitMixedLightRadius = 480.0f;
+    private const float AuthoredLightOpacity = 0.48f;
+    private static readonly Vector3 AuthoredLightColour = Vector3.One;
 
     private readonly List<TerrainStaticSprite> _visibleSprites = new(1024);
     private readonly List<TerrainWorldLight> _visibleLights = new(64);
@@ -79,11 +83,16 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                 if (item is { } haloItem &&
                     WorldParticleMapper.TryResolveWorldLightMarker(
                         haloItem,
-                        out _))
+                        out var lightMarker))
                 {
-                    // This record is an invisible illumination volume, not a
-                    // visible halo sprite. Keep it classified for the future
-                    // scene-lighting pass without drawing it as an effect.
+                    var diameter = lightMarker.Radius * 2.0f;
+                    _visibleLights.Add(new TerrainWorldLight(
+                        footX - diameter * 0.5f,
+                        footY - diameter * 0.5f,
+                        diameter,
+                        AuthoredLightColour,
+                        AuthoredLightOpacity,
+                        WorldLightShape.SurfaceIllumination));
                     worldLightMarkerCount++;
                     continue;
                 }
@@ -141,7 +150,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                         out var haloReference) &&
                     _animatedSpriteHaloAppearanceCache.TryGet(sprite, out var haloAppearance))
                 {
-                    var diameter = haloReference.Extent * LightHaloDiameterScale;
+                    var diameter = haloReference.Extent * AnimatedLightDiameterScale;
                     _visibleLights.Add(new TerrainWorldLight(
                         spriteIsoX + haloAppearance.CenterX - diameter * 0.5f,
                         spriteIsoY + haloAppearance.CenterY - diameter * 0.5f,
@@ -149,6 +158,14 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                         haloAppearance.Colour,
                         AnimatedSpriteHaloAppearanceCache.HaloOpacity,
                         WorldLightShape.RadialHalo));
+                    var surfaceDiameter = haloReference.Extent * AnimatedSurfaceLightDiameterScale;
+                    _visibleLights.Add(new TerrainWorldLight(
+                        footX - surfaceDiameter * 0.5f,
+                        footY - surfaceDiameter * 0.5f,
+                        surfaceDiameter,
+                        Vector3.One,
+                        AuthoredLightOpacity,
+                        WorldLightShape.SurfaceIllumination));
                     animatedSpriteHaloCount++;
                 }
 
@@ -162,21 +179,35 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                                               out lightAppearance);
                 if (isMixedLightEmitter)
                 {
+                    var surfaceRadius = lightAppearance.SurfaceLightRadius;
+                    if (item!.Value.ModelDesc.HasExtendedMixedSpriteGraphicFlag)
+                        surfaceRadius = MathF.Max(surfaceRadius, LargeUnlitMixedLightRadius);
+                    var surfaceDiameter = surfaceRadius * 2.0f;
                     _visibleLights.Add(new TerrainWorldLight(
-                        spriteIsoX + lightAppearance.CenterX - lightAppearance.Diameter * 0.5f,
-                        spriteIsoY + lightAppearance.CenterY - lightAppearance.Diameter * 0.5f,
-                        lightAppearance.Diameter,
+                        footX - surfaceDiameter * 0.5f,
+                        footY - surfaceDiameter * 0.5f,
+                        surfaceDiameter,
+                        Vector3.One,
+                        lightAppearance.SurfaceLightOpacity,
+                        WorldLightShape.SurfaceIllumination));
+                    _visibleLights.Add(new TerrainWorldLight(
+                        spriteIsoX + lightAppearance.CenterX - lightAppearance.LocalHaloDiameter * 0.5f,
+                        spriteIsoY + lightAppearance.CenterY - lightAppearance.LocalHaloDiameter * 0.5f,
+                        lightAppearance.LocalHaloDiameter,
                         lightAppearance.Colour,
-                        lightAppearance.Opacity,
+                        lightAppearance.LocalHaloOpacity,
                         WorldLightShape.RadialHalo));
-                    var sparkleDiameter = lightAppearance.SparkleDiameter;
-                    _visibleLights.Add(new TerrainWorldLight(
-                        spriteIsoX + lightAppearance.CenterX - sparkleDiameter * 0.5f,
-                        spriteIsoY + lightAppearance.EmitterTop - sparkleDiameter * 0.72f,
-                        sparkleDiameter,
-                        new Vector3(0.68f, 0.76f, 1.0f),
-                        0.72f,
-                        WorldLightShape.SparkleCluster));
+                    if (lightAppearance.HasSparkles)
+                    {
+                        var sparkleDiameter = lightAppearance.SparkleDiameter;
+                        _visibleLights.Add(new TerrainWorldLight(
+                            spriteIsoX + lightAppearance.CenterX - sparkleDiameter * 0.5f,
+                            spriteIsoY + lightAppearance.EmitterTop - sparkleDiameter * 0.72f,
+                            sparkleDiameter,
+                            new Vector3(0.68f, 0.76f, 1.0f),
+                            0.72f,
+                            WorldLightShape.SparkleCluster));
+                    }
                 }
 
                 _visibleSprites.Add(new TerrainStaticSprite(

@@ -56,6 +56,11 @@ public static class Dx12ShaderCatalog
         string pixelEntryPoint) => new(
         QuadWorldVertexShader,
         DisplayShader("SacredWorldQuad", EmbeddedResource_Shaders.SacredWorldQuad_hlsl, pixelEntryPoint, "ps_5_0"),
+        DisplayShader(
+            "SacredWorldQuad",
+            EmbeddedResource_Shaders.SacredWorldQuad_hlsl,
+            pixelEntryPoint == "ps_hdr" ? "ps_hdr_screen" : "ps_sdr_screen",
+            "ps_5_0"),
         StaticSpriteVertexShader,
         DisplayShader("SacredStaticSprite", EmbeddedResource_Shaders.SacredStaticSprite_hlsl, pixelEntryPoint, "ps_5_0"),
         DisplayShader(
@@ -99,6 +104,7 @@ public static class Dx12ShaderCatalog
 public sealed record Dx12ShaderSet(
     Dx12ShaderSource QuadWorldVertexShader,
     Dx12ShaderSource QuadWorldPixelShader,
+    Dx12ShaderSource QuadScreenPixelShader,
     Dx12ShaderSource StaticSpriteVertexShader,
     Dx12ShaderSource StaticSpritePixelShader,
     Dx12ShaderSource LightHaloVertexShader,

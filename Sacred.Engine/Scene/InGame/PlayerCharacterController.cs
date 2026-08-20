@@ -54,6 +54,7 @@ internal sealed class PlayerCharacterController : IDisposable
     public void Initialize(Vector2 worldCenter)
     {
         UpdatePosition(worldCenter, 0.0f);
+        UpdatePlayerLight(_activeModelEntryId);
         _scene.AddModel(new SceneModel(
             "Loading player model",
             _proxyMesh,
@@ -293,6 +294,7 @@ internal sealed class PlayerCharacterController : IDisposable
         _transitionPending = false;
         _animation = null;
         _activeAsset = pending.Player;
+        UpdatePlayerLight(pending.EntryId);
 
         var player = pending.Player;
         EngineLog.WriteLine($"Player character loaded: {player.DisplayName}");
@@ -332,6 +334,19 @@ internal sealed class PlayerCharacterController : IDisposable
     private Vector3 BuildRotation() => new(0.0f, 0.0f, _movementRotationZ);
 
     private float GroundPlaneZ => _position.Z - _modelGroundOffset;
+
+    private void UpdatePlayerLight(uint entryId)
+    {
+        var item = _assets.GetItem(entryId);
+        // Playable actors use the largest authored invisible light volume from
+        // Items.pak. Character ModelExtent is the model's spatial bound and was
+        // producing a much smaller, class-dependent pool of light.
+        _scene.Lighting.PlayerLightDiameter = _assets.PlayableCharacterLightRadius > 0.0f
+            ? _assets.PlayableCharacterLightRadius * 2.0f
+            : item is { } value
+                ? value.ModelDesc.ModelExtent * 2.0f
+                : 0.0f;
+    }
 
     private void UpdatePosition(Vector2 worldPosition, float terrainWorldHeight)
     {

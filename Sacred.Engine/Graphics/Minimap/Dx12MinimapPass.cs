@@ -268,7 +268,7 @@ internal sealed class Dx12MinimapPass : IDisposable
             new WorldQuadShaderConstants(
                 rect,
                 new Vector2(renderWidth, renderHeight),
-                brightness,
+                new Vector3(brightness),
                 IsPremultipliedAlpha: false,
                 paperWhiteNits));
         _commandList.SetGraphicsRoot32BitConstants(

@@ -6,13 +6,14 @@ using Sacred.Assets.Paks.Texture;
 namespace Sacred.Engine.Rendering;
 
 /// <summary>
-/// Derives a local glow from authored blue-white pixels in a class-9 mixed
-/// sprite. Numeric Items.pak fields select candidates; pixel evidence prevents
-/// ordinary class-9 props from being treated as emitters.
+/// Derives emitter position, colour, and strength from the authored emissive
+/// pixels in a class-9 mixed sprite. Numeric Items.pak fields select candidates;
+/// pixel evidence prevents ordinary class-9 props from becoming lights.
 /// </summary>
 internal sealed class MixedLightAppearanceCache
 {
-    private const float LightOpacity = 0.035f;
+    private const float LocalHaloOpacity = 0.035f;
+    private const float SurfaceLightOpacity = 0.46f;
     private readonly Dictionary<StaticSpriteAsset, MixedLightAppearance?> _appearances =
         new(ReferenceEqualityComparer.Instance);
 
@@ -42,8 +43,11 @@ internal sealed class MixedLightAppearanceCache
 
         double weightSum = 0;
         double blueWeightSum = 0;
+        double warmWeightSum = 0;
         var bluePixelCount = 0;
         var brightBluePixelCount = 0;
+        var warmPixelCount = 0;
+        var hotWarmPixelCount = 0;
         double xSum = 0;
         double ySum = 0;
         double redSum = 0;
@@ -65,14 +69,27 @@ internal sealed class MixedLightAppearanceCache
             var blueSignal = blue > 0.40
                 ? Math.Max(0.0, Math.Min(blue - red - 0.12, blue - green - 0.04))
                 : 0.0;
-            var weight = alpha * blueSignal;
+            var warmSignal = red > 0.65 && green > 0.18 && red - blue > 0.18 && red >= green * 0.90
+                ? Math.Max(0.0, Math.Min(red - blue - 0.10, Math.Max(red, green) - 0.55))
+                : 0.0;
+            var weight = alpha * Math.Max(blueSignal, warmSignal);
             if (weight <= 0.01)
                 continue;
 
-            blueWeightSum += weight;
-            bluePixelCount++;
-            if (blue > 0.65 && blue - red > 0.20 && blue - green > 0.06)
-                brightBluePixelCount++;
+            if (blueSignal >= warmSignal)
+            {
+                blueWeightSum += weight;
+                bluePixelCount++;
+                if (blue > 0.65 && blue - red > 0.20 && blue - green > 0.06)
+                    brightBluePixelCount++;
+            }
+            else
+            {
+                warmWeightSum += weight;
+                warmPixelCount++;
+                if (red > 0.82 && green > 0.28 && red - blue > 0.25)
+                    hotWarmPixelCount++;
+            }
 
             weightSum += weight;
             xSum += (x + 0.5) * weight;
@@ -86,17 +103,23 @@ internal sealed class MixedLightAppearanceCache
             bottom = Math.Max(bottom, y + 1);
         }
 
-        // Real embedded emitters have a compact core dominated by saturated,
-        // bright blue pixels. Large blue materials such as quest flags have
-        // many weak-blue cloth pixels but only sparse bright highlights.
-        if (weightSum <= double.Epsilon ||
-            blueWeightSum <= 1.0 ||
-            bluePixelCount < 16 ||
-            brightBluePixelCount < 16 ||
-            brightBluePixelCount * 4 < bluePixelCount)
-        {
+        // Blue magical fixtures and warm flame/fire fixtures use different
+        // palettes, but both have a compact core containing several strongly
+        // emissive pixels. Broad cloth, wood, and metal highlights fail these
+        // concentration tests.
+        var emissionBoundsArea = Math.Max(1, right - left) * Math.Max(1, bottom - top);
+        var spriteArea = Math.Max(1, sprite.Width * sprite.Height);
+        var blueEmitter = blueWeightSum > 1.0 &&
+                          bluePixelCount >= 16 &&
+                          brightBluePixelCount >= 16 &&
+                          brightBluePixelCount * 4 >= bluePixelCount;
+        var warmEmitter = warmWeightSum > 1.25 &&
+                          warmPixelCount >= 12 &&
+                          hotWarmPixelCount >= 6 &&
+                          hotWarmPixelCount * 5 >= warmPixelCount &&
+                          emissionBoundsArea * 5 <= spriteArea;
+        if (weightSum <= double.Epsilon || (!blueEmitter && !warmEmitter))
             return null;
-        }
 
         var colour = new Vector3(
             (float)(redSum / weightSum),
@@ -107,15 +130,25 @@ internal sealed class MixedLightAppearanceCache
             colour /= strongestChannel;
 
         var luminousExtent = Math.Max(right - left, bottom - top);
-        var diameter = Math.Clamp(luminousExtent * 2.4f, 64.0f, 144.0f);
+        var localHaloDiameter = Math.Clamp(luminousExtent * 2.4f, 64.0f, 144.0f);
+        // The outlined reference captures show the magical fixture family using
+        // roughly 150-230 pixel radii, while compact fire sources are nearer
+        // 130 pixels. Preserve that family-level range and let the authored
+        // emissive-pixel extent choose within it.
+        var surfaceLightRadius = blueEmitter
+            ? Math.Clamp(400.0f + luminousExtent * 2.0f, 440.0f, 600.0f)
+            : Math.Clamp(240.0f + luminousExtent * 2.0f, 260.0f, 420.0f);
         return new MixedLightAppearance(
             (float)(xSum / weightSum),
             (float)(ySum / weightSum),
             top,
-            diameter,
+            localHaloDiameter,
+            surfaceLightRadius,
             Math.Clamp(luminousExtent * 1.15f, 34.0f, 52.0f),
             colour,
-            LightOpacity);
+            LocalHaloOpacity,
+            SurfaceLightOpacity,
+            blueEmitter && blueWeightSum >= warmWeightSum);
     }
 }
 
@@ -123,7 +156,10 @@ internal readonly record struct MixedLightAppearance(
     float CenterX,
     float CenterY,
     float EmitterTop,
-    float Diameter,
+    float LocalHaloDiameter,
+    float SurfaceLightRadius,
     float SparkleDiameter,
     Vector3 Colour,
-    float Opacity);
+    float LocalHaloOpacity,
+    float SurfaceLightOpacity,
+    bool HasSparkles);

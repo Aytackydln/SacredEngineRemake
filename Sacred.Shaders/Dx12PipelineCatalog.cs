@@ -13,6 +13,33 @@ public static class Dx12PipelineCatalog
         new("TEXCOORD", 0, Format.R32G32_Float, 24, 0)
     ];
 
+    public static Dx12PipelineGroupDefinition CreateScreen(Dx12ShaderSet shaders)
+    {
+        var rootParameters = new[]
+        {
+            new RootParameter(new RootConstants(
+                WorldQuadShaderLayout.RootConstantsRegister,
+                0,
+                WorldQuadShaderLayout.RootConstantsCount), ShaderVisibility.All),
+            TextureTable(WorldQuadShaderLayout.TextureRegister)
+        };
+
+        return new Dx12PipelineGroupDefinition(
+            rootParameters,
+            [CreateSampler(
+                WorldQuadShaderLayout.SamplerRegister,
+                TextureAddressMode.Clamp,
+                StaticBorderColor.TransparentBlack)],
+            [Pipeline(
+                Dx12PipelineKind.Terrain,
+                shaders.QuadWorldVertexShader,
+                shaders.QuadScreenPixelShader,
+                BlendDescription.AlphaBlend,
+                RasterizerDescription.CullNone,
+                DepthStencilDescription.None,
+                usesDepthBuffer: false)]);
+    }
+
     public static Dx12PipelineGroupDefinition CreateTerrain(Dx12ShaderSet shaders)
     {
         var rootParameters = new[]
@@ -21,7 +48,9 @@ public static class Dx12PipelineCatalog
                 WorldQuadShaderLayout.RootConstantsRegister,
                 0,
                 WorldQuadShaderLayout.RootConstantsCount), ShaderVisibility.All),
-            TextureTable(WorldQuadShaderLayout.TextureRegister)
+            TextureTable(WorldQuadShaderLayout.TextureRegister),
+            new(RootParameterType.ShaderResourceView,
+                new RootDescriptor(WorldQuadShaderLayout.WorldLightBufferRegister, 0), ShaderVisibility.Pixel)
         };
 
         // Sector images are atlas-like render targets. Clamping prevents bilinear samples
@@ -64,7 +93,9 @@ public static class Dx12PipelineCatalog
                 StaticSpriteShaderLayout.SceneConstantsCount), ShaderVisibility.All),
             new(RootParameterType.ShaderResourceView,
                 new RootDescriptor(StaticSpriteShaderLayout.InstanceBufferRegister, 0), ShaderVisibility.Vertex),
-            TextureTable(StaticSpriteShaderLayout.FirstTextureRegister)
+            TextureTable(StaticSpriteShaderLayout.FirstTextureRegister),
+            new(RootParameterType.ShaderResourceView,
+                new RootDescriptor(StaticSpriteShaderLayout.WorldLightBufferRegister, 0), ShaderVisibility.Pixel)
         };
 
         return new Dx12PipelineGroupDefinition(

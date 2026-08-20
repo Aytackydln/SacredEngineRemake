@@ -74,6 +74,8 @@ public sealed class AssetManager : IDisposable
     private readonly SemaphoreSlim _playerAnimationLock = new(1, 1);
     private bool _disposed;
 
+    public float PlayableCharacterLightRadius { get; }
+
     public AssetManager(SacredGameDirectories gameDirectories)
     {
         var texturePakPath = gameDirectories.TexturesPakPath;
@@ -83,6 +85,7 @@ public sealed class AssetManager : IDisposable
         _tilesPak = TilesPakArchive.Load(Path.Combine(pakDirectory, "tiles.pak"));
         var items = ItemsPakArchive.Load(gameDirectories.ItemsPakPath).ToArray();
         _itemsByModelId = items.ToFrozenDictionary(static item => item.ItemIndex);
+        PlayableCharacterLightRadius = FindLargestAuthoredLightRadius(items);
         _itemsByItemId = items
             .GroupBy(static item => item.ItemId)
             .ToFrozenDictionary(static group => group.Key, static group => group.ToArray());
@@ -118,6 +121,7 @@ public sealed class AssetManager : IDisposable
         _texturePak = texturePak;
         _tilesPak = tilesPak;
         _itemsByModelId = items.ToFrozenDictionary(static item => item.ItemIndex);
+        PlayableCharacterLightRadius = FindLargestAuthoredLightRadius(items);
         _itemsByItemId = items
             .GroupBy(static item => item.ItemId)
             .ToFrozenDictionary(static group => group.Key, static group => group.ToArray());
@@ -134,6 +138,12 @@ public sealed class AssetManager : IDisposable
     }
 
     public int PlayerCharacterCount => TestCharacters.All.Count;
+
+    private static float FindLargestAuthoredLightRadius(IEnumerable<ItemsPakEntry> items) =>
+        items.Where(static item => item.ModelDesc.IsWorldLightMarker)
+            .Select(static item => (float)item.ModelDesc.ModelExtent)
+            .DefaultIfEmpty()
+            .Max();
 
     public Task<TextureAsset> LoadTextureAsync(string textureName, CancellationToken cancellationToken = default)
     {

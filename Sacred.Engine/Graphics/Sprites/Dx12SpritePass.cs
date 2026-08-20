@@ -277,8 +277,10 @@ internal sealed class Dx12SpritePass : IDisposable
 
     public void RecordLiquid(
         LiquidSpriteDrawRange range,
-        float ambientIntensity,
+        Vector3 ambientColour,
         float paperWhiteNits,
+        int worldLightCount,
+        float nightBlend,
         Dx12FrameContext frame,
         int renderWidth,
         int renderHeight) =>
@@ -286,18 +288,22 @@ internal sealed class Dx12SpritePass : IDisposable
             range.StartInstance,
             range.InstanceCount,
             _liquidPipeline,
-            ambientIntensity,
+            ambientColour,
             paperWhiteNits,
             paperWhiteNits,
+            worldLightCount,
+            nightBlend,
             frame,
             renderWidth,
             renderHeight);
 
     public void RecordStatic(
         WorldSpriteBatch batch,
-        float ambientIntensity,
+        Vector3 ambientColour,
         float paperWhiteNits,
         float unlitWhiteNits,
+        int worldLightCount,
+        float nightBlend,
         Dx12FrameContext frame,
         int renderWidth,
         int renderHeight) =>
@@ -305,9 +311,11 @@ internal sealed class Dx12SpritePass : IDisposable
             batch.StaticStartInstance,
             batch.StaticInstanceCount,
             _staticPipeline,
-            ambientIntensity,
+            ambientColour,
             paperWhiteNits,
             unlitWhiteNits,
+            worldLightCount,
+            nightBlend,
             frame,
             renderWidth,
             renderHeight);
@@ -321,9 +329,11 @@ internal sealed class Dx12SpritePass : IDisposable
         int startInstance,
         int instanceCount,
         ID3D12PipelineState? pipeline,
-        float ambientIntensity,
+        Vector3 ambientColour,
         float paperWhiteNits,
         float unlitWhiteNits,
+        int worldLightCount,
+        float nightBlend,
         Dx12FrameContext frame,
         int renderWidth,
         int renderHeight)
@@ -337,10 +347,12 @@ internal sealed class Dx12SpritePass : IDisposable
             new StaticSpriteSceneConstants(
                 new Vector2(renderWidth, renderHeight),
                 AlphaCutoff,
-                ambientIntensity,
+                ambientColour,
                 paperWhiteNits,
                 unlitWhiteNits,
-                (float)Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds));
+                (float)Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds,
+                worldLightCount,
+                nightBlend));
 
         _commandList.SetGraphicsRootSignature(_rootSignature);
         _commandList.SetPipelineState(pipeline);
@@ -350,6 +362,9 @@ internal sealed class Dx12SpritePass : IDisposable
             StaticSpriteShaderLayout.SceneConstantsCount,
             sceneConstants,
             0);
+        _commandList.SetGraphicsRootShaderResourceView(
+            StaticSpriteShaderLayout.WorldLightBufferRootParameter,
+            frame.LightHaloInstanceBuffer.GPUVirtualAddress);
         var instances = (StaticSpriteInstance*)frame.SpriteInstanceBufferMapped + startInstance;
         var firstInstance = 0;
         while (firstInstance < instanceCount)

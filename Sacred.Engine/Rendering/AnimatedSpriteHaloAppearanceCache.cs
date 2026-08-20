@@ -11,7 +11,7 @@ namespace Sacred.Engine.Rendering;
 /// </summary>
 internal sealed class AnimatedSpriteHaloAppearanceCache
 {
-    public const float HaloOpacity = 0.34f;
+    public const float HaloOpacity = 0.24f;
 
     private readonly Dictionary<StaticSpriteAsset, AnimatedSpriteHaloAppearance?> _appearances =
         new(ReferenceEqualityComparer.Instance);

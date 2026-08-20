@@ -103,6 +103,11 @@ float sparkle_cluster_alpha(vertex_output input)
 
 float halo_alpha(vertex_output input)
 {
+    // Invisible authored light volumes are consumed by the terrain/static-sprite
+    // lighting shaders and must never become visible procedural particles.
+    if (input.shape == 2)
+        discard;
+
     if (input.shape == 1)
         return sparkle_cluster_alpha(input);
 

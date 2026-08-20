@@ -117,7 +117,7 @@ internal sealed class Dx12ScreenPass : IDisposable
             new WorldQuadShaderConstants(
                 destinationRectangle,
                 new Vector2(renderWidth, renderHeight),
-                AmbientIntensity: 1.0f,
+                AmbientColour: Vector3.One,
                 IsPremultipliedAlpha: false,
                 PaperWhiteNits: paperWhiteNits));
         _commandList.SetGraphicsRoot32BitConstants(

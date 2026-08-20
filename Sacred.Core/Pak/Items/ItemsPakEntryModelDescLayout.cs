@@ -58,7 +58,10 @@ public readonly struct ItemsPakEntryModelDescLayout
     [FieldOffset(48)]
     public readonly ushort ModelTransformFlags;
 
-    /// <summary>Authored spatial extent used by sprite halos and world light markers.</summary>
+    /// <summary>
+    /// Authored spatial extent. For invisible world-light marker entries this
+    /// is the radial reach, so renderers using full quad size must double it.
+    /// </summary>
     [FieldOffset(50)]
     public readonly ushort ModelExtent;
 
@@ -77,6 +80,8 @@ public readonly struct ItemsPakEntryModelDescLayout
 
     public uint LowRenderClass => GraphicRenderFlags & ItemsPakEntry.LowRenderClassMask;
     public bool IsLightEmitting => (GraphicRenderFlags & ItemsPakEntry.LightEmittingGraphicFlag) != 0;
+    public bool HasExtendedMixedSpriteGraphicFlag =>
+        (GraphicRenderFlags & ItemsPakEntry.ExtendedMixedSpriteGraphicFlag) != 0;
     public bool UsesAnimatedMiniObjectRenderClass => LowRenderClass == ItemsPakEntry.AnimatedMiniObjectRenderClass;
     public bool UsesStaticMiniObjectRenderClass => LowRenderClass == ItemsPakEntry.StaticMiniObjectRenderClass;
     public bool UsesMixedSpriteOrLightMarkerRenderClass => LowRenderClass == ItemsPakEntry.MixedSpriteOrLightMarkerRenderClass;
@@ -93,7 +98,7 @@ public readonly struct ItemsPakEntryModelDescLayout
         MiniObjectTextureId == 0 && MixedBaseGroupId == 0 && TextureId == 0 && EffectTextureId == 0;
 
     public bool MayContainMixedSpriteEmission =>
-        GraphicRenderFlags == ItemsPakEntry.MixedSpriteOrLightMarkerRenderClass && MixedBaseGroupId != 0 &&
+        UsesMixedSpriteOrLightMarkerRenderClass && MixedBaseGroupId != 0 &&
         MiniObjectTextureId == 0 && TextureId == 0 && EffectTextureId == 0 &&
         StaticSpriteFrameCount == 0 && ModelTransformFlags == 0x0100 && ModelExtent == 0;
 }

@@ -255,7 +255,12 @@ public readonly record struct TerrainWorldLight(
 public enum WorldLightShape : uint
 {
     RadialHalo,
-    SparkleCluster
+    SparkleCluster,
+    /// <summary>
+    /// Invisible Items.pak light volume. It contributes to surface lighting but
+    /// never draws a visible particle or halo of its own.
+    /// </summary>
+    SurfaceIllumination
 }
 
 public readonly record struct TerrainLiquidSprite(

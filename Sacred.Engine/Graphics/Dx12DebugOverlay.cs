@@ -191,7 +191,7 @@ public unsafe class Dx12DebugOverlay : IDisposable
             new WorldQuadShaderConstants(
                 new Vector4(x, y, width, height),
                 new Vector2(renderWidth, renderHeight),
-                AmbientIntensity: 1.0f,
+                AmbientColour: Vector3.One,
                 IsPremultipliedAlpha: false,
                 PaperWhiteNits: uiPaperWhiteNits));
 
@@ -238,7 +238,7 @@ public unsafe class Dx12DebugOverlay : IDisposable
             $"FLOOR {stats.FloorDrawnTiles}/{stats.FloorCandidateTiles} CACHE {stats.FloorCachedTiles}",
             $"LIQUID {rendererStats.VisibleLiquidSpriteCount}/{stats.LiquidDrawnTiles} CANDIDATE {stats.LiquidCandidateTiles} CACHE {stats.LiquidCachedTiles}",
             $"STATIC {rendererStats.VisibleStaticSpriteCount}/{stats.StaticDrawnObjects} CANDIDATE {stats.StaticCandidateObjects} MISSING {stats.StaticMissingObjects}  MODEL TEX R{rendererStats.ReadyModelTextureCount} A{rendererStats.LoadingModelTextureCount} G{rendererStats.UploadingModelTextureCount} F{rendererStats.FailedModelTextureCount}",
-            $"HALOS {rendererStats.VisibleHaloCount}/{rendererStats.CandidateHaloCount}",
+            $"LIGHTS {rendererStats.SurfaceLightCount}  HALO FX {rendererStats.VisibleHaloCount - rendererStats.SurfaceLightCount}  CANDIDATES {rendererStats.CandidateHaloCount}",
             $"MODEL {FormatActiveModel(scene)}",
             $"TERRAIN HEIGHT {scene.Debug.ActorTerrainHeight:0.0}  STAIRS/DOORS {(scene.Debug.StairsMapVisible ? "ON" : "OFF")}  BLOCKED {(scene.Debug.BlockedAreasVisible ? "ON" : "OFF")}",
             $"CAMERA {camera.WorldCenter.X:0.0},{camera.WorldCenter.Y:0.0} SECTOR {world.CenterSector.X},{world.CenterSector.Y}"
@@ -290,4 +290,5 @@ public readonly record struct Dx12DebugOverlayStats(
     int VisibleStaticSpriteCount,
     int CandidateHaloCount,
     int VisibleHaloCount,
+    int SurfaceLightCount,
     string FramePacingStatus);

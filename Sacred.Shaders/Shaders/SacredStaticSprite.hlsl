@@ -19,16 +19,27 @@ struct SpriteInstance
 
 StructuredBuffer<SpriteInstance> instances : register(t0);
 Texture2D static_texture : register(t1);
+struct WorldLight
+{
+    float2 position;
+    float diameter;
+    float opacity;
+    float3 colour;
+    uint shape;
+};
+StructuredBuffer<WorldLight> world_lights : register(t2);
 SamplerState sampler0 : register(s0);
 
 cbuffer StaticSpriteSceneConstants : register(b0)
 {
     float2 viewport_size;
     float alpha_cutoff;
-    float ambient_intensity;
+    float world_light_count;
+    float3 ambient_colour;
     float scene_paper_white;
     float unlit_white_nits;
     float animation_time;
+    float night_blend;
 }
 
 struct vertex_output
@@ -43,6 +54,29 @@ struct vertex_output
     nointerpolation uint atlas_columns : TEXCOORD6;
     nointerpolation uint atlas_rows : TEXCOORD7;
 };
+
+float3 surface_lighting(float2 pixel_position)
+{
+    float3 lighting = ambient_colour;
+    uint count = min((uint)(world_light_count + 0.5f), 64u);
+    float night_visibility = lerp(0.10f, 1.0f, saturate(night_blend));
+    for (uint index = 0; index < count; index++)
+    {
+        WorldLight light = world_lights[index];
+        if (light.shape != 2u || light.diameter <= 0.0f)
+            continue;
+
+        float radius = length(
+            (pixel_position - (light.position + light.diameter * 0.5f)) /
+            (light.diameter * 0.5f));
+        float falloff = 1.0f - smoothstep(0.12f, 1.0f, radius);
+        // Sacred's surface light map stores intensity, not emitter hue. The
+        // visible flame/magic sprite remains coloured in the separate halo pass.
+        lighting += falloff * light.opacity * night_visibility;
+    }
+
+    return min(lighting, 1.0f);
+}
 
 struct pixel_output
 {
@@ -160,12 +194,14 @@ float4 sample_sprite_texture(Texture2D texture_to_sample, vertex_output input)
 
 float mixed_light_emission(float3 colour)
 {
-    // Some class-9 mixed sprites contain both normally-lit fixture art and an
-    // embedded blue-white emitter. Preserve the former while allowing only the
-    // chromatic and very bright glint pixels to remain luminous at night.
+    // Class-9 mixed sprites can contain blue magical emitters or orange fire.
+    // Preserve only those authored emitter pixels (plus white-hot glints), while
+    // their fixture art continues to receive ambient and local surface light.
     float blue_dominance = saturate((colour.b - colour.r - 0.04f) * 6.0f);
+    float warm_dominance = saturate((colour.r - colour.b - 0.10f) * 4.0f) *
+        saturate((max(colour.r, colour.g) - 0.55f) * 4.0f);
     float white_glint = saturate((max(colour.r, max(colour.g, colour.b)) - 0.80f) * 5.0f);
-    return max(blue_dominance, white_glint);
+    return max(max(blue_dominance, warm_dominance), white_glint);
 }
 
 pixel_output ps_sdr(vertex_output input)
@@ -196,7 +232,8 @@ pixel_output ps_sdr(vertex_output input)
 
     bool is_unlit = !is_liquid && (input.flags & 0x80000000u) != 0;
     float emission = is_mixed_light ? mixed_light_emission(color.rgb) : 0.0f;
-    color.rgb *= is_unlit ? 1.0f : lerp(ambient_intensity, 1.0f, emission);
+    float3 lighting = surface_lighting(input.position.xy);
+    color.rgb *= is_unlit ? 1.0f : lerp(lighting, 1.0f, emission);
 
     pixel_output output;
     output.color = color;
@@ -228,7 +265,8 @@ pixel_output ps_hdr(vertex_output input)
     bool is_unlit = !is_liquid && (input.flags & 0x80000000u) != 0;
     bool is_mixed_light = !is_liquid && (input.flags & 0x20000000u) != 0;
     float emission = is_mixed_light ? mixed_light_emission(tex.rgb) : 0.0f;
-    tex.rgb *= is_unlit ? 1.0f : lerp(ambient_intensity, 1.0f, emission);
+    float3 lighting = surface_lighting(input.position.xy);
+    tex.rgb *= is_unlit ? 1.0f : lerp(lighting, 1.0f, emission);
     float nits = is_unlit
         ? unlit_white_nits
         : lerp(scene_paper_white, unlit_white_nits, emission);

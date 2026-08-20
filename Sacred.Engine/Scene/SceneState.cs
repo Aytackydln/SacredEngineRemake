@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Numerics;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Core.World.Sector;
-using Sacred.Granny;
 using Sacred.Granny.Meshes;
 using Sacred.Inventory.Effects;
 
@@ -65,6 +64,7 @@ public sealed class SceneDebugState
 public sealed class SceneLighting
 {
     public const float DefaultUnlitStaticSpriteWhiteNits = 380.0f;
+    public static readonly Vector3 DefaultLocalLightColour = new(1.0f, 0.89f, 0.55f);
 
     public Vector3 LightPosition { get; set; } = new(0.0f, 250.0f, 650.0f);
     public Vector3 DirectionToLight { get; set; } = Vector3.UnitZ;
@@ -75,9 +75,12 @@ public sealed class SceneLighting
     public float DiffuseIntensity { get; set; } = 0.85f;
     public float SpecularIntensity { get; set; } = 0.20f;
     public float Shininess { get; set; } = 24.0f;
-    public float WorldQuadAmbientIntensity { get; set; } = 1.0f;
+    public Vector3 WorldSurfaceAmbientColour { get; set; } = Vector3.One;
     public float UnlitStaticSpriteWhiteNits { get; set; } = DefaultUnlitStaticSpriteWhiteNits;
     public float NightBlend { get; set; }
+    public float PlayerLightDiameter { get; set; }
+    public Vector3 PlayerLightColour { get; set; } = Vector3.One;
+    public float PlayerLightOpacity { get; set; } = 0.35f;
     /// <summary>Normalized solar elevation: zero at/below the horizon and one at noon.</summary>
     public float SunHeight { get; set; } = 1.0f;
     public float ShadowOpacity { get; set; } = 0.42f;

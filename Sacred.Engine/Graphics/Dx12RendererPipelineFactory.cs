@@ -7,6 +7,9 @@ namespace Sacred.Engine.Graphics;
 /// <summary>Connects the renderer's shader compiler to the shared Sacred pipeline catalog.</summary>
 internal static class Dx12RendererPipelineFactory
 {
+    public static Dx12CompiledPipelineGroup CompileScreen(Dx12ShaderSet shaders) =>
+        Dx12PipelineFactory.Compile(Dx12PipelineCatalog.CreateScreen(shaders), Dx12ShaderCompiler.CompileShader);
+
     public static Dx12CompiledPipelineGroup CompileTerrain(Dx12ShaderSet shaders) =>
         Dx12PipelineFactory.Compile(Dx12PipelineCatalog.CreateTerrain(shaders), Dx12ShaderCompiler.CompileShader);
 

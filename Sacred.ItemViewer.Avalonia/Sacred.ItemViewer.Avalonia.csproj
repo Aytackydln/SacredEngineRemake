@@ -48,6 +48,8 @@
         <ProjectReference Include="..\Sacred.Inventory\Sacred.Inventory.csproj"/>
     </ItemGroup>
 
+    <!--
     <Import Project="..\Sacred.Granny.Native.Worker\PublishWorker.targets" />
+    -->
 </Project>
 

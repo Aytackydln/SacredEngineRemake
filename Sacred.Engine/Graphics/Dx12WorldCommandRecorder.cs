@@ -97,10 +97,19 @@ internal sealed class Dx12WorldCommandRecorder
         var lightHaloInstanceCount = _lightHalos.PrepareInstances(
             camera,
             worldLights,
+            scene.Lighting,
+            scene.Models.Count > 0
+                ? new Vector3(
+                    scene.Models[0].Position.X,
+                    scene.Models[0].Position.Y,
+                    scene.Models[0].GroundPlaneZ)
+                : null,
             frame,
             renderWidth,
             renderHeight,
             worldSpriteRevision);
+        var surfaceLightCount = _lightHalos.SurfaceLightCount;
+        var worldLightBufferAddress = frame.LightHaloInstanceBuffer.GPUVirtualAddress;
 
         // Terrain and sprites use this exact transform for the whole frame. Independently
         // deriving it per pass opens moving seams at float rounding boundaries.
@@ -125,8 +134,11 @@ internal sealed class Dx12WorldCommandRecorder
                 drawPosition.Y,
                 drawWidth,
                 drawHeight,
-                scene.Lighting.WorldQuadAmbientIntensity,
+                scene.Lighting.WorldSurfaceAmbientColour,
                 false,
+                surfaceLightCount,
+                scene.Lighting.NightBlend,
+                worldLightBufferAddress,
                 constants,
                 rootSignature,
                 terrainPipeline,
@@ -139,8 +151,10 @@ internal sealed class Dx12WorldCommandRecorder
             {
                 _sprites.RecordLiquid(
                     liquidRange,
-                    scene.Lighting.WorldQuadAmbientIntensity,
+                    scene.Lighting.WorldSurfaceAmbientColour,
                     displayProfile.ScenePaperWhiteNits,
+                    surfaceLightCount,
+                    scene.Lighting.NightBlend,
                     frame,
                     renderWidth,
                     renderHeight);
@@ -152,8 +166,11 @@ internal sealed class Dx12WorldCommandRecorder
                 drawPosition.Y,
                 drawWidth,
                 drawHeight,
-                scene.Lighting.WorldQuadAmbientIntensity,
+                scene.Lighting.WorldSurfaceAmbientColour,
                 true,
+                surfaceLightCount,
+                scene.Lighting.NightBlend,
+                worldLightBufferAddress,
                 constants,
                 rootSignature,
                 terrainPipeline,
@@ -173,8 +190,11 @@ internal sealed class Dx12WorldCommandRecorder
                     debugPosition.Y,
                     screenTransform.Scale(image.BlockedAreaDebugWidth),
                     screenTransform.Scale(image.BlockedAreaDebugHeight),
-                    1.0f,
+                    Vector3.One,
                     true,
+                    0,
+                    0.0f,
+                    worldLightBufferAddress,
                     constants,
                     rootSignature,
                     terrainPipeline,
@@ -190,9 +210,11 @@ internal sealed class Dx12WorldCommandRecorder
         _models.RecordShadows(camera, scene.Models, scene.Lighting, frame.Index);
         _sprites.RecordStatic(
             spriteBatch,
-            scene.Lighting.WorldQuadAmbientIntensity,
+            scene.Lighting.WorldSurfaceAmbientColour,
             displayProfile.ScenePaperWhiteNits,
             scene.Lighting.UnlitStaticSpriteWhiteNits,
+            surfaceLightCount,
+            scene.Lighting.NightBlend,
             frame,
             renderWidth,
             renderHeight);
@@ -203,6 +225,7 @@ internal sealed class Dx12WorldCommandRecorder
                 sectorImages,
                 screenTransform,
                 constants,
+                worldLightBufferAddress,
                 rootSignature,
                 terrainPipeline,
                 liquidCoverPipeline,
@@ -228,6 +251,9 @@ internal sealed class Dx12WorldCommandRecorder
 
         _commandList.SetGraphicsRootSignature(rootSignature);
         _commandList.SetPipelineState(terrainPipeline);
+        _commandList.SetGraphicsRootShaderResourceView(
+            WorldQuadShaderLayout.WorldLightBufferRootParameter,
+            worldLightBufferAddress);
         _commandList.OMSetRenderTargets(renderTarget, null);
         if (scene.Debug.OverlaysVisible)
             _debugOverlay.RecordDebugOverlay(renderWidth, renderHeight, displayProfile.UiPaperWhiteNits);
@@ -252,6 +278,7 @@ internal sealed class Dx12WorldCommandRecorder
         IReadOnlyList<TerrainSectorComposition> sectorImages,
         WorldScreenTransform screenTransform,
         float* constants,
+        ulong worldLightBufferAddress,
         ID3D12RootSignature rootSignature,
         ID3D12PipelineState terrainPipeline,
         ID3D12PipelineState liquidCoverPipeline,
@@ -275,8 +302,11 @@ internal sealed class Dx12WorldCommandRecorder
                 debugPosition.Y,
                 screenTransform.Scale(image.StairsDebugWidth),
                 screenTransform.Scale(image.StairsDebugHeight),
-                1.0f,
+                Vector3.One,
                 true,
+                0,
+                0.0f,
+                worldLightBufferAddress,
                 constants,
                 rootSignature,
                 terrainPipeline,
@@ -293,8 +323,11 @@ internal sealed class Dx12WorldCommandRecorder
         float drawY,
         float drawWidth,
         float drawHeight,
-        float ambientIntensity,
+        Vector3 ambientColour,
         bool premultipliedAlpha,
+        int worldLightCount,
+        float nightBlend,
+        ulong worldLightBufferAddress,
         float* constants,
         ID3D12RootSignature rootSignature,
         ID3D12PipelineState terrainPipeline,
@@ -311,9 +344,11 @@ internal sealed class Dx12WorldCommandRecorder
             new WorldQuadShaderConstants(
                 new Vector4(drawX, drawY, drawWidth, drawHeight),
                 new Vector2(renderWidth, renderHeight),
-                ambientIntensity,
+                ambientColour,
                 premultipliedAlpha,
-                paperWhiteNits));
+                paperWhiteNits,
+                worldLightCount,
+                nightBlend));
         _commandList.SetGraphicsRoot32BitConstants(
             WorldQuadShaderLayout.RootConstantsRootParameter,
             WorldQuadShaderLayout.RootConstantsCount,
@@ -322,6 +357,9 @@ internal sealed class Dx12WorldCommandRecorder
         _commandList.SetGraphicsRootDescriptorTable(
             WorldQuadShaderLayout.TextureRootParameter,
             _srvHeapStart + srvSlot * _srvDescriptorSize);
+        _commandList.SetGraphicsRootShaderResourceView(
+            WorldQuadShaderLayout.WorldLightBufferRootParameter,
+            worldLightBufferAddress);
         _commandList.DrawInstanced(6, 1, 0, 0);
     }
 }

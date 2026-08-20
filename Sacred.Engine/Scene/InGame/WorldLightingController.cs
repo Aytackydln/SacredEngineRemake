@@ -178,7 +178,13 @@ public sealed class WorldLightingController
         lighting.DiffuseIntensity = Lerp(0.82f, 0.12f, blend);
         // Moonlight keeps a cool diffuse response, but never contributes a specular lobe.
         lighting.SpecularIntensity = Lerp(0.16f, 0.0f, blend);
-        lighting.WorldQuadAmbientIntensity = Lerp(1.0f, 0.30f, blend);
+        // The reference captures retain roughly half of the daytime surface value
+        // away from local lights, with only a slight cool bias. Keep that filter
+        // shared by terrain and world sprites before local lights are accumulated.
+        lighting.WorldSurfaceAmbientColour = Vector3.Lerp(
+            Vector3.One,
+            new Vector3(0.48f, 0.49f, 0.52f),
+            blend);
         lighting.UnlitStaticSpriteWhiteNits = SceneLighting.DefaultUnlitStaticSpriteWhiteNits;
         lighting.NightBlend = blend;
     }
@@ -245,7 +251,7 @@ public sealed class WorldLightingController
         lighting.AmbientIntensity = 0;
         lighting.DiffuseIntensity = 0;
         lighting.SpecularIntensity = 0;
-        lighting.WorldQuadAmbientIntensity = 0;
+        lighting.WorldSurfaceAmbientColour = Vector3.Zero;
         lighting.UnlitStaticSpriteWhiteNits = SceneLighting.DefaultUnlitStaticSpriteWhiteNits;
         lighting.NightBlend = 1;
         lighting.ShadowOpacity = 0;

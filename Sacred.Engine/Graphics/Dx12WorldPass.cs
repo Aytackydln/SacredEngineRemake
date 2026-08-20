@@ -193,6 +193,7 @@ internal sealed class Dx12WorldPass : IDisposable
                 _sprites.VisibleStaticSpriteCount,
                 _lightHalos.CandidateCount,
                 _lightHalos.InstanceCount,
+                _lightHalos.SurfaceLightCount,
                 framePacingStatus),
             _graphics.CurrentFrame.TransientResources);
         _commandRecorder.Record(

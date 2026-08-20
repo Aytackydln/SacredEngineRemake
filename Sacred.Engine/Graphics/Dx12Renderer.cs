@@ -34,6 +34,8 @@ public sealed class Dx12Renderer : IDisposable
     private readonly Action<Dx12FrameContext> _releaseRetiredResources;
 
     private Dx12WorldPass? _worldPass;
+    private ID3D12RootSignature _screenRootSignature = null!;
+    private ID3D12PipelineState _screenPipeline = null!;
     private ID3D12RootSignature _rootSignature = null!;
     private ID3D12PipelineState _terrainPipeline = null!;
     private ID3D12PipelineState _terrainLiquidCoverPipeline = null!;
@@ -85,8 +87,7 @@ public sealed class Dx12Renderer : IDisposable
             _textureUploader,
             _gameDirectory);
         _graphics.WaitForGpu(_releaseRetiredResources);
-        DisposePipelineResources();
-        CreatePipeline();
+        CreateWorldPipeline(Dx12RendererPipelineFactory.Compile(_graphics.Shaders, _graphics.IsHdrEnabled));
     }
 
     public ValueTask RenderScreenFrameAsync(
@@ -104,7 +105,7 @@ public sealed class Dx12Renderer : IDisposable
                 worldPreload.Scene,
                 frameId);
 
-        _graphics.BeginRenderSubmission(_terrainPipeline);
+        _graphics.BeginRenderSubmission(_screenPipeline);
         _screenPass.Prepare(screen, _graphics.CurrentFrame);
         if (worldPreload is not null)
             GetWorldPass().UploadPreload(worldPreload, prepared);
@@ -126,7 +127,7 @@ public sealed class Dx12Renderer : IDisposable
             map.Map.Width * map.Zoom,
             map.Map.Height * map.Zoom);
 
-        _graphics.BeginRenderSubmission(_terrainPipeline);
+        _graphics.BeginRenderSubmission(_screenPipeline);
         _screenPass.Prepare(map.Map, _graphics.CurrentFrame);
         GetWorldPass().PrepareWorldMap(map.Overlay);
         RecordScreenPass(destination, map.Overlay);
@@ -184,16 +185,12 @@ public sealed class Dx12Renderer : IDisposable
 
     private void CreatePipeline()
     {
-        if (_worldPass is null)
-        {
-            CreateTerrainPipeline(Dx12RendererPipelineFactory.CompileTerrain(_graphics.Shaders));
-            return;
-        }
-
-        CreatePipeline(Dx12RendererPipelineFactory.Compile(_graphics.Shaders, _graphics.IsHdrEnabled));
+        CreateScreenPipeline(Dx12RendererPipelineFactory.CompileScreen(_graphics.Shaders));
+        if (_worldPass is not null)
+            CreateWorldPipeline(Dx12RendererPipelineFactory.Compile(_graphics.Shaders, _graphics.IsHdrEnabled));
     }
 
-    private void CreatePipeline(Dx12CompiledRendererPipelines shaders)
+    private void CreateWorldPipeline(Dx12CompiledRendererPipelines shaders)
     {
         CreateTerrainPipeline(shaders.Terrain);
         var worldPass = _worldPass
@@ -213,6 +210,16 @@ public sealed class Dx12Renderer : IDisposable
                 shaders.Models,
                 _graphics.BackBufferFormat,
                 Dx12DeviceContext.DepthBufferFormat));
+    }
+
+    private void CreateScreenPipeline(Dx12CompiledPipelineGroup shaders)
+    {
+        var screen = Dx12RendererPipelineFactory.Create(
+            _graphics.Device,
+            shaders,
+            _graphics.BackBufferFormat);
+        _screenRootSignature = screen.RootSignature;
+        _screenPipeline = screen[Dx12PipelineKind.Terrain];
     }
 
     private void CreateTerrainPipeline(Dx12CompiledPipelineGroup shaders)
@@ -235,17 +242,17 @@ public sealed class Dx12Renderer : IDisposable
 
         try
         {
+            var screenShaders = Dx12RendererPipelineFactory.CompileScreen(_graphics.Shaders);
             var rendererShaders = _worldPass is null
                 ? null
                 : Dx12RendererPipelineFactory.Compile(_graphics.Shaders, _graphics.IsHdrEnabled);
-            var terrainShaders = rendererShaders?.Terrain
-                                 ?? Dx12RendererPipelineFactory.CompileTerrain(_graphics.Shaders);
             _graphics.WaitForGpu(_releaseRetiredResources);
             DisposePipelineResources();
+            CreateScreenPipeline(screenShaders);
             if (rendererShaders is null)
-                CreateTerrainPipeline(terrainShaders);
-            else
-                CreatePipeline(rendererShaders);
+                return;
+
+            CreateWorldPipeline(rendererShaders);
             Trace.WriteLine("Reloaded Direct3D 12 shaders after Hot Reload update.");
         }
         catch (Exception exception)
@@ -265,6 +272,10 @@ public sealed class Dx12Renderer : IDisposable
     private void DisposePipelineResources()
     {
         _worldPass?.DisposePipelines();
+        _screenPipeline?.Dispose();
+        _screenPipeline = null!;
+        _screenRootSignature?.Dispose();
+        _screenRootSignature = null!;
         _terrainPipeline?.Dispose();
         _terrainPipeline = null!;
         _terrainLiquidCoverPipeline?.Dispose();
@@ -303,8 +314,8 @@ public sealed class Dx12Renderer : IDisposable
         if (destinationRectangle is { } destination)
         {
             _screenPass.Record(
-                _rootSignature,
-                _terrainPipeline,
+                _screenRootSignature,
+                _screenPipeline,
                 _graphics.RenderWidth,
                 _graphics.RenderHeight,
                 _graphics.DisplayProfile.UiPaperWhiteNits,
@@ -313,15 +324,15 @@ public sealed class Dx12Renderer : IDisposable
         else
         {
             _screenPass.Record(
-                _rootSignature,
-                _terrainPipeline,
+                _screenRootSignature,
+                _screenPipeline,
                 _graphics.RenderWidth,
                 _graphics.RenderHeight,
                 _graphics.DisplayProfile.UiPaperWhiteNits);
         }
 
         if (worldMapOverlay is { } overlay)
-            GetWorldPass().RecordWorldMap(overlay, _rootSignature, _terrainPipeline);
+            GetWorldPass().RecordWorldMap(overlay, _screenRootSignature, _screenPipeline);
         Dx12TextureUploader.Transition(
             _graphics.CommandList,
             _graphics.CurrentBackBuffer,
