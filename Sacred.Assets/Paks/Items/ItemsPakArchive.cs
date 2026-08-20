@@ -1,6 +1,5 @@
 ﻿using System.Text;
 using Sacred.Assets.Utils;
-using Sacred.Core;
 using Sacred.Core.Pak.Items;
 
 namespace Sacred.Assets.Paks.Items;
@@ -25,8 +24,6 @@ public static class ItemsPakArchive
             throw new InvalidDataException($"Invalid file format. Expected header '{firstBytes}', but got '{headerString}'.");
         }
 
-        var sacredFile = new SacredPakFile(filePath, SacredPakFileType.Items);
-
         var version = br.ReadByte();
         var entryCount = br.ReadInt32();
 
@@ -41,14 +38,8 @@ public static class ItemsPakArchive
             entryInfos.Add(entryInfo);
         }
 
-        var modelDescIndex = 0;
-        foreach (var modelDesc in ItemsPakEntryModelDesc.ReadMany(sacredFile, pakBytes, entryInfos))
-        {
-            yield return new ItemsPakEntry(
-                EntryInfo: entryInfos[modelDescIndex++],
-                ModelDesc: modelDesc
-            );
-        }
+        foreach (var entry in ItemsPakEntry.ReadMany(pakBytes, entryInfos))
+            yield return entry;
     }
 
 }

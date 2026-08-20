@@ -167,7 +167,7 @@ public sealed class Win32Window : IDisposable
         }
 
         IsBorderlessFullscreen = enabled;
-        Console.WriteLine($"Window mode: {(enabled ? "borderless fullscreen" : $"windowed {_windowedWidth}x{_windowedHeight}")}");
+        EngineLog.WriteLine($"Window mode: {(enabled ? "borderless fullscreen" : $"windowed {_windowedWidth}x{_windowedHeight}")}");
     }
 
     public void RequestFocus() => User32.SetFocus(Hwnd);

@@ -31,7 +31,7 @@ internal sealed class CheatsController : IDisposable
     {
         ArgumentNullException.ThrowIfNull(input);
         _readerTask = Task.Run(() => ReadCommandsAsync(input, _shutdown.Token));
-        Console.WriteLine("Cheats ready. Type 'help' for commands.");
+        EngineLog.WriteLine("Cheats ready. Type 'help' for commands.");
     }
 
     public void Update(Action<CheatCommand> execute)

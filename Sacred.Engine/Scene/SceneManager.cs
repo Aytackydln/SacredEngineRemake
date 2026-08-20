@@ -67,7 +67,7 @@ internal sealed class SceneManager : IDisposable
         previous?.OnDeactivated();
         _activeScene = registration.GetOrCreate();
         _activeScene.OnActivated();
-        Console.WriteLine($"Scene switch: {previous?.Id.ToString() ?? "None"} -> {id}");
+        EngineLog.WriteLine($"Scene switch: {previous?.Id.ToString() ?? "None"} -> {id}");
         SceneChanged?.Invoke();
 
         if (previous is null || previous == _activeScene)

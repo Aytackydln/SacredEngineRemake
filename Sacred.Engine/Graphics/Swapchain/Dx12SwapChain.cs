@@ -1,4 +1,6 @@
 using System;
+using System.Threading;
+using Sacred.Engine.Extern;
 using Sacred.Shaders;
 using Vortice.Direct3D12;
 using Vortice.DXGI;
@@ -7,9 +9,17 @@ namespace Sacred.Engine.Graphics.Swapchain;
 
 internal abstract class Dx12SwapChain : IDisposable
 {
+    private const uint FrameLatencyPollMilliseconds = 50;
+    private readonly nint _frameLatencyWaitableObject;
+
     private protected Dx12SwapChain(IDXGISwapChain3 swapChain)
     {
         SwapChain = swapChain;
+        using var swapChain2 = SwapChain.QueryInterface<IDXGISwapChain2>();
+        swapChain2.MaximumFrameLatency = 1;
+        _frameLatencyWaitableObject = swapChain2.FrameLatencyWaitableObject;
+        if (_frameLatencyWaitableObject == 0)
+            throw new InvalidOperationException("DXGI did not provide a frame-latency waitable object.");
     }
 
     public IDXGISwapChain3 SwapChain { get; }
@@ -23,6 +33,19 @@ internal abstract class Dx12SwapChain : IDisposable
     public abstract Dx12DisplayProfile DisplayProfile { get; }
 
     public uint CurrentBackBufferIndex => SwapChain.CurrentBackBufferIndex;
+
+    public void WaitForPresentSlot(CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = Kernel32.WaitForSingleObject(_frameLatencyWaitableObject, FrameLatencyPollMilliseconds);
+            if (result == Kernel32.WaitObject0)
+                return;
+            if (result != Kernel32.WaitTimeout)
+                throw new InvalidOperationException("Failed while waiting for an available DXGI presentation slot.");
+        }
+    }
 
     public void Present(bool verticalSyncEnabled, bool allowTearing)
     {

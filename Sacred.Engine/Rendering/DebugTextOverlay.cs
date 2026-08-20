@@ -219,7 +219,7 @@ public sealed class DebugOverlayFontSet : IDisposable
     {
         if (!File.Exists(path))
         {
-            Console.WriteLine($"Debug overlay font not found: {path}");
+            EngineLog.WriteLine($"Debug overlay font not found: {path}");
             return null;
         }
 

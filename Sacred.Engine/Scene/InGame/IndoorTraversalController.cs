@@ -40,14 +40,14 @@ internal sealed class IndoorTraversalController(WorldStreamer worldStreamer, Ind
                 return false;
 
             state.ActiveGroup = crossedGroup;
-            Console.WriteLine($"Indoor entry: group {crossedGroup.Id} after gate at {tile.X},{tile.Y}");
+        EngineLog.WriteLine($"Indoor entry: group {crossedGroup.Id} after gate at {tile.X},{tile.Y}");
             return true;
         }
 
         if (state.ActiveGroup?.Id == crossedGroup.Id)
         {
             state.ActiveGroup = null;
-            Console.WriteLine($"Indoor exit: group {crossedGroup.Id} after gate at {tile.X},{tile.Y}");
+        EngineLog.WriteLine($"Indoor exit: group {crossedGroup.Id} after gate at {tile.X},{tile.Y}");
             return true;
         }
 

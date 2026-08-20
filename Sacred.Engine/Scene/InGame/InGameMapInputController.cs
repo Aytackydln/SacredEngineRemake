@@ -40,7 +40,7 @@ internal sealed class InGameMapInputController
         if (_input.ConsumePressed(VirtualKey.M))
         {
             SetMinimapVisible(false);
-            Console.WriteLine("World map requested by keyboard.");
+            EngineLog.WriteLine("World map requested by keyboard.");
             _requestSwitch(GameSceneId.WorldMap);
             return true;
         }
@@ -74,7 +74,7 @@ internal sealed class InGameMapInputController
             {
                 ResetSelectGesture();
                 SetMinimapVisible(false);
-                Console.WriteLine("World map requested by controller SELECT tap.");
+            EngineLog.WriteLine("World map requested by controller SELECT tap.");
                 _requestSwitch(GameSceneId.WorldMap);
                 return true;
             }
@@ -118,6 +118,6 @@ internal sealed class InGameMapInputController
             return;
 
         _minimap.IsVisible = visible;
-        Console.WriteLine(visible ? "Minimap opened." : "Minimap closed.");
+        EngineLog.WriteLine(visible ? "Minimap opened." : "Minimap closed.");
     }
 }

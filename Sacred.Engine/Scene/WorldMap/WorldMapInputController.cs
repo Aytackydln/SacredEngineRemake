@@ -36,7 +36,7 @@ internal sealed class WorldMapInputController(
             gamepad.WasPressed(GamepadButtons.View) ||
             gamepad.WasPressed(GamepadButtons.B))
         {
-            Console.WriteLine("Returning from world map to game.");
+        EngineLog.WriteLine("Returning from world map to game.");
             requestSwitch(GameSceneId.InGame);
             return false;
         }
@@ -76,7 +76,7 @@ internal sealed class WorldMapInputController(
         if (wheelDelta != 0)
         {
             zoomFactor *= MathF.Pow(1.18f, wheelDelta / 120.0f);
-            Console.WriteLine($"World map mouse-wheel zoom: {wheelDelta}.");
+        EngineLog.WriteLine($"World map mouse-wheel zoom: {wheelDelta}.");
         }
 
         if (Math.Abs(zoomFactor - 1.0f) > float.Epsilon)
@@ -118,7 +118,7 @@ internal sealed class WorldMapInputController(
             else
             {
                 _mouseTargeting = true;
-                Console.WriteLine($"World map minimap target started at {clickPosition.X:0},{clickPosition.Y:0}.");
+        EngineLog.WriteLine($"World map minimap target started at {clickPosition.X:0},{clickPosition.Y:0}.");
             }
         }
 
@@ -126,7 +126,7 @@ internal sealed class WorldMapInputController(
         {
             _mapDragging = true;
             _lastPointerPosition = input.MousePosition;
-            Console.WriteLine($"World map drag started at {_lastPointerPosition.X:0},{_lastPointerPosition.Y:0}.");
+        EngineLog.WriteLine($"World map drag started at {_lastPointerPosition.X:0},{_lastPointerPosition.Y:0}.");
         }
 
         if (_mapDragging && input.IsRightMouseButtonDown)
@@ -148,14 +148,14 @@ internal sealed class WorldMapInputController(
         if (input.ConsumeRightMouseButtonReleased())
         {
             if (_mapDragging)
-                Console.WriteLine("World map drag completed.");
+        EngineLog.WriteLine("World map drag completed.");
             _mapDragging = false;
         }
 
         if (input.ConsumeLeftMouseButtonReleased())
         {
             if (_mouseTargeting)
-                Console.WriteLine("World map minimap target closed.");
+        EngineLog.WriteLine("World map minimap target closed.");
             _mouseTargeting = false;
         }
 
@@ -187,7 +187,7 @@ internal sealed class WorldMapInputController(
     private void TeleportTo(Vector2 target, string source)
     {
         teleport(target);
-        Console.WriteLine($"World map teleport ({source}) to {target.X:0.##}, {target.Y:0.##}.");
+        EngineLog.WriteLine($"World map teleport ({source}) to {target.X:0.##}, {target.Y:0.##}.");
         requestSwitch(GameSceneId.InGame);
     }
 

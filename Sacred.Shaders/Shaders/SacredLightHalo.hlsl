@@ -1,6 +1,6 @@
 // Procedural world-light halos deliberately have no texture or sampler binding.
 // Keeping this pass separate prevents halo discovery from entering texture residency.
-#pragma vertex vs_main
+#pragma vertex vs_sdr
 #pragma fragment ps_sdr
 
 struct LightHaloInstance
@@ -29,19 +29,18 @@ struct vertex_output
     nointerpolation float opacity : TEXCOORD1;
     nointerpolation float3 colour : TEXCOORD2;
     nointerpolation uint shape : TEXCOORD3;
+    nointerpolation float3 sparkle_pulses : TEXCOORD4;
 };
 
-static const float2 quad_uvs[6] =
+static const float2 quad_uvs[4] =
 {
     float2(0.0f, 0.0f),
     float2(1.0f, 0.0f),
     float2(0.0f, 1.0f),
-    float2(0.0f, 1.0f),
-    float2(1.0f, 0.0f),
     float2(1.0f, 1.0f)
 };
 
-vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_InstanceID)
+vertex_output build_vertex(uint vertex_id, uint instance_id)
 {
     LightHaloInstance instance = instances[instance_id];
     float2 uv = quad_uvs[vertex_id];
@@ -56,6 +55,24 @@ vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_Instan
     output.opacity = instance.opacity;
     output.colour = instance.colour;
     output.shape = instance.shape;
+    output.sparkle_pulses = float3(
+        0.58f + 0.42f * sin(animation_time * 4.7f),
+        0.62f + 0.38f * sin(animation_time * 3.9f + 2.1f),
+        0.56f + 0.44f * sin(animation_time * 5.3f + 4.0f));
+    return output;
+}
+
+vertex_output vs_sdr(uint vertex_id : SV_VertexID, uint instance_id : SV_InstanceID)
+{
+    return build_vertex(vertex_id, instance_id);
+}
+
+vertex_output vs_hdr(uint vertex_id : SV_VertexID, uint instance_id : SV_InstanceID)
+{
+    vertex_output output = build_vertex(vertex_id, instance_id);
+    // The colour and paper-white value are constant across an instance. Converting
+    // here avoids repeating the expensive sRGB -> Rec.2020 -> PQ work per pixel.
+    output.colour = SdrTextureToHdr10(output.colour, white_nits);
     return output;
 }
 
@@ -76,12 +93,9 @@ float star_alpha(float2 position, float pulse)
 float sparkle_cluster_alpha(vertex_output input)
 {
     float2 p = input.tex_coord * 2.0f - 1.0f;
-    float pulse0 = 0.58f + 0.42f * sin(animation_time * 4.7f);
-    float pulse1 = 0.62f + 0.38f * sin(animation_time * 3.9f + 2.1f);
-    float pulse2 = 0.56f + 0.44f * sin(animation_time * 5.3f + 4.0f);
-    float stars = star_alpha((p - float2(-0.34f, 0.05f)) / 0.72f, pulse0);
-    stars = max(stars, star_alpha((p - float2(0.28f, 0.30f)) / 0.56f, pulse1));
-    stars = max(stars, star_alpha((p - float2(0.08f, -0.50f)) / 0.42f, pulse2));
+    float stars = star_alpha((p - float2(-0.34f, 0.05f)) / 0.72f, input.sparkle_pulses.x);
+    stars = max(stars, star_alpha((p - float2(0.28f, 0.30f)) / 0.56f, input.sparkle_pulses.y));
+    stars = max(stars, star_alpha((p - float2(0.08f, -0.50f)) / 0.42f, input.sparkle_pulses.z));
     if (stars <= 0.002f)
         discard;
     return stars * input.opacity;
@@ -113,5 +127,5 @@ float4 ps_sdr(vertex_output input) : SV_Target
 float4 ps_hdr(vertex_output input) : SV_Target
 {
     float alpha = halo_alpha(input);
-    return float4(SdrTextureToHdr10(input.colour, white_nits) * alpha, alpha);
+    return float4(input.colour * alpha, alpha);
 }

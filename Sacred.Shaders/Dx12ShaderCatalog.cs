@@ -16,8 +16,6 @@ public static class Dx12ShaderCatalog
         DisplayShader("SacredWorldQuad", EmbeddedResource_Shaders.SacredWorldQuad_hlsl, "vs_main", "vs_5_0");
     private static readonly Dx12ShaderSource StaticSpriteVertexShader =
         DisplayShader("SacredStaticSprite", EmbeddedResource_Shaders.SacredStaticSprite_hlsl, "vs_main", "vs_5_0");
-    private static readonly Dx12ShaderSource LightHaloVertexShader =
-        DisplayShader("SacredLightHalo", EmbeddedResource_Shaders.SacredLightHalo_hlsl, "vs_main", "vs_5_0");
     private static readonly Dx12ShaderSource ModelVertexShader =
         DisplayShader("SacredModel", EmbeddedResource_Shaders.SacredModel_hlsl, "vs_main", "vs_5_0");
     private static readonly Dx12ShaderSource AnimatedModelVertexShader =
@@ -38,8 +36,8 @@ public static class Dx12ShaderCatalog
     public static readonly Dx12ShaderSource TerrainComposePixelShader =
         Shader("SacredTerrainCompose", EmbeddedResource_Shaders.SacredTerrainCompose_hlsl, "ps_main", "ps_5_0");
 
-    public static readonly Dx12ShaderSet Sdr = CreateShaderSet("ps_sdr");
-    public static readonly Dx12ShaderSet Hdr = CreateShaderSet("ps_hdr");
+    public static readonly Dx12ShaderSet Sdr = CreateShaderSet("vs_sdr", "ps_sdr");
+    public static readonly Dx12ShaderSet Hdr = CreateShaderSet("vs_hdr", "ps_hdr");
 
     /// <summary>Raised after the embedded shader assembly is rebuilt.</summary>
     public static event Action? Reloaded;
@@ -53,12 +51,18 @@ public static class Dx12ShaderCatalog
         string target) =>
         new(name, [() => EmbeddedShaderAssemblyReloader.ReadAllBytes(resource.GetResourceName())], entryPoint, target);
 
-    private static Dx12ShaderSet CreateShaderSet(string pixelEntryPoint) => new(
+    private static Dx12ShaderSet CreateShaderSet(
+        string lightHaloVertexEntryPoint,
+        string pixelEntryPoint) => new(
         QuadWorldVertexShader,
         DisplayShader("SacredWorldQuad", EmbeddedResource_Shaders.SacredWorldQuad_hlsl, pixelEntryPoint, "ps_5_0"),
         StaticSpriteVertexShader,
         DisplayShader("SacredStaticSprite", EmbeddedResource_Shaders.SacredStaticSprite_hlsl, pixelEntryPoint, "ps_5_0"),
-        LightHaloVertexShader,
+        DisplayShader(
+            "SacredLightHalo",
+            EmbeddedResource_Shaders.SacredLightHalo_hlsl,
+            lightHaloVertexEntryPoint,
+            "vs_5_0"),
         DisplayShader("SacredLightHalo", EmbeddedResource_Shaders.SacredLightHalo_hlsl, pixelEntryPoint, "ps_5_0"),
         ModelVertexShader,
         DisplayShader("SacredModel", EmbeddedResource_Shaders.SacredModel_hlsl, pixelEntryPoint, "ps_5_0"),

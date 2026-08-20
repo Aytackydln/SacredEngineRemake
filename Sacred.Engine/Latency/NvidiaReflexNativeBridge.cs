@@ -19,6 +19,7 @@ internal sealed unsafe class NvidiaReflexNativeBridge : IDisposable
     private readonly delegate* unmanaged[Cdecl]<ulong, void> _sleep;
     private readonly delegate* unmanaged[Cdecl]<uint, ulong, void> _marker;
     private readonly delegate* unmanaged[Cdecl]<uint> _getCapabilities;
+    private uint _capabilities;
     private bool _disposed;
 
     private NvidiaReflexNativeBridge(
@@ -39,11 +40,12 @@ internal sealed unsafe class NvidiaReflexNativeBridge : IDisposable
         _sleep = sleep;
         _marker = marker;
         _getCapabilities = getCapabilities;
+        _capabilities = getCapabilities();
     }
 
-    public bool IsReflexAvailable => (_getCapabilities() & ReflexCapability) != 0;
+    public bool IsReflexAvailable => (_capabilities & ReflexCapability) != 0;
 
-    public bool IsPclAvailable => (_getCapabilities() & PclCapability) != 0;
+    public bool IsPclAvailable => (_capabilities & PclCapability) != 0;
 
     public static bool TryCreate(out NvidiaReflexNativeBridge? bridge)
     {
@@ -110,30 +112,33 @@ internal sealed unsafe class NvidiaReflexNativeBridge : IDisposable
     public void AttachD3D12(nint device, nint commandQueue)
     {
         if (!_disposed)
+        {
             _ = _setD3D12Device(device, commandQueue);
+            _capabilities = _getCapabilities();
+        }
     }
 
     public void SetMode(LowLatencyMode mode, uint maxFps)
     {
-        if (!_disposed)
+        if (!_disposed && IsReflexAvailable)
             _setMode((int)mode, maxFps);
     }
 
     public void BeginFrame(ulong frameId)
     {
-        if (!_disposed)
+        if (!_disposed && IsReflexAvailable)
             _beginFrame(frameId);
     }
 
     public void Sleep(ulong frameId)
     {
-        if (!_disposed)
+        if (!_disposed && IsReflexAvailable)
             _sleep(frameId);
     }
 
     public void Mark(LatencyMarker marker, ulong frameId)
     {
-        if (!_disposed)
+        if (!_disposed && IsPclAvailable)
             _marker((uint)marker, frameId);
     }
 

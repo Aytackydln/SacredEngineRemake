@@ -15,7 +15,7 @@ public class ExpDragonShield : IExperiment
         var dragonShieldItems = sacredGameData.GamePakStore
             .Items
             .Values
-            .Where(i => i.ModelDesc.ModelName == "SHIELD_KITE.GRN")
+            .Where(i => i.ModelName == "SHIELD_KITE.GRN")
             .ToList();
 
         var kiteTexture = sacredGameData.GamePakStore.Textures["SHIELD_KITE02.TGA"];

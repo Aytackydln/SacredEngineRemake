@@ -90,7 +90,7 @@ internal sealed class MiniObjectSpriteLoader
             sprite = BuildSprite(atlas, key);
             if (key.FrameCount > 1)
             {
-                Console.WriteLine(sprite is null
+                EngineLog.WriteLine(sprite is null
                     ? $"Animated mini-object atlas rejected: texture #{key.TextureId} ({key.AtlasColumns}x{key.AtlasRows}, {key.FrameCount} frames)."
                     : $"Animated mini-object atlas loaded: {atlas.Name} (#{key.TextureId}, {key.AtlasColumns}x{key.AtlasRows}, {key.FrameCount} frames).");
             }
@@ -98,7 +98,7 @@ internal sealed class MiniObjectSpriteLoader
         catch (Exception exception)
         {
             sprite = null;
-            Console.WriteLine($"Mini-object atlas failed: texture #{key.TextureId}: {exception.Message}");
+            EngineLog.WriteLine($"Mini-object atlas failed: texture #{key.TextureId}: {exception.Message}");
         }
 
         await _lock.WaitAsync().ConfigureAwait(false);

@@ -18,28 +18,28 @@ internal sealed class EngineInputController(
         if (input.ConsumePressed(VirtualKey.F4))
         {
             var enabled = renderer.ToggleHdr();
-            Console.WriteLine($"Debug input: HDR {(enabled ? "enabled" : "disabled")}");
+            EngineLog.WriteLine($"Debug input: HDR {(enabled ? "enabled" : "disabled")}");
         }
 
         if (input.ConsumePressed(VirtualKey.F5))
         {
             cycleFramePacing();
             updateWindowTitle();
-            Console.WriteLine("Debug input: frame pacing cycled");
+            EngineLog.WriteLine("Debug input: frame pacing cycled");
         }
 
         if (input.ConsumePressed(VirtualKey.F6))
         {
             var mode = latency.CycleMode();
             updateWindowTitle();
-            Console.WriteLine($"Debug input: low latency {mode}");
+            EngineLog.WriteLine($"Debug input: low latency {mode}");
         }
 
         if (input.ConsumePressed(VirtualKey.F10))
         {
             var fullscreen = toggleBorderlessFullscreen();
             updateWindowTitle();
-            Console.WriteLine($"Debug input: {(fullscreen ? "borderless fullscreen" : "windowed mode")}");
+            EngineLog.WriteLine($"Debug input: {(fullscreen ? "borderless fullscreen" : "windowed mode")}");
         }
     }
 }

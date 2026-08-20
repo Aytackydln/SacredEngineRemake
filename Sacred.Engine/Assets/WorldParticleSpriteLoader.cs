@@ -68,7 +68,7 @@ internal sealed class WorldParticleSpriteLoader
         {
             var atlas = await _loadTextureAsync(reference.TextureName).ConfigureAwait(false);
             sprite = BuildSprite(atlas, reference);
-            Console.WriteLine(sprite is null
+            EngineLog.WriteLine(sprite is null
                 ? $"World particle atlas rejected: {reference.TextureName}."
                 : $"World particle atlas loaded: {reference.TextureName} " +
                   $"({reference.AtlasColumns}x{reference.AtlasRows}, {reference.FrameCount} frames).");
@@ -76,7 +76,7 @@ internal sealed class WorldParticleSpriteLoader
         catch (Exception exception)
         {
             sprite = null;
-            Console.WriteLine($"World particle atlas failed: {reference.TextureName}: {exception.Message}");
+            EngineLog.WriteLine($"World particle atlas failed: {reference.TextureName}: {exception.Message}");
         }
 
         await _lock.WaitAsync().ConfigureAwait(false);

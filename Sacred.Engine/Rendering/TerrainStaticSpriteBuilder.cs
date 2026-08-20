@@ -230,7 +230,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
             return;
 
         _lastParticleSummary = summary;
-        Console.WriteLine(summary);
+        EngineLog.WriteLine(summary);
     }
 
     private static bool IsVisibleOnSurface(

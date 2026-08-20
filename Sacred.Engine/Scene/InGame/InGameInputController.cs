@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using Windows.Gaming.Input;
+using Sacred.Core.World.Sector;
 using Sacred.Engine.Platform;
 using Sacred.World;
 
@@ -78,19 +79,19 @@ internal sealed class InGameInputController
         {
             _worldLighting.CycleMode();
             _updateWindowTitle();
-            Console.WriteLine($"Debug input: world lighting {_worldLighting.Mode}");
+            EngineLog.WriteLine($"Debug input: world lighting {_worldLighting.Mode}");
         }
 
         if (_input.ConsumePressed(VirtualKey.F8))
         {
             _scene.Debug.StairsMapVisible = !_scene.Debug.StairsMapVisible;
-            Console.WriteLine($"Debug input: stairs and door tiles {FormatVisibility(_scene.Debug.StairsMapVisible)}");
+            EngineLog.WriteLine($"Debug input: stairs and door tiles {FormatVisibility(_scene.Debug.StairsMapVisible)}");
         }
 
         if (_input.ConsumePressed(VirtualKey.F9))
         {
             _scene.Debug.BlockedAreasVisible = !_scene.Debug.BlockedAreasVisible;
-            Console.WriteLine($"Debug input: blocked tiles {FormatVisibility(_scene.Debug.BlockedAreasVisible)}");
+            EngineLog.WriteLine($"Debug input: blocked tiles {FormatVisibility(_scene.Debug.BlockedAreasVisible)}");
         }
 
         var isDefending = _input.IsDefendDown;
@@ -130,7 +131,7 @@ internal sealed class InGameInputController
             : new Vector3(_camera.WorldCenter, 0.0f);
         var zone = _scene.Indoor.ActiveGroup is null
             ? _worldStreamer.GetZone(_camera.WorldCenter)
-            : Sacred.Core.World.Sector.WorldZone.Indoors;
+            : WorldZone.Indoors;
         if (_worldLighting.Update(deltaSeconds, _scene.Lighting, lightingFocus, zone))
             _updateWindowTitle();
         var terrainHeight = _elevation.SampleHeightOrZero(_camera.WorldCenter);

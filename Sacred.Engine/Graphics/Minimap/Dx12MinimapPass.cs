@@ -299,12 +299,12 @@ internal sealed class Dx12MinimapPass : IDisposable
         try
         {
             var texture = await _assets.LoadTextureAsync(textureName).ConfigureAwait(false);
-            Console.WriteLine($"Minimap texture loaded: {textureName} ({texture.Width}x{texture.Height}).");
+        EngineLog.WriteLine($"Minimap texture loaded: {textureName} ({texture.Width}x{texture.Height}).");
             return texture;
         }
         catch (Exception exception)
         {
-            Console.WriteLine($"Minimap texture unavailable for sector {coord.X},{coord.Y}: {exception.Message}");
+        EngineLog.WriteLine($"Minimap texture unavailable for sector {coord.X},{coord.Y}: {exception.Message}");
             return null;
         }
     }

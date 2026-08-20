@@ -106,7 +106,7 @@ public sealed class WorldLightingController
         }
 
         if (zoneChanged)
-            Console.WriteLine($"Lighting zone: {zone}");
+            EngineLog.WriteLine($"Lighting zone: {zone}");
 
         return zoneChanged ||
                Mode == WorldLightingMode.TimedDayNightCycle && previousPhase != GetCyclePhase();

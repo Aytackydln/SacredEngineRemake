@@ -9,7 +9,7 @@ namespace Sacred.Core.World.Stairs;
 /// </summary>
 public sealed class SacredStairsMap
 {
-    private const int TreppeRecordSize = sizeof(uint) * 2;
+    private const int TreppeRecordSize = SacredStairsCellLayout.SerializedSize;
     private const int ArrivalMarkerMaximumDistance = 12;
 
     private readonly FrozenDictionary<StairsCellKey, WorldStairsZone> _zonesByCell;

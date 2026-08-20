@@ -13,6 +13,13 @@ even if this project is not finished
 ### Sacred.Core
 Contains file structure of the game and classes that compose them for usability.
 
+The generated [game-file format coverage report](docs/game-file-formats.md) lists mapped
+files, multi-section structures, known fields, and unresolved byte ranges.
+
+### Sacred.Core.Analyzer
+Roslyn-based source analyzer and Markdown report generator for the `StructLayout` types
+in `Sacred.Core`. See [its usage guide](Sacred.Core.Analyzer/README.md).
+
 ### Sacred.Assets
 Load game files like Pak, Bin asynchronously while limiting to 1 load per file.
 

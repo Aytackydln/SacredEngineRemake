@@ -19,6 +19,11 @@ internal sealed class Dx12SpritePass : IDisposable
 {
     public const int MaximumTextureCount = Dx12SpriteTextureCache.MaximumTextureCount;
 
+    public int CandidateLiquidSpriteCount { get; private set; }
+    public int VisibleLiquidSpriteCount { get; private set; }
+    public int CandidateStaticSpriteCount { get; private set; }
+    public int VisibleStaticSpriteCount { get; private set; }
+
     private const uint LiquidSpriteFlag = 0x01;
     private const uint TransposeTextureFlag = 0x02;
     private const uint MixedLightEmitterFlag = 0x20000000;
@@ -107,6 +112,8 @@ internal sealed class Dx12SpritePass : IDisposable
         ulong spriteRevision)
     {
         var state = _frameStates[frame.Index];
+        CandidateLiquidSpriteCount = liquidSprites.Count;
+        CandidateStaticSpriteCount = staticSprites.Count;
         if (state.Matches(
                 spriteRevision,
                 _textureCache.ResidencyRevision,
@@ -116,6 +123,8 @@ internal sealed class Dx12SpritePass : IDisposable
                 renderHeight))
         {
             _activeLiquidRanges = state.LiquidRanges;
+            VisibleLiquidSpriteCount = state.LiquidInstanceCount;
+            VisibleStaticSpriteCount = state.Batch.StaticInstanceCount;
             return state.Batch;
         }
 
@@ -130,7 +139,10 @@ internal sealed class Dx12SpritePass : IDisposable
                 camera.ViewportZoom,
                 renderWidth,
                 renderHeight,
-                default);
+                default,
+                0);
+            VisibleLiquidSpriteCount = 0;
+            VisibleStaticSpriteCount = 0;
             return default;
         }
 
@@ -172,11 +184,16 @@ internal sealed class Dx12SpritePass : IDisposable
             var drawPosition = screenTransform.ToScreen(sprite.IsoX, sprite.IsoY);
             var drawX = drawPosition.X;
             var drawY = drawPosition.Y;
+            var drawWidth = screenTransform.Scale(sprite.Width);
+            var drawHeight = screenTransform.Scale(sprite.Height);
+            if (!IntersectsViewport(drawX, drawY, drawWidth, drawHeight, renderWidth, renderHeight))
+                continue;
+
             instances[instanceCount++] = new StaticSpriteInstance(
                 drawX,
                 drawY,
-                screenTransform.Scale(sprite.Width),
-                screenTransform.Scale(sprite.Height),
+                drawWidth,
+                drawHeight,
                 1.0f,
                 textureSlot,
                 (uint)sprite.Animation.FrameCount,
@@ -203,11 +220,16 @@ internal sealed class Dx12SpritePass : IDisposable
             var drawPosition = screenTransform.ToScreen(sprite.IsoX, sprite.IsoY);
             var drawX = drawPosition.X;
             var drawY = drawPosition.Y;
+            var drawWidth = screenTransform.Scale(sprite.RenderWidth);
+            var drawHeight = screenTransform.Scale(sprite.RenderHeight);
+            if (!IntersectsViewport(drawX, drawY, drawWidth, drawHeight, renderWidth, renderHeight))
+                continue;
+
             instances[instanceCount++] = new StaticSpriteInstance(
                 drawX,
                 drawY,
-                screenTransform.Scale(sprite.RenderWidth),
-                screenTransform.Scale(sprite.RenderHeight),
+                drawWidth,
+                drawHeight,
                 CalculateSceneDepth(camera, sprite),
                 textureSlot,
                 (uint)sprite.Sprite.FrameCount,
@@ -225,6 +247,8 @@ internal sealed class Dx12SpritePass : IDisposable
         }
 
         var batch = new WorldSpriteBatch(staticStartInstance, instanceCount - staticStartInstance);
+        VisibleLiquidSpriteCount = staticStartInstance;
+        VisibleStaticSpriteCount = batch.StaticInstanceCount;
         state.Remember(
             spriteRevision,
             _textureCache.ResidencyRevision,
@@ -232,7 +256,8 @@ internal sealed class Dx12SpritePass : IDisposable
             screenTransform.Zoom,
             renderWidth,
             renderHeight,
-            batch);
+            batch,
+            staticStartInstance);
         return batch;
     }
 
@@ -357,6 +382,15 @@ internal sealed class Dx12SpritePass : IDisposable
         return Math.Clamp(0.50f - (depthKey - centerDepthKey) * PainterDepthScale, 0.20f, 0.72f);
     }
 
+    private static bool IntersectsViewport(
+        float x,
+        float y,
+        float width,
+        float height,
+        int renderWidth,
+        int renderHeight) =>
+        x < renderWidth && y < renderHeight && x + width > 0.0f && y + height > 0.0f;
+
     private GpuDescriptorHandle SrvGpuHandle(int index) => _srvHeapGpuStart + index * _descriptorSize;
 
     private sealed class SpriteFrameState
@@ -371,6 +405,7 @@ internal sealed class Dx12SpritePass : IDisposable
 
         public List<LiquidSpriteDrawRange> LiquidRanges { get; } = new(9);
         public WorldSpriteBatch Batch { get; private set; }
+        public int LiquidInstanceCount { get; private set; }
 
         public bool Matches(
             ulong spriteRevision,
@@ -394,7 +429,8 @@ internal sealed class Dx12SpritePass : IDisposable
             float viewportZoom,
             int renderWidth,
             int renderHeight,
-            WorldSpriteBatch batch)
+            WorldSpriteBatch batch,
+            int liquidInstanceCount)
         {
             _spriteRevision = spriteRevision;
             _residencyRevision = residencyRevision;
@@ -403,6 +439,7 @@ internal sealed class Dx12SpritePass : IDisposable
             _renderWidth = renderWidth;
             _renderHeight = renderHeight;
             Batch = batch;
+            LiquidInstanceCount = liquidInstanceCount;
             _valid = true;
         }
     }

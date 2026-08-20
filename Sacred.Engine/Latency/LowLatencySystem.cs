@@ -89,16 +89,7 @@ public sealed class LowLatencySystem : IDisposable
     internal void Mark(LatencyMarker marker, ulong frameId)
     {
         ThrowIfDisposed();
-
         _nvidiaReflex?.Mark(marker, frameId);
-
-        if (_activeBackend != LatencyBackendKind.AmdAntiLag2)
-            return;
-
-        if (marker == LatencyMarker.RenderSubmitEnd)
-            _amdAntiLag2.MarkEndOfFrameRendering();
-        else if (marker == LatencyMarker.PresentStart)
-            _amdAntiLag2.SetFrameGenFrameType(false);
     }
 
     public void Dispose()

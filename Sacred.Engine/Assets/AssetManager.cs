@@ -905,7 +905,7 @@ public sealed class AssetManager : IDisposable
         var item = ResolvePlayerCharacterItem(definition);
         var attachmentItems = ResolvePlayerCharacterItems(definition.Items);
         var actor = CreateTestActor(definition, attachmentItems);
-        var modelName = item.ModelDesc.ModelName;
+        var modelName = item.ModelName;
 
         var model = await _modelsPak.LoadCharacterBaseModelAsync(
                 modelName,
@@ -915,7 +915,7 @@ public sealed class AssetManager : IDisposable
 
         var attachmentModels = await Task.WhenAll(attachmentItems.Select(attachmentItem =>
             LoadPlayerAttachmentModelAsync(
-                attachmentItem.Item.ModelDesc.ModelName,
+                attachmentItem.Item.ModelName,
                 cancellationToken))).ConfigureAwait(false);
         var textureAliases = CreatePlayerCharacterTextureAliases(
                 model,
@@ -1068,7 +1068,7 @@ public sealed class AssetManager : IDisposable
 
         foreach (var item in items)
         {
-            if (string.Equals(item.ModelDesc.ModelName, definition.ModelName, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(item.ModelName, definition.ModelName, StringComparison.OrdinalIgnoreCase))
                 return item;
         }
 
@@ -1082,7 +1082,7 @@ public sealed class AssetManager : IDisposable
             throw new FileNotFoundException($"Player character item id {itemId} was not found in Items.pak.");
 
         var item = items[0];
-        if (string.IsNullOrWhiteSpace(item.ModelDesc.ModelName))
+        if (string.IsNullOrWhiteSpace(item.ModelName))
             throw new FileNotFoundException($"Player character item id {itemId} does not reference a model in Items.pak.");
 
         return item;
@@ -1134,7 +1134,7 @@ public sealed class AssetManager : IDisposable
                 : 40.0f;
             effects.Add(new EquipmentEffectAttachment(
                 index + 1,
-                attachmentItem.Item.ModelDesc.ModelName,
+                attachmentItem.Item.ModelName,
                 AttachmentPlacement(attachmentItem.Slot, equipment.EquipmentType).TargetBone,
                 equipment.Damage,
                 boundsSize));
@@ -1181,7 +1181,7 @@ public sealed class AssetManager : IDisposable
                 candidate.Type == attachment.Slot.ToEquipmentSlotType() &&
                 candidate.Equipment?.IdemId == attachment.Item.ItemIndex)?.Equipment;
             var placement = AttachmentPlacement(attachment.Slot, equipped?.EquipmentType);
-            return new ModelAttachmentReference(attachment.Item.ModelDesc.ModelName, placement.TargetBone, placement.SourceBone);
+            return new ModelAttachmentReference(attachment.Item.ModelName, placement.TargetBone, placement.SourceBone);
         }).ToArray();
 
     private static (string? TargetBone, string? SourceBone) AttachmentPlacement(

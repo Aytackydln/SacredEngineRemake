@@ -236,8 +236,9 @@ public unsafe class Dx12DebugOverlay : IDisposable
             $"IMAGES {stats.SectorImagesDrawn}/{stats.SectorImagesCached} BUILDING {stats.SectorImagesPending}",
             $"GROUND {stats.DrawnTiles}/{stats.CandidateTiles} MISSING {stats.MissingTiles} CACHE {stats.CachedTiles}",
             $"FLOOR {stats.FloorDrawnTiles}/{stats.FloorCandidateTiles} CACHE {stats.FloorCachedTiles}",
-            $"LIQUID {stats.LiquidDrawnTiles}/{stats.LiquidCandidateTiles} CACHE {stats.LiquidCachedTiles}",
-            $"STATIC {stats.StaticDrawnObjects}/{stats.StaticCandidateObjects} MISSING {stats.StaticMissingObjects}  MODEL TEX R{rendererStats.ReadyModelTextureCount} A{rendererStats.LoadingModelTextureCount} G{rendererStats.UploadingModelTextureCount} F{rendererStats.FailedModelTextureCount}",
+            $"LIQUID {rendererStats.VisibleLiquidSpriteCount}/{stats.LiquidDrawnTiles} CANDIDATE {stats.LiquidCandidateTiles} CACHE {stats.LiquidCachedTiles}",
+            $"STATIC {rendererStats.VisibleStaticSpriteCount}/{stats.StaticDrawnObjects} CANDIDATE {stats.StaticCandidateObjects} MISSING {stats.StaticMissingObjects}  MODEL TEX R{rendererStats.ReadyModelTextureCount} A{rendererStats.LoadingModelTextureCount} G{rendererStats.UploadingModelTextureCount} F{rendererStats.FailedModelTextureCount}",
+            $"HALOS {rendererStats.VisibleHaloCount}/{rendererStats.CandidateHaloCount}",
             $"MODEL {FormatActiveModel(scene)}",
             $"TERRAIN HEIGHT {scene.Debug.ActorTerrainHeight:0.0}  STAIRS/DOORS {(scene.Debug.StairsMapVisible ? "ON" : "OFF")}  BLOCKED {(scene.Debug.BlockedAreasVisible ? "ON" : "OFF")}",
             $"CAMERA {camera.WorldCenter.X:0.0},{camera.WorldCenter.Y:0.0} SECTOR {world.CenterSector.X},{world.CenterSector.Y}"
@@ -285,4 +286,8 @@ public readonly record struct Dx12DebugOverlayStats(
     int LoadingModelTextureCount,
     int UploadingModelTextureCount,
     int FailedModelTextureCount,
+    int VisibleLiquidSpriteCount,
+    int VisibleStaticSpriteCount,
+    int CandidateHaloCount,
+    int VisibleHaloCount,
     string FramePacingStatus);

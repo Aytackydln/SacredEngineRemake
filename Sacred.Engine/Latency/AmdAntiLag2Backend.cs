@@ -10,9 +10,6 @@ internal sealed unsafe class AmdAntiLag2Backend : IDisposable
     private const int SFalse = 1;
     private const uint AntiLagModeOn = 1;
     private const uint AntiLagModeOff = 2;
-    private const uint ApiDataV2SignalFrameGenFrameType = 1u << 2;
-    private const uint ApiDataV2InterpolatedFrame = 1u << 3;
-    private const uint ApiDataV2SignalEndOfFrame = 1u << 5;
     private static readonly Guid AntiLagApiId = new("44085fbe-e839-40c5-bf38-0ebc5ab4d0a6");
 
     private nint _antiLagApi;
@@ -71,26 +68,6 @@ internal sealed unsafe class AmdAntiLag2Backend : IDisposable
             Dispose();
     }
 
-    public void MarkEndOfFrameRendering()
-    {
-        if (_antiLagApi == 0)
-            return;
-
-        _ = SetAntiLagFrameGenState(ApiDataV2SignalEndOfFrame);
-    }
-
-    public void SetFrameGenFrameType(bool interpolated)
-    {
-        if (_antiLagApi == 0)
-            return;
-
-        var flags = ApiDataV2SignalFrameGenFrameType;
-        if (interpolated)
-            flags |= ApiDataV2InterpolatedFrame;
-
-        _ = SetAntiLagFrameGenState(flags);
-    }
-
     public void Dispose()
     {
         if (_antiLagApi == 0)
@@ -119,19 +96,6 @@ internal sealed unsafe class AmdAntiLag2Backend : IDisposable
         return UpdateAntiLagState(&data);
     }
 
-    private int SetAntiLagFrameGenState(uint flags)
-    {
-        var data = new ApiDataV2
-        {
-            Size = (uint)sizeof(ApiDataV2),
-            Version = 2,
-            Flags = flags,
-            FrameIndex = 0
-        };
-
-        return UpdateAntiLagState(&data);
-    }
-
     private int UpdateAntiLagState(void* data)
     {
         var vtable = *(nint**)_antiLagApi;
@@ -150,14 +114,4 @@ internal sealed unsafe class AmdAntiLag2Backend : IDisposable
         public uint MaxFps;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    private unsafe struct ApiDataV2
-    {
-        public uint Size;
-        public uint Version;
-        public uint Flags;
-        public uint Padding;
-        public ulong FrameIndex;
-        public fixed ulong Reserved[19];
-    }
 }

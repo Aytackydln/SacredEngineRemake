@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Engine.Animation;
 using Sacred.Engine.Assets;
-using Sacred.Granny;
 using Sacred.Granny.Assets;
 using Sacred.Granny.Meshes;
 using Sacred.World.Geometry;
@@ -108,7 +107,7 @@ internal sealed class PlayerCharacterController : IDisposable
             : _requestedModelEntryId + 1;
 
         RequestModel(next);
-        Console.WriteLine($"Debug input: selected character {TestCharacters.GetDisplayName(next)}");
+            EngineLog.WriteLine($"Debug input: selected character {TestCharacters.GetDisplayName(next)}");
     }
 
     public void Dispose()
@@ -296,7 +295,7 @@ internal sealed class PlayerCharacterController : IDisposable
         _activeAsset = pending.Player;
 
         var player = pending.Player;
-        Console.WriteLine($"Player character loaded: {player.DisplayName}");
+        EngineLog.WriteLine($"Player character loaded: {player.DisplayName}");
         _modelGroundOffset = CalculateModelGroundOffset(player.Model);
         var sceneModel = new SceneModel(
             $"{player.DisplayName}: item {player.ItemId}, {player.ModelName}",

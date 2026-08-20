@@ -55,7 +55,7 @@ internal sealed class WorldMapScene : IGameScene
         _window.RequestFocus();
         if (_atlas is not null)
             CenterOnPlayer();
-        Console.WriteLine("World map scene activated.");
+        EngineLog.WriteLine("World map scene activated.");
     }
 
     public void OnDeactivated() => _inputController.Reset();
@@ -128,7 +128,7 @@ internal sealed class WorldMapScene : IGameScene
             if (!_loadFailureReported)
             {
                 _loadFailureReported = true;
-                Console.WriteLine($"World map failed to load: {_atlasLoad.Exception}");
+                EngineLog.WriteLine($"World map failed to load: {_atlasLoad.Exception}");
                 _screen = _placeholderRasterizer.Rasterize("WORLD MAP", "MAP ASSETS COULD NOT BE LOADED");
             }
             return;
@@ -153,7 +153,7 @@ internal sealed class WorldMapScene : IGameScene
             _viewportWidth,
             _viewportHeight);
         _mapFrame = WorldMapFrameBuilder.Create(_atlas, _playerMapPosition, ++_mapRevision);
-        Console.WriteLine(
+        EngineLog.WriteLine(
             $"World map centered on player at map pixel {_playerMapPosition.X:0.0},{_playerMapPosition.Y:0.0}.");
     }
 

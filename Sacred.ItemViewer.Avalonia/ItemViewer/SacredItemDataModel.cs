@@ -44,7 +44,7 @@ public readonly record struct SacredItemDataModel(
                 equipment.IdemId.ToString(CultureInfo.InvariantCulture),
                 equipment.Name),
             CharacterClassMask: equipment.EffectiveCharacterClassMask,
-            ModelName: equipment.Item.ModelDesc.ModelName,
+            ModelName: equipment.Item.ModelName,
             TextureId: equipment.Item.ModelDesc.TextureId,
             EffectTextureId: equipment.Item.EffectTextureId,
             GraphicRenderFlags: equipment.Item.GraphicRenderFlags,

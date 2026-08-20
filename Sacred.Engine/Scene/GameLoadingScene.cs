@@ -94,7 +94,7 @@ internal sealed class GameLoadingScene : IGameScene
             return;
 
         _switchRequested = true;
-        Console.WriteLine("World ready frame presented; switching to in-game scene.");
+        EngineLog.WriteLine("World ready frame presented; switching to in-game scene.");
         _requestSwitch(GameSceneId.InGame);
     }
 

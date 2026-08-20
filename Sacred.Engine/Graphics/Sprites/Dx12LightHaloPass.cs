@@ -25,6 +25,9 @@ internal sealed class Dx12LightHaloPass
     private ID3D12RootSignature? _rootSignature;
     private ID3D12PipelineState? _pipeline;
 
+    public int CandidateCount { get; private set; }
+    public int InstanceCount { get; private set; }
+
     public Dx12LightHaloPass(
         ID3D12Device device,
         ID3D12GraphicsCommandList commandList,
@@ -60,8 +63,12 @@ internal sealed class Dx12LightHaloPass
         ulong spriteRevision)
     {
         var state = _frameStates[frame.Index];
+        CandidateCount = lights.Count;
         if (state.Matches(spriteRevision, camera.WorldCenter, camera.ViewportZoom, renderWidth, renderHeight))
-            return state.InstanceCount;
+        {
+            InstanceCount = state.InstanceCount;
+            return InstanceCount;
+        }
 
         if (lights.Count == 0)
         {
@@ -72,6 +79,7 @@ internal sealed class Dx12LightHaloPass
                 renderWidth,
                 renderHeight,
                 0);
+            InstanceCount = 0;
             return 0;
         }
 
@@ -82,14 +90,22 @@ internal sealed class Dx12LightHaloPass
             renderHeight);
         frame.EnsureLightHaloInstanceCapacity(_device, InstanceStride, lights.Count);
         var instances = (LightHaloInstance*)frame.LightHaloInstanceBufferMapped;
+        var instanceCount = 0;
         for (var index = 0; index < lights.Count; index++)
         {
             var light = lights[index];
             var drawPosition = screenTransform.ToScreen(light.IsoX, light.IsoY);
-            instances[index] = new LightHaloInstance(
+            var diameter = screenTransform.Scale(light.Diameter);
+            if (drawPosition.X >= renderWidth || drawPosition.Y >= renderHeight ||
+                drawPosition.X + diameter <= 0.0f || drawPosition.Y + diameter <= 0.0f)
+            {
+                continue;
+            }
+
+            instances[instanceCount++] = new LightHaloInstance(
                 drawPosition.X,
                 drawPosition.Y,
-                screenTransform.Scale(light.Diameter),
+                diameter,
                 light.Opacity,
                 light.Colour,
                 (uint)light.Shape);
@@ -101,8 +117,9 @@ internal sealed class Dx12LightHaloPass
             screenTransform.Zoom,
             renderWidth,
             renderHeight,
-            lights.Count);
-        return lights.Count;
+            instanceCount);
+        InstanceCount = instanceCount;
+        return instanceCount;
     }
 
     public unsafe void Record(
@@ -127,7 +144,7 @@ internal sealed class Dx12LightHaloPass
 
         _commandList.SetGraphicsRootSignature(_rootSignature);
         _commandList.SetPipelineState(_pipeline);
-        _commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
+        _commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleStrip);
         _commandList.SetGraphicsRoot32BitConstants(
             LightHaloShaderLayout.SceneConstantsRootParameter,
             LightHaloShaderLayout.SceneConstantsCount,
@@ -136,7 +153,7 @@ internal sealed class Dx12LightHaloPass
         _commandList.SetGraphicsRootShaderResourceView(
             LightHaloShaderLayout.InstanceBufferRootParameter,
             frame.LightHaloInstanceBuffer.GPUVirtualAddress);
-        _commandList.DrawInstanced(6, (uint)instanceCount, 0, 0);
+        _commandList.DrawInstanced(4, (uint)instanceCount, 0, 0);
     }
 
     private sealed class LightHaloFrameState

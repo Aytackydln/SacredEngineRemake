@@ -4,12 +4,18 @@ using System.Linq;
 using Sacred.Core;
 using Sacred.Engine;
 using SacredRemake;
+using Serilog;
 
 var terminalMode = args.Any(LaunchArguments.IsTerminalMode);
 if (terminalMode)
 {
     TerminalWindow.Open();
 }
+
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Debug()
+    .WriteTo.Console(outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+    .CreateLogger();
 
 var gameDir = args.FirstOrDefault(argument => !LaunchArguments.IsTerminalMode(argument))
               ?? @"E:\SteamLibrary\steamapps\common\Sacred Gold";
@@ -60,12 +66,14 @@ try
 }
 catch (Exception e)
 {
-    Console.WriteLine(e);
+    Log.Fatal(e, "The game terminated unexpectedly.");
     LauncherError.Show(e.ToString(), terminalMode);
     await Console.In.ReadLineAsync();
 }
 
 if (terminalMode)
 {
-    Console.WriteLine("Game exited.");
+    Log.Information("Game exited.");
 }
+
+Log.CloseAndFlush();
