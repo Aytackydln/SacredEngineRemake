@@ -14,13 +14,29 @@ public struct ItemsPakEntryModelNameBytes
 [StructLayout(LayoutKind.Explicit, Pack = 1, Size = Size)]
 public readonly struct ItemsPakEntryModelDescLayout
 {
-    public const int Size = 128;
-    public const int ModelNameLength = 32;
-    public const int ModelNameOffset = 55;
+    internal const int Size = 128;
+    internal const int ModelNameLength = 32;
+    private const int ModelNameOffset = 55;
 
     /// <summary>Rendering flags whose low bits select the item's rendering class.</summary>
     [FieldOffset(0)]
     public readonly uint GraphicRenderFlags;
+
+    /// <summary>Least-significant raw byte of <see cref="GraphicRenderFlags"/> at descriptor offset 0x00.</summary>
+    [FieldOffset(0)]
+    public readonly byte GraphicRenderFlagByte0;
+
+    /// <summary>Second raw byte of <see cref="GraphicRenderFlags"/> at descriptor offset 0x01.</summary>
+    [FieldOffset(1)]
+    public readonly byte GraphicRenderFlagByte1;
+
+    /// <summary>Third raw byte of <see cref="GraphicRenderFlags"/> at descriptor offset 0x02.</summary>
+    [FieldOffset(2)]
+    public readonly byte GraphicRenderFlagByte2;
+
+    /// <summary>Most-significant raw byte of <see cref="GraphicRenderFlags"/> at descriptor offset 0x03.</summary>
+    [FieldOffset(3)]
+    public readonly byte GraphicRenderFlagByte3;
 
     /// <summary>
     /// Texture.pak descriptor index used by atlas-backed mini objects. Static.pak
@@ -32,11 +48,6 @@ public readonly struct ItemsPakEntryModelDescLayout
     /// <summary>General Texture.pak identifier used by model-backed items.</summary>
     [FieldOffset(8)]
     public readonly uint TextureId;
-
-    /// <summary>Unresolved two-byte value overlapping the texture-id bytes at offset 0x09.</summary>
-    [FieldOffset(9)]
-    [BinaryUnknown]
-    public readonly ushort SomeShort2;
 
     /// <summary>Base group identifier for an assembled Mixed.pak sprite.</summary>
     [FieldOffset(16)]
@@ -73,10 +84,6 @@ public readonly struct ItemsPakEntryModelDescLayout
     /// <summary>Texture identifier used by an attached visual effect.</summary>
     [FieldOffset(102)]
     public readonly uint EffectTextureId;
-
-    /// <summary>Unresolved two-byte value at byte offset 0x70.</summary>
-    [FieldOffset(112)]
-    public readonly ushort Unknown112;
 
     public uint LowRenderClass => GraphicRenderFlags & ItemsPakEntry.LowRenderClassMask;
     public bool IsLightEmitting => (GraphicRenderFlags & ItemsPakEntry.LightEmittingGraphicFlag) != 0;

@@ -912,7 +912,7 @@ public sealed class AssetManager : IDisposable
     {
         cancellationToken.ThrowIfCancellationRequested();
         var definition = GetPlayerCharacterDefinition(entryId);
-        var item = ResolvePlayerCharacterItem(definition);
+        var item = ResolvePlayerCharacterItem(definition.BaseItemId);
         var attachmentItems = ResolvePlayerCharacterItems(definition.Items);
         var actor = CreateTestActor(definition, attachmentItems);
         var modelName = item.ModelName;
@@ -951,9 +951,8 @@ public sealed class AssetManager : IDisposable
         uint entryId,
         CancellationToken cancellationToken = default)
     {
-        var definition = GetPlayerCharacterDefinition(entryId);
         var player = await LoadPlayerCharacterAsync(entryId, cancellationToken).ConfigureAwait(false);
-        var modelName = definition.ModelName;
+        var modelName = player.ModelName;
         var cacheKey = $"{modelName}:{player.WeaponStyle}";
         await _playerAnimationLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -1069,21 +1068,6 @@ public sealed class AssetManager : IDisposable
             throw new FileNotFoundException($"Player character slot {entryId} was not configured.");
 
         return TestCharacters.All[definitionIndex];
-    }
-
-    private ItemsPakEntry ResolvePlayerCharacterItem(TestCharacterDefinition definition)
-    {
-        if (!_itemsByItemId.TryGetValue(definition.BaseItemId, out var items))
-            throw new FileNotFoundException($"Player character item id {definition.BaseItemId} was not found in Items.pak.");
-
-        foreach (var item in items)
-        {
-            if (string.Equals(item.ModelName, definition.ModelName, StringComparison.OrdinalIgnoreCase))
-                return item;
-        }
-
-        throw new FileNotFoundException(
-            $"Player character item id {definition.BaseItemId} does not reference model {definition.ModelName} in Items.pak.");
     }
 
     private ItemsPakEntry ResolvePlayerCharacterItem(uint itemId)

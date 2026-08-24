@@ -15,7 +15,6 @@ using Sacred.Core;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Pak.Weapon;
 using Sacred.Core.World.Stairs;
-using Sacred.Granny;
 using Sacred.Granny.Abstractions;
 using Sacred.Granny.Loading;
 using Sacred.World;

@@ -3,6 +3,8 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
 using Sacred.Assets.Utils;
+using Sacred.Core.Pak;
+using Sacred.Core.Utils;
 using Sacred.Granny.Abstractions;
 using Sacred.Granny.Animation;
 using Sacred.Granny.Assets;
@@ -12,7 +14,6 @@ namespace Sacred.Assets.Paks.Models;
 
 public sealed class ModelsPakArchive : IDisposable
 {
-    private const int HeaderSize = 0x100;
     private const int NameProbeLength = 0x40;
     private const int DefaultMotionReferenceOffset = 116;
     private const int ModelScaleOffset = 1136;
@@ -50,10 +51,9 @@ public sealed class ModelsPakArchive : IDisposable
 
         var stream = OpenArchiveStream(path);
 
-        Span<byte> header = stackalloc byte[HeaderSize];
-        stream.ReadExactly(header);
-
-        var count = ReadEntryCount(header, stream.Length);
+        using var reader = new BinaryReader(stream, Encoding.Latin1, leaveOpen: true);
+        var header = reader.ReadStruct<PakArchiveHeaderLayout>(PakArchiveHeaderLayout.SerializedSize);
+        var count = (int)header.EntryCount;
         var descriptors = ReadDescriptors(stream, count);
 
         var modelDescriptors = new List<ModelPakDescriptor>(count);
@@ -365,20 +365,6 @@ public sealed class ModelsPakArchive : IDisposable
 
         stream.ReadExactly(descriptorBytes);
         return descriptors;
-    }
-
-    private static int ReadEntryCount(ReadOnlySpan<byte> header, long archiveLength)
-    {
-        var count32 = BitConverter.ToUInt32(header.Slice(4, 4));
-        var count16 = BitConverter.ToUInt16(header.Slice(4, 2));
-        var maxDescriptorCount = Math.Max(0, (archiveLength - HeaderSize) / ModelPakDescriptor.SerializedSize);
-
-        if (count32 <= maxDescriptorCount)
-            return (int)count32;
-        if (count16 <= maxDescriptorCount)
-            return count16;
-
-        throw new InvalidDataException($"Cannot determine models.pak entry count. count16={count16}, count32={count32}, max={maxDescriptorCount}");
     }
 
     private static FileStream OpenArchiveStream(string path) =>

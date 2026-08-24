@@ -78,7 +78,7 @@ internal static class TestCharacters
         [ItemSlot.Body] = BattleMagePad,
         [ItemSlot.LeftHand] = BattleMageShortStaff,
     };
-    private static Dictionary<ItemSlot, uint> VampiressNItems = new()
+    private static readonly Dictionary<ItemSlot, uint> VampiressNItems = new()
     {
         [ItemSlot.Head] = VampiressNightHair,
     };
@@ -99,16 +99,16 @@ internal static class TestCharacters
 
     public static IReadOnlyList<TestCharacterDefinition> All { get; } =
     [
-        new(Seraphim, "SERAPHIM.GRN", "Seraphim", SeraphimItems),
-        new(Gladiator, "GLADIATOR.GRN", "Gladiator", GladiatorItems),
-        new(WoodElf, "Waldelfe.grn", "Wood Elf", WoodElfItems),
-        new(DarkElf, "DARKELVE.GRN", "Dark Elf", DarkElfItems),
-        new(BattleMage, "MAGICIAN.GRN", "Battle Mage", BattleMageITems),
-        new(BattleMage, "MAGICIAN.GRN", "Battle Mage 2", BattleMageITems2),
-        new(Vampiress, "VLADY_D.GRN", "Vampiress D", VampiressDItems),
-        new(Vampiress, "VLADY_N.GRN", "Vampiress N", VampiressNItems),
-        new(Dwarf, "dwarf.grn", "Dwarf", DwarfItems),
-        new(Daemon, "Daemonia.grn", "Daemon", DaemonItems)
+        new(Seraphim, "Seraphim", SeraphimItems),
+        new(Gladiator, "Gladiator", GladiatorItems),
+        new(WoodElf, "Wood Elf", WoodElfItems),
+        new(DarkElf, "Dark Elf", DarkElfItems),
+        new(BattleMage, "Battle Mage", BattleMageITems),
+        new(BattleMage, "Battle Mage 2", BattleMageITems2),
+        new(Vampiress, "Vampiress D", VampiressDItems),
+        new(Vampiress, "Vampiress N", VampiressNItems),
+        new(Dwarf, "Dwarf", DwarfItems),
+        new(Daemon, "Daemon", DaemonItems),
     ];
 
     public static uint ResolveEntryId(string? displayName)
@@ -136,6 +136,5 @@ internal static class TestCharacters
 
 internal readonly record struct TestCharacterDefinition(
     uint BaseItemId,
-    string ModelName,
     string DisplayName,
     IReadOnlyDictionary<ItemSlot, uint> Items);

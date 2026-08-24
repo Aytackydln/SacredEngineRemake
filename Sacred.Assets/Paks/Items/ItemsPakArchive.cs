@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using Sacred.Assets.Utils;
 using Sacred.Core.Pak.Items;
+using Sacred.Core.Utils;
 
 namespace Sacred.Assets.Paks.Items;
 
@@ -16,30 +17,20 @@ public static class ItemsPakArchive
         using var ms = new MemoryStream(pakBytes);
         using var br = new BinaryReader(ms, SacredEncoding);
 
-        const string firstBytes = "ITM";
-        var headerBytes = br.ReadBytes(3);
-        var headerString = Encoding.ASCII.GetString(headerBytes);
-        if (headerString != firstBytes)
-        {
-            throw new InvalidDataException($"Invalid file format. Expected header '{firstBytes}', but got '{headerString}'.");
-        }
-
-        var version = br.ReadByte();
-        var entryCount = br.ReadInt32();
-
-        br.BaseStream.Seek(0x102, SeekOrigin.Begin);
+        var itemsPakHeaderLayout = br.ReadStruct<ItemsPakHeaderLayout>(ItemsPakHeaderLayout.SerializedSize);
+        itemsPakHeaderLayout.ValidateSignature();
+        var entryCount = itemsPakHeaderLayout.EntryCount;
 
         var entryInfos = new List<ItemsPakEntryInfo>(entryCount);
 
-        for (var entryIndex = 0; entryIndex < entryCount; entryIndex++)
+        for (ushort entryIndex = 0; entryIndex < entryCount; entryIndex++)
         {
-            var entryInfo = ItemsPakEntryInfo.FromBytes(checked((ushort)entryIndex), br);
+            var entryInfo = ItemsPakEntryInfo.FromBytes(entryIndex, br);
 
             entryInfos.Add(entryInfo);
         }
 
-        foreach (var entry in ItemsPakEntry.ReadMany(pakBytes, entryInfos))
-            yield return entry;
+        return ItemsPakEntry.ReadMany(pakBytes, entryInfos);
     }
 
 }

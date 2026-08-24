@@ -48,18 +48,18 @@ public sealed class MixedPakData
                     break;
 
                 var name = PakDataHelpers.ReadCString(data, pieceOffset, 0x20, NameEncoding);
-                var rec = pieceOffset + 0x20;
+                var layout = MemoryMarshal.Read<MixedPakPieceLayout>(
+                    data.Slice(pieceOffset, MixedPakPieceLayout.SerializedSize));
                 var piece = new MixedCutoutRecord(name,
-                    BitConverter.ToUInt32(data.Slice(rec, 4)),
-                    BitConverter.ToUInt16(data.Slice(rec + 0x04, 2)),
-                    BitConverter.ToUInt16(data.Slice(rec + 0x06, 2)),
-                    BitConverter.ToInt16(data.Slice(rec + 0x08, 2)),
-                    BitConverter.ToInt16(data.Slice(rec + 0x0A, 2)),
-                    BitConverter.ToUInt32(data.Slice(rec + 0x0C, 4)),
-                    BitConverter.ToSingle(data.Slice(rec + 0x10, 4)),
-                    BitConverter.ToSingle(data.Slice(rec + 0x14, 4)),
-                    BitConverter.ToSingle(data.Slice(rec + 0x18, 4)),
-                    BitConverter.ToSingle(data.Slice(rec + 0x1C, 4)));
+                    layout.CutoutId,
+                    layout.Right,
+                    layout.Bottom,
+                    layout.Left,
+                    layout.Top,
+                    layout.Uv0,
+                    layout.Uv1,
+                    layout.Uv2,
+                    layout.Uv3);
                 pieces.Add(piece);
                 _cutoutIdToGroup.TryAdd(piece.CutoutId, mixedId);
                 pieceOffset += MixedPakPieceLayout.SerializedSize;

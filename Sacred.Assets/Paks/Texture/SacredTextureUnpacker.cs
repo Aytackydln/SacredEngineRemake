@@ -1,15 +1,14 @@
-﻿using System.Text;
+﻿using System.Runtime.InteropServices;
+using System.Text;
 using Sacred.Core;
+using Sacred.Core.Pak;
 using Sacred.Core.Pak.Texture;
+using Sacred.Core.Utils;
 
 namespace Sacred.Assets.Paks.Texture;
 
 public static class SacredTextureUnpacker
 {
-    private const int MainHeaderPaddingSize = 244;
-    private const int TextureNameSize = 32;
-    private const int ImageInfoPaddingSize = 39;
-
     private static readonly Encoding SacredEncoding = Encoding.GetEncoding("iso-8859-1");
 
     public static IReadOnlyList<SacredTextureInfo> Extract(
@@ -21,26 +20,21 @@ public static class SacredTextureUnpacker
         using var fs = new FileStream(pakFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         using var br = new BinaryReader(fs, SacredEncoding);
 
-        var signature = SacredEncoding.GetString(br.ReadBytes(3));
-        var version = br.ReadByte();
-
-        if (!signature.Equals("TEX", StringComparison.OrdinalIgnoreCase) || version != 3)
-            throw new InvalidDataException($"Unsupported texture PAK format. Signature={signature}, Version={version}");
+        var header = br.ReadStruct<TexturePakHeaderLayout>(TexturePakHeaderLayout.SerializedSize);
+        header.ValidateSignature();
+        if (header.Version != 3)
+            throw new InvalidDataException($"Unsupported texture PAK version {header.Version}.");
         var sacredPakFile = new SacredPakFile(pakFilePath, SacredPakFileType.Texture);
 
-        var fileCount = br.ReadUInt32();
-        var unknown = br.ReadUInt32();
-
-        br.ReadBytes(MainHeaderPaddingSize);
-
-        var fileInfos = new TextureFileInfo[fileCount];
+        var fileInfos = new TextureFileInfo[checked((int)header.EntryCount)];
 
         for (var i = 0; i < fileInfos.Length; i++)
         {
+            var descriptor = br.ReadStruct<PakEntryDescriptorLayout>(PakEntryDescriptorLayout.SerializedSize);
             fileInfos[i] = new TextureFileInfo(
-                TypeId: br.ReadUInt32(),
-                Offset: br.ReadUInt32(),
-                CompressedSize: br.ReadUInt32());
+                TypeId: descriptor.Type,
+                Offset: descriptor.Offset,
+                CompressedSize: descriptor.Size);
         }
 
         var extracted = new List<SacredTextureInfo>(fileInfos.Length);
@@ -75,26 +69,20 @@ public static class SacredTextureUnpacker
 
     private static TextureImageInfo ReadImageInfo(BinaryReader br)
     {
-        var fileNameBytes = br.ReadBytes(TextureNameSize);
-        var zeroIndex = Array.IndexOf(fileNameBytes, (byte)0);
+        var layout = br.ReadStruct<TexturePakEntryHeaderLayout>(TexturePakEntryHeaderLayout.SerializedSize);
+        var fileNameBytes = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref layout, 1))[..0x20];
+        var zeroIndex = fileNameBytes.IndexOf((byte)0);
 
         var fileName = zeroIndex >= 0
-            ? SacredEncoding.GetString(fileNameBytes, 0, zeroIndex)
+            ? SacredEncoding.GetString(fileNameBytes[..zeroIndex])
             : SacredEncoding.GetString(fileNameBytes);
-
-        var width = br.ReadUInt16();
-        var height = br.ReadUInt16();
-        var repeatedTypeId = br.ReadByte();
-        var repeatedCompressedSize = br.ReadUInt32();
-
-        var padding = br.ReadBytes(ImageInfoPaddingSize);
 
         return new TextureImageInfo(
             FileName: fileName,
-            Width: width,
-            Height: height,
-            RepeatedTypeId: repeatedTypeId,
-            RepeatedCompressedSize: repeatedCompressedSize
+            Width: layout.Width,
+            Height: layout.Height,
+            RepeatedTypeId: (byte)layout.StorageFormat,
+            RepeatedCompressedSize: layout.CompressedSize
         );
     }
 

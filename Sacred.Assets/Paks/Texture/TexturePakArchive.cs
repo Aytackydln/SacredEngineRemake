@@ -1,6 +1,9 @@
+using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
 using Sacred.Assets.Utils;
+using Sacred.Core.Pak.Texture;
+using Sacred.Core.Utils;
 
 namespace Sacred.Assets.Paks.Texture;
 
@@ -148,13 +151,11 @@ public sealed class TexturePakArchive : IDisposable
     private void Index(PakStream archive)
     {
         var stream = archive.Stream;
-        var header = new byte[TexturePakDecoder.HeaderSize];
-        if (stream.Read(header) != header.Length)
-            throw new InvalidDataException($"{Path.GetFileName(archive.Path)} is too small to contain a header.");
-
-        var count = TexturePakDecoder.ReadEntryCount(header, stream.Length);
+        using var reader = new BinaryReader(stream, Encoding.Latin1, leaveOpen: true);
+        var header = reader.ReadStruct<TexturePakHeaderLayout>(TexturePakHeaderLayout.SerializedSize);
+        header.ValidateSignature();
+        var count = TexturePakDecoder.ReadEntryCount(header.EntryCount, header.EntryCount16, stream.Length);
         var descriptors = PakDataHelpers.ReadEntryDescriptors(stream, count, Path.GetFileName(archive.Path));
-        Span<byte> textureHeader = stackalloc byte[TexturePakDecoder.TextureHeaderSize];
 
         for (var i = 0; i < count; i++)
         {
@@ -168,9 +169,10 @@ public sealed class TexturePakArchive : IDisposable
                 continue;
 
             stream.Position = offset;
-            stream.ReadExactly(textureHeader);
+            var textureHeader = reader.ReadStruct<TexturePakEntryHeaderLayout>(TexturePakEntryHeaderLayout.SerializedSize);
+            var textureHeaderBytes = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref textureHeader, 1));
 
-            var name = ReadCString(textureHeader, 0x20);
+            var name = ReadCString(textureHeaderBytes, 0x20);
             if (string.IsNullOrWhiteSpace(name))
                 continue;
 
@@ -180,9 +182,9 @@ public sealed class TexturePakArchive : IDisposable
                     name,
                     offset,
                     (int)size,
-                    BitConverter.ToUInt16(textureHeader[0x20..0x22]),
-                    BitConverter.ToUInt16(textureHeader[0x22..0x24]),
-                    textureHeader[0x24]));
+                    textureHeader.Width,
+                    textureHeader.Height,
+                    (byte)textureHeader.StorageFormat));
 
             _recordsByEntryId.TryAdd((uint)i, indexedRecord);
             AddLookupNames(indexedRecord);

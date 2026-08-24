@@ -7,7 +7,6 @@ public readonly record struct MixedCutoutRecord(
     int Bottom,
     int Left,
     int Top,
-    uint Unknown2C,
     float Uv0,
     float Uv1,
     float Uv2,

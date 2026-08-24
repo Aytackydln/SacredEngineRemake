@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 
 namespace Sacred.Inventory.Actors;
@@ -34,7 +33,7 @@ internal static class EquipmentSlotLayout
             SacredCharacterClass.WoodElf or SacredCharacterClass.BattleMage => [EquipmentSlotType.Head, EquipmentSlotType.Arms, EquipmentSlotType.Hands, EquipmentSlotType.Body, EquipmentSlotType.Amulet, EquipmentSlotType.Amulet, EquipmentSlotType.Ring, EquipmentSlotType.Ring, EquipmentSlotType.Ring, EquipmentSlotType.Ring, EquipmentSlotType.Feet, EquipmentSlotType.Legs, EquipmentSlotType.SmallBelt],
             SacredCharacterClass.DarkElf => [EquipmentSlotType.Head, EquipmentSlotType.Shoulder, EquipmentSlotType.Arms, EquipmentSlotType.Hands, EquipmentSlotType.Body, EquipmentSlotType.Amulet, EquipmentSlotType.Ring, EquipmentSlotType.Ring, EquipmentSlotType.Ring, EquipmentSlotType.Ring, EquipmentSlotType.Feet, EquipmentSlotType.Legs, EquipmentSlotType.SmallBelt],
             SacredCharacterClass.Vampiress => [EquipmentSlotType.Head, EquipmentSlotType.Shoulder, EquipmentSlotType.Arms, EquipmentSlotType.Hands, EquipmentSlotType.Body, EquipmentSlotType.Amulet, EquipmentSlotType.Ring, EquipmentSlotType.Ring, EquipmentSlotType.Ring, EquipmentSlotType.Ring, EquipmentSlotType.Feet, EquipmentSlotType.Legs, EquipmentSlotType.Belt],
-            _ => throw new ArgumentOutOfRangeException(nameof(characterClass))
+            _ => []
         });
         return slots;
     }
