@@ -6,8 +6,8 @@ using Sacred.Assets.Paks.Texture;
 namespace Sacred.Engine.Rendering;
 
 /// <summary>
-/// Derives the centre and colour of a visible halo from every frame of its
-/// animated mini-object atlas. Halo size remains authored in Items.pak.
+/// Derives the position and tint of the texture-backed halo from the actual
+/// animated mini-object atlas. Its size remains authored in Items.pak.
 /// </summary>
 internal sealed class AnimatedSpriteHaloAppearanceCache
 {

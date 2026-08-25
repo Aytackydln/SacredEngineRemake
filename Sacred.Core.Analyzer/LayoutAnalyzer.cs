@@ -44,6 +44,7 @@ internal sealed partial class LayoutAnalyzer
         var pack = GetNamedInt(layoutAttribute, "Pack") ?? 0;
         var explicitSize = GetNamedInt(layoutAttribute, "Size") ?? 0;
         var analyzedFields = AnalyzeFields(fields, layoutKind, pack).ToArray();
+        ValidateNoOverlappingFields(type, analyzedFields);
         var computedSize = analyzedFields.Length == 0 ? 1 : analyzedFields.Max(static item => item.Offset + item.Size);
         var size = Math.Max(explicitSize, computedSize);
 
@@ -61,6 +62,29 @@ internal sealed partial class LayoutAnalyzer
             GetDocumentation(type),
             analyzedFields,
             FindUnknownRanges(knownBytes));
+    }
+
+    private static void ValidateNoOverlappingFields(
+        INamedTypeSymbol layoutType,
+        IReadOnlyList<FieldCoverage> fields)
+    {
+        for (var leftIndex = 0; leftIndex < fields.Count; leftIndex++)
+        {
+            var left = fields[leftIndex];
+            var leftEnd = left.Offset + left.Size;
+            for (var rightIndex = leftIndex + 1; rightIndex < fields.Count; rightIndex++)
+            {
+                var right = fields[rightIndex];
+                var rightEnd = right.Offset + right.Size;
+                if (left.Offset >= rightEnd || right.Offset >= leftEnd)
+                    continue;
+
+                throw new InvalidOperationException(
+                    $"Layout '{layoutType.ToDisplayString()}' has overlapping serialized fields: " +
+                    $"'{left.Name}' [0x{left.Offset:X}..0x{leftEnd - 1:X}] and " +
+                    $"'{right.Name}' [0x{right.Offset:X}..0x{rightEnd - 1:X}].");
+            }
+        }
     }
 
     private IEnumerable<FieldCoverage> AnalyzeFields(IReadOnlyList<IFieldSymbol> fields, int layoutKind, int pack)

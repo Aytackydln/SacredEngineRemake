@@ -47,9 +47,12 @@ public static class LightHaloShaderLayout
 
     public const int SceneConstantsRegister = 0; // HLSL: register(b0)
     public const int InstanceBufferRegister = 0; // HLSL: register(t0)
+    public const int TextureRegister = 1; // HLSL: register(t1)
+    public const int SamplerRegister = 0; // HLSL: register(s0)
 
     public const int SceneConstantsRootParameter = 0;
     public const int InstanceBufferRootParameter = 1;
+    public const int TextureTableRootParameter = 2;
 }
 
 public static class WorldQuadShaderLayout

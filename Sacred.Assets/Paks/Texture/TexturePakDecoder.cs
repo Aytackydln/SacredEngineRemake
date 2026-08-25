@@ -30,16 +30,15 @@ public static class TexturePakDecoder
         return new TextureAsset(record.Name, record.Width, record.Height, rgba);
     }
 
-    public static int ReadEntryCount(uint entryCount, ushort entryCount16, long archiveLength)
+    public static int ReadEntryCount(uint entryCount, long archiveLength)
     {
         var maxDescriptorCount = Math.Max(0, (archiveLength - HeaderSize) / DescriptorSize);
 
-        if (entryCount <= maxDescriptorCount && entryCount <= int.MaxValue)
-            return (int)entryCount;
-        if (entryCount16 <= maxDescriptorCount)
-            return entryCount16;
+        if (entryCount > int.MaxValue || entryCount > maxDescriptorCount)
+            throw new InvalidDataException(
+                $"Texture.pak entry count {entryCount} exceeds the descriptor capacity {maxDescriptorCount}.");
 
-        throw new InvalidDataException($"Cannot determine texture.pak entry count. count16={entryCount16}, count32={entryCount}, max={maxDescriptorCount}");
+        return (int)entryCount;
     }
 
     private static byte[] DecodeBgra(ReadOnlySpan<byte> source, int width, int height)

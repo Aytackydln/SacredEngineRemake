@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Assets.Paks.Texture;
+using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Graphics;
 using Sacred.Engine.Platform;
@@ -22,6 +23,7 @@ internal sealed class InGameScene : IGameScene
     private readonly Win32Window _window;
     private readonly SacredGameSaveState _saveState;
     private Task? _worldPreparationTask;
+    private string _lastRegionDisplayName = string.Empty;
     private bool _disposed;
 
     public InGameScene(
@@ -117,7 +119,11 @@ internal sealed class InGameScene : IGameScene
         _inputController.OnDeactivated();
         _window.SetHandCursor(false);
     }
-    public void Update(float deltaSeconds) => _inputController.Update(deltaSeconds);
+    public void Update(float deltaSeconds)
+    {
+        _inputController.Update(deltaSeconds);
+        UpdateRegionDisplayName();
+    }
 
     public ValueTask RenderAsync(SceneRenderContext context) =>
         context.Renderer.RenderFrameAsync(
@@ -146,11 +152,23 @@ internal sealed class InGameScene : IGameScene
             (int)MathF.Floor(startLocation.Y / WorldStreamer.SectorTileCount));
         _camera.CenterOnTile(startLocation.X, startLocation.Y, 0.75f);
         _inputController.InitializeLocation(startLocation);
+        UpdateRegionDisplayName();
         var zone = _scene.Indoor.ActiveGroup is null
             ? _worldStreamer.GetZone(_camera.WorldCenter)
-            : Sacred.Core.World.Sector.WorldZone.Indoors;
+            : WorldZone.Indoors;
         _worldLighting.Update(0.0f, _scene.Lighting, new Vector3(_camera.WorldCenter, 0.0f), zone);
         _player.Initialize(_camera.WorldCenter);
+    }
+
+    private void UpdateRegionDisplayName()
+    {
+        const string regionDisplayName = "";
+        _scene.Minimap.RegionDisplayName = regionDisplayName;
+        if (string.Equals(_lastRegionDisplayName, regionDisplayName, StringComparison.Ordinal))
+            return;
+
+        _lastRegionDisplayName = regionDisplayName;
+        EngineLog.WriteLine($"Minimap region changed: {regionDisplayName}.");
     }
 
     private static bool TryParseLightingMode(string value, out WorldLightingMode mode)

@@ -105,7 +105,8 @@ internal sealed class WorldMapScene : IGameScene
                         _inputController.TargetScreenPosition,
                         _inputController.IsControllerTargetVisible,
                         _inputController.IsMinimapVisible,
-                        "Silver")),
+                        "Silver",
+                        string.Empty)),
                 context.VerticalSyncEnabled,
                 context.FrameId,
                 context.CancellationToken);

@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Sacred.Core.World.Pathing;
 using Sacred.Core.World.Sector;
 
 namespace Sacred.Core.World;
@@ -72,9 +73,9 @@ public readonly record struct WldxTileRecord
     /// <summary>Signed terrain elevation at the south-east corner.</summary>
     [FieldOffset(0x1B)] public readonly sbyte ElevationSouthEast;
     /// <summary>Raw navigation and collision flags.</summary>
-    [FieldOffset(0x1E)] public readonly byte PathFlags;
-    /// <summary>Authored terrain-surface category.</summary>
-    [FieldOffset(0x1F)] public readonly byte SurfaceType;
+    [FieldOffset(0x1E)] public readonly WorldPathFlags PathFlags;
+    /// <summary>Packed path type in the low nibble and terrain-surface category in the high nibble.</summary>
+    [FieldOffset(0x1F)] public readonly byte TypeAndSurface;
 
     public static WldxTileRecord FromBytes(ReadOnlySpan<byte> data)
     {

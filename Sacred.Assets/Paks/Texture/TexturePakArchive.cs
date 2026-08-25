@@ -154,7 +154,7 @@ public sealed class TexturePakArchive : IDisposable
         using var reader = new BinaryReader(stream, Encoding.Latin1, leaveOpen: true);
         var header = reader.ReadStruct<TexturePakHeaderLayout>(TexturePakHeaderLayout.SerializedSize);
         header.ValidateSignature();
-        var count = TexturePakDecoder.ReadEntryCount(header.EntryCount, header.EntryCount16, stream.Length);
+        var count = TexturePakDecoder.ReadEntryCount(header.EntryCount, stream.Length);
         var descriptors = PakDataHelpers.ReadEntryDescriptors(stream, count, Path.GetFileName(archive.Path));
 
         for (var i = 0; i < count; i++)

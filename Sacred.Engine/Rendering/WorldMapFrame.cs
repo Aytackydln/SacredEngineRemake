@@ -13,4 +13,5 @@ public readonly record struct WorldMapOverlay(
     Vector2 TargetScreenPosition,
     bool TargetMarkerVisible,
     bool MinimapVisible,
-    string DifficultyDisplayName);
+    string DifficultyDisplayName,
+    string RegionDisplayName);

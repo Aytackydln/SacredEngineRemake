@@ -1228,7 +1228,7 @@ public sealed class AssetManager : IDisposable
                 _texturePak,
                 item.ModelDesc.TextureId,
                 item.EffectTextureId,
-                item.GraphicRenderFlags,
+                item.GraphicFlags,
                 modelHasEffectTextureSurface,
                 preferItemTexture,
                 surface.TextureName);

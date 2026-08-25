@@ -29,7 +29,7 @@ internal sealed class MarkdownReportWriter(
     {
         output.AppendLine("## How coverage is calculated");
         output.AppendLine();
-        output.AppendLine("Field coverage is the percentage of serialized fields whose purpose has a meaningful name. Byte coverage is the percentage of bytes covered by those fields. Fields marked `BinaryUnknown`, fields named `Unknown…`, and gaps between fields remain unknown. Overlapping known fields count each byte once. Fixed-width strings use `BinaryString` metadata so the report treats the whole encoded range as one field.");
+        output.AppendLine("Byte coverage is the percentage of bytes covered by those fields. Overlapping serialized fields are rejected by the analyzer. Fixed-width strings use `BinaryString` metadata so the report treats the whole encoded range as one field.");
         output.AppendLine();
         output.AppendLine("Percentages describe the fixed-size structures represented in `Sacred.Core`; repetitions are not weighted by one particular game installation. Variable-size image, sound, Granny, compressed, and string payloads are excluded where their internal byte layout is not a fixed `StructLayout` type.");
         output.AppendLine();

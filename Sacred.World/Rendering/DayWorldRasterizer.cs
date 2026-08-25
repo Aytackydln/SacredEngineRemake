@@ -1,6 +1,8 @@
 using System.Numerics;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Assets.Paks.Tiles;
+using Sacred.Core.Pak.Items;
+using Sacred.Core.World;
 using Sacred.Core.World.Sector;
 using Sacred.World.Geometry;
 
@@ -17,12 +19,7 @@ public sealed class DayWorldRasterizer(
     private const int SourceTileHeight = 50;
     private const int RenderTileWidth = 96;
     private const int RenderTileHeight = 48;
-    private const uint NormalRenderExcludeFlags = 0x290;
-    private const uint NightOnlyObjectFlag = 0x00000040;
     private const int ExteriorActiveLayer = 1;
-    private const byte SpecialRenderClass = 0x0C;
-    private const uint RearGraphicFlag = 0x00000004;
-    private const uint FrontGraphicFlag = 0x00800000;
     private const float ObjectShiftX = 47.8f;
     private const float ObjectShiftY = -0.3f;
 
@@ -161,12 +158,13 @@ public sealed class DayWorldRasterizer(
         foreach (var staticObject in sector.StaticObjects.Objects)
         {
             candidates++;
-            if ((staticObject.Flags & NormalRenderExcludeFlags) != 0 ||
+            if ((staticObject.Flags & StaticObjectFlags.NormalRenderExclusionMask) != 0 ||
                 staticObject.SurfaceRenderLayer > ExteriorActiveLayer)
                 continue;
             var item = staticSprites!.GetItem(staticObject.TypeId);
             if (item is null ||
-                (staticObject.Flags & NightOnlyObjectFlag) != 0 && item.Value.StaticSpriteFrameCount <= 1)
+                (staticObject.Flags & StaticObjectFlags.NightOnly) != 0 &&
+                item.Value.StaticSpriteFrameCount <= 1)
                 continue;
 
             var footX = staticObject.ProjectedX + ObjectShiftX;
@@ -176,7 +174,7 @@ public sealed class DayWorldRasterizer(
             if (screenFootX < -512 || screenFootX > width + 512 || screenFootY < -512 || screenFootY > height + 512)
                 continue;
             draws.Add(new StaticDraw(
-                EngineQueueIndex(staticObject, item.Value.GraphicRenderFlags, item.Value.RenderClass),
+                EngineQueueIndex(staticObject, item.Value.GraphicFlags, item.Value.Category),
                 staticObject,
                 footX,
                 footY,
@@ -209,19 +207,25 @@ public sealed class DayWorldRasterizer(
         return new StaticRenderResult(candidates, rendered, missing);
     }
 
-    private static int EngineQueueIndex(StaticWorldObject staticObject, uint graphicFlags, byte renderClass)
+    private static int EngineQueueIndex(
+        StaticWorldObject staticObject,
+        SacredItemGraphicFlags graphicFlags,
+        SacredItemCategory category)
     {
-        if (renderClass == SpecialRenderClass)
+        if (category == SacredItemCategory.Effect)
         {
-            if ((graphicFlags & FrontGraphicFlag) != 0)
+            if ((graphicFlags & SacredItemGraphicFlags.FrontLayer) != 0)
                 return 4;
-            if ((graphicFlags & RearGraphicFlag) != 0)
+            if ((graphicFlags & SacredItemGraphicFlags.RearLayer) != 0)
                 return 0;
             return 3;
         }
-        if ((graphicFlags & RearGraphicFlag) != 0)
-            return (staticObject.Flags & 0x20) != 0 || staticObject.SurfaceRenderLayer == 1 ? 0 : 2;
-        return (graphicFlags & FrontGraphicFlag) != 0 ? 4 : 3;
+        if ((graphicFlags & SacredItemGraphicFlags.RearLayer) != 0)
+            return (staticObject.Flags & StaticObjectFlags.RearLayerBackground) != 0 ||
+                   staticObject.SurfaceRenderLayer == 1
+                ? 0
+                : 2;
+        return (graphicFlags & SacredItemGraphicFlags.FrontLayer) != 0 ? 4 : 3;
     }
 
     private static int CompareStaticDraws(StaticDraw left, StaticDraw right)

@@ -51,6 +51,7 @@ public sealed class MinimapOverlayState
 {
     public bool IsVisible { get; internal set; }
     public string DifficultyDisplayName { get; set; } = string.Empty;
+    public string RegionDisplayName { get; set; } = string.Empty;
 }
 
 public sealed class SceneDebugState

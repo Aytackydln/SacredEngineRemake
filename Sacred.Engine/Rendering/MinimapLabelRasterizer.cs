@@ -6,11 +6,11 @@ using System.Runtime.InteropServices;
 
 namespace Sacred.Engine.Rendering;
 
-/// <summary>Creates the small transparent difficulty label drawn over the minimap.</summary>
+/// <summary>Creates the transparent difficulty and region labels drawn over the minimap.</summary>
 internal sealed class MinimapLabelRasterizer : IDisposable
 {
     public const int Width = 320;
-    public const int Height = 48;
+    public const int Height = 72;
 
     private readonly DebugOverlayFontSet _fonts;
     private byte[] _bitmapPixels = new byte[Width * Height * 4];
@@ -18,7 +18,7 @@ internal sealed class MinimapLabelRasterizer : IDisposable
     public MinimapLabelRasterizer(string gameDirectory) =>
         _fonts = DebugOverlayFontSet.Load(gameDirectory);
 
-    public byte[] Rasterize(string difficultyDisplayName)
+    public byte[] Rasterize(string difficultyDisplayName, string regionDisplayName)
     {
         using var bitmap = new Bitmap(Width, Height, PixelFormat.Format32bppArgb);
         using var graphics = System.Drawing.Graphics.FromImage(bitmap);
@@ -26,16 +26,28 @@ internal sealed class MinimapLabelRasterizer : IDisposable
         graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
         graphics.PageUnit = GraphicsUnit.Pixel;
 
-        if (!string.IsNullOrWhiteSpace(difficultyDisplayName))
-        {
-            var font = _fonts.GetFont(DebugTextFont.CarolingTitle);
-            using var shadow = new SolidBrush(Color.FromArgb(220, 0, 0, 0));
-            using var foreground = new SolidBrush(Color.FromArgb(255, 220, 215, 135));
-            graphics.DrawString(difficultyDisplayName, font, shadow, 2.0f, 2.0f);
-            graphics.DrawString(difficultyDisplayName, font, foreground, 0.0f, 0.0f);
-        }
+        var font = _fonts.GetFont(DebugTextFont.CarolingTitle);
+        using var shadow = new SolidBrush(Color.FromArgb(220, 0, 0, 0));
+        using var foreground = new SolidBrush(Color.FromArgb(255, 220, 215, 135));
+        DrawLabel(graphics, difficultyDisplayName, font, shadow, foreground, 0.0f);
+        DrawLabel(graphics, regionDisplayName, font, shadow, foreground, 24.0f);
 
         return ToRgba(bitmap);
+    }
+
+    private static void DrawLabel(
+        System.Drawing.Graphics graphics,
+        string text,
+        Font font,
+        Brush shadow,
+        Brush foreground,
+        float y)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return;
+
+        graphics.DrawString(text, font, shadow, 2.0f, y + 2.0f);
+        graphics.DrawString(text, font, foreground, 0.0f, y);
     }
 
     private byte[] ToRgba(Bitmap bitmap)

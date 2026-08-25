@@ -2,7 +2,7 @@
 
 public sealed class FloorOverlayLayer(int width, int height)
 {
-    private static readonly IReadOnlyList<FloorOverlay> Empty = Array.Empty<FloorOverlay>();
+    private static readonly IReadOnlyList<FloorOverlay> Empty = [];
     private readonly List<FloorOverlay>?[] _overlays = new List<FloorOverlay>?[width * height];
 
     public int Width { get; } = width;

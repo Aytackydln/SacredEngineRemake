@@ -58,13 +58,13 @@ public readonly struct SacredEquipmentLayout
     [FieldOffset(126)]
     public readonly ushort ItemId;
 
-    /// <summary>Encoded character-class availability mask.</summary>
+    /// <summary>Character-class availability flags.</summary>
     [FieldOffset(130)]
-    public readonly byte CharacterClassMaskCode;
+    public readonly SacredCharacterClassMask CharacterClassMask;
 
-    /// <summary>Encoded equipment category.</summary>
+    /// <summary>Equipment category.</summary>
     [FieldOffset(131)]
-    public readonly byte EquipmentTypeCode;
+    public readonly SacredEquipmentType EquipmentType;
 
     /// <summary>Packed rarity-tier and class-specific flags.</summary>
     [FieldOffset(132)]
@@ -156,8 +156,8 @@ public readonly record struct SacredEquipment(
         var itemId = layout.ItemId;
         var item = items[itemId];
         var classification = SacredEquipmentClassification.FromBytes(
-            characterClassMaskCode: layout.CharacterClassMaskCode,
-            equipmentTypeCode: layout.EquipmentTypeCode,
+            characterClassMaskCode: (byte)layout.CharacterClassMask,
+            equipmentTypeCode: (byte)layout.EquipmentType,
             rarityAndClassFlags: layout.RarityAndClassFlags
         );
 

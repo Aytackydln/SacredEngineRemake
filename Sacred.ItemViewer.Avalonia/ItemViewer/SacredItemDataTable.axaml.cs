@@ -19,7 +19,6 @@ using Sacred.Assets.Paks.Texture;
 using Sacred.Core;
 using Sacred.Core.GameRes;
 using Sacred.Core.Pak.Weapon;
-using Sacred.Granny;
 using Sacred.Granny.Abstractions;
 using Sacred.Granny.Assets;
 using Sacred.Granny.Loading;
@@ -44,6 +43,7 @@ public partial class SacredItemDataTable : UserControl
     private string _gameDir = DefaultGameDir;
     private ModelsPakArchive _modelsPakArchive = null!;
     private TexturePakArchive _texturePakArchive = null!;
+    private ItemSelectionSoundPlayer? _itemSelectionSoundPlayer;
     private CancellationTokenSource? _modelLoadCancellation;
     private SacredItemDataModel? _confirmablePreviewItem;
     private GrnBackendKind _grannyBackend = GrnBackendKind.ManagedParser;
@@ -65,6 +65,11 @@ public partial class SacredItemDataTable : UserControl
         ModelYawSlider.ValueChanged += (_, _) => UpdateModelRotationFromSliders();
         ModelPitchSlider.ValueChanged += (_, _) => UpdateModelRotationFromSliders();
         ModelRollSlider.ValueChanged += (_, _) => UpdateModelRotationFromSliders();
+        DetachedFromVisualTree += (_, _) =>
+        {
+            _itemSelectionSoundPlayer?.Dispose();
+            _itemSelectionSoundPlayer = null;
+        };
         UpdateModelRotationFromSliders();
     }
 
@@ -142,6 +147,8 @@ public partial class SacredItemDataTable : UserControl
             Path.Combine(pakDirectory, "models.pak"),
             assetLoader: GrnAssetLoaderFactory.Create(_grannyBackend, _gameDir));
         _texturePakArchive = TexturePakArchive.LoadFromDirectory(pakDirectory);
+        _itemSelectionSoundPlayer = new ItemSelectionSoundPlayer(Path.Combine(pakDirectory, "sound.pak"));
+        _itemSelectionSoundPlayer.SetMuted(MuteSoundsCheckBox.IsChecked == true);
 
         BuildEnumFilters();
         _tableViewModel.LoadPage(0);
@@ -341,6 +348,15 @@ public partial class SacredItemDataTable : UserControl
             return;
         }
 
+        try
+        {
+            _itemSelectionSoundPlayer?.Play(selectedItem.Category);
+        }
+        catch (Exception exception) when (exception is IOException or InvalidDataException or KeyNotFoundException)
+        {
+            Console.WriteLine($"Could not load the selected item's inventory sound: {exception.Message}");
+        }
+
         if (_previewConfirmationsByItemId.TryGetValue(selectedItem.ItemId, out var confirmation))
         {
             SetModelRotationSliders(ToVector3(confirmation.UserRotationYawPitchRoll));
@@ -362,6 +378,11 @@ public partial class SacredItemDataTable : UserControl
         var rotationMode = SelectedRotationMode;
         var pivotMode = SelectedPivotMode;
         _ = Task.Run(async () => await LoadModel(selectedItem, rotationMode, pivotMode));
+    }
+
+    private void MuteSoundsCheckBox_OnCheckedChanged(object? sender, RoutedEventArgs e)
+    {
+        _itemSelectionSoundPlayer?.SetMuted(MuteSoundsCheckBox.IsChecked == true);
     }
 
     private void DataGrid_OnAutoGeneratingColumn(object? sender, DataGridAutoGeneratingColumnEventArgs e)
@@ -635,7 +656,7 @@ public partial class SacredItemDataTable : UserControl
                 archive,
                 selectedItem.TextureId,
                 selectedItem.EffectTextureId,
-                selectedItem.GraphicRenderFlags,
+                selectedItem.GraphicFlags,
                 modelHasEffectTextureSurface,
                 preferItemTexture,
                 textureName);

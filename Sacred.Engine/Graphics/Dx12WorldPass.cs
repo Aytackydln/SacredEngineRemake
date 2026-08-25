@@ -67,6 +67,9 @@ internal sealed class Dx12WorldPass : IDisposable
         _lightHalos = new Dx12LightHaloPass(
             graphics.Device,
             graphics.CommandList,
+            textureUploader,
+            graphics.SrvCpuHandle(Dx12DescriptorLayout.LightHalo),
+            graphics.SrvGpuHandle(Dx12DescriptorLayout.LightHalo),
             Dx12DeviceContext.FrameCount);
         _minimap = new Dx12MinimapPass(
             graphics.CommandList,
@@ -154,6 +157,7 @@ internal sealed class Dx12WorldPass : IDisposable
             prepared.StaticSprites,
             _graphics.CurrentFrame,
             _terrain.WorldSpriteRevision);
+        _lightHalos.PrepareTexture(prepared.WorldLights, _graphics.CurrentFrame);
         UpdatePreparationStatus(request.World, prepared.SectorImages);
     }
 
@@ -173,8 +177,13 @@ internal sealed class Dx12WorldPass : IDisposable
             prepared.StaticSprites,
             _graphics.CurrentFrame,
             _terrain.WorldSpriteRevision);
+        _lightHalos.PrepareTexture(prepared.WorldLights, _graphics.CurrentFrame);
         if (scene.Minimap.IsVisible)
-            _minimap.Prepare(camera.WorldCenter, scene.Minimap.DifficultyDisplayName, _graphics.CurrentFrame);
+            _minimap.Prepare(
+                camera.WorldCenter,
+                scene.Minimap.DifficultyDisplayName,
+                scene.Minimap.RegionDisplayName,
+                _graphics.CurrentFrame);
 
         var modelStats = _modelTextures.Stats;
         _debugOverlay.Update(
@@ -224,6 +233,7 @@ internal sealed class Dx12WorldPass : IDisposable
             _minimap.Prepare(
                 overlay.TargetWorldPosition,
                 overlay.DifficultyDisplayName,
+                overlay.RegionDisplayName,
                 _graphics.CurrentFrame);
         }
         else if (overlay.TargetMarkerVisible)
@@ -294,6 +304,7 @@ internal sealed class Dx12WorldPass : IDisposable
         _modelGeometry.Dispose();
         _modelTextures.Dispose();
         _sprites.Dispose();
+        _lightHalos.Dispose();
         _minimap.Dispose();
     }
 

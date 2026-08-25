@@ -70,6 +70,8 @@ internal sealed class SacredGameRuntime : IDisposable
     {
         _gamepad.Poll(_window.Input);
         _cheats.Update(ExecuteCheat);
+        if (_window.Input.ConsumePressed(VirtualKey.F12))
+            CaptureScreenshot(null);
         _engineInput.Update();
         _scenes.Update(deltaSeconds);
     }
@@ -226,7 +228,7 @@ internal sealed class SacredGameRuntime : IDisposable
         switch (command)
         {
             case HelpCheatCommand:
-                EngineLog.WriteLine("Cheats: teleport <x> <y>; set overlays <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set character next; set hdr <on|off>; set pacing <vrr|vsync|limit>; set latency <off|on|boost>; set granny <managed|native>.");
+                EngineLog.WriteLine("Cheats: teleport <x> <y>; screenshot [label]; set overlays <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set character next; set hdr <on|off>; set pacing <vrr|vsync|limit>; set latency <off|on|boost>; set granny <managed|native>.");
                 return;
             case TeleportCheatCommand teleport:
                 if (_inGameScene is null)
@@ -237,6 +239,9 @@ internal sealed class SacredGameRuntime : IDisposable
 
                 _inGameScene.Teleport(teleport.Position);
                 EngineLog.WriteLine($"Cheat: teleported to {teleport.Position.X:0.##}, {teleport.Position.Y:0.##}.");
+                return;
+            case ScreenshotCheatCommand screenshot:
+                CaptureScreenshot(screenshot.Label);
                 return;
             case SetOptionCheatCommand setOption:
                 ExecuteSetOptionCheat(setOption);
@@ -265,6 +270,19 @@ internal sealed class SacredGameRuntime : IDisposable
         }
 
         EngineLog.WriteLine($"Cheat: {engineMessage}");
+    }
+
+    private void CaptureScreenshot(string? label)
+    {
+        try
+        {
+            var path = WindowScreenshotCapture.Save(_window, _gameDirectory, label);
+            EngineLog.WriteLine($"Screenshot saved to {path}.");
+        }
+        catch (Exception exception)
+        {
+            EngineLog.WriteLine($"Screenshot failed: {exception.Message}");
+        }
     }
 
     private bool TrySetEngineCheatOption(string option, string value, out string message)

@@ -64,6 +64,12 @@
                           IsChecked="{Binding FilterFavoritesOnly}"
                           VerticalAlignment="Top"
                           Margin="4,8,12,0" />
+                <CheckBox Name="MuteSoundsCheckBox"
+                          Content="Mute item sounds"
+                          IsCheckedChanged="MuteSoundsCheckBox_OnCheckedChanged"
+                          VerticalAlignment="Top"
+                          Margin="4,8,12,0"
+                          ToolTip.Tip="Mute the sound played when selecting an item" />
                 <StackPanel Margin="4,2,12,0"
                             MinWidth="185">
                     <TextBlock Text="Granny implementation"

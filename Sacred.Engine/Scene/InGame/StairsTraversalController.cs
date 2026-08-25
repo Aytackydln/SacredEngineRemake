@@ -1,14 +1,13 @@
+using System;
 using System.Numerics;
 using Sacred.Core.World.Stairs;
 
 namespace Sacred.Engine.Scene.InGame;
 
-/// <summary>Applies linked stairs transitions and keeps the destination zone disarmed until it is left.</summary>
+/// <summary>Applies linked stairs transitions and keeps the arrival tile disarmed until it is left.</summary>
 internal sealed class StairsTraversalController(SacredStairsMap stairsMap)
 {
-    private const float DestinationGraceMargin = 1.0f;
-
-    private WorldStairsZone? _blockedDestinationZone;
+    private StairsArrivalTile? _blockedArrivalTile;
 
     public bool IsStairsAt(Vector2 worldPosition, byte surfaceLevel) =>
         stairsMap.TryGetLink(
@@ -21,17 +20,14 @@ internal sealed class StairsTraversalController(SacredStairsMap stairsMap)
     {
         destinationSurfaceLevel = surfaceLevel;
         var actorPosition = camera.WorldCenter;
-        if (_blockedDestinationZone is { } blockedZone)
+        if (_blockedArrivalTile is { } blockedArrivalTile)
         {
-            if (blockedZone.ContainsWithMargin(
-                    actorPosition.X,
-                    actorPosition.Y,
-                    DestinationGraceMargin))
+            if (blockedArrivalTile.Contains(actorPosition, surfaceLevel))
             {
                 return false;
             }
 
-            _blockedDestinationZone = null;
+            _blockedArrivalTile = null;
         }
 
         if (!stairsMap.TryGetLink(
@@ -45,9 +41,20 @@ internal sealed class StairsTraversalController(SacredStairsMap stairsMap)
 
         var destination = link.Destination;
         destinationSurfaceLevel = link.TargetZone.Anchor.Metadata;
-        _blockedDestinationZone = link.TargetZone;
+        _blockedArrivalTile = StairsArrivalTile.From(destination, destinationSurfaceLevel);
         camera.StopMoving();
         camera.CenterOnTile(destination.X, destination.Y);
         return true;
+    }
+
+    private readonly record struct StairsArrivalTile(int X, int Y, byte SurfaceLevel)
+    {
+        public static StairsArrivalTile From(WorldStairsDestination destination, byte surfaceLevel) =>
+            new((int)MathF.Floor(destination.X), (int)MathF.Floor(destination.Y), surfaceLevel);
+
+        public bool Contains(Vector2 worldPosition, byte surfaceLevel) =>
+            SurfaceLevel == surfaceLevel &&
+            X == (int)MathF.Floor(worldPosition.X) &&
+            Y == (int)MathF.Floor(worldPosition.Y);
     }
 }

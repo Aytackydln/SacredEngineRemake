@@ -23,10 +23,9 @@ public readonly struct LightHaloInstance(
 public readonly record struct LightHaloSceneConstants(
     Vector2 ViewportSize,
     float NightBlend,
-    float WhiteNits,
-    float AnimationTime)
+    float WhiteNits)
 {
-    public const int FloatCount = 5;
+    public const int FloatCount = 4;
 }
 
 public static class LightHaloShaderConstantsWriter
@@ -37,6 +36,5 @@ public static class LightHaloShaderConstantsWriter
         target[1] = constants.ViewportSize.Y;
         target[2] = Math.Clamp(constants.NightBlend, 0.0f, 1.0f);
         target[3] = Math.Max(0.0f, constants.WhiteNits);
-        target[4] = Math.Max(0.0f, constants.AnimationTime);
     }
 }

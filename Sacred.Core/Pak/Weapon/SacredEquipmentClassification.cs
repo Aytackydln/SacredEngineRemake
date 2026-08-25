@@ -3,8 +3,7 @@ using Raiqub.Generators.EnumUtilities;
 namespace Sacred.Core.Pak.Weapon;
 
 [Flags]
-[EnumGenerator]
-public enum SacredCharacterClassMask : ushort
+public enum SacredCharacterClassMask : byte
 {
     None = 0,
     Seraphim = 1 << 0,

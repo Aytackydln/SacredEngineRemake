@@ -3,11 +3,20 @@ using Sacred.Particles;
 
 namespace Sacred.World.Particles;
 
-/// <summary>Maps Items.pak and Static.pak fields to world billboard/halo passes.</summary>
+/// <summary>Maps Items.pak and Static.pak fields to world billboard and light-effect passes.</summary>
 public static class WorldParticleMapper
 {
     private const int MiniObjectAtlasSize = 256;
     private const float EngineTickDurationSeconds = 0.02f;
+    // Sacred.exe's built-in particle texture table names this shared grayscale
+    // mask. The original renderer supplies the emitter colour separately.
+    private static readonly ParticleSpriteReference LocalLightHaloMask = new(
+        "PARTICLE_GLOW03.TGA",
+        1,
+        1,
+        1,
+        1.0f,
+        ParticleShaderKind.StaticAlphaSprite);
 
     public static bool TryResolveMiniObject(
         ItemsPakEntry item,
@@ -25,7 +34,7 @@ public static class WorldParticleMapper
 
         if (frameCount > 0)
         {
-            if (!descriptor.UsesAnimatedMiniObjectRenderClass ||
+            if (!descriptor.UsesAnimatedMiniObject ||
                 sourceXOrAtlasColumns == 0 ||
                 sourceYOrAtlasRows == 0 ||
                 frameDurationTicks == 0 ||
@@ -47,7 +56,7 @@ public static class WorldParticleMapper
             return true;
         }
 
-        if (!descriptor.UsesStaticMiniObjectRenderClass ||
+        if (!descriptor.UsesStaticMiniObject ||
             sourceSize == 0 ||
             MiniObjectAtlasSize % sourceSize != 0)
         {
@@ -68,9 +77,9 @@ public static class WorldParticleMapper
     }
 
     /// <summary>
-    /// Resolves the visible halo carried by an animated mini-object. Items.pak
-    /// supplies the unlit/render-class flags and extent; Static.pak supplies the
-    /// atlas animation parameters.
+    /// Resolves the visible texture halo carried by an animated mini-object.
+    /// Items.pak supplies its classification and authored diameter; Static.pak
+    /// supplies the emitter animation parameters.
     /// </summary>
     public static bool TryResolveAnimatedSpriteHalo(
         ItemsPakEntry item,
@@ -83,7 +92,7 @@ public static class WorldParticleMapper
 
         reference = new AnimatedSpriteHaloReference(
             item.ModelDesc.ModelExtent,
-            ParticleShaderKind.ProceduralHalo);
+            LocalLightHaloMask);
         return true;
     }
 
@@ -117,8 +126,7 @@ public static class WorldParticleMapper
 
         reference = new MixedLightEmitterReference(
             item.MixedBaseGroupId,
-            ParticleShaderKind.StaticAlphaSprite,
-            ParticleShaderKind.ProceduralSparkle);
+            ParticleShaderKind.StaticAlphaSprite);
         return true;
     }
 }
@@ -136,11 +144,10 @@ public readonly record struct MiniObjectTextureReference(
 
 public readonly record struct AnimatedSpriteHaloReference(
     ushort Extent,
-    ParticleShaderKind Shader);
+    ParticleSpriteReference HaloMask);
 
 public readonly record struct WorldLightMarkerReference(ushort Radius);
 
 public readonly record struct MixedLightEmitterReference(
     uint MixedGroupId,
-    ParticleShaderKind SpriteShader,
-    ParticleShaderKind ParticleShader);
+    ParticleShaderKind SpriteShader);

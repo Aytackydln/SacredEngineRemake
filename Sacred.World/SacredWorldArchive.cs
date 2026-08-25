@@ -152,7 +152,7 @@ public sealed class SacredWorldArchive : IDisposable
                 var tileOffset = (y * SectorW + x) * WldxTileRecord.Size;
                 var tile = WldxTileRecord.FromBytes(tiles.AsSpan(tileOffset, WldxTileRecord.Size));
                 ground[x, y] = tile.GroundTileId;
-                pathing[x, y] = new WorldPathTile(tile.PathFlags, tile.SurfaceType);
+                pathing[x, y] = new WorldPathTile(tile.PathFlags, tile.TypeAndSurface);
                 elevation[x, y] = new TerrainElevationTile(
                     tile.ElevationNorthWest,
                     tile.ElevationNorthEast,
@@ -202,14 +202,14 @@ public sealed class SacredWorldArchive : IDisposable
                 var tileOffset = (localY * payload.Width + localX) * WldxTileRecord.Size;
                 var tileBytes = payload.Tiles.AsSpan(tileOffset, WldxTileRecord.Size);
                 var tile = WldxTileRecord.FromBytes(tileBytes);
-                var pathTile = new WorldPathTile(tile.PathFlags, tile.SurfaceType);
+                var pathTile = new WorldPathTile(tile.PathFlags, tile.TypeAndSurface);
                 pathing[localX, localY] = pathTile;
                 presence[localX, localY] = HasAuthoredData(tileBytes);
 
-                // Older indoor sections commonly omit TriggerFlag on their door cells.
+                // Older indoor sections commonly omit the Trigger flag on their door cells.
                 // Path type 9 is the stable authored door discriminator in both the
                 // outdoor and indoor grids, so retain it as a trigger regardless.
-                if (pathTile.Type == 9 || (tile.PathFlags & WorldPathTile.TriggerFlag) != 0)
+                if (pathTile.Type == 9 || (tile.PathFlags & WorldPathFlags.Trigger) != 0)
                 {
                     triggers.Add(new IndoorTriggerTile(
                         payload.WorldX + localX,
@@ -352,7 +352,7 @@ public sealed class SacredWorldArchive : IDisposable
         WldxTileRecord tile,
         KeyxSectorRecord entry)
     {
-        var surfaceType = (byte)(tile.SurfaceType & LiquidSurfaceTypeMask);
+        var surfaceType = (byte)(tile.TypeAndSurface & LiquidSurfaceTypeMask);
         if (surfaceType is not LiquidSurfaceType90 and not LiquidSurfaceTypeA0)
             return;
 
@@ -360,7 +360,7 @@ public sealed class SacredWorldArchive : IDisposable
         liquidSurfaces.Add(new LiquidSurface(
             x,
             y,
-            tile.SurfaceType,
+            tile.TypeAndSurface,
             styleId,
             tile.LiquidAlphaLeft,
             tile.LiquidAlphaTop,

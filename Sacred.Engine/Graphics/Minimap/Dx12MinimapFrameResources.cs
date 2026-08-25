@@ -32,7 +32,8 @@ internal sealed class Dx12MinimapFrameResources(int firstSrvSlot) : IDisposable
         Dx12TextureUploader uploader,
         Func<int, CpuDescriptorHandle> cpuHandle,
         MinimapLabelRasterizer labelRasterizer,
-        string labelText,
+        string difficultyDisplayName,
+        string regionDisplayName,
         ICollection<ID3D12Resource> transientResources)
     {
         _background ??= Upload(
@@ -40,6 +41,7 @@ internal sealed class Dx12MinimapFrameResources(int firstSrvSlot) : IDisposable
             BackgroundPixel, transientResources);
         PrepareMarkerTexture(commandList, uploader, cpuHandle, transientResources);
 
+        var labelText = string.Concat(difficultyDisplayName, "\n", regionDisplayName);
         if (_label is not null && string.Equals(_labelText, labelText, StringComparison.Ordinal))
             return;
 
@@ -51,7 +53,7 @@ internal sealed class Dx12MinimapFrameResources(int firstSrvSlot) : IDisposable
             cpuHandle(_firstSrvSlot + LabelSlotOffset),
             MinimapLabelRasterizer.Width,
             MinimapLabelRasterizer.Height,
-            labelRasterizer.Rasterize(labelText),
+            labelRasterizer.Rasterize(difficultyDisplayName, regionDisplayName),
             transientResources);
     }
 

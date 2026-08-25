@@ -1,0 +1,48 @@
+﻿Clink sound (combat arts, amulets):
+5637
+5644
+5638
+5636
+5639
+5642
+5645
+5640
+5557
+5641
+1386
+1387
+1394
+1382
+
+Blink (rings)
+4866
+4877
+4867
+4922
+
+Tonk sound (potions)
+5169
+5171
+5170
+5172
+6081
+5139
+
+
+Swoosh (cloth, belt)
+1938
+1227
+7762
+3030
+
+
+Clank (metal helmet)
+1230
+
+Slash/metal cut (bracers, swords)
+1900
+5633
+1844
+1855
+5110
+6076

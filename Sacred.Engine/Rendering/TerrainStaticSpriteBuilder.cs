@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Sacred.Core.Pak.Items;
+using Sacred.Core.World;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
 using Sacred.World.Particles;
@@ -9,23 +11,16 @@ namespace Sacred.Engine.Rendering;
 
 internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
 {
-    private const uint NormalRenderExcludeFlags = 0x290;
-    private const uint NightOnlyObjectFlag = 0x00000040;
     private const int ExteriorActiveLayer = 1;
-    private const byte SpecialRenderClass = 0x0C;
-    private const uint RearGraphicFlag = 0x00000004;
-    private const uint FrontGraphicFlag = 0x00800000;
     private const float ObjectShiftX = 47.8f;
     private const float ObjectShiftY = -0.3f;
-    private const float AnimatedLightDiameterScale = 1.0f;
-    private const float AnimatedSurfaceLightDiameterScale = 2.0f;
     private const float LargeUnlitMixedLightRadius = 480.0f;
     private const float AuthoredLightOpacity = 0.48f;
     private static readonly Vector3 AuthoredLightColour = Vector3.One;
 
     private readonly List<TerrainStaticSprite> _visibleSprites = new(1024);
     private readonly List<TerrainWorldLight> _visibleLights = new(64);
-    private readonly AnimatedSpriteHaloAppearanceCache _animatedSpriteHaloAppearanceCache = new();
+    private readonly AnimatedSpriteHaloAppearanceCache _animatedHaloAppearances = new();
     private readonly MixedLightAppearanceCache _mixedLightAppearanceCache = new();
     private bool _assetRequestsPending = true;
     private bool _nightObjectsVisible;
@@ -49,7 +44,6 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
         var candidateObjects = 0;
         var missingObjects = 0;
         var animatedSpriteCount = 0;
-        var animatedSpriteHaloCount = 0;
         var mixedLightEmitterCount = 0;
         var worldLightMarkerCount = 0;
         var requestsPending = false;
@@ -58,7 +52,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
             candidateObjects += sector.StaticObjects.Count;
             foreach (var staticObject in sector.StaticObjects.Objects)
             {
-                if ((staticObject.Flags & NormalRenderExcludeFlags) != 0)
+                if ((staticObject.Flags & StaticObjectFlags.NormalRenderExclusionMask) != 0)
                 {
                     continue;
                 }
@@ -138,7 +132,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                     continue;
                 }
 
-                if ((staticObject.Flags & NightOnlyObjectFlag) != 0 &&
+                if ((staticObject.Flags & StaticObjectFlags.NightOnly) != 0 &&
                     !nightObjectsVisible &&
                     sprite.FrameCount <= 1)
                     continue;
@@ -147,26 +141,31 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                     WorldParticleMapper.TryResolveAnimatedSpriteHalo(
                         animatedHaloItem,
                         miniObjectReference,
-                        out var haloReference) &&
-                    _animatedSpriteHaloAppearanceCache.TryGet(sprite, out var haloAppearance))
+                        out var haloReference))
                 {
-                    var diameter = haloReference.Extent * AnimatedLightDiameterScale;
-                    _visibleLights.Add(new TerrainWorldLight(
-                        spriteIsoX + haloAppearance.CenterX - diameter * 0.5f,
-                        spriteIsoY + haloAppearance.CenterY - diameter * 0.5f,
-                        diameter,
-                        haloAppearance.Colour,
-                        AnimatedSpriteHaloAppearanceCache.HaloOpacity,
-                        WorldLightShape.RadialHalo));
-                    var surfaceDiameter = haloReference.Extent * AnimatedSurfaceLightDiameterScale;
-                    _visibleLights.Add(new TerrainWorldLight(
-                        footX - surfaceDiameter * 0.5f,
-                        footY - surfaceDiameter * 0.5f,
-                        surfaceDiameter,
-                        Vector3.One,
-                        AuthoredLightOpacity,
-                        WorldLightShape.SurfaceIllumination));
-                    animatedSpriteHaloCount++;
+                    // Cache the emitter appearance while the source atlas still
+                    // owns its CPU pixels. The independently loaded halo mask
+                    // may not become ready until after sprite upload releases
+                    // those pixels.
+                    var hasHaloAppearance = _animatedHaloAppearances.TryGet(
+                        sprite,
+                        out var haloAppearance);
+                    if (!assets.TryGetWorldParticleSpriteOrRequest(haloReference.HaloMask, out var haloMask))
+                    {
+                        requestsPending = true;
+                    }
+                    else if (haloMask is not null && hasHaloAppearance)
+                    {
+                        var diameter = haloReference.Extent;
+                        _visibleLights.Add(new TerrainWorldLight(
+                            spriteIsoX + haloAppearance.CenterX - diameter * 0.5f,
+                            spriteIsoY + haloAppearance.CenterY - diameter * 0.5f,
+                            diameter,
+                            haloAppearance.Colour,
+                            AnimatedSpriteHaloAppearanceCache.HaloOpacity,
+                            WorldLightShape.RadialHalo,
+                            haloMask));
+                    }
                 }
 
                 MixedLightAppearance lightAppearance = default;
@@ -180,7 +179,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                 if (isMixedLightEmitter)
                 {
                     var surfaceRadius = lightAppearance.SurfaceLightRadius;
-                    if (item!.Value.ModelDesc.HasExtendedMixedSpriteGraphicFlag)
+                    if (item!.Value.ModelDesc.UsesExtendedMixedSprite)
                         surfaceRadius = MathF.Max(surfaceRadius, LargeUnlitMixedLightRadius);
                     var surfaceDiameter = surfaceRadius * 2.0f;
                     _visibleLights.Add(new TerrainWorldLight(
@@ -190,24 +189,6 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                         Vector3.One,
                         lightAppearance.SurfaceLightOpacity,
                         WorldLightShape.SurfaceIllumination));
-                    _visibleLights.Add(new TerrainWorldLight(
-                        spriteIsoX + lightAppearance.CenterX - lightAppearance.LocalHaloDiameter * 0.5f,
-                        spriteIsoY + lightAppearance.CenterY - lightAppearance.LocalHaloDiameter * 0.5f,
-                        lightAppearance.LocalHaloDiameter,
-                        lightAppearance.Colour,
-                        lightAppearance.LocalHaloOpacity,
-                        WorldLightShape.RadialHalo));
-                    if (lightAppearance.HasSparkles)
-                    {
-                        var sparkleDiameter = lightAppearance.SparkleDiameter;
-                        _visibleLights.Add(new TerrainWorldLight(
-                            spriteIsoX + lightAppearance.CenterX - sparkleDiameter * 0.5f,
-                            spriteIsoY + lightAppearance.EmitterTop - sparkleDiameter * 0.72f,
-                            sparkleDiameter,
-                            new Vector3(0.68f, 0.76f, 1.0f),
-                            0.72f,
-                            WorldLightShape.SparkleCluster));
-                    }
                 }
 
                 _visibleSprites.Add(new TerrainStaticSprite(
@@ -241,7 +222,6 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
         if (!requestsPending)
             LogParticleSummary(
                 animatedSpriteCount,
-                animatedSpriteHaloCount,
                 mixedLightEmitterCount,
                 worldLightMarkerCount);
         return new TerrainStaticPreparation(_visibleSprites, _visibleLights, true, candidateObjects, missingObjects);
@@ -249,12 +229,10 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
 
     private void LogParticleSummary(
         int animatedSprites,
-        int animatedSpriteHalos,
         int mixedLightEmitters,
         int worldLightMarkers)
     {
         var summary = $"World effects ready: animated static sprites={animatedSprites}, " +
-                      $"animated sprite halos={animatedSpriteHalos}, " +
                       $"mixed light emitters={mixedLightEmitters}, " +
                       $"authored light markers={worldLightMarkers}.";
         if (summary == _lastParticleSummary)
@@ -306,20 +284,23 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
     private int EngineQueueIndex(StaticWorldObject staticObject)
     {
         var item = assets.GetItem(staticObject.TypeId);
-        var graphicFlags = item?.GraphicRenderFlags ?? 0;
-        var renderClass = item?.RenderClass ?? 0;
-        if (renderClass == SpecialRenderClass)
+        var graphicFlags = item?.GraphicFlags ?? SacredItemGraphicFlags.None;
+        var category = item?.Category ?? SacredItemCategory.Unspecified;
+        if (category == SacredItemCategory.Effect)
         {
-            if ((graphicFlags & FrontGraphicFlag) != 0)
+            if ((graphicFlags & SacredItemGraphicFlags.FrontLayer) != 0)
                 return 4;
-            if ((graphicFlags & RearGraphicFlag) != 0)
+            if ((graphicFlags & SacredItemGraphicFlags.RearLayer) != 0)
                 return 0;
             return 3;
         }
 
-        if ((graphicFlags & RearGraphicFlag) != 0)
-            return (staticObject.Flags & 0x20) != 0 || staticObject.SurfaceRenderLayer == 1 ? 0 : 2;
-        return (graphicFlags & FrontGraphicFlag) != 0 ? 4 : 3;
+        if ((graphicFlags & SacredItemGraphicFlags.RearLayer) != 0)
+            return (staticObject.Flags & StaticObjectFlags.RearLayerBackground) != 0 ||
+                   staticObject.SurfaceRenderLayer == 1
+                ? 0
+                : 2;
+        return (graphicFlags & SacredItemGraphicFlags.FrontLayer) != 0 ? 4 : 3;
     }
 }
 

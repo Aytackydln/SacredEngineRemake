@@ -2,12 +2,24 @@ using System.Runtime.InteropServices;
 
 namespace Sacred.Core.World;
 
+/// <summary>Known rendering and surface-selection bits in a Static.pak object record.</summary>
+[Flags]
+public enum StaticObjectFlags : uint
+{
+    None = 0,
+    AlternateSurface = 0x0000_0008,
+    RearLayerBackground = 0x0000_0020,
+    NightOnly = 0x0000_0040,
+
+    /// <summary>Composite mask of objects excluded from the normal static-sprite pass.</summary>
+    NormalRenderExclusionMask = 0x0000_0290,
+}
+
 /// <summary>One linked static-world object record stored in <c>Static.pak</c>.</summary>
 [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SerializedSize)]
 public readonly record struct StaticObjectRecord
 {
     public const int SerializedSize = 0x40;
-    public const uint AlternateSurfaceFlag = 0x00000008;
 
     /// <summary>Instance identifier stored in the payload.</summary>
     [FieldOffset(0x00)]
@@ -19,7 +31,7 @@ public readonly record struct StaticObjectRecord
 
     /// <summary>Rendering and surface-selection flags.</summary>
     [FieldOffset(0x08)]
-    public readonly uint Flags;
+    public readonly StaticObjectFlags Flags;
 
     /// <summary>Owning sector identifier.</summary>
     [FieldOffset(0x0C)]

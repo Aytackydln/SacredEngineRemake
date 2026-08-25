@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Sacred.Engine.Graphics.Frames;
@@ -14,18 +13,25 @@ using Vortice.Direct3D12;
 
 namespace Sacred.Engine.Graphics.Sprites;
 
-/// <summary>Records texture-free, procedural world-light halos.</summary>
-internal sealed class Dx12LightHaloPass
+/// <summary>Records texture-backed world-light halos and surface-light instances.</summary>
+internal sealed class Dx12LightHaloPass : IDisposable
 {
     private static readonly int InstanceStride = Marshal.SizeOf<LightHaloInstance>();
+    // Ground and static sprites evaluate every surface light per covered pixel.
+    // This matches the shader's fixed maximum. A smaller selection made ordinary
+    // lamp clusters switch light volumes while the camera moved.
+    private const int MaximumSurfaceIlluminationLights = 64;
 
     private readonly ID3D12Device _device;
     private readonly ID3D12GraphicsCommandList _commandList;
+    private readonly Dx12TextureUploader _textureUploader;
+    private readonly CpuDescriptorHandle _haloTextureCpuHandle;
+    private readonly GpuDescriptorHandle _haloTextureGpuHandle;
     private readonly LightHaloFrameState[] _frameStates;
-    private readonly long _startTimestamp = Stopwatch.GetTimestamp();
 
     private ID3D12RootSignature? _rootSignature;
     private ID3D12PipelineState? _pipeline;
+    private ID3D12Resource? _haloTexture;
 
     public int CandidateCount { get; private set; }
     public int InstanceCount { get; private set; }
@@ -34,10 +40,16 @@ internal sealed class Dx12LightHaloPass
     public Dx12LightHaloPass(
         ID3D12Device device,
         ID3D12GraphicsCommandList commandList,
+        Dx12TextureUploader textureUploader,
+        CpuDescriptorHandle haloTextureCpuHandle,
+        GpuDescriptorHandle haloTextureGpuHandle,
         int frameCount)
     {
         _device = device;
         _commandList = commandList;
+        _textureUploader = textureUploader;
+        _haloTextureCpuHandle = haloTextureCpuHandle;
+        _haloTextureGpuHandle = haloTextureGpuHandle;
         _frameStates = new LightHaloFrameState[frameCount];
         for (var index = 0; index < frameCount; index++)
             _frameStates[index] = new LightHaloFrameState();
@@ -55,6 +67,36 @@ internal sealed class Dx12LightHaloPass
         _pipeline = null;
         _rootSignature?.Dispose();
         _rootSignature = null;
+    }
+
+    public void PrepareTexture(
+        IReadOnlyList<TerrainWorldLight> lights,
+        Dx12FrameContext frame)
+    {
+        if (_haloTexture is not null)
+            return;
+
+        for (var index = 0; index < lights.Count; index++)
+        {
+            var mask = lights[index].Mask;
+            if (mask is null)
+                continue;
+
+            var rgba = mask.Rgba;
+            if (rgba.Length == 0)
+                return;
+
+            _haloTexture = _textureUploader.UploadRgbaTexture(
+                _commandList,
+                mask.AtlasWidth,
+                mask.AtlasHeight,
+                rgba,
+                frame.TransientResources);
+            _textureUploader.CreateShaderResourceView(_haloTexture, _haloTextureCpuHandle);
+            mask.ReleasePixelData();
+            EngineLog.WriteLine($"Light halo texture uploaded: {mask.Width}x{mask.Height}.");
+            return;
+        }
     }
 
     public unsafe int PrepareInstances(
@@ -133,34 +175,58 @@ internal sealed class Dx12LightHaloPass
                 (uint)WorldLightShape.SurfaceIllumination);
         }
 
-        for (var phase = 0; phase < 2; phase++)
+        // Only surface illumination enters the terrain/static-sprite shader's
+        // per-pixel loop. Keep every visible source up to the shader maximum;
+        // the player lamp occupies a protected first slot.
+        var surfaceBudget = MaximumSurfaceIlluminationLights - instanceCount;
+        var visibleSurfaceLights = new List<VisibleSurfaceLight>(Math.Min(lights.Count, surfaceBudget));
+        for (var index = 0; index < lights.Count; index++)
         {
-            var surfacePhase = phase == 0;
-            for (var index = 0; index < lights.Count; index++)
-            {
-                var light = lights[index];
-                if ((light.Shape == WorldLightShape.SurfaceIllumination) != surfacePhase)
-                    continue;
+            var light = lights[index];
+            if (light.Shape != WorldLightShape.SurfaceIllumination || light.Diameter <= 0.0f)
+                continue;
 
-                var drawPosition = screenTransform.ToScreen(light.IsoX, light.IsoY);
-                var diameter = screenTransform.Scale(light.Diameter);
-                if (drawPosition.X >= renderWidth || drawPosition.Y >= renderHeight ||
-                    drawPosition.X + diameter <= 0.0f || drawPosition.Y + diameter <= 0.0f)
-                {
-                    continue;
-                }
+            var drawPosition = screenTransform.ToScreen(light.IsoX, light.IsoY);
+            var diameter = screenTransform.Scale(light.Diameter);
+            if (!IntersectsViewport(drawPosition, diameter, renderWidth, renderHeight))
+                continue;
 
-                instances[instanceCount++] = new LightHaloInstance(
-                    drawPosition.X,
-                    drawPosition.Y,
-                    diameter,
-                    light.Opacity,
-                    light.Colour,
-                    (uint)light.Shape);
-            }
+            visibleSurfaceLights.Add(new VisibleSurfaceLight(light, drawPosition, diameter,
+                CalculateSurfacePriority(drawPosition, diameter, light.Opacity, renderWidth, renderHeight)));
+        }
 
-            if (surfacePhase)
-                SurfaceLightCount = instanceCount;
+        visibleSurfaceLights.Sort(static (left, right) => right.Priority.CompareTo(left.Priority));
+        var selectedSurfaceLightCount = Math.Min(visibleSurfaceLights.Count, Math.Max(0, surfaceBudget));
+        for (var index = 0; index < selectedSurfaceLightCount; index++)
+        {
+            var visibleLight = visibleSurfaceLights[index];
+            var light = visibleLight.Light;
+            instances[instanceCount++] = new LightHaloInstance(
+                visibleLight.DrawPosition.X,
+                visibleLight.DrawPosition.Y,
+                visibleLight.Diameter,
+                light.Opacity,
+                light.Colour,
+                (uint)light.Shape);
+        }
+
+        SurfaceLightCount = instanceCount;
+
+        // Visible halo effects do not take part in terrain lighting, so they
+        // retain their complete authored set without increasing shader cost.
+        for (var index = 0; index < lights.Count; index++)
+        {
+            var light = lights[index];
+            if (light.Shape == WorldLightShape.SurfaceIllumination)
+                continue;
+
+            var drawPosition = screenTransform.ToScreen(light.IsoX, light.IsoY);
+            var diameter = screenTransform.Scale(light.Diameter);
+            if (!IntersectsViewport(drawPosition, diameter, renderWidth, renderHeight))
+                continue;
+
+            instances[instanceCount++] = new LightHaloInstance(
+                drawPosition.X, drawPosition.Y, diameter, light.Opacity, light.Colour, (uint)light.Shape);
         }
 
         state.Remember(
@@ -192,6 +258,27 @@ internal sealed class Dx12LightHaloPass
             (0.5f - clip.Y * inverseW * 0.5f) * renderHeight);
     }
 
+    private static bool IntersectsViewport(Vector2 drawPosition, float diameter, int renderWidth, int renderHeight) =>
+        drawPosition.X < renderWidth && drawPosition.Y < renderHeight &&
+        drawPosition.X + diameter > 0.0f && drawPosition.Y + diameter > 0.0f;
+
+    private static float CalculateSurfacePriority(
+        Vector2 drawPosition, float diameter, float opacity, int renderWidth, int renderHeight)
+    {
+        var lightCenter = drawPosition + new Vector2(diameter * 0.5f);
+        var viewportCenter = new Vector2(renderWidth * 0.5f, renderHeight * 0.5f);
+        var distance = Vector2.Distance(lightCenter, viewportCenter);
+        // A large/bright volume is useful over a broader part of the current
+        // view; nearby volumes win ties, avoiding obvious illumination pops.
+        return MathF.Max(0.0f, opacity) * diameter / (1.0f + distance / MathF.Max(1.0f, diameter));
+    }
+
+    private readonly record struct VisibleSurfaceLight(
+        TerrainWorldLight Light,
+        Vector2 DrawPosition,
+        float Diameter,
+        float Priority);
+
     public unsafe void Record(
         int instanceCount,
         float nightBlend,
@@ -200,7 +287,9 @@ internal sealed class Dx12LightHaloPass
         int renderWidth,
         int renderHeight)
     {
-        if (instanceCount == 0 || _pipeline is null || _rootSignature is null)
+        var visibleEffectCount = instanceCount - SurfaceLightCount;
+        if (visibleEffectCount == 0 || _haloTexture is null ||
+            _pipeline is null || _rootSignature is null)
             return;
 
         var sceneConstants = stackalloc float[LightHaloShaderLayout.SceneConstantsCount];
@@ -209,8 +298,7 @@ internal sealed class Dx12LightHaloPass
             new LightHaloSceneConstants(
                 new Vector2(renderWidth, renderHeight),
                 nightBlend,
-                whiteNits,
-                (float)Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds));
+                whiteNits));
 
         _commandList.SetGraphicsRootSignature(_rootSignature);
         _commandList.SetPipelineState(_pipeline);
@@ -222,8 +310,22 @@ internal sealed class Dx12LightHaloPass
             0);
         _commandList.SetGraphicsRootShaderResourceView(
             LightHaloShaderLayout.InstanceBufferRootParameter,
-            frame.LightHaloInstanceBuffer.GPUVirtualAddress);
-        _commandList.DrawInstanced(4, (uint)instanceCount, 0, 0);
+            frame.LightHaloInstanceBuffer.GPUVirtualAddress +
+            (ulong)(SurfaceLightCount * InstanceStride));
+        _commandList.SetGraphicsRootDescriptorTable(
+            LightHaloShaderLayout.TextureTableRootParameter,
+            _haloTextureGpuHandle);
+        // Bind the visible-effect subrange explicitly. SV_InstanceID starts at
+        // zero for this shader-only instancing path; StartInstanceLocation is
+        // intended for input-layout instance data and left the shader reading
+        // the leading surface-light records (which it correctly discarded).
+        _commandList.DrawInstanced(4, (uint)visibleEffectCount, 0, 0);
+    }
+
+    public void Dispose()
+    {
+        _haloTexture?.Dispose();
+        _haloTexture = null;
     }
 
     private sealed class LightHaloFrameState

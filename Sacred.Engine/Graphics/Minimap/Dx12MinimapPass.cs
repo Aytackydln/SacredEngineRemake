@@ -66,6 +66,7 @@ internal sealed class Dx12MinimapPass : IDisposable
     public void Prepare(
         Vector2 playerWorldPosition,
         string difficultyDisplayName,
+        string regionDisplayName,
         Dx12FrameContext frameContext)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -76,6 +77,7 @@ internal sealed class Dx12MinimapPass : IDisposable
             CpuHandle,
             _labelRasterizer,
             difficultyDisplayName,
+            regionDisplayName,
             frameContext.TransientResources);
 
         var centerSector = new SectorCoord(

@@ -41,4 +41,5 @@ public enum VirtualKey : uint
     F8 = 0x77,
     F9 = 0x78,
     F10 = 0x79,
+    F12 = 0x7B,
 }

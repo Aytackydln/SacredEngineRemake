@@ -250,7 +250,8 @@ public readonly record struct TerrainWorldLight(
     float Diameter,
     Vector3 Colour,
     float Opacity,
-    WorldLightShape Shape);
+    WorldLightShape Shape,
+    StaticSpriteAsset? Mask = null);
 
 public enum WorldLightShape : uint
 {

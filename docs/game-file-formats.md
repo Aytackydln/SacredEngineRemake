@@ -4,7 +4,7 @@
 
 ## How coverage is calculated
 
-Field coverage is the percentage of serialized fields whose purpose has a meaningful name. Byte coverage is the percentage of bytes covered by those fields. Fields marked `BinaryUnknown`, fields named `Unknown…`, and gaps between fields remain unknown. Overlapping known fields count each byte once. Fixed-width strings use `BinaryString` metadata so the report treats the whole encoded range as one field.
+Field coverage is the percentage of serialized fields whose purpose has a meaningful name. Byte coverage is the percentage of bytes covered by those fields. Fields marked `BinaryUnknown`, fields named `Unknown…`, and gaps between fields remain unknown. Overlapping serialized fields are rejected by the analyzer. Fixed-width strings use `BinaryString` metadata so the report treats the whole encoded range as one field.
 
 Percentages describe the fixed-size structures represented in `Sacred.Core`; repetitions are not weighted by one particular game installation. Variable-size image, sound, Granny, compressed, and string payloads are excluded where their internal byte layout is not a fixed `StructLayout` type.
 
@@ -13,31 +13,33 @@ Percentages describe the fixed-size structures represented in `Sacred.Core`; rep
 | Metric | Coverage |
 |---|---:|
 | Catalogued game-file patterns | 37 |
-| Patterns with layout classes | 15 |
-| Patterns missing layout classes | 22 |
-| Unique `StructLayout` types | 30 |
-| Analyzed fields | 164/181 (90.6%) |
-| Analyzed fixed-layout bytes | 1133/5728 (19.8%) |
-| Matching files found in the scanned installation | 37 |
+| Patterns with layout classes | 17 |
+| Patterns missing layout classes | 20 |
+| Unique `StructLayout` types | 34 |
+| Analyzed fields | 181/189 (95.8%) |
+| Analyzed fixed-layout bytes | 1333/6680 (20.0%) |
+| Matching files found in the scanned installation | 39 |
 
 ## Analyzed game files
 
 | Game file | Installed files checked | Layout sections | Section byte coverage |
 |---|---:|---|---|
-| `pak/Items*.pak` | `pak/Items.pak` (4.4 MiB), `pak/Items03.pak` (4.4 MiB) | Header → Entry descriptors → Model descriptions | **Header:** 8/258 (3.1%)<br>**Entry descriptors:** 4/12 (33.3%)<br>**Model descriptions:** 63/128 (49.2%) |
+| `pak/Items*.pak` | `pak/Items.pak` (4.4 MiB), `pak/Items03.pak` (4.4 MiB) | Header → Entry descriptors → Model descriptions | **Header:** 8/258 (3.1%)<br>**Entry descriptors:** 4/12 (33.3%)<br>**Model descriptions:** 67/128 (52.3%) |
 | `pak/Weapon.pak` | `pak/Weapon.pak` (1.5 MiB) | Header → Equipment records | **Header:** 5/258 (1.9%)<br>**Equipment records:** 125/258 (48.4%) |
-| `pak/texture*.pak` | `pak/texture.pak` (820.8 MiB), `pak/texture03.pak` (26.7 KiB) | Header → Entry descriptors → Texture headers | **Header:** 4/256 (1.6%)<br>**Entry descriptors:** 12/12 (100.0%)<br>**Texture headers:** 37/80 (46.3%) |
-| `pak/mixed.pak` | `pak/mixed.pak` (13.7 MiB) | Header → Entry descriptors → Group headers → Sprite pieces | **Header:** 4/256 (1.6%)<br>**Entry descriptors:** 12/12 (100.0%)<br>**Group headers:** 4/16 (25.0%)<br>**Sprite pieces:** 60/64 (93.8%) |
+| `pak/texture*.pak` | `pak/texture.pak` (820.8 MiB), `pak/texture03.pak` (26.7 KiB) | Header → Entry descriptors → Texture headers | **Header:** 4/256 (1.6%)<br>**Entry descriptors:** 12/12 (100.0%)<br>**Texture headers:** 41/80 (51.3%) |
+| `pak/mixed.pak` | `pak/mixed.pak` (13.7 MiB) | Header → Entry descriptors → Group headers → Sprite pieces | **Header:** 4/256 (1.6%)<br>**Entry descriptors:** 12/12 (100.0%)<br>**Group headers:** 8/16 (50.0%)<br>**Sprite pieces:** 60/64 (93.8%) |
 | `pak/models*.pak` | `pak/models.pak` (414.2 MiB), `pak/models03.pak` (60.3 KiB) | Header → Entry descriptors → Known payload metadata | **Header:** 4/256 (1.6%)<br>**Entry descriptors:** 12/12 (100.0%)<br>**Known payload metadata:** 80/1148 (7.0%) |
 | `pak/Models.tmp` | `pak/Models.tmp` (2.6 MiB) | Header → Model records → Motion-name records | **Header:** 8/280 (2.9%)<br>**Model records:** 364/1194 (30.5%)<br>**Motion-name records:** 32/256 (12.5%) |
 | `pak/tiles.pak` | `pak/tiles.pak` (6.5 MiB) | Header → Entry descriptors → Known tile prefix | **Header:** 4/256 (1.6%)<br>**Entry descriptors:** 12/12 (100.0%)<br>**Known tile prefix:** 36/40 (90.0%) |
+| `pak/sndProfiles.pak` | `pak/sndProfiles.pak` (1.5 MiB) | Header → Entry descriptors → Sound profiles | **Header:** 8/256 (3.1%)<br>**Entry descriptors:** 12/12 (100.0%)<br>**Sound profiles:** 164/184 (89.1%) |
+| `pak/sound.pak` | `pak/sound.pak` (374.3 MiB) | Header → Entry descriptors | **Header:** 8/256 (3.1%)<br>**Entry descriptors:** 12/12 (100.0%) |
 | `World/Floor.pak` | `World/Floor.PAK` (179.3 MiB) | Header → Entry descriptors → Floor records | **Header:** 4/256 (1.6%)<br>**Entry descriptors:** 12/12 (100.0%)<br>**Floor records:** 8/16 (50.0%) |
 | `World/Static.pak` | `World/Static.PAK` (75.2 MiB) | Header → Entry descriptors → Static records | **Header:** 4/256 (1.6%)<br>**Entry descriptors:** 12/12 (100.0%)<br>**Static records:** 34/64 (53.1%) |
 | `World/sectors.keyx` | `World/sectors.keyx` (4.4 MiB) | Header → Sector records | **Header:** 4/256 (1.6%)<br>**Sector records:** 31/768 (4.0%) |
 | `World/sectors.wldx` | `World/sectors.wldx` (60.9 MiB) | Outdoor and indoor tiles → Post-tile header → Indoor-grid descriptors | **Outdoor and indoor tiles:** 22/32 (68.8%)<br>**Post-tile header:** 0/36 (0.0%)<br>**Indoor-grid descriptors:** 24/36 (66.7%) |
 | `bin/sets.bin` | `bin/sets.bin` (7.2 KiB) | Header → Set records | **Header:** 4/4 (100.0%)<br>**Set records:** 48/112 (42.9%) |
 | `bin/treppe.bin` | `bin/treppe.bin` (19.5 KiB) | Cell associations | **Cell associations:** 8/8 (100.0%) |
-| `bin/**/DefPos.bin` | 20 files; `bin/Addon/NetScript/DefPos.bin` (597.8 KiB), `bin/Addon/NetScriptCamp/DefPos.bin` (191.9 KiB), `bin/Addon/TYPE_NPC_DAEMONIN/DefPos.bin` (481.6 KiB), … | First-table header → Named positions | **First-table header:** 4/4 (100.0%)<br>**Named positions:** 76/100 (76.0%) |
+| `bin/**/DefPos.bin` | 20 files; `bin/Addon/NetScript/DefPos.bin` (597.8 KiB), `bin/Addon/NetScriptCamp/DefPos.bin` (191.9 KiB), `bin/Addon/TYPE_NPC_DAEMONIN/DefPos.bin` (484.5 KiB), … | First-table header → Named positions | **First-table header:** 4/4 (100.0%)<br>**Named positions:** 76/100 (76.0%) |
 | `scripts/*/global.res` | `scripts/us/global.res` (2.6 MiB) | Header → String index | **Header:** 4/4 (100.0%)<br>**String index:** 12/16 (75.0%) |
 
 ## File structures
@@ -97,6 +99,21 @@ Terrain tile definitions.
 - Header: [`PakArchiveHeaderLayout`](#pakarchiveheaderlayout) — once, 0x100 bytes
 - Entry descriptors: [`PakEntryDescriptorLayout`](#pakentrydescriptorlayout) — EntryCount times, 0xC bytes
 - Known tile prefix: [`TilePakEntryLayout`](#tilepakentrylayout) — one per populated descriptor, 0x28 bytes
+
+### `pak/sndProfiles.pak`
+
+Sound selection profiles.
+
+- Header: [`SoundProfilePakHeaderLayout`](#soundprofilepakheaderlayout) — once, 0x100 bytes
+- Entry descriptors: [`PakEntryDescriptorLayout`](#pakentrydescriptorlayout) — EntryCount times, 0xC bytes
+- Sound profiles: [`SoundProfilePakEntryLayout`](#soundprofilepakentrylayout) — one per populated descriptor, 0xB8 bytes
+
+### `pak/sound.pak`
+
+Encoded sound assets.
+
+- Header: [`SoundPakHeaderLayout`](#soundpakheaderlayout) — once, 0x100 bytes
+- Entry descriptors: [`PakEntryDescriptorLayout`](#pakentrydescriptorlayout) — EntryCount times, 0xC bytes. Variable-size WAVE and MP3 payload bytes are excluded from fixed-layout coverage.
 
 ### `World/Floor.pak`
 
@@ -258,18 +275,11 @@ Unknown byte ranges: none
 
 Descriptor that points from the Items.pak index to a model-description record.
 
-Size: **0xC** bytes. Fields: **1/8 (12.5%)**. Bytes: **4/12 (33.3%)**.
+Size: **0xC** bytes. Fields: **1/1 (100.0%)**. Bytes: **4/12 (33.3%)**.
 
 | Offset | Bytes | Serialized type | Field | Status | Documentation |
 |---:|---:|---|---|---|---|
-| 0x0 | 2 | `uint16` | `unknown0` | Unknown | Unresolved two-byte value at descriptor offset 0x00. |
 | 0x2 | 4 | `uint32` | `ModelDescOffset` | Known | Absolute file offset of the corresponding model-description record. |
-| 0x6 | 1 | `byte` | `unknown6` | Unknown | Unresolved byte at descriptor offset 0x06. |
-| 0x7 | 1 | `byte` | `unknown7` | Unknown | Unresolved byte at descriptor offset 0x07. |
-| 0x8 | 1 | `byte` | `unknown8` | Unknown | Unresolved byte at descriptor offset 0x08. |
-| 0x9 | 1 | `byte` | `unknown9` | Unknown | Unresolved byte at descriptor offset 0x09. |
-| 0xA | 1 | `byte` | `Byte23` | Unknown | Unresolved flag byte at descriptor offset 0x0A. |
-| 0xB | 1 | `byte` | `unknown11` | Unknown | Unresolved byte at descriptor offset 0x0B. |
 
 Unknown byte ranges: `0x0–0x1` (2 bytes), `0x6–0xB` (6 bytes)
 
@@ -277,25 +287,25 @@ Unknown byte ranges: `0x0–0x1` (2 bytes), `0x6–0xB` (6 bytes)
 
 Known fixed fields in one 128-byte Items.pak model-description record.
 
-Size: **0x80** bytes. Fields: **11/13 (84.6%)**. Bytes: **63/128 (49.2%)**.
+Size: **0x80** bytes. Fields: **13/13 (100.0%)**. Bytes: **67/128 (52.3%)**.
 
 | Offset | Bytes | Serialized type | Field | Status | Documentation |
 |---:|---:|---|---|---|---|
-| 0x0 | 4 | `uint32` | `GraphicRenderFlags` | Known | Rendering flags whose low bits select the item's rendering class. |
+| 0x0 | 4 | `SacredItemGraphicFlags (uint32)` | `GraphicFlags` | Known | Packed graphic type and rendering flags. The low nibble is a ; the remaining bits are values. |
 | 0x4 | 4 | `uint32` | `MiniObjectTextureId` | Known | Texture.pak descriptor index used by atlas-backed mini objects. Static.pak bytes 0x2e..0x32 select a region or animation from this texture. |
 | 0x8 | 4 | `uint32` | `TextureId` | Known | General Texture.pak identifier used by model-backed items. |
-| 0x9 | 2 | `uint16` | `SomeShort2` | Unknown | Unresolved two-byte value overlapping the texture-id bytes at offset 0x09. |
 | 0x10 | 4 | `uint32` | `MixedBaseGroupId` | Known | Base group identifier for an assembled Mixed.pak sprite. |
 | 0x20 | 4 | `uint32` | `ItemId` | Known | Item identifier repeated within the model description. |
+| 0x24 | 4 | `uint32` | `SoundProfileId` | Known | sndProfiles.pak profile identifier. Sacred.exe uses this profile for authored object and weapon sounds; zero requests its equipment-type fallback for supported weapon families. |
 | 0x2C | 2 | `uint16` | `StaticSpriteFrameCount` | Known | Number of frames used by a static-world sprite animation. |
-| 0x2E | 1 | `byte` | `RenderClass` | Known | Low-level renderer category for this model description. |
-| 0x30 | 2 | `uint16` | `ModelTransformFlags` | Known | Flags controlling the model or sprite transform. |
-| 0x32 | 2 | `uint16` | `ModelExtent` | Known | Authored spatial extent used by sprite halos and world light markers. |
+| 0x2E | 1 | `SacredItemCategory (byte)` | `Category` | Known | Item family used by Sacred.exe gameplay and inventory UI code. |
+| 0x30 | 1 | `byte` | `StaticSpriteFrameDuration10Ms` | Known | Static-sprite frame duration in 10-millisecond units. |
+| 0x31 | 1 | `SacredItemDescriptorFlags (byte)` | `DescriptorFlags` | Known | Descriptor-state flags; separate from the animation duration byte. |
+| 0x32 | 2 | `uint16` | `ModelExtent` | Known | Authored spatial extent. For animated light mini-objects this is the visible halo diameter. For invisible world-light marker entries it is the radial reach, so renderers using full quad size must double it. |
 | 0x37 | 32 | `string[32] (ISO-8859-1, NUL-terminated)` | `ModelName` | Known | Null-terminated model resource name encoded as ISO-8859-1. |
 | 0x66 | 4 | `uint32` | `EffectTextureId` | Known | Texture identifier used by an attached visual effect. |
-| 0x70 | 2 | `uint16` | `Unknown112` | Unknown | Unresolved two-byte value at byte offset 0x70. |
 
-Unknown byte ranges: `0xC–0xF` (4 bytes), `0x14–0x1F` (12 bytes), `0x24–0x2B` (8 bytes), `0x2F`, `0x34–0x36` (3 bytes), `0x57–0x65` (15 bytes), `0x6A–0x7F` (22 bytes)
+Unknown byte ranges: `0xC–0xF` (4 bytes), `0x14–0x1F` (12 bytes), `0x28–0x2B` (4 bytes), `0x2F`, `0x34–0x36` (3 bytes), `0x57–0x65` (15 bytes), `0x6A–0x7F` (22 bytes)
 
 #### `ItemsPakHeaderLayout`
 
@@ -305,9 +315,9 @@ Size: **0x102** bytes. Fields: **3/3 (100.0%)**. Bytes: **8/258 (3.1%)**.
 
 | Offset | Bytes | Serialized type | Field | Status | Documentation |
 |---:|---:|---|---|---|---|
-| 0x0 | 3 | `string[3] (ASCII)` | `Signature` | Known | ASCII file signature; expected to contain ITM. |
+| 0x0 | 3 | `byte[3]` | `Signature` | Known | ASCII file signature; expected to contain ITM. |
 | 0x3 | 1 | `byte` | `Version` | Known | Items archive format version. |
-| 0x4 | 4 | `uint32` | `EntryCount` | Known | Number of 12-byte item entry descriptors. |
+| 0x4 | 4 | `int32` | `EntryCount` | Known | Number of 12-byte item entry descriptors. |
 
 Unknown byte ranges: `0x8–0x101` (250 bytes)
 
@@ -317,16 +327,17 @@ Unknown byte ranges: `0x8–0x101` (250 bytes)
 
 Header shared by each mixed.pak sprite group payload.
 
-Size: **0x10** bytes. Fields: **1/4 (25.0%)**. Bytes: **4/16 (25.0%)**.
+Size: **0x10** bytes. Fields: **3/5 (60.0%)**. Bytes: **8/16 (50.0%)**.
 
 | Offset | Bytes | Serialized type | Field | Status | Documentation |
 |---:|---:|---|---|---|---|
 | 0x0 | 4 | `uint32` | `PieceCount` | Known | Number of sprite-piece records following this header. |
-| 0x4 | 4 | `uint32` | `Unknown04` | Unknown | Unresolved value at byte offset 0x04. |
+| 0x4 | 2 | `uint16` | `AnchorX` | Known | Horizontal origin, in pixels, from the composed sprite's left edge to its world placement point. |
+| 0x6 | 2 | `uint16` | `AnchorY` | Known | Vertical origin, in pixels, from the composed sprite's top edge to its world placement point. |
 | 0x8 | 4 | `uint32` | `Unknown08` | Unknown | Unresolved value at byte offset 0x08. |
 | 0xC | 4 | `uint32` | `Unknown0C` | Unknown | Unresolved value at byte offset 0x0C. |
 
-Unknown byte ranges: `0x4–0xF` (12 bytes)
+Unknown byte ranges: `0x8–0xF` (8 bytes)
 
 #### `MixedPakPieceLayout`
 
@@ -442,13 +453,58 @@ Size: **0x100** bytes. Fields: **1/1 (100.0%)**. Bytes: **32/256 (12.5%)**.
 
 Unknown byte ranges: `0x20–0xFF` (224 bytes)
 
+### `Sacred.Core.Pak.Sound`
+
+#### `SoundPakHeaderLayout`
+
+Header preceding the sparse descriptor table in Sound.pak.
+
+Size: **0x100** bytes. Fields: **3/3 (100.0%)**. Bytes: **8/256 (3.1%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 3 | `byte[3]` | `Signature` | Known | ASCII file signature; expected to contain SND. |
+| 0x3 | 1 | `byte` | `Version` | Known | Sound archive format version. |
+| 0x4 | 4 | `uint32` | `EntryCount` | Known | Number of descriptor slots. Empty sound identifiers have an all-zero descriptor, so this is a slot count rather than the number of stored payloads. |
+
+Unknown byte ranges: `0x8–0xFF` (248 bytes)
+
+#### `SoundProfilePakEntryLayout`
+
+Fixed-size sound selection profile stored in sndProfiles.pak.
+
+Size: **0xB8** bytes. Fields: **3/4 (75.0%)**. Bytes: **164/184 (89.1%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 32 | `string[32] (ISO-8859-1, NUL-terminated)` | `Name` | Known | Null-terminated profile name encoded as ISO-8859-1. |
+| 0x20 | 4 | `uint32` | `IsDefined` | Known | One for a defined profile and zero for an unused profile slot. |
+| 0x24 | 20 | `byte[20]` | `Reserved` | Unknown | Reserved profile bytes; zero in every defined Sacred Gold profile. |
+| 0x38 | 128 | `uint16[64]` | `SoundIds` | Known | Sound.pak identifiers selected for the profile's 64 authored event/variant slots. Repeated identifiers preserve the game's weighted/random selection table. |
+
+Unknown byte ranges: `0x24–0x37` (20 bytes)
+
+#### `SoundProfilePakHeaderLayout`
+
+Header preceding the sparse descriptor table in sndProfiles.pak.
+
+Size: **0x100** bytes. Fields: **3/3 (100.0%)**. Bytes: **8/256 (3.1%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 3 | `byte[3]` | `Signature` | Known | ASCII file signature; expected to contain SPF. |
+| 0x3 | 1 | `byte` | `Version` | Known | Sound-profile archive format version. |
+| 0x4 | 4 | `uint32` | `EntryCount` | Known | Number of profile descriptor slots. |
+
+Unknown byte ranges: `0x8–0xFF` (248 bytes)
+
 ### `Sacred.Core.Pak.Texture`
 
 #### `TexturePakEntryHeaderLayout`
 
 Metadata prefix stored before one Texture.pak image payload.
 
-Size: **0x50** bytes. Fields: **4/4 (100.0%)**. Bytes: **37/80 (46.3%)**.
+Size: **0x50** bytes. Fields: **5/5 (100.0%)**. Bytes: **41/80 (51.3%)**.
 
 | Offset | Bytes | Serialized type | Field | Status | Documentation |
 |---:|---:|---|---|---|---|
@@ -456,8 +512,23 @@ Size: **0x50** bytes. Fields: **4/4 (100.0%)**. Bytes: **37/80 (46.3%)**.
 | 0x20 | 2 | `uint16` | `Width` | Known | Image width in pixels. |
 | 0x22 | 2 | `uint16` | `Height` | Known | Image height in pixels. |
 | 0x24 | 1 | `SacredTextureStorageFormat (byte)` | `StorageFormat` | Known | Encoded pixel storage format. |
+| 0x25 | 4 | `uint32` | `CompressedSize` | Known | Compressed pixel payload size, repeated from the entry descriptor. |
 
-Unknown byte ranges: `0x25–0x4F` (43 bytes)
+Unknown byte ranges: `0x29–0x4F` (39 bytes)
+
+#### `TexturePakHeaderLayout`
+
+Header preceding the descriptor table in Texture.pak.
+
+Size: **0x100** bytes. Fields: **3/3 (100.0%)**. Bytes: **8/256 (3.1%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 3 | `byte[3]` | `Signature` | Known | ASCII file signature; expected to contain TEX. |
+| 0x3 | 1 | `byte` | `Version` | Known | Texture archive format version. |
+| 0x4 | 4 | `uint32` | `EntryCount` | Known | Number of 12-byte texture entry descriptors. |
+
+Unknown byte ranges: `0x8–0xFF` (248 bytes)
 
 ### `Sacred.Core.Pak.Tiles`
 
@@ -494,8 +565,8 @@ Size: **0x102** bytes. Fields: **20/21 (95.2%)**. Bytes: **125/258 (48.4%)**.
 | 0x25 | 1 | `byte` | `TypeIdentifier` | Known | Equipment type byte observed as zero in the sampled records. |
 | 0x26 | 88 | `string[88] (ISO-8859-1, NUL-terminated)` | `Name` | Known | Null-terminated equipment name encoded as ISO-8859-1. |
 | 0x7E | 2 | `uint16` | `ItemId` | Known | Items.pak identifier for the equipment's visual definition. |
-| 0x82 | 1 | `byte` | `CharacterClassMaskCode` | Known | Encoded character-class availability mask. |
-| 0x83 | 1 | `byte` | `EquipmentTypeCode` | Known | Encoded equipment category. |
+| 0x82 | 1 | `SacredCharacterClassMask (byte)` | `CharacterClassMask` | Known | Character-class availability flags. |
+| 0x83 | 1 | `SacredEquipmentType (byte)` | `EquipmentType` | Known | Equipment category. |
 | 0x84 | 1 | `byte` | `RarityAndClassFlags` | Known | Packed rarity-tier and class-specific flags. |
 | 0x9A | 2 | `uint16` | `PhysicalDamageMinimum` | Known | Minimum physical damage. |
 | 0x9C | 2 | `uint16` | `FireDamageMinimum` | Known | Minimum fire damage. |
@@ -516,7 +587,7 @@ Size: **0x102** bytes. Fields: **2/2 (100.0%)**. Bytes: **5/258 (1.9%)**.
 
 | Offset | Bytes | Serialized type | Field | Status | Documentation |
 |---:|---:|---|---|---|---|
-| 0x0 | 3 | `string[3] (ASCII)` | `Signature` | Known | ASCII file signature; expected to contain WPN. |
+| 0x0 | 3 | `byte[3]` | `Signature` | Known | ASCII file signature; expected to contain WPN. |
 | 0x3 | 2 | `uint16` | `EntryCount` | Known | Number of 258-byte equipment records. |
 
 Unknown byte ranges: `0x5–0x101` (253 bytes)
@@ -581,7 +652,7 @@ Size: **0x40** bytes. Fields: **14/14 (100.0%)**. Bytes: **34/64 (53.1%)**.
 |---:|---:|---|---|---|---|
 | 0x0 | 4 | `uint32` | `PayloadInstanceId` | Known | Instance identifier stored in the payload. |
 | 0x4 | 4 | `uint32` | `TypeId` | Known | Items.pak type identifier selecting the object's visual definition. |
-| 0x8 | 4 | `uint32` | `Flags` | Known | Rendering and surface-selection flags. |
+| 0x8 | 4 | `StaticObjectFlags (uint32)` | `Flags` | Known | Rendering and surface-selection flags. |
 | 0xC | 2 | `uint16` | `SectorId` | Known | Owning sector identifier. |
 | 0xE | 4 | `int32` | `ProjectedX` | Known | Projected world X coordinate. |
 | 0x12 | 4 | `int32` | `ProjectedY` | Known | Projected world Y coordinate. |
@@ -645,8 +716,8 @@ Size: **0x20** bytes. Fields: **13/13 (100.0%)**. Bytes: **22/32 (68.8%)**.
 | 0x19 | 1 | `sbyte` | `ElevationNorthWest` | Known | Signed terrain elevation at the north-west corner. |
 | 0x1A | 1 | `sbyte` | `ElevationNorthEast` | Known | Signed terrain elevation at the north-east corner. |
 | 0x1B | 1 | `sbyte` | `ElevationSouthEast` | Known | Signed terrain elevation at the south-east corner. |
-| 0x1E | 1 | `byte` | `PathFlags` | Known | Raw navigation and collision flags. |
-| 0x1F | 1 | `byte` | `SurfaceType` | Known | Authored terrain-surface category. |
+| 0x1E | 1 | `WorldPathFlags (byte)` | `PathFlags` | Known | Raw navigation and collision flags. |
+| 0x1F | 1 | `byte` | `TypeAndSurface` | Known | Packed path type in the low nibble and terrain-surface category in the high nibble. |
 
 Unknown byte ranges: `0x8–0xB` (4 bytes), `0x14–0x17` (4 bytes), `0x1C–0x1D` (2 bytes)
 
@@ -700,15 +771,13 @@ These catalogued formats were found in the game or are adjacent to the formats c
 |---|---|---:|
 | `pak/Creature.pak` | Creature definitions | `pak/Creature.pak` (40.1 KiB) |
 | `pak/MOTIONS.PAK` | Motion archive | `pak/MOTIONS.PAK` (662.1 KiB) |
-| `pak/sndProfiles.pak` | Sound profiles | `pak/sndProfiles.pak` (1.5 MiB) |
-| `pak/sound.pak` | Encoded sound assets | `pak/sound.pak` (374.3 MiB) |
 | `bin/Balance.bin` | Balance tables | `bin/Balance.bin` (23.8 KiB) |
 | `bin/**/merc.bin` | Mercenary data | `bin/Addon/merc.bin` (1.8 KiB), `bin/merc.bin` (1.8 KiB) |
 | `bin/MultiStart.bin` | Multiplayer start data | `bin/MultiStart.bin` (768 B) |
 | `bin/Rust.bin` | Unmapped binary table | `bin/Rust.bin` (4.3 KiB) |
 | `bin/sgf.bin` | Compiled script data | `bin/sgf.bin` (3.8 MiB) |
 | `bin/sgq.bin` | Compiled quest data | `bin/sgq.bin` (40 B) |
-| `bin/sgqp.bin` | Compiled quest-pool data | `bin/sgqp.bin` (0 B) |
+| `bin/sgqp.bin` | Compiled quest-pool data | `bin/sgqp.bin` (1 B) |
 | `bin/static*.bin` | Static-object auxiliary data | `bin/static10_18.bin` (40.5 KiB) |
 | `bin/wea.bin` | Weather data | `bin/wea.bin` (4.5 KiB) |
 | `bin/World*.bin` | World configuration tables | `bin/World.bin` (45.2 KiB), `bin/World2.bin` (32.0 KiB) |

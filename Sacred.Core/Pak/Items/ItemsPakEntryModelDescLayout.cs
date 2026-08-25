@@ -18,25 +18,13 @@ public readonly struct ItemsPakEntryModelDescLayout
     internal const int ModelNameLength = 32;
     private const int ModelNameOffset = 55;
 
-    /// <summary>Rendering flags whose low bits select the item's rendering class.</summary>
+    /// <summary>
+    /// Packed graphic type and rendering flags. The low nibble is a
+    /// <see cref="SacredItemGraphicType"/>; the remaining bits are
+    /// <see cref="SacredItemGraphicFlags"/> values.
+    /// </summary>
     [FieldOffset(0)]
-    public readonly uint GraphicRenderFlags;
-
-    /// <summary>Least-significant raw byte of <see cref="GraphicRenderFlags"/> at descriptor offset 0x00.</summary>
-    [FieldOffset(0)]
-    public readonly byte GraphicRenderFlagByte0;
-
-    /// <summary>Second raw byte of <see cref="GraphicRenderFlags"/> at descriptor offset 0x01.</summary>
-    [FieldOffset(1)]
-    public readonly byte GraphicRenderFlagByte1;
-
-    /// <summary>Third raw byte of <see cref="GraphicRenderFlags"/> at descriptor offset 0x02.</summary>
-    [FieldOffset(2)]
-    public readonly byte GraphicRenderFlagByte2;
-
-    /// <summary>Most-significant raw byte of <see cref="GraphicRenderFlags"/> at descriptor offset 0x03.</summary>
-    [FieldOffset(3)]
-    public readonly byte GraphicRenderFlagByte3;
+    public readonly SacredItemGraphicFlags GraphicFlags;
 
     /// <summary>
     /// Texture.pak descriptor index used by atlas-backed mini objects. Static.pak
@@ -57,21 +45,33 @@ public readonly struct ItemsPakEntryModelDescLayout
     [FieldOffset(32)]
     public readonly uint ItemId;
 
+    /// <summary>
+    /// sndProfiles.pak profile identifier. Sacred.exe uses this profile for authored object and
+    /// weapon sounds; zero requests its equipment-type fallback for supported weapon families.
+    /// </summary>
+    [FieldOffset(36)]
+    public readonly uint SoundProfileId;
+
     /// <summary>Number of frames used by a static-world sprite animation.</summary>
     [FieldOffset(44)]
     public readonly ushort StaticSpriteFrameCount;
 
-    /// <summary>Low-level renderer category for this model description.</summary>
+    /// <summary>Item family used by Sacred.exe gameplay and inventory UI code.</summary>
     [FieldOffset(46)]
-    public readonly byte RenderClass;
+    public readonly SacredItemCategory Category;
 
-    /// <summary>Flags controlling the model or sprite transform.</summary>
+    /// <summary>Static-sprite frame duration in 10-millisecond units.</summary>
     [FieldOffset(48)]
-    public readonly ushort ModelTransformFlags;
+    public readonly byte StaticSpriteFrameDuration10Ms;
+
+    /// <summary>Descriptor-state flags; separate from the animation duration byte.</summary>
+    [FieldOffset(49)]
+    public readonly SacredItemDescriptorFlags DescriptorFlags;
 
     /// <summary>
-    /// Authored spatial extent. For invisible world-light marker entries this
-    /// is the radial reach, so renderers using full quad size must double it.
+    /// Authored spatial extent. For animated light mini-objects this is the
+    /// visible halo diameter. For invisible world-light marker entries it is
+    /// the radial reach, so renderers using full quad size must double it.
     /// </summary>
     [FieldOffset(50)]
     public readonly ushort ModelExtent;
@@ -85,27 +85,30 @@ public readonly struct ItemsPakEntryModelDescLayout
     [FieldOffset(102)]
     public readonly uint EffectTextureId;
 
-    public uint LowRenderClass => GraphicRenderFlags & ItemsPakEntry.LowRenderClassMask;
-    public bool IsLightEmitting => (GraphicRenderFlags & ItemsPakEntry.LightEmittingGraphicFlag) != 0;
-    public bool HasExtendedMixedSpriteGraphicFlag =>
-        (GraphicRenderFlags & ItemsPakEntry.ExtendedMixedSpriteGraphicFlag) != 0;
-    public bool UsesAnimatedMiniObjectRenderClass => LowRenderClass == ItemsPakEntry.AnimatedMiniObjectRenderClass;
-    public bool UsesStaticMiniObjectRenderClass => LowRenderClass == ItemsPakEntry.StaticMiniObjectRenderClass;
-    public bool UsesMixedSpriteOrLightMarkerRenderClass => LowRenderClass == ItemsPakEntry.MixedSpriteOrLightMarkerRenderClass;
+    public SacredItemGraphicType GraphicType =>
+        (SacredItemGraphicType)((uint)GraphicFlags & 0x0F);
+
+    public bool IsLightEmitting => (GraphicFlags & SacredItemGraphicFlags.LightEmitting) != 0;
+    public bool UsesExtendedMixedSprite =>
+        (GraphicFlags & SacredItemGraphicFlags.ExtendedMixedSprite) != 0;
+    public bool UsesAnimatedMiniObject => GraphicType == SacredItemGraphicType.AnimatedMiniObject;
+    public bool UsesStaticMiniObject => GraphicType == SacredItemGraphicType.StaticMiniObject;
+    public bool UsesMixedSpriteOrLightMarker => GraphicType == SacredItemGraphicType.MixedSpriteOrLightMarker;
+    public bool IsPresent => (DescriptorFlags & SacredItemDescriptorFlags.Present) != 0;
 
     public bool UsesMiniObjectTexture =>
         MiniObjectTextureId != 0 && MixedBaseGroupId == 0 && TextureId == 0 && EffectTextureId == 0 &&
-        (UsesAnimatedMiniObjectRenderClass || UsesStaticMiniObjectRenderClass);
+        (UsesAnimatedMiniObject || UsesStaticMiniObject);
 
     public bool EmitsAnimatedSpriteHalo =>
-        UsesMiniObjectTexture && UsesAnimatedMiniObjectRenderClass && IsLightEmitting && ModelExtent > 0;
+        UsesMiniObjectTexture && UsesAnimatedMiniObject && IsLightEmitting && ModelExtent > 0;
 
     public bool IsWorldLightMarker =>
-        UsesMixedSpriteOrLightMarkerRenderClass && IsLightEmitting && ModelExtent > 0 &&
+        UsesMixedSpriteOrLightMarker && IsLightEmitting && ModelExtent > 0 &&
         MiniObjectTextureId == 0 && MixedBaseGroupId == 0 && TextureId == 0 && EffectTextureId == 0;
 
     public bool MayContainMixedSpriteEmission =>
-        UsesMixedSpriteOrLightMarkerRenderClass && MixedBaseGroupId != 0 &&
+        UsesMixedSpriteOrLightMarker && MixedBaseGroupId != 0 &&
         MiniObjectTextureId == 0 && TextureId == 0 && EffectTextureId == 0 &&
-        StaticSpriteFrameCount == 0 && ModelTransformFlags == 0x0100 && ModelExtent == 0;
+        StaticSpriteFrameCount == 0 && IsPresent && ModelExtent == 0;
 }

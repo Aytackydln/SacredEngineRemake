@@ -9,24 +9,18 @@ public readonly record struct ItemsPakEntry(
     string ModelName
 )
 {
-    public const uint LightEmittingGraphicFlag = 0x00020000;
-    public const uint ExtendedMixedSpriteGraphicFlag = 0x00010000;
-    public const uint LowRenderClassMask = 0x0000000F;
-    public const uint AnimatedMiniObjectRenderClass = 0x00000008;
-    public const uint MixedSpriteOrLightMarkerRenderClass = 0x00000009;
-    public const uint StaticMiniObjectRenderClass = 0x0000000C;
-
     private static readonly Encoding SacredEncoding = Encoding.GetEncoding("iso-8859-1");
 
     public ushort ItemIndex => EntryInfo.ItemIndex;
     public uint MiniObjectTextureId => ModelDesc.MiniObjectTextureId;
     public uint MixedBaseGroupId => ModelDesc.MixedBaseGroupId;
-    public uint GraphicRenderFlags => ModelDesc.GraphicRenderFlags;
-    public byte RenderClass => ModelDesc.RenderClass;
+    public SacredItemGraphicFlags GraphicFlags => ModelDesc.GraphicFlags;
+    public SacredItemCategory Category => ModelDesc.Category;
     public uint ItemId => ModelDesc.ItemId;
+    public uint SoundProfileId => ModelDesc.SoundProfileId;
     public uint EffectTextureId => ModelDesc.EffectTextureId;
     public ushort StaticSpriteFrameCount => ModelDesc.StaticSpriteFrameCount;
-    public byte StaticSpriteFrameDuration10Ms => (byte)ModelDesc.ModelTransformFlags;
+    public byte StaticSpriteFrameDuration10Ms => ModelDesc.StaticSpriteFrameDuration10Ms;
 
     public static IEnumerable<ItemsPakEntry> ReadMany(
         byte[] pakBytes,

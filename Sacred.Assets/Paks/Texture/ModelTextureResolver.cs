@@ -1,3 +1,5 @@
+using Sacred.Core.Pak.Items;
+
 namespace Sacred.Assets.Paks.Texture;
 
 public static class ModelTextureResolver
@@ -5,16 +7,12 @@ public static class ModelTextureResolver
     // Sacred's item descriptor value at offset 112 is unrelated to effect timing.
     // Scrolling equipment materials use a common cadence in the game.
     private const float EffectScrollCyclesPerSecond = 0.5f;
-    // Equipment multitexture rows use this flag for scrolling fill effects without a frame-strip texture.
-    private const uint MultitextureScrollEffectFlag = 0x0010_0000;
-    private const uint VerticalScrollEffectFlag = 0x0020_0000;
     private const uint PrimaryTextureTableLimit = byte.MaxValue;
 
-    public static ModelTextureReference Resolve(
-        TexturePakArchive textureArchive,
+    public static ModelTextureReference Resolve(TexturePakArchive textureArchive,
         uint itemTextureId,
         uint effectTextureId,
-        uint graphicRenderFlags,
+        SacredItemGraphicFlags graphicFlags,
         bool modelHasEffectTextureSurface,
         bool preferItemTexture,
         string? surfaceTextureName)
@@ -36,7 +34,7 @@ public static class ModelTextureResolver
                     CreateEffectAnimation(
                         textureArchive,
                         resolvedSurfaceName,
-                        graphicRenderFlags,
+                        graphicFlags,
                         clampAtTextureEdges: false));
             }
 
@@ -53,8 +51,8 @@ public static class ModelTextureResolver
                     CreateEffectAnimation(
                         textureArchive,
                         effectTextureName,
-                        graphicRenderFlags,
-                        ShouldClampOverlay(effectTextureId, graphicRenderFlags)),
+                        graphicFlags,
+                        ShouldClampOverlay(effectTextureId, graphicFlags)),
                     TextureOverlayMode.MultiTextureFill);
             }
 
@@ -74,8 +72,8 @@ public static class ModelTextureResolver
                     CreateEffectAnimation(
                         textureArchive,
                         effectTextureName,
-                        graphicRenderFlags,
-                        ShouldClampOverlay(effectTextureId, graphicRenderFlags)),
+                        graphicFlags,
+                        ShouldClampOverlay(effectTextureId, graphicFlags)),
                     TextureOverlayMode.MultiTextureFill);
             }
 
@@ -90,7 +88,7 @@ public static class ModelTextureResolver
                 CreateEffectAnimation(
                     textureArchive,
                     effectTextureName,
-                    graphicRenderFlags,
+                    graphicFlags,
                     clampAtTextureEdges: false));
 
         return string.IsNullOrWhiteSpace(surfaceTextureName)
@@ -101,10 +99,11 @@ public static class ModelTextureResolver
     private static TextureAnimation CreateEffectAnimation(
         TexturePakArchive textureArchive,
         string effectTextureName,
-        uint graphicRenderFlags,
+        SacredItemGraphicFlags graphicFlags,
         bool clampAtTextureEdges)
     {
-        if ((graphicRenderFlags & (MultitextureScrollEffectFlag | VerticalScrollEffectFlag)) == 0)
+        if ((graphicFlags &
+             (SacredItemGraphicFlags.MultitextureScroll | SacredItemGraphicFlags.VerticalTextureScroll)) == 0)
             return TextureAnimation.None;
 
         if (!textureArchive.TryResolveTextureRecord(effectTextureName, out _))
@@ -117,9 +116,9 @@ public static class ModelTextureResolver
             EffectScrollCyclesPerSecond);
     }
 
-    private static bool ShouldClampOverlay(uint effectTextureId, uint graphicRenderFlags) =>
+    private static bool ShouldClampOverlay(uint effectTextureId, SacredItemGraphicFlags graphicFlags) =>
         // External vertical-effect textures are one-shot bands that cross the UV
         // map before repeating. Primary-table multitextures are tiled fills.
         effectTextureId > PrimaryTextureTableLimit &&
-        (graphicRenderFlags & VerticalScrollEffectFlag) != 0;
+        (graphicFlags & SacredItemGraphicFlags.VerticalTextureScroll) != 0;
 }

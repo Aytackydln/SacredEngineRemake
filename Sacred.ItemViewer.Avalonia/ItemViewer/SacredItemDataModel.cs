@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.Numerics;
 using Sacred.Core.GameRes;
+using Sacred.Core.Pak.Items;
 using Sacred.Core.Pak.Weapon;
 
 namespace Sacred.ItemViewer.Avalonia.ItemViewer;
@@ -15,7 +16,8 @@ public readonly record struct SacredItemDataModel(
     string ModelName,
     uint TextureId,
     uint EffectTextureId,
-    uint GraphicRenderFlags,
+    SacredItemGraphicFlags GraphicFlags,
+    SacredItemCategory Category,
     SacredEquipmentDamage Damage,
     byte Width,
     byte Height,
@@ -47,7 +49,8 @@ public readonly record struct SacredItemDataModel(
             ModelName: equipment.Item.ModelName,
             TextureId: equipment.Item.ModelDesc.TextureId,
             EffectTextureId: equipment.Item.EffectTextureId,
-            GraphicRenderFlags: equipment.Item.GraphicRenderFlags,
+            GraphicFlags: equipment.Item.GraphicFlags,
+            Category: equipment.Item.Category,
             Damage: equipment.Damage,
             EquipmentType: equipment.EquipmentType,
             Rarity: equipment.RarityTier,

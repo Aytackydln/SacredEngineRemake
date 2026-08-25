@@ -137,12 +137,16 @@ public static class Dx12PipelineCatalog
             new RootParameter(
                 RootParameterType.ShaderResourceView,
                 new RootDescriptor(LightHaloShaderLayout.InstanceBufferRegister, 0),
-                ShaderVisibility.Vertex)
+                ShaderVisibility.Vertex),
+            TextureTable(LightHaloShaderLayout.TextureRegister)
         };
 
         return new Dx12PipelineGroupDefinition(
             rootParameters,
-            [],
+            [CreateSampler(
+                LightHaloShaderLayout.SamplerRegister,
+                TextureAddressMode.Clamp,
+                StaticBorderColor.TransparentBlack)],
             [Pipeline(
                 Dx12PipelineKind.LightHalo,
                 shaders.LightHaloVertexShader,

@@ -6,7 +6,7 @@ namespace Sacred.Core.World.Pathing;
 /// </summary>
 public sealed class WorldPathingLayer
 {
-    private readonly byte[] _flags;
+    private readonly WorldPathFlags[] _flags;
     private readonly byte[] _typesAndSurfaces;
     private readonly ulong[] _blockedBits;
 
@@ -18,7 +18,7 @@ public sealed class WorldPathingLayer
         Width = width;
         Height = height;
         var tileCount = checked(width * height);
-        _flags = new byte[tileCount];
+        _flags = new WorldPathFlags[tileCount];
         _typesAndSurfaces = new byte[tileCount];
         _blockedBits = new ulong[(tileCount + 63) / 64];
     }

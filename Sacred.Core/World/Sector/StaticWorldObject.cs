@@ -3,7 +3,7 @@
 public readonly record struct StaticWorldObject(
     uint StaticId,
     uint TypeId,
-    uint Flags,
+    StaticObjectFlags Flags,
     ushort SectorId,
     int ProjectedX,
     int ProjectedY,
@@ -26,5 +26,5 @@ public readonly record struct StaticWorldObject(
     public byte MiniObjectFrameDurationTicks => AnimationFrameDurationTicks;
     public byte MiniObjectFrameCount => AnimationFrameCount;
     public bool UsesAlternateSurface =>
-        (Flags & Sacred.Core.World.StaticObjectRecord.AlternateSurfaceFlag) != 0;
+        (Flags & StaticObjectFlags.AlternateSurface) != 0;
 }

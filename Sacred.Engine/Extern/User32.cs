@@ -57,6 +57,13 @@ internal static partial class User32
         public int Bottom;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct Point
+    {
+        public int X;
+        public int Y;
+    }
+
     [LibraryImport(LibraryName)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool GetWindowRect(nint hwnd, out Rect rect);
@@ -116,6 +123,14 @@ internal static partial class User32
     [LibraryImport(LibraryName)]
     internal static partial nint SetFocus(nint hwnd);
 
+    [LibraryImport(LibraryName)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool SetForegroundWindow(nint hwnd);
+
+    [LibraryImport(LibraryName)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool BringWindowToTop(nint hwnd);
+
     [LibraryImport(LibraryName, EntryPoint = "PeekMessageW")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool PeekMessage(out Msg lpMsg, nint hWnd, uint min, uint max, uint remove);
@@ -154,6 +169,14 @@ internal static partial class User32
     [LibraryImport(LibraryName)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool GetClientRect(nint hwnd, out Rect rect);
+
+    [LibraryImport(LibraryName)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool ClientToScreen(nint hwnd, ref Point point);
+
+    [LibraryImport(LibraryName, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool PrintWindow(nint hwnd, nint hdc, uint flags);
 
     [LibraryImport(LibraryName)]
     internal static partial int FillRect(nint hdc, ref Rect rect, nint hBrush);

@@ -18,6 +18,8 @@ internal sealed class CheatsController : IDisposable
             ["help"] = static _ => new HelpCheatCommand(),
             ["teleport"] = ParseTeleport,
             ["tp"] = ParseTeleport,
+            ["screenshot"] = ParseScreenshot,
+            ["shot"] = ParseScreenshot,
             ["set"] = ParseSetOption,
             ["option"] = ParseSetOption,
             ["change"] = ParseSetOption
@@ -87,6 +89,11 @@ internal sealed class CheatsController : IDisposable
             ? new SetOptionCheatCommand(parts[1], parts[2])
             : new InvalidCheatCommand("Usage: set <option> <value>");
 
+    private static CheatCommand ParseScreenshot(string[] parts) =>
+        parts.Length <= 2
+            ? new ScreenshotCheatCommand(parts.Length == 2 ? parts[1] : null)
+            : new InvalidCheatCommand("Usage: screenshot [label]");
+
     private static bool TryParsePosition(string[] parts, out Vector2 position)
     {
         position = default;
@@ -108,6 +115,8 @@ internal abstract record CheatCommand;
 internal sealed record HelpCheatCommand : CheatCommand;
 
 internal sealed record TeleportCheatCommand(Vector2 Position) : CheatCommand;
+
+internal sealed record ScreenshotCheatCommand(string? Label) : CheatCommand;
 
 internal sealed record SetOptionCheatCommand(string Option, string Value) : CheatCommand;
 
