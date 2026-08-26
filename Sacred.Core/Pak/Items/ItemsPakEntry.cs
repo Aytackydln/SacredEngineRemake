@@ -14,6 +14,7 @@ public readonly record struct ItemsPakEntry(
     public ushort ItemIndex => EntryInfo.ItemIndex;
     public uint MiniObjectTextureId => ModelDesc.MiniObjectTextureId;
     public uint MixedBaseGroupId => ModelDesc.MixedBaseGroupId;
+    public SacredItemGraphicType GraphicType => ModelDesc.GraphicType;
     public SacredItemGraphicFlags GraphicFlags => ModelDesc.GraphicFlags;
     public SacredItemCategory Category => ModelDesc.Category;
     public uint ItemId => ModelDesc.ItemId;

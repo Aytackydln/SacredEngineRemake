@@ -1,42 +1,42 @@
 namespace Sacred.Core.Pak.Items;
 
 /// <summary>
-/// Rendering flags packed with <see cref="SacredItemGraphicType"/> in the first
-/// four bytes of an Items.pak model descriptor.
+/// Rendering flags stored at Items.pak model-descriptor offset 0x02.
 /// </summary>
 [Flags]
-public enum SacredItemGraphicFlags : uint
+public enum SacredItemGraphicFlags : ushort
 {
     None = 0,
-
-    /// <summary>Places the graphic in a rear render layer.</summary>
-    RearLayer = 0x0000_0004,
 
     /// <summary>Uses the extended mixed-sprite behavior.</summary>
-    ExtendedMixedSprite = 0x0001_0000,
+    ExtendedMixedSprite = 0x0001,
 
     /// <summary>Marks the graphic as a light emitter.</summary>
-    LightEmitting = 0x0002_0000,
+    LightEmitting = 0x0002,
 
     /// <summary>Scrolls an equipment multitexture fill.</summary>
-    MultitextureScroll = 0x0010_0000,
+    MultitextureScroll = 0x0010,
 
     /// <summary>Scrolls an effect texture vertically.</summary>
-    VerticalTextureScroll = 0x0020_0000,
+    VerticalTextureScroll = 0x0020,
 
     /// <summary>Places the graphic in a front render layer.</summary>
-    FrontLayer = 0x0080_0000,
+    FrontLayer = 0x0080,
 }
 
-/// <summary>Low-nibble graphic representation stored in Items.pak descriptor bytes 0x00..0x03.</summary>
-public enum SacredItemGraphicType : byte
+/// <summary>
+/// Graphic representation stored at Items.pak model-descriptor offset 0x00.
+/// The named values are the complete bit patterns observed in populated descriptors;
+/// overlapping bits do not independently identify the rendering behavior.
+/// </summary>
+[Flags]
+public enum SacredItemGraphicType : ushort
 {
     None = 0,
-    Model = 2,
-    AnimatedMiniObject = 8,
-    MixedSpriteOrLightMarker = 9,
-    StaticMiniObject = 12,
-    RearMixedSprite = 13,
+    Model = 0b0010,
+    AnimatedMiniObject = 0b1000,
+    MixedSpriteOrLightMarker = 0b1001,
+    StaticMiniObject = 0b1100,
 }
 
 /// <summary>Known descriptor-state bits stored at Items.pak model-descriptor offset 0x31.</summary>

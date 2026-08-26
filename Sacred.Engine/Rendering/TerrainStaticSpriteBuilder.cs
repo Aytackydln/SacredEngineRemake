@@ -88,7 +88,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                         AuthoredLightOpacity,
                         WorldLightShape.SurfaceIllumination));
                     worldLightMarkerCount++;
-                    continue;
+                    //continue;
                 }
 
                 if (!assets.TryGetStaticSpriteOrRequest(staticObject.TypeId, out var sprite))
@@ -290,16 +290,9 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
         {
             if ((graphicFlags & SacredItemGraphicFlags.FrontLayer) != 0)
                 return 4;
-            if ((graphicFlags & SacredItemGraphicFlags.RearLayer) != 0)
-                return 0;
             return 3;
         }
 
-        if ((graphicFlags & SacredItemGraphicFlags.RearLayer) != 0)
-            return (staticObject.Flags & StaticObjectFlags.RearLayerBackground) != 0 ||
-                   staticObject.SurfaceRenderLayer == 1
-                ? 0
-                : 2;
         return (graphicFlags & SacredItemGraphicFlags.FrontLayer) != 0 ? 4 : 3;
     }
 }

@@ -18,12 +18,12 @@ public readonly struct ItemsPakEntryModelDescLayout
     internal const int ModelNameLength = 32;
     private const int ModelNameOffset = 55;
 
-    /// <summary>
-    /// Packed graphic type and rendering flags. The low nibble is a
-    /// <see cref="SacredItemGraphicType"/>; the remaining bits are
-    /// <see cref="SacredItemGraphicFlags"/> values.
-    /// </summary>
+    /// <summary>Raw graphic representation used by Sacred.exe.</summary>
     [FieldOffset(0)]
+    public readonly SacredItemGraphicType GraphicType;
+
+    /// <summary>Rendering flags stored separately from <see cref="GraphicType"/>.</summary>
+    [FieldOffset(2)]
     public readonly SacredItemGraphicFlags GraphicFlags;
 
     /// <summary>
@@ -85,30 +85,18 @@ public readonly struct ItemsPakEntryModelDescLayout
     [FieldOffset(102)]
     public readonly uint EffectTextureId;
 
-    public SacredItemGraphicType GraphicType =>
-        (SacredItemGraphicType)((uint)GraphicFlags & 0x0F);
-
-    public bool IsLightEmitting => (GraphicFlags & SacredItemGraphicFlags.LightEmitting) != 0;
-    public bool UsesExtendedMixedSprite =>
-        (GraphicFlags & SacredItemGraphicFlags.ExtendedMixedSprite) != 0;
+    public bool IsLightEmitting => GraphicFlags.HasFlag(SacredItemGraphicFlags.LightEmitting);
+    public bool UsesExtendedMixedSprite => GraphicFlags.HasFlag(SacredItemGraphicFlags.ExtendedMixedSprite);
     public bool UsesAnimatedMiniObject => GraphicType == SacredItemGraphicType.AnimatedMiniObject;
     public bool UsesStaticMiniObject => GraphicType == SacredItemGraphicType.StaticMiniObject;
     public bool UsesMixedSpriteOrLightMarker => GraphicType == SacredItemGraphicType.MixedSpriteOrLightMarker;
-    public bool IsPresent => (DescriptorFlags & SacredItemDescriptorFlags.Present) != 0;
+    public bool IsPresent => DescriptorFlags.HasFlag(SacredItemDescriptorFlags.Present);
 
-    public bool UsesMiniObjectTexture =>
-        MiniObjectTextureId != 0 && MixedBaseGroupId == 0 && TextureId == 0 && EffectTextureId == 0 &&
-        (UsesAnimatedMiniObject || UsesStaticMiniObject);
+    public bool UsesMiniObjectTexture => UsesAnimatedMiniObject || UsesStaticMiniObject;
 
-    public bool EmitsAnimatedSpriteHalo =>
-        UsesMiniObjectTexture && UsesAnimatedMiniObject && IsLightEmitting && ModelExtent > 0;
+    public bool EmitsAnimatedSpriteHalo => UsesMiniObjectTexture && IsLightEmitting;
 
-    public bool IsWorldLightMarker =>
-        UsesMixedSpriteOrLightMarker && IsLightEmitting && ModelExtent > 0 &&
-        MiniObjectTextureId == 0 && MixedBaseGroupId == 0 && TextureId == 0 && EffectTextureId == 0;
+    public bool IsWorldLightMarker => UsesMixedSpriteOrLightMarker && IsLightEmitting;
 
-    public bool MayContainMixedSpriteEmission =>
-        UsesMixedSpriteOrLightMarker && MixedBaseGroupId != 0 &&
-        MiniObjectTextureId == 0 && TextureId == 0 && EffectTextureId == 0 &&
-        StaticSpriteFrameCount == 0 && IsPresent && ModelExtent == 0;
+    public bool MayContainMixedSpriteEmission => UsesMixedSpriteOrLightMarker && MixedBaseGroupId != 0 && IsPresent;
 }

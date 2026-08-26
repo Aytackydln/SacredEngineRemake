@@ -174,7 +174,7 @@ public sealed class DayWorldRasterizer(
             if (screenFootX < -512 || screenFootX > width + 512 || screenFootY < -512 || screenFootY > height + 512)
                 continue;
             draws.Add(new StaticDraw(
-                EngineQueueIndex(staticObject, item.Value.GraphicFlags, item.Value.Category),
+                EngineQueueIndex(item.Value.GraphicFlags, item.Value.Category),
                 staticObject,
                 footX,
                 footY,
@@ -207,24 +207,14 @@ public sealed class DayWorldRasterizer(
         return new StaticRenderResult(candidates, rendered, missing);
     }
 
-    private static int EngineQueueIndex(
-        StaticWorldObject staticObject,
-        SacredItemGraphicFlags graphicFlags,
-        SacredItemCategory category)
+    private static int EngineQueueIndex(SacredItemGraphicFlags graphicFlags, SacredItemCategory category)
     {
         if (category == SacredItemCategory.Effect)
         {
             if ((graphicFlags & SacredItemGraphicFlags.FrontLayer) != 0)
                 return 4;
-            if ((graphicFlags & SacredItemGraphicFlags.RearLayer) != 0)
-                return 0;
             return 3;
         }
-        if ((graphicFlags & SacredItemGraphicFlags.RearLayer) != 0)
-            return (staticObject.Flags & StaticObjectFlags.RearLayerBackground) != 0 ||
-                   staticObject.SurfaceRenderLayer == 1
-                ? 0
-                : 2;
         return (graphicFlags & SacredItemGraphicFlags.FrontLayer) != 0 ? 4 : 3;
     }
 
