@@ -62,9 +62,10 @@ public sealed class WorldStaticSpriteProvider(
 
     private async Task<WorldStaticSprite?> LoadMixedAsync(uint groupId)
     {
-        var pieces = mixed.GetGroup(groupId);
-        if (pieces is null || pieces.Count == 0)
+        var group = mixed.GetGroupInfo(groupId);
+        if (group is null || group.Pieces.Count == 0)
             return null;
+        var pieces = group.Pieces;
 
         var blits = new List<SpriteBlit>();
         var minX = int.MaxValue;
@@ -112,7 +113,15 @@ public sealed class WorldStaticSpriteProvider(
         var pixels = new byte[checked(width * height * 4)];
         foreach (var blit in blits)
             Blit(blit, pixels, width, height, blit.DestLeft - minX, blit.DestTop - minY);
-        return new WorldStaticSprite(groupId, width, height, -minX, -minY, pixels);
+        return new WorldStaticSprite(
+            groupId,
+            width,
+            height,
+            -minX,
+            -minY,
+            pixels,
+            group.PlacementX,
+            group.PlacementY);
     }
 
     private async Task<WorldStaticSprite?> LoadMiniObjectAsync(MiniObjectSource source)
@@ -245,4 +254,12 @@ public sealed class WorldStaticSpriteProvider(
         int DestBottom);
 }
 
-public sealed record WorldStaticSprite(uint GroupId, int Width, int Height, int AnchorX, int AnchorY, byte[] Rgba);
+public sealed record WorldStaticSprite(
+    uint GroupId,
+    int Width,
+    int Height,
+    int AnchorX,
+    int AnchorY,
+    byte[] Rgba,
+    int PlacementX = 0,
+    int PlacementY = 0);

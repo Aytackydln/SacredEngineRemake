@@ -22,7 +22,10 @@ public readonly struct ItemsPakEntryModelDescLayout
     [FieldOffset(0)]
     public readonly SacredItemGraphicType GraphicType;
 
-    /// <summary>Rendering flags stored separately from <see cref="GraphicType"/>.</summary>
+    /// <summary>
+    /// Rendering flags stored separately from <see cref="GraphicType"/>. Sacred.exe
+    /// tests low bit 0x0001 here when building static-shadow render-list entries.
+    /// </summary>
     [FieldOffset(2)]
     public readonly SacredItemGraphicFlags GraphicFlags;
 
@@ -81,15 +84,46 @@ public readonly struct ItemsPakEntryModelDescLayout
     [BinaryString("ModelName", ModelNameLength, "ISO-8859-1")]
     public readonly ItemsPakEntryModelNameBytes ModelNameBytes;
 
-    /// <summary>Texture identifier used by an attached visual effect.</summary>
+    /// <summary>
+    /// Cell index in the 16x16 <c>SHADOW_TREE00.TGA</c> static-shadow atlas.
+    /// </summary>
+    [FieldOffset(0x5B)]
+    public readonly ushort StaticShadowAtlasCellIndex;
+
+    /// <summary>Half-pixel horizontal coordinate of the shadow's ground anchor.</summary>
+    [FieldOffset(0x5D)]
+    public readonly short StaticShadowAnchorX;
+
+    /// <summary>Half-pixel vertical coordinate of the shadow's ground anchor.</summary>
+    [FieldOffset(0x5F)]
+    public readonly short StaticShadowAnchorY;
+
+    /// <summary>Selects the contact or directionally projected shadow quad.</summary>
+    [FieldOffset(0x63)]
+    public readonly SacredItemStaticShadowProjection StaticShadowProjection;
+
+    /// <summary>
+    /// Authored extent of the shadow's ground-contact footprint. This is not a
+    /// directional shadow length; projected shadows derive that from object height.
+    /// </summary>
+    [FieldOffset(0x64)]
+    public readonly ushort StaticShadowContactExtent;
+
+    /// <summary>
+    /// Texture identifier used by an attached model effect. This field is part
+    /// of the descriptor's model/static-sprite union and overlaps static-shadow data.
+    /// </summary>
     [FieldOffset(102)]
     public readonly uint EffectTextureId;
 
     public bool IsLightEmitting => GraphicFlags.HasFlag(SacredItemGraphicFlags.LightEmitting);
-    public bool UsesExtendedMixedSprite => GraphicFlags.HasFlag(SacredItemGraphicFlags.ExtendedMixedSprite);
-    public bool UsesAnimatedMiniObject => GraphicType == SacredItemGraphicType.AnimatedMiniObject;
-    public bool UsesStaticMiniObject => GraphicType == SacredItemGraphicType.StaticMiniObject;
-    public bool UsesMixedSpriteOrLightMarker => GraphicType == SacredItemGraphicType.MixedSpriteOrLightMarker;
+    public bool CastsStaticShadow => GraphicFlags.HasFlag(SacredItemGraphicFlags.CastsStaticShadow);
+
+    private SacredItemGraphicType Representation => GraphicType & SacredItemGraphicType.RepresentationMask;
+
+    public bool UsesAnimatedMiniObject => Representation == SacredItemGraphicType.AnimatedMiniObject;
+    public bool UsesStaticMiniObject => Representation == SacredItemGraphicType.StaticMiniObject;
+    public bool UsesMixedSpriteOrLightMarker => Representation == SacredItemGraphicType.MixedSpriteOrLightMarker;
     public bool IsPresent => DescriptorFlags.HasFlag(SacredItemDescriptorFlags.Present);
 
     public bool UsesMiniObjectTexture => UsesAnimatedMiniObject || UsesStaticMiniObject;

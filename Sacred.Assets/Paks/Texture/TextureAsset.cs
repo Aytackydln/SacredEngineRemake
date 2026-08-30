@@ -19,7 +19,9 @@ public sealed class StaticSpriteAsset
         int anchorY,
         byte[] rgba,
         int frameCount = 1,
-        float frameDurationSeconds = 0.0f)
+        float frameDurationSeconds = 0.0f,
+        int placementX = 0,
+        int placementY = 0)
     {
         GroupId = groupId;
         Width = width;
@@ -29,6 +31,8 @@ public sealed class StaticSpriteAsset
         _rgba = rgba;
         FrameCount = frameCount;
         FrameDurationSeconds = frameDurationSeconds;
+        PlacementX = placementX;
+        PlacementY = placementY;
     }
 
     public uint GroupId { get; }
@@ -36,6 +40,10 @@ public sealed class StaticSpriteAsset
     public int Height { get; }
     public int AnchorX { get; }
     public int AnchorY { get; }
+    /// <summary>Mixed.pak placement point measured from the untrimmed group origin.</summary>
+    public int PlacementX { get; }
+    /// <summary>Mixed.pak placement point measured from the untrimmed group origin.</summary>
+    public int PlacementY { get; }
     public byte[] Rgba => Volatile.Read(ref _rgba);
     public int FrameCount { get; }
     public float FrameDurationSeconds { get; }

@@ -84,7 +84,7 @@ public sealed class SceneLighting
     public float PlayerLightOpacity { get; set; } = 0.35f;
     /// <summary>Normalized solar elevation: zero at/below the horizon and one at noon.</summary>
     public float SunHeight { get; set; } = 1.0f;
-    public float ShadowOpacity { get; set; } = 0.42f;
+    public float ShadowOpacity { get; set; } = 0.5f;
     public SceneShadowMode ShadowMode { get; set; } = SceneShadowMode.Directional;
 }
 

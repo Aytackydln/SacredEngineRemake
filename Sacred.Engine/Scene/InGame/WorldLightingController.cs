@@ -15,21 +15,14 @@ public enum WorldLightingMode
 /// <summary>Applies deterministic lighting profiles, including the world-quad ambient level.</summary>
 public sealed class WorldLightingController
 {
-    private const float SunriseTime = 0.25f;
     private const float NoonTime = 0.50f;
-    private const float SunsetTime = 0.75f;
     private const float DayDurationSeconds = 15.0f;
     private const float NightDurationSeconds = 10.0f;
     private const float TransitionDurationSeconds = 5.0f;
-    private const float IndoorContactShadowOpacity = 0.32f;
+    private const float IndoorContactShadowOpacity = 0.5f;
 
     private const float CycleDurationSeconds =
         DayDurationSeconds + NightDurationSeconds + TransitionDurationSeconds * 2.0f;
-    private const float DuskEndSeconds = DayDurationSeconds + TransitionDurationSeconds;
-    private const float DawnStartSeconds = DuskEndSeconds + NightDurationSeconds;
-    private const float DawnToDuskDurationSeconds =
-        TransitionDurationSeconds + DayDurationSeconds + TransitionDurationSeconds;
-
     private float _cycleElapsedSeconds;
     private bool _zoneInitialized;
 
@@ -48,9 +41,9 @@ public sealed class WorldLightingController
         {
             WorldLightingMode.Day => WorldLightingMode.Night,
             WorldLightingMode.Night => WorldLightingMode.PitchBlack,
-            WorldLightingMode.TimedDayNightCycle => WorldLightingMode.Night,
             WorldLightingMode.PitchBlack => WorldLightingMode.TimedDayNightCycle,
-            _ => WorldLightingMode.Day
+            WorldLightingMode.TimedDayNightCycle => WorldLightingMode.Day,
+            _ => WorldLightingMode.Day,
         };
         ResetClock();
     }
@@ -85,7 +78,7 @@ public sealed class WorldLightingController
         if (zone == WorldZone.Cave)
         {
             ApplyProfile(1.0f, lighting);
-            ApplyCelestialLighting(lighting, focusPosition, dayTime: 0.0f);
+            ApplyCelestialLighting(lighting, focusPosition);
             lighting.ShadowMode = SceneShadowMode.None;
             lighting.ShadowOpacity = 0.0f;
         }
@@ -189,13 +182,13 @@ public sealed class WorldLightingController
         lighting.NightBlend = blend;
     }
 
-    private void ApplyCelestialLighting(
-        SceneLighting lighting,
-        Vector3 focusPosition,
-        float? dayTime = null)
+    private void ApplyCelestialLighting(SceneLighting lighting, Vector3 focusPosition)
     {
+        // Sacred's billboard art and authored static-shadow atlas assume one fixed
+        // projection. Time of day changes the lighting profile and shadow opacity,
+        // but does not rotate or stretch the shadow geometry.
         var solar = SolarLightingCalculator.Calculate(
-            dayTime ?? GetCelestialTime(),
+            NoonTime,
             lighting.NightBlend,
             focusPosition);
         lighting.LightPosition = solar.LightPosition;
@@ -206,34 +199,6 @@ public sealed class WorldLightingController
         lighting.ShadowMode = lighting.ShadowOpacity > 0.0f
             ? SceneShadowMode.Directional
             : SceneShadowMode.None;
-    }
-
-    private float GetCelestialTime()
-    {
-        if (Mode == WorldLightingMode.Day)
-            return NoonTime;
-        if (Mode is WorldLightingMode.Night or WorldLightingMode.PitchBlack)
-            return 0.0f;
-
-        if (GetCyclePhase() == LightingCyclePhase.Night)
-        {
-            // Keep moon motion continuous on the complementary half of the same arc.
-            var nightProgress = (_cycleElapsedSeconds - DuskEndSeconds) / NightDurationSeconds;
-            var moonTime = SunsetTime + nightProgress * (1.0f - SunsetTime + SunriseTime);
-            return moonTime >= 1.0f ? moonTime - 1.0f : moonTime;
-        }
-
-        // Interpolate time (therefore solar angle), not XYZ coordinates. Constant angular
-        // velocity produces a naturally curved path and reaches noon halfway through the
-        // complete dawn-to-dusk interval.
-        var elapsedSinceDawn = _cycleElapsedSeconds - DawnStartSeconds;
-        if (elapsedSinceDawn < 0.0f)
-            elapsedSinceDawn += CycleDurationSeconds;
-        var daylightProgress = Math.Clamp(
-            elapsedSinceDawn / DawnToDuskDurationSeconds,
-            0.0f,
-            1.0f);
-        return Lerp(SunriseTime, SunsetTime, daylightProgress);
     }
 
     private void ResetClock()

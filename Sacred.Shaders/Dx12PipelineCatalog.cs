@@ -106,6 +106,14 @@ public static class Dx12PipelineCatalog
                 StaticBorderColor.TransparentBlack)],
             [
                 Pipeline(
+                    Dx12PipelineKind.StaticSpriteShadow,
+                    shaders.StaticSpriteShadowVertexShader,
+                    shaders.StaticSpriteShadowPixelShader,
+                    hdrOutput ? CreatePremultipliedBlend() : BlendDescription.AlphaBlend,
+                    RasterizerDescription.CullNone,
+                    DepthStencilDescription.None,
+                    usesDepthBuffer: false),
+                Pipeline(
                     Dx12PipelineKind.StaticSprite,
                     shaders.StaticSpriteVertexShader,
                     shaders.StaticSpritePixelShader,

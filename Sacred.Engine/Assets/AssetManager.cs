@@ -57,6 +57,7 @@ public sealed class AssetManager : IDisposable
     private readonly WorldSpriteLoadQueue _worldSpriteLoadQueue = new();
     private readonly MiniObjectSpriteLoader _miniObjectSprites;
     private readonly WorldParticleSpriteLoader _worldParticleSprites;
+    private readonly StaticShadowAtlasLoader _staticShadowAtlas;
 
     private readonly Dictionary<string, TextureFrameSequenceAsset?> _textureFrameSequences =
         new(StringComparer.OrdinalIgnoreCase);
@@ -98,6 +99,9 @@ public sealed class AssetManager : IDisposable
         _worldParticleSprites = new WorldParticleSpriteLoader(
             textureName => LoadTextureAsync(textureName),
             _worldSpriteLoadQueue);
+        _staticShadowAtlas = new StaticShadowAtlasLoader(
+            textureName => LoadTextureAsync(textureName),
+            _worldSpriteLoadQueue);
         _modelsPak = ModelsPakArchive.Load(
             Path.Combine(pakDirectory, "models.pak"),
             Path.Combine(pakDirectory, "Models.tmp"));
@@ -132,6 +136,9 @@ public sealed class AssetManager : IDisposable
             textureId => LoadTextureAsync(textureId),
             _worldSpriteLoadQueue);
         _worldParticleSprites = new WorldParticleSpriteLoader(
+            textureName => LoadTextureAsync(textureName),
+            _worldSpriteLoadQueue);
+        _staticShadowAtlas = new StaticShadowAtlasLoader(
             textureName => LoadTextureAsync(textureName),
             _worldSpriteLoadQueue);
         _modelsPak = modelsPak;
@@ -394,6 +401,9 @@ public sealed class AssetManager : IDisposable
         out StaticSpriteAsset? sprite) =>
         _worldParticleSprites.TryGetOrRequest(reference, out sprite);
 
+    public bool TryGetStaticShadowAtlasOrRequest(out StaticSpriteAsset? atlas) =>
+        _staticShadowAtlas.TryGetOrRequest(out atlas);
+
     public bool TryGetTextureFrameSequenceOrRequest(
         string frameNameFormat,
         int frameCount,
@@ -607,14 +617,17 @@ public sealed class AssetManager : IDisposable
             -minY,
             rgba,
             frames.Length,
-            key.FrameDuration10Ms * 0.01f);
+            key.FrameDuration10Ms * 0.01f,
+            frames[0].PlacementX,
+            frames[0].PlacementY);
     }
 
     private async Task<StaticSpriteAsset?> BuildStaticSpriteFrameAsync(uint groupId)
     {
-        var pieces = _mixedPak.GetGroup(groupId);
-        if (pieces is null || pieces.Count == 0)
+        var group = _mixedPak.GetGroupInfo(groupId);
+        if (group is null || group.Pieces.Count == 0)
             return null;
+        var pieces = group.Pieces;
 
         var blits = new List<StaticSpriteBlit>();
         int? minX = null;
@@ -692,7 +705,15 @@ public sealed class AssetManager : IDisposable
                 blit.DestBottom - blit.DestTop);
         }
 
-        return new StaticSpriteAsset(groupId, width, height, -minX.Value, -minY.Value, rgba);
+        return new StaticSpriteAsset(
+            groupId,
+            width,
+            height,
+            -minX.Value,
+            -minY.Value,
+            rgba,
+            placementX: group.PlacementX,
+            placementY: group.PlacementY);
     }
 
     private static void BlitTextureRegion(
@@ -1039,6 +1060,7 @@ public sealed class AssetManager : IDisposable
         _staticSpriteLoads.Clear();
         _miniObjectSprites.Clear();
         _worldParticleSprites.Clear();
+        _staticShadowAtlas.Clear();
 
         _textureFrameSequenceLock.Wait();
         _textureFrameSequences.Clear();

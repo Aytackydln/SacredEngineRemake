@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Sacred.Assets.Paks.Texture;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.World;
 using Sacred.Core.World.Sector;
@@ -179,7 +180,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                 if (isMixedLightEmitter)
                 {
                     var surfaceRadius = lightAppearance.SurfaceLightRadius;
-                    if (item!.Value.ModelDesc.UsesExtendedMixedSprite)
+                    if (item!.Value.ModelDesc.CastsStaticShadow)
                         surfaceRadius = MathF.Max(surfaceRadius, LargeUnlitMixedLightRadius);
                     var surfaceDiameter = surfaceRadius * 2.0f;
                     _visibleLights.Add(new TerrainWorldLight(
@@ -191,12 +192,26 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                         WorldLightShape.SurfaceIllumination));
                 }
 
+                TerrainStaticShadow? staticShadow = null;
+                if (item is { } shadowItem && shadowItem.ModelDesc.CastsStaticShadow)
+                {
+                    if (!assets.TryGetStaticShadowAtlasOrRequest(out var shadowAtlas))
+                    {
+                        requestsPending = true;
+                    }
+                    else if (shadowAtlas is not null)
+                    {
+                        staticShadow = CreateStaticShadow(shadowItem, sprite, shadowAtlas);
+                    }
+                }
+
                 _visibleSprites.Add(new TerrainStaticSprite(
                     sprite,
                     false,
                     false,
                     isMixedLightEmitter,
                     false,
+                    staticShadow,
                     renderWidth,
                     renderHeight,
                     spriteIsoX,
@@ -225,6 +240,38 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                 mixedLightEmitterCount,
                 worldLightMarkerCount);
         return new TerrainStaticPreparation(_visibleSprites, _visibleLights, true, candidateObjects, missingObjects);
+    }
+
+    private static TerrainStaticShadow? CreateStaticShadow(
+        ItemsPakEntry item,
+        StaticSpriteAsset sprite,
+        StaticSpriteAsset atlas)
+    {
+        var descriptor = item.ModelDesc;
+        if (descriptor.StaticShadowAtlasCellIndex >=
+            StaticShadowAtlasLoader.Columns * StaticShadowAtlasLoader.Rows)
+        {
+            return null;
+        }
+
+        var contactExtent = descriptor.StaticShadowContactExtent;
+        var isContactShadow = descriptor.StaticShadowProjection ==
+                              SacredItemStaticShadowProjection.Contact;
+        var rootOffsetY = isContactShadow
+            ? -sprite.AnchorY + contactExtent
+            : -sprite.AnchorY + descriptor.StaticShadowAnchorY * 2.0f;
+        var projectionLength = isContactShadow
+            ? (contactExtent - descriptor.StaticShadowAnchorY) * 2.0f
+            : sprite.Height;
+
+        return new TerrainStaticShadow(
+            atlas,
+            -sprite.AnchorX + descriptor.StaticShadowAnchorX * 2.0f,
+            rootOffsetY,
+            contactExtent,
+            projectionLength,
+            descriptor.StaticShadowAtlasCellIndex,
+            descriptor.StaticShadowProjection);
     }
 
     private void LogParticleSummary(

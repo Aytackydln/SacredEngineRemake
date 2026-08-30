@@ -68,16 +68,15 @@ public unsafe class Dx12DebugOverlay : IDisposable
         [
             DebugTextLine.CarolingTitle("CONTROLS"),
             DebugTextLine.Default("MOVE: WASD, ARROWS, LEFT STICK"),
-            DebugTextLine.Default("FASTER: SHIFT OR GAMEPAD A"),
             DebugTextLine.Default("CYCLE: MOUSE4/5 OR GAMEPAD B"),
-            DebugTextLine.Default("ZOOM: Q/E, WHEEL, RIGHT STICK"),
             DebugTextLine.Default("MINIMAP: HOLD TAB/MIDDLE MOUSE OR GAMEPAD SELECT"),
             DebugTextLine.Default("WORLD MAP: M OR TAP GAMEPAD SELECT"),
             DebugTextLine.Default("TOGGLE HDR: F4"),
             DebugTextLine.Default("FRAME PACING: F5"),
             DebugTextLine.Default("LOW LATENCY: F6"),
             DebugTextLine.Default("WORLD LIGHT: F7"),
-            DebugTextLine.Default("STAIRS ZONES: F8")
+            DebugTextLine.Default("STAIRS ZONES: F8"),
+            DebugTextLine.Default("TOGGLE FULLSCREEN: F10"),
         ]);
     }
 
@@ -238,6 +237,7 @@ public unsafe class Dx12DebugOverlay : IDisposable
             $"FLOOR {stats.FloorDrawnTiles}/{stats.FloorCandidateTiles} CACHE {stats.FloorCachedTiles}",
             $"LIQUID {rendererStats.VisibleLiquidSpriteCount}/{stats.LiquidDrawnTiles} CANDIDATE {stats.LiquidCandidateTiles} CACHE {stats.LiquidCachedTiles}",
             $"STATIC {rendererStats.VisibleStaticSpriteCount}/{stats.StaticDrawnObjects} CANDIDATE {stats.StaticCandidateObjects} MISSING {stats.StaticMissingObjects}  MODEL TEX R{rendererStats.ReadyModelTextureCount} A{rendererStats.LoadingModelTextureCount} G{rendererStats.UploadingModelTextureCount} F{rendererStats.FailedModelTextureCount}",
+            $"SHADOW {rendererStats.VisibleStaticShadowCount} DRAW {rendererStats.StaticShadowDrawCallCount} LEGACY {rendererStats.LegacyShadowDrawCallCount}",
             $"LIGHTS {rendererStats.SurfaceLightCount}  HALO FX {rendererStats.VisibleHaloCount - rendererStats.SurfaceLightCount}  CANDIDATES {rendererStats.CandidateHaloCount}",
             $"MODEL {FormatActiveModel(scene)}",
             $"TERRAIN HEIGHT {scene.Debug.ActorTerrainHeight:0.0}  STAIRS/DOORS {(scene.Debug.StairsMapVisible ? "ON" : "OFF")}  BLOCKED {(scene.Debug.BlockedAreasVisible ? "ON" : "OFF")}",
@@ -288,6 +288,9 @@ public readonly record struct Dx12DebugOverlayStats(
     int FailedModelTextureCount,
     int VisibleLiquidSpriteCount,
     int VisibleStaticSpriteCount,
+    int VisibleStaticShadowCount,
+    int StaticShadowDrawCallCount,
+    int LegacyShadowDrawCallCount,
     int CandidateHaloCount,
     int VisibleHaloCount,
     int SurfaceLightCount,

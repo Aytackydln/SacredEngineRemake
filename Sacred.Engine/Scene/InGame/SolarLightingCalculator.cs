@@ -7,7 +7,7 @@ namespace Sacred.Engine.Scene.InGame;
 internal static class SolarLightingCalculator
 {
     private const float CelestialDistance = 2000.0f;
-    private const float MaximumShadowOpacity = 0.42f;
+    private const float MaximumShadowOpacity = 0.5f;
     private const float MaximumSolarElevationRadians = 52.0f * MathF.PI / 180.0f;
     private const float NorthwardBias = 0.55f;
 

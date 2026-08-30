@@ -9,7 +9,7 @@ public sealed class MixedPakData
     private const int HeaderSize = 0x100;
     private static readonly Encoding NameEncoding = Encoding.ASCII;
 
-    private readonly Dictionary<uint, List<MixedCutoutRecord>> _groups = new();
+    private readonly Dictionary<uint, MixedPakGroup> _groups = new();
     private readonly Dictionary<uint, uint> _cutoutIdToGroup = new();
 
     private MixedPakData(ReadOnlySpan<byte> data)
@@ -66,14 +66,16 @@ public sealed class MixedPakData
             }
 
             if (pieces.Count > 0)
-                _groups[mixedId] = pieces;
+                _groups[mixedId] = new MixedPakGroup(header.AnchorX, header.AnchorY, pieces);
         }
     }
 
     public static MixedPakData FromBytes(ReadOnlySpan<byte> data) => new(data);
 
+    public MixedPakGroup? GetGroupInfo(uint groupId) => _groups.GetValueOrDefault(groupId);
+
     public IReadOnlyList<MixedCutoutRecord>? GetGroup(uint groupId) =>
-        _groups.GetValueOrDefault(groupId);
+        GetGroupInfo(groupId)?.Pieces;
 
     public uint? ResolveGroupId(uint referenceId)
     {

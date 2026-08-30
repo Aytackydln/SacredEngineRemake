@@ -36,7 +36,6 @@ public readonly struct StaticSpriteInstance(
     public readonly float AlphaBottom = alphaBottom;
     public readonly uint AtlasColumns = atlasColumns;
     public readonly uint AtlasRows = atlasRows;
-    public readonly float Padding = 0.0f;
 }
 
 public readonly record struct StaticSpriteSceneConstants(

@@ -8,8 +8,11 @@ public enum SacredItemGraphicFlags : ushort
 {
     None = 0,
 
-    /// <summary>Uses the extended mixed-sprite behavior.</summary>
-    ExtendedMixedSprite = 0x0001,
+    /// <summary>
+    /// Adds the object to Sacred.exe's static-shadow render path. The native
+    /// render-list builder tests this bit before emitting its shadow entry.
+    /// </summary>
+    CastsStaticShadow = 0x0001,
 
     /// <summary>Marks the graphic as a light emitter.</summary>
     LightEmitting = 0x0002,
@@ -25,9 +28,21 @@ public enum SacredItemGraphicFlags : ushort
 }
 
 /// <summary>
+/// Static-world shadow shape stored at Items.pak model-descriptor offset 0x63.
+/// </summary>
+public enum SacredItemStaticShadowProjection : byte
+{
+    /// <summary>Maps the atlas mask to a centered ground-contact quad.</summary>
+    Contact = 0,
+
+    /// <summary>Maps the atlas mask to a quad projected away from the sun.</summary>
+    Directional = 1,
+}
+
+/// <summary>
 /// Graphic representation stored at Items.pak model-descriptor offset 0x00.
-/// The named values are the complete bit patterns observed in populated descriptors;
-/// overlapping bits do not independently identify the rendering behavior.
+/// The low nibble selects the representation. Bit 0x10 is an observed mixed-sprite
+/// variant and does not determine whether a static object casts a shadow.
 /// </summary>
 [Flags]
 public enum SacredItemGraphicType : ushort
@@ -37,6 +52,14 @@ public enum SacredItemGraphicType : ushort
     AnimatedMiniObject = 0b1000,
     MixedSpriteOrLightMarker = 0b1001,
     StaticMiniObject = 0b1100,
+    RepresentationMask = 0b1111,
+
+    /// <summary>
+    /// Observed on one mixed-sprite variant. Shadow selection instead comes from
+    /// <see cref="SacredItemGraphicFlags.CastsStaticShadow"/> at descriptor offset
+    /// 0x02; this is not the native render-list's similarly valued flag byte.
+    /// </summary>
+    MixedSpriteVariant = 0b1_0000,
 }
 
 /// <summary>Known descriptor-state bits stored at Items.pak model-descriptor offset 0x31.</summary>

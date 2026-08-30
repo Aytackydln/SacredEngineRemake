@@ -206,6 +206,13 @@ internal sealed class Dx12WorldCommandRecorder
         }
 
         _commandList.OMSetRenderTargets(renderTarget, depthStencil);
+        _sprites.RecordStaticShadows(
+            spriteBatch,
+            camera,
+            scene.Lighting,
+            frame,
+            renderWidth,
+            renderHeight);
         _commandList.ClearDepthStencilView(depthStencil, ClearFlags.Depth, 1.0f, 0, 0, []);
         _models.RecordShadows(camera, scene.Models, scene.Lighting, frame.Index);
         _sprites.RecordStatic(

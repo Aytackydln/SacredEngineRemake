@@ -16,6 +16,10 @@ public static class Dx12ShaderCatalog
         DisplayShader("SacredWorldQuad", EmbeddedResource_Shaders.SacredWorldQuad_hlsl, "vs_main", "vs_5_0");
     private static readonly Dx12ShaderSource StaticSpriteVertexShader =
         DisplayShader("SacredStaticSprite", EmbeddedResource_Shaders.SacredStaticSprite_hlsl, "vs_main", "vs_5_0");
+    private static readonly Dx12ShaderSource StaticSpriteShadowVertexShader =
+        Shader("SacredStaticSpriteShadow", EmbeddedResource_Shaders.SacredStaticSpriteShadow_hlsl, "vs_main", "vs_5_0");
+    private static readonly Dx12ShaderSource StaticSpriteShadowPixelShader =
+        Shader("SacredStaticSpriteShadow", EmbeddedResource_Shaders.SacredStaticSpriteShadow_hlsl, "ps_main", "ps_5_0");
     private static readonly Dx12ShaderSource ModelVertexShader =
         DisplayShader("SacredModel", EmbeddedResource_Shaders.SacredModel_hlsl, "vs_main", "vs_5_0");
     private static readonly Dx12ShaderSource AnimatedModelVertexShader =
@@ -63,6 +67,8 @@ public static class Dx12ShaderCatalog
             "ps_5_0"),
         StaticSpriteVertexShader,
         DisplayShader("SacredStaticSprite", EmbeddedResource_Shaders.SacredStaticSprite_hlsl, pixelEntryPoint, "ps_5_0"),
+        StaticSpriteShadowVertexShader,
+        StaticSpriteShadowPixelShader,
         DisplayShader(
             "SacredLightHalo",
             EmbeddedResource_Shaders.SacredLightHalo_hlsl,
@@ -107,6 +113,8 @@ public sealed record Dx12ShaderSet(
     Dx12ShaderSource QuadScreenPixelShader,
     Dx12ShaderSource StaticSpriteVertexShader,
     Dx12ShaderSource StaticSpritePixelShader,
+    Dx12ShaderSource StaticSpriteShadowVertexShader,
+    Dx12ShaderSource StaticSpriteShadowPixelShader,
     Dx12ShaderSource LightHaloVertexShader,
     Dx12ShaderSource LightHaloPixelShader,
     Dx12ShaderSource ModelVertexShader,

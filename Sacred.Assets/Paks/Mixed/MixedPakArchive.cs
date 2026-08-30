@@ -19,5 +19,7 @@ public sealed class MixedPakArchive
 
     public IReadOnlyList<MixedCutoutRecord>? GetGroup(uint groupId) => _data.GetGroup(groupId);
 
+    public MixedPakGroup? GetGroupInfo(uint groupId) => _data.GetGroupInfo(groupId);
+
     public uint? ResolveGroupId(uint referenceId) => _data.ResolveGroupId(referenceId);
 }

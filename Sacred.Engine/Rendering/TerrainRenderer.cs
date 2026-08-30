@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Threading.Tasks;
 using Sacred.Assets.Paks.Texture;
+using Sacred.Core.Pak.Items;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
 
@@ -230,6 +231,7 @@ public readonly record struct TerrainStaticSprite(
     bool IsParticleSprite,
     bool IsMixedLightEmitter,
     bool TransposeTexture,
+    TerrainStaticShadow? Shadow,
     float RenderWidth,
     float RenderHeight,
     float IsoX,
@@ -243,6 +245,15 @@ public readonly record struct TerrainStaticSprite(
     int TileWorldX,
     int ChainDepth,
     int InsertionOrder);
+
+public readonly record struct TerrainStaticShadow(
+    StaticSpriteAsset Atlas,
+    float RootOffsetX,
+    float RootOffsetY,
+    float ContactExtent,
+    float ProjectionLength,
+    ushort AtlasCellIndex,
+    SacredItemStaticShadowProjection Projection);
 
 public readonly record struct TerrainWorldLight(
     float IsoX,

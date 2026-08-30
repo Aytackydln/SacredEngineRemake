@@ -14,7 +14,6 @@ struct SpriteInstance
     float4 corner_alpha;
     uint atlas_columns;
     uint atlas_rows;
-    float padding;
 };
 
 StructuredBuffer<SpriteInstance> instances : register(t0);

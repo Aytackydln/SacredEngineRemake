@@ -17,6 +17,9 @@ internal sealed class Dx12FrameContext : IDisposable
     private ID3D12Resource? _spriteInstanceBuffer;
     private nint _spriteInstanceBufferMapped;
     private int _spriteInstanceCapacity;
+    private ID3D12Resource? _staticShadowInstanceBuffer;
+    private nint _staticShadowInstanceBufferMapped;
+    private int _staticShadowInstanceCapacity;
     private ID3D12Resource? _lightHaloInstanceBuffer;
     private nint _lightHaloInstanceBufferMapped;
     private int _lightHaloInstanceCapacity;
@@ -34,6 +37,10 @@ internal sealed class Dx12FrameContext : IDisposable
     public ID3D12Resource SpriteInstanceBuffer =>
         _spriteInstanceBuffer ?? throw new InvalidOperationException("The sprite instance buffer has not been created.");
     public nint SpriteInstanceBufferMapped => _spriteInstanceBufferMapped;
+    public ID3D12Resource StaticShadowInstanceBuffer =>
+        _staticShadowInstanceBuffer ??
+        throw new InvalidOperationException("The static-shadow instance buffer has not been created.");
+    public nint StaticShadowInstanceBufferMapped => _staticShadowInstanceBufferMapped;
     public ID3D12Resource LightHaloInstanceBuffer =>
         _lightHaloInstanceBuffer ?? throw new InvalidOperationException("The light-halo instance buffer has not been created.");
     public nint LightHaloInstanceBufferMapped => _lightHaloInstanceBufferMapped;
@@ -90,6 +97,20 @@ internal sealed class Dx12FrameContext : IDisposable
             ref _lightHaloInstanceCapacity);
     }
 
+    public unsafe void EnsureStaticShadowInstanceCapacity(
+        ID3D12Device device,
+        int instanceStride,
+        int requiredCapacity)
+    {
+        EnsureInstanceCapacity(
+            device,
+            instanceStride,
+            requiredCapacity,
+            ref _staticShadowInstanceBuffer,
+            ref _staticShadowInstanceBufferMapped,
+            ref _staticShadowInstanceCapacity);
+    }
+
     private static unsafe void EnsureInstanceCapacity(
         ID3D12Device device,
         int instanceStride,
@@ -133,6 +154,10 @@ internal sealed class Dx12FrameContext : IDisposable
     public void Dispose()
     {
         DisposeSpriteInstanceBuffer();
+        DisposeInstanceBuffer(
+            ref _staticShadowInstanceBuffer,
+            ref _staticShadowInstanceBufferMapped,
+            ref _staticShadowInstanceCapacity);
         DisposeInstanceBuffer(
             ref _lightHaloInstanceBuffer,
             ref _lightHaloInstanceBufferMapped,
