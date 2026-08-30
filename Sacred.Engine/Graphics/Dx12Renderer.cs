@@ -102,8 +102,7 @@ public sealed class Dx12Renderer : IDisposable
             prepared = GetWorldPass().Prepare(
                 worldPreload.Camera,
                 worldPreload.World,
-                worldPreload.Scene,
-                frameId);
+                worldPreload.Scene);
 
         _graphics.BeginRenderSubmission(_screenPipeline);
         _screenPass.Prepare(screen, _graphics.CurrentFrame);
@@ -145,7 +144,7 @@ public sealed class Dx12Renderer : IDisposable
         CancellationToken cancellationToken = default)
     {
         var worldPass = GetWorldPass();
-        var prepared = worldPass.Prepare(camera, world, scene, frameId);
+        var prepared = worldPass.Prepare(camera, world, scene);
         _graphics.BeginRenderSubmission(_terrainPipeline);
         worldPass.UploadAndRecord(
             camera,

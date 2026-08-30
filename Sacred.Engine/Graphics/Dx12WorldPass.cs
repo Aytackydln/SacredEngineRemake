@@ -134,8 +134,7 @@ internal sealed class Dx12WorldPass : IDisposable
     public Dx12PreparedWorldFrame Prepare(
         SacredCamera camera,
         VisibleWorld world,
-        SceneState scene,
-        ulong frameId)
+        SceneState scene)
     {
         camera.SetViewportSize(_graphics.RenderWidth, _graphics.RenderHeight);
         var prepared = new Dx12PreparedWorldFrame(
@@ -143,7 +142,7 @@ internal sealed class Dx12WorldPass : IDisposable
             _terrain.PrepareVisibleLiquidSprites(),
             _terrain.PrepareVisibleStaticSprites(),
             _terrain.VisibleWorldLights);
-        _sectorTextures.PrepareFrame(prepared.SectorImages, _graphics.CurrentFrame, frameId);
+        _sectorTextures.PrepareFrame(prepared.SectorImages, _graphics.CurrentFrame);
         return prepared;
     }
 

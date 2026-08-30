@@ -21,9 +21,12 @@ internal sealed class Dx12SectorTextureCache : IDisposable
     private readonly int _descriptorSize;
     private readonly Dictionary<SectorCoord, SectorTexture> _textures = new();
     private readonly HashSet<SectorCoord> _pendingUploads = [];
+    private readonly Dictionary<SectorCoord, TerrainSectorComposition> _wantedCompositions = new();
+    private readonly List<SectorCoord> _texturesToRetire = new(9);
     private readonly BlockingCollection<SectorCompositionRequest> _compositionRequests = new();
     private readonly ConcurrentQueue<SubmittedSectorComposition> _submittedCompositions = new();
     private readonly Stack<int> _freeSrvSlots;
+    private readonly object _wantedCompositionsLock = new();
 
     private Thread? _uploadThread;
     private int _retiringSrvSlotCount;
@@ -60,17 +63,27 @@ internal sealed class Dx12SectorTextureCache : IDisposable
 
     public void OnFrameRetired(int releasedSectorSlotCount)
     {
+        if (releasedSectorSlotCount == 0)
+            return;
+
         _retiringSrvSlotCount -= releasedSectorSlotCount;
+        EngineLog.WriteLine(
+            $"Sector GPU textures released: {releasedSectorSlotCount / TexturesPerSector}; replacement loading may resume.");
     }
 
     public void PrepareFrame(
         IReadOnlyList<TerrainSectorComposition> images,
-        Dx12FrameContext frame,
-        ulong frameId)
+        Dx12FrameContext frame)
     {
-        CollectCompletedUploads(frame, frameId);
-        TouchVisibleTextures(images, frameId);
-        QueueMissingUploads(images, frame);
+        UpdateWantedCompositions(images);
+        RetireUnneededTextures(frame);
+        CollectCompletedUploads(frame);
+
+        // Retired textures remain alive until the GPU fence for their last frame completes.
+        // Do not allocate replacement render targets during that interval: a later frame will
+        // observe the returned descriptor slots and queue the new work without blocking here.
+        if (_retiringSrvSlotCount == 0)
+            QueueMissingUploads(images);
     }
 
     public bool TryGet(SectorCoord coord, out SectorTextureView texture)
@@ -95,6 +108,8 @@ internal sealed class Dx12SectorTextureCache : IDisposable
             return;
 
         _stopped = true;
+        lock (_wantedCompositionsLock)
+            _wantedCompositions.Clear();
         _compositionRequests.CompleteAdding();
         _uploadThread?.Join();
         _uploadThread = null;
@@ -128,17 +143,21 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         _composer.Dispose();
     }
 
-    private void CollectCompletedUploads(Dx12FrameContext frame, ulong frameId)
+    private void CollectCompletedUploads(Dx12FrameContext frame)
     {
         while (_submittedCompositions.TryDequeue(out var composition))
         {
             _pendingUploads.Remove(composition.Coord);
+            if (!IsWanted(composition.Composition))
+            {
+                composition.Composed?.Dispose();
+                ReleaseSrvSlots(composition);
+                continue;
+            }
+
             if (composition.Error is not null)
             {
-                _freeSrvSlots.Push(composition.BaseSrvSlot);
-                _freeSrvSlots.Push(composition.LiquidCoverSrvSlot);
-                _freeSrvSlots.Push(composition.StairsDebugSrvSlot);
-                _freeSrvSlots.Push(composition.BlockedAreaDebugSrvSlot);
+                ReleaseSrvSlots(composition);
                 throw new InvalidOperationException(
                     $"Failed to compose sector texture {composition.Coord.X},{composition.Coord.Y}.",
                     composition.Error);
@@ -146,10 +165,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
 
             if (composition.Composed is null)
             {
-                _freeSrvSlots.Push(composition.BaseSrvSlot);
-                _freeSrvSlots.Push(composition.LiquidCoverSrvSlot);
-                _freeSrvSlots.Push(composition.StairsDebugSrvSlot);
-                _freeSrvSlots.Push(composition.BlockedAreaDebugSrvSlot);
+                ReleaseSrvSlots(composition);
                 continue;
             }
 
@@ -174,12 +190,12 @@ internal sealed class Dx12SectorTextureCache : IDisposable
                 composition.BaseSrvSlot,
                 composition.LiquidCoverSrvSlot,
                 composition.StairsDebugSrvSlot,
-                composition.BlockedAreaDebugSrvSlot,
-                frameId));
+                composition.BlockedAreaDebugSrvSlot));
+            EngineLog.WriteLine($"Sector GPU texture loaded: {composition.Coord.X},{composition.Coord.Y}.");
         }
     }
 
-    private void QueueMissingUploads(IReadOnlyList<TerrainSectorComposition> images, Dx12FrameContext frame)
+    private void QueueMissingUploads(IReadOnlyList<TerrainSectorComposition> images)
     {
         foreach (var image in images)
         {
@@ -191,12 +207,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
                 continue;
 
             if (_freeSrvSlots.Count < TexturesPerSector)
-            {
-                if (_retiringSrvSlotCount == 0)
-                    EvictLeastRecentlyUsed(images, frame);
-                if (_freeSrvSlots.Count < TexturesPerSector)
-                    return;
-            }
+                return;
 
             var baseSlot = _freeSrvSlots.Pop();
             var liquidCoverSlot = _freeSrvSlots.Pop();
@@ -220,40 +231,39 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         }
     }
 
-    private void TouchVisibleTextures(IReadOnlyList<TerrainSectorComposition> images, ulong frameId)
+    private void UpdateWantedCompositions(IReadOnlyList<TerrainSectorComposition> images)
     {
-        foreach (var image in images)
-            if (_textures.TryGetValue(image.Coord, out var texture))
-                texture.LastUsedFrame = frameId;
+        lock (_wantedCompositionsLock)
+        {
+            _wantedCompositions.Clear();
+            foreach (var image in images)
+                _wantedCompositions[image.Coord] = image;
+        }
     }
 
-    private void EvictLeastRecentlyUsed(IReadOnlyList<TerrainSectorComposition> visibleImages, Dx12FrameContext frame)
+    private bool IsWanted(TerrainSectorComposition composition)
     {
-        SectorCoord? victimCoord = null;
-        SectorTexture? victim = null;
-        foreach (var pair in _textures)
+        lock (_wantedCompositionsLock)
         {
-            var visible = false;
-            foreach (var image in visibleImages)
-            {
-                if (image.Coord != pair.Key)
-                    continue;
-                visible = true;
-                break;
-            }
-
-            if (!visible && (victim is null || pair.Value.LastUsedFrame < victim.LastUsedFrame))
-            {
-                victimCoord = pair.Key;
-                victim = pair.Value;
-            }
+            return _wantedCompositions.TryGetValue(composition.Coord, out var wanted) &&
+                   ReferenceEquals(wanted, composition);
         }
+    }
 
-        if (victimCoord is null || victim is null)
-            return;
+    private void RetireUnneededTextures(Dx12FrameContext frame)
+    {
+        _texturesToRetire.Clear();
+        foreach (var pair in _textures)
+            if (!IsWanted(pair.Value.Composition))
+                _texturesToRetire.Add(pair.Key);
 
-        Retire(victim, frame);
-        _textures.Remove(victimCoord.Value);
+        foreach (var coord in _texturesToRetire)
+        {
+            var texture = _textures[coord];
+            Retire(texture, frame);
+            _textures.Remove(coord);
+            EngineLog.WriteLine($"Sector GPU texture retiring asynchronously: {coord.X},{coord.Y}.");
+        }
     }
 
     private void Retire(SectorTexture texture, Dx12FrameContext frame)
@@ -272,7 +282,11 @@ internal sealed class Dx12SectorTextureCache : IDisposable
     private void UploadWorkerLoop()
     {
         foreach (var request in _compositionRequests.GetConsumingEnumerable())
-            _submittedCompositions.Enqueue(Compose(request));
+        {
+            _submittedCompositions.Enqueue(IsWanted(request.Composition)
+                ? Compose(request)
+                : Skip(request));
+        }
     }
 
     private SubmittedSectorComposition Compose(SectorCompositionRequest request)
@@ -312,6 +326,28 @@ internal sealed class Dx12SectorTextureCache : IDisposable
 
     private CpuDescriptorHandle SrvCpuHandle(int index) => _srvHeapStart + index * _descriptorSize;
 
+    private static SubmittedSectorComposition Skip(SectorCompositionRequest request)
+    {
+        request.Composition.ReleaseSourceTiles();
+        return new SubmittedSectorComposition(
+            request.Composition.Coord,
+            request.Composition,
+            null,
+            request.BaseSrvSlot,
+            request.LiquidCoverSrvSlot,
+            request.StairsDebugSrvSlot,
+            request.BlockedAreaDebugSrvSlot,
+            null);
+    }
+
+    private void ReleaseSrvSlots(SubmittedSectorComposition composition)
+    {
+        _freeSrvSlots.Push(composition.BaseSrvSlot);
+        _freeSrvSlots.Push(composition.LiquidCoverSrvSlot);
+        _freeSrvSlots.Push(composition.StairsDebugSrvSlot);
+        _freeSrvSlots.Push(composition.BlockedAreaDebugSrvSlot);
+    }
+
     private sealed record SectorCompositionRequest(
         TerrainSectorComposition Composition,
         int BaseSrvSlot,
@@ -338,8 +374,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         int baseSrvSlot,
         int liquidCoverSrvSlot,
         int stairsDebugSrvSlot,
-        int blockedAreaDebugSrvSlot,
-        ulong lastUsedFrame)
+        int blockedAreaDebugSrvSlot)
     {
         public TerrainSectorComposition Composition { get; } = composition;
         public ID3D12Resource BaseResource { get; } = baseResource;
@@ -350,7 +385,6 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         public int LiquidCoverSrvSlot { get; } = liquidCoverSrvSlot;
         public int StairsDebugSrvSlot { get; } = stairsDebugSrvSlot;
         public int BlockedAreaDebugSrvSlot { get; } = blockedAreaDebugSrvSlot;
-        public ulong LastUsedFrame { get; set; } = lastUsedFrame;
     }
 }
 
