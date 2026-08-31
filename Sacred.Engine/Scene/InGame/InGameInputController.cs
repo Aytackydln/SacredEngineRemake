@@ -26,6 +26,7 @@ internal sealed class InGameInputController
     private readonly Func<int> _viewportWidth;
     private readonly Func<int> _viewportHeight;
     private readonly Action<bool> _setHandCursor;
+    private ElevationMovementTrace? _elevationTrace;
 
     public InGameInputController(
         InputState input,
@@ -134,17 +135,24 @@ internal sealed class InGameInputController
             : WorldZone.Indoors;
         if (_worldLighting.Update(deltaSeconds, _scene.Lighting, lightingFocus, zone))
             _updateWindowTitle();
-        var terrainHeight = _elevation.SampleHeightOrZero(_camera.WorldCenter);
-        _scene.Debug.ActorTerrainHeight = terrainHeight;
+        var terrain = _elevation.SampleOrZero(_camera.WorldCenter);
+        _scene.Debug.ActorTerrainHeight = terrain.Height;
         _player.UpdatePose(
             _camera.WorldCenter,
             _camera.CharacterFacingUnitVector,
             _camera.CameraSpeedUnitVector != Vector2.Zero,
             _input.IsWalkModifierDown,
             isDefending,
-            terrainHeight,
+            terrain,
             _camera.LocomotionAnimationSpeed,
             deltaSeconds);
+        if (_elevationTrace?.Update(
+                _camera,
+                terrain,
+                _elevation,
+                deltaSeconds,
+                _worldStreamer.VisibleWorld.LoadingSectors == 0) == true)
+            _elevationTrace = null;
         _worldStreamer.Update(_camera.WorldCenter);
         var mouseWorld = GameActorElevation.ScreenToWorldOnSurface(
             _camera,
@@ -169,17 +177,31 @@ internal sealed class InGameInputController
         _camera.CenterOnTile(destination.X, destination.Y);
         _indoors.Reset(destination);
 
-        var terrainHeight = _elevation.SampleHeightOrZero(_camera.WorldCenter);
-        _scene.Debug.ActorTerrainHeight = terrainHeight;
+        var terrain = _elevation.SampleOrZero(_camera.WorldCenter);
+        _scene.Debug.ActorTerrainHeight = terrain.Height;
         _player.UpdatePose(
             _camera.WorldCenter,
             _camera.CharacterFacingUnitVector,
             false,
             false,
             false,
-            terrainHeight,
+            terrain,
             _camera.LocomotionAnimationSpeed,
             0.0f);
+    }
+
+    public bool TryStartElevationTrace(string route, out string message)
+    {
+        if (!ElevationMovementTrace.TryCreate(route, out var trace))
+        {
+            message = "unknown elevation route; use bellevue-a, bellevue-b, or shaddar";
+            return false;
+        }
+
+        Teleport(trace.Start);
+        _elevationTrace = trace;
+        message = $"continuous elevation trace '{route}' queued at {trace.Start.X:0.##},{trace.Start.Y:0.##}";
+        return true;
     }
 
     public void InitializeLocation(Vector2 location) => _indoors.Reset(location);

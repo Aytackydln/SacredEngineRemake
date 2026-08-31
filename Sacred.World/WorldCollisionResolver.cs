@@ -19,7 +19,6 @@ public sealed class WorldCollisionResolver(
     private const int MaximumSlideIterations = 4;
 
     private readonly Dictionary<SectorCoord, Sector> _sectors = new(capacity: 9);
-    private readonly List<IndoorTileGroup> _indoorGroups = [];
     private VisibleWorld? _cachedWorld;
 
     public WorldCollisionResolver(WorldStreamer worldStreamer)
@@ -243,17 +242,6 @@ public sealed class WorldCollisionResolver(
             return false;
         }
 
-        foreach (var candidate in _indoorGroups)
-        {
-            if (candidate.SurfaceLevel != 1)
-                continue;
-            if (!candidate.TryGetAuthoredLocalTile(worldTileX, worldTileY, out localX, out localY))
-                continue;
-
-            group = candidate;
-            return true;
-        }
-
         group = null!;
         localX = 0;
         localY = 0;
@@ -283,15 +271,8 @@ public sealed class WorldCollisionResolver(
 
         _cachedWorld = visibleWorld;
         _sectors.Clear();
-        _indoorGroups.Clear();
-        var indoorGroupIds = new HashSet<IndoorTileGroupId>();
         foreach (var sector in visibleWorld.Sectors)
-        {
             _sectors[sector.Coord] = sector;
-            foreach (var group in sector.IndoorTileGroups.Groups)
-                if (indoorGroupIds.Add(group.Id))
-                    _indoorGroups.Add(group);
-        }
     }
 
     private static int FloorDiv(int value, int divisor)

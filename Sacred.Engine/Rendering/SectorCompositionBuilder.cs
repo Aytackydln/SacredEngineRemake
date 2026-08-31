@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Assets.Paks.Texture;
-using Sacred.Core.World.Pathing;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
 using Sacred.World.Geometry;
@@ -19,14 +17,6 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
 {
     private const int SourceTileWidth = 100;
     private const int SourceTileHeight = 50;
-    private const int RenderTileWidth = 96;
-    private const int RenderTileHeight = 48;
-    private const int IsoStepWidth = IsometricProjection.StepWidth;
-    private const int IsoStepHeight = IsometricProjection.StepHeight;
-    private const int SectorImageOriginX = -(Sector.TileCount - 1) * (IsoStepWidth / 2);
-    private const int SectorImageOriginY = 0;
-    private const int SectorImageWidth = (Sector.TileCount - 1) * IsoStepWidth + RenderTileWidth;
-    private const int SectorImageHeight = (Sector.TileCount - 1) * IsoStepHeight + RenderTileHeight;
 
     private static readonly (int X, int Y)[] TilePositions =
     [
@@ -66,6 +56,7 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
         var sectorOriginIso = IsometricProjection.WorldToIso(
             sector.Coord.X * Sector.TileCount,
             sector.Coord.Y * Sector.TileCount);
+        var sectorBounds = TerrainTileGeometry.CalculateSectorBounds(sector);
         var baseTiles = new List<TerrainCompositionTile>(Sector.TileCount * Sector.TileCount + sector.FloorOverlays.Count);
         var coverTiles = new List<TerrainCompositionTile>(sector.FloorOverlays.Count);
         var stairsDebugTiles = new List<TerrainCompositionTile>(sector.StairsCells.Count);
@@ -89,15 +80,17 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
         for (var localX = 0; localX < Sector.TileCount; localX++)
         {
             var iso = IsometricProjection.WorldToIso(localX, localY);
+            var surface = TerrainTileGeometry.GetSurface(sector, localX, localY);
             drawTiles.Add(new DrawTile(
                 localX + localY,
                 localY,
-                (int)MathF.Round(iso.X - SectorImageOriginX),
-                (int)MathF.Round(iso.Y - SectorImageOriginY),
+                (int)MathF.Round(iso.X - sectorBounds.X),
+                (int)MathF.Round(iso.Y - sectorBounds.Y),
                 sector.Ground[localX, localY],
                 0,
                 0,
-                false));
+                false,
+                surface));
         }
 
         drawTiles.Sort(CompareDrawTiles);
@@ -110,7 +103,7 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
                 continue;
             }
 
-            var compositionTile = new TerrainCompositionTile(item.ScreenX, item.ScreenY, source, null);
+            var compositionTile = new TerrainCompositionTile(item.ScreenX, item.ScreenY, source, null, item.Surface);
             baseTiles.Add(compositionTile);
             groundDrawnTiles++;
         }
@@ -120,18 +113,20 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
         for (var localX = 0; localX < Sector.TileCount; localX++)
         {
             var iso = IsometricProjection.WorldToIso(localX, localY);
+            var surface = TerrainTileGeometry.GetSurface(sector, localX, localY);
             foreach (var overlay in sector.FloorOverlays[localX, localY])
             {
                 floorCandidateTiles++;
                 var drawTile = new DrawTile(
                     localX + localY,
                     localY,
-                    (int)MathF.Round(iso.X - SectorImageOriginX),
-                    (int)MathF.Round(iso.Y - SectorImageOriginY),
+                    (int)MathF.Round(iso.X - sectorBounds.X),
+                    (int)MathF.Round(iso.Y - sectorBounds.Y),
                     overlay.PrimaryTileId,
                     overlay.SecondaryTileId,
                     overlay.ChainDepth,
-                    overlay.ChainDepth >= liquidInsertionDepths[localY * Sector.TileCount + localX]);
+                    overlay.ChainDepth >= liquidInsertionDepths[localY * Sector.TileCount + localX],
+                    surface);
                 drawTiles.Add(drawTile);
             }
         }
@@ -153,7 +148,7 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
             lock (_cacheLock)
                 _floorSources.Add(new FloorSourceKey(item.PrimaryTileId, item.SecondaryTileId));
 
-            var compositionTile = new TerrainCompositionTile(item.ScreenX, item.ScreenY, primary, secondary);
+            var compositionTile = new TerrainCompositionTile(item.ScreenX, item.ScreenY, primary, secondary, item.Surface);
             (item.AboveLiquid ? coverTiles : baseTiles).Add(compositionTile);
             floorDrawnTiles++;
         }
@@ -166,10 +161,11 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
             var iso = IsometricProjection.WorldToIso(localX, localY);
             var isAnchor = position == cell.Anchor;
             stairsDebugTiles.Add(new TerrainCompositionTile(
-                (int)MathF.Round(iso.X - SectorImageOriginX),
-                (int)MathF.Round(iso.Y - SectorImageOriginY),
+                (int)MathF.Round(iso.X - sectorBounds.X),
+                (int)MathF.Round(iso.Y - sectorBounds.Y),
                 _stairsDebugTiles.Get(isAnchor),
-                null));
+                null,
+                TerrainTileGeometry.GetSurface(sector, localX, localY)));
         }
 
         foreach (var group in sector.IndoorTileGroups.Groups)
@@ -190,10 +186,11 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
             var localY = entrance.WorldY - sector.Coord.Y * Sector.TileCount;
             var iso = IsometricProjection.WorldToIso(localX, localY);
             stairsDebugTiles.Add(new TerrainCompositionTile(
-                (int)MathF.Round(iso.X - SectorImageOriginX),
-                (int)MathF.Round(iso.Y - SectorImageOriginY),
+                (int)MathF.Round(iso.X - sectorBounds.X),
+                (int)MathF.Round(iso.Y - sectorBounds.Y),
                 _stairsDebugTiles.Get(isAnchor: true),
-                null));
+                null,
+                TerrainTileGeometry.GetSurface(sector, localX, localY)));
         }
 
         for (var localY = 0; localY < Sector.TileCount; localY++)
@@ -210,10 +207,11 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
 
             var iso = IsometricProjection.WorldToIso(localX, localY);
             stairsDebugTiles.Add(new TerrainCompositionTile(
-                (int)MathF.Round(iso.X - SectorImageOriginX),
-                (int)MathF.Round(iso.Y - SectorImageOriginY),
+                (int)MathF.Round(iso.X - sectorBounds.X),
+                (int)MathF.Round(iso.Y - sectorBounds.Y),
                 _stairsDebugTiles.Get(isAnchor: true),
-                null));
+                null,
+                TerrainTileGeometry.GetSurface(sector, localX, localY)));
         }
 
         for (var localY = 0; localY < Sector.TileCount; localY++)
@@ -224,20 +222,21 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
 
             var iso = IsometricProjection.WorldToIso(localX, localY);
             blockedAreaDebugTiles.Add(new TerrainCompositionTile(
-                (int)MathF.Round(iso.X - SectorImageOriginX),
-                (int)MathF.Round(iso.Y - SectorImageOriginY),
+                (int)MathF.Round(iso.X - sectorBounds.X),
+                (int)MathF.Round(iso.Y - sectorBounds.Y),
                 _blockedAreaDebugTile.Source,
-                null));
+                null,
+                TerrainTileGeometry.GetSurface(sector, localX, localY)));
         }
 
-        var stairsDebugBounds = CropDebugTiles(stairsDebugTiles);
-        var blockedAreaDebugBounds = CropDebugTiles(blockedAreaDebugTiles);
+        var stairsDebugBounds = TerrainTileGeometry.CropTiles(stairsDebugTiles);
+        var blockedAreaDebugBounds = TerrainTileGeometry.CropTiles(blockedAreaDebugTiles);
         return new TerrainSectorComposition(
             sector.Coord,
-            sectorOriginIso.X + SectorImageOriginX,
-            sectorOriginIso.Y + SectorImageOriginY,
-            SectorImageWidth,
-            SectorImageHeight,
+            sectorOriginIso.X + sectorBounds.X,
+            sectorOriginIso.Y + sectorBounds.Y,
+            sectorBounds.Width,
+            sectorBounds.Height,
             sector.Coord.X + sector.Coord.Y,
             baseTiles.ToArray(),
             coverTiles.ToArray(),
@@ -257,36 +256,6 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
             floorCandidateTiles,
             floorDrawnTiles,
             floorMissingTiles);
-    }
-
-    private static DebugLayerBounds CropDebugTiles(List<TerrainCompositionTile> tiles)
-    {
-        if (tiles.Count == 0)
-            return new DebugLayerBounds(0, 0, 1, 1);
-
-        var minX = int.MaxValue;
-        var minY = int.MaxValue;
-        var maxX = int.MinValue;
-        var maxY = int.MinValue;
-        foreach (var tile in tiles)
-        {
-            minX = Math.Min(minX, tile.ScreenX);
-            minY = Math.Min(minY, tile.ScreenY);
-            maxX = Math.Max(maxX, tile.ScreenX + RenderTileWidth);
-            maxY = Math.Max(maxY, tile.ScreenY + RenderTileHeight);
-        }
-
-        for (var index = 0; index < tiles.Count; index++)
-        {
-            var tile = tiles[index];
-            tiles[index] = tile with
-            {
-                ScreenX = tile.ScreenX - minX,
-                ScreenY = tile.ScreenY - minY,
-            };
-        }
-
-        return new DebugLayerBounds(minX, minY, maxX - minX, maxY - minY);
     }
 
     private async Task<TerrainTileSource?> GetTileSourceAsync(uint tileId)
@@ -341,8 +310,6 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
 
     private readonly record struct FloorSourceKey(uint PrimaryTileId, uint SecondaryTileId);
 
-    private readonly record struct DebugLayerBounds(int X, int Y, int Width, int Height);
-
     private readonly record struct DrawTile(
         int Depth,
         int WorldY,
@@ -351,110 +318,6 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
         uint PrimaryTileId,
         uint SecondaryTileId,
         int ChainDepth,
-        bool AboveLiquid);
-}
-
-public sealed record TerrainTileSource(TextureAsset Texture, int SourceX, int SourceY);
-
-public readonly record struct TerrainCompositionTile(
-    int ScreenX,
-    int ScreenY,
-    TerrainTileSource Primary,
-    TerrainTileSource? Secondary);
-
-public sealed class TerrainSectorComposition
-{
-    private TerrainCompositionTile[] _baseTiles;
-    private TerrainCompositionTile[] _coverTiles;
-    private TerrainCompositionTile[] _stairsDebugTiles;
-    private TerrainCompositionTile[] _blockedAreaDebugTiles;
-
-    public TerrainSectorComposition(
-        SectorCoord coord,
-        float isoX,
-        float isoY,
-        int width,
-        int height,
-        int depth,
-        TerrainCompositionTile[] baseTiles,
-        TerrainCompositionTile[] coverTiles,
-        TerrainCompositionTile[] stairsDebugTiles,
-        int stairsDebugOffsetX,
-        int stairsDebugOffsetY,
-        int stairsDebugWidth,
-        int stairsDebugHeight,
-        TerrainCompositionTile[] blockedAreaDebugTiles,
-        int blockedAreaDebugOffsetX,
-        int blockedAreaDebugOffsetY,
-        int blockedAreaDebugWidth,
-        int blockedAreaDebugHeight,
-        int groundCandidateTiles,
-        int groundDrawnTiles,
-        int groundMissingTiles,
-        int floorCandidateTiles,
-        int floorDrawnTiles,
-        int floorMissingTiles)
-    {
-        Coord = coord;
-        IsoX = isoX;
-        IsoY = isoY;
-        Width = width;
-        Height = height;
-        Depth = depth;
-        _baseTiles = baseTiles;
-        _coverTiles = coverTiles;
-        _stairsDebugTiles = stairsDebugTiles;
-        StairsDebugOffsetX = stairsDebugOffsetX;
-        StairsDebugOffsetY = stairsDebugOffsetY;
-        StairsDebugWidth = stairsDebugWidth;
-        StairsDebugHeight = stairsDebugHeight;
-        HasStairsDebugData = stairsDebugTiles.Length > 0;
-        _blockedAreaDebugTiles = blockedAreaDebugTiles;
-        BlockedAreaDebugOffsetX = blockedAreaDebugOffsetX;
-        BlockedAreaDebugOffsetY = blockedAreaDebugOffsetY;
-        BlockedAreaDebugWidth = blockedAreaDebugWidth;
-        BlockedAreaDebugHeight = blockedAreaDebugHeight;
-        HasBlockedAreaDebugData = blockedAreaDebugTiles.Length > 0;
-        GroundCandidateTiles = groundCandidateTiles;
-        GroundDrawnTiles = groundDrawnTiles;
-        GroundMissingTiles = groundMissingTiles;
-        FloorCandidateTiles = floorCandidateTiles;
-        FloorDrawnTiles = floorDrawnTiles;
-        FloorMissingTiles = floorMissingTiles;
-    }
-
-    public SectorCoord Coord { get; }
-    public float IsoX { get; }
-    public float IsoY { get; }
-    public int Width { get; }
-    public int Height { get; }
-    public int Depth { get; }
-    public IReadOnlyList<TerrainCompositionTile> BaseTiles => _baseTiles;
-    public IReadOnlyList<TerrainCompositionTile> CoverTiles => _coverTiles;
-    public IReadOnlyList<TerrainCompositionTile> StairsDebugTiles => _stairsDebugTiles;
-    public int StairsDebugOffsetX { get; }
-    public int StairsDebugOffsetY { get; }
-    public int StairsDebugWidth { get; }
-    public int StairsDebugHeight { get; }
-    public bool HasStairsDebugData { get; }
-    public IReadOnlyList<TerrainCompositionTile> BlockedAreaDebugTiles => _blockedAreaDebugTiles;
-    public int BlockedAreaDebugOffsetX { get; }
-    public int BlockedAreaDebugOffsetY { get; }
-    public int BlockedAreaDebugWidth { get; }
-    public int BlockedAreaDebugHeight { get; }
-    public bool HasBlockedAreaDebugData { get; }
-    public int GroundCandidateTiles { get; }
-    public int GroundDrawnTiles { get; }
-    public int GroundMissingTiles { get; }
-    public int FloorCandidateTiles { get; }
-    public int FloorDrawnTiles { get; }
-    public int FloorMissingTiles { get; }
-
-    internal void ReleaseSourceTiles()
-    {
-        Interlocked.Exchange(ref _baseTiles, []);
-        Interlocked.Exchange(ref _coverTiles, []);
-        Interlocked.Exchange(ref _stairsDebugTiles, []);
-        Interlocked.Exchange(ref _blockedAreaDebugTiles, []);
-    }
+        bool AboveLiquid,
+        TerrainTileSurface Surface);
 }

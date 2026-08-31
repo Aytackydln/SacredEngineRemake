@@ -2,6 +2,7 @@ using Sacred.Assets.World.Floor;
 using Sacred.Assets.World.Static;
 using Sacred.Core.World;
 using Sacred.Core.World.Elevation;
+using Sacred.Core.World.Lighting;
 using Sacred.Core.World.Pathing;
 using Sacred.Core.World.Sector;
 using Sacred.Core.World.Stairs;
@@ -145,6 +146,7 @@ public sealed class SacredWorldArchive : IDisposable
         var indoorTileGroups = new IndoorTileGroupLayer();
         var pathing = new WorldPathingLayer(SectorW, SectorH);
         var elevation = new TerrainElevationLayer(SectorW, SectorH);
+        var bakedLight = new TerrainBakedLightLayer(SectorW, SectorH);
         var staticTileVisits = new List<StaticTileVisit>();
         for (var y = 0; y < SectorH; y++)
         for (var x = 0; x < SectorW; x++)
@@ -158,6 +160,11 @@ public sealed class SacredWorldArchive : IDisposable
                     tile.ElevationNorthEast,
                     tile.ElevationSouthWest,
                     tile.ElevationSouthEast);
+                bakedLight[x, y] = new TerrainBakedLightTile(
+                    tile.BakedBrightnessNorthWest,
+                    tile.BakedBrightnessNorthEast,
+                    tile.BakedBrightnessSouthWest,
+                    tile.BakedBrightnessSouthEast);
                 if (tile.StaticChainHeadId != 0)
                 {
                     var worldX = coord.X * SectorW + x;
@@ -181,7 +188,8 @@ public sealed class SacredWorldArchive : IDisposable
             stairsCells,
             indoorTileGroups,
             pathing,
-            elevation);
+            elevation,
+            bakedLight);
     }
 
     private void LoadIndoorTileGroups(

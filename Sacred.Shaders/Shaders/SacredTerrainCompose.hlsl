@@ -15,7 +15,9 @@ struct TerrainTileInstance
     uint primary_texture_index;
     uint secondary_texture_index;
     uint flags;
-    uint padding0;
+    uint packed_baked_light;
+    float4 elevation_samples;
+    float4 horizontal_offset_samples;
     float2 padding1;
 };
 
@@ -34,6 +36,7 @@ struct vertex_output
     float2 primary_source_pixel : TEXCOORD0;
     float2 secondary_source_pixel : TEXCOORD1;
     nointerpolation uint flags : TEXCOORD2;
+    float baked_light : TEXCOORD3;
 };
 
 static const float2 destination_vertices[12] =
@@ -52,10 +55,31 @@ static const float2 source_vertices[12] =
     float2(50.259f, 24.259f), float2(50.000f, 48.512f), float2(2.512f, 24.012f)
 };
 
+// Corner order matches the serialized WLDX fields: south-west, north-west,
+// north-east, south-east. Index 4 is the four-corner average at the tile center.
+static const uint surface_vertex_indices[12] =
+{
+    4, 0, 1,
+    4, 1, 2,
+    4, 2, 3,
+    4, 3, 0
+};
+
+float surface_value(float4 corner_values, uint vertex_id)
+{
+    uint surface_index = surface_vertex_indices[vertex_id];
+    return surface_index == 4
+        ? dot(corner_values, 0.25f)
+        : corner_values[surface_index];
+}
+
 vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_InstanceID)
 {
     TerrainTileInstance instance = tile_instances[instance_id];
-    float2 pixel = instance.destination_origin + destination_vertices[vertex_id];
+    float elevation = surface_value(instance.elevation_samples, vertex_id);
+    float horizontal_offset = surface_value(instance.horizontal_offset_samples, vertex_id);
+    float2 pixel = instance.destination_origin + destination_vertices[vertex_id] +
+                   float2(horizontal_offset, -elevation);
     float2 clip = float2(
         pixel.x / target_size.x * 2.0f - 1.0f,
         1.0f - pixel.y / target_size.y * 2.0f);
@@ -65,6 +89,12 @@ vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_Instan
     output.primary_source_pixel = instance.primary_source_origin + source_vertices[vertex_id];
     output.secondary_source_pixel = instance.secondary_source_origin + source_vertices[vertex_id];
     output.flags = instance.flags;
+    float4 baked_light = float4(
+        instance.packed_baked_light & 0xFF,
+        (instance.packed_baked_light >> 8) & 0xFF,
+        (instance.packed_baked_light >> 16) & 0xFF,
+        (instance.packed_baked_light >> 24) & 0xFF) / 255.0f;
+    output.baked_light = surface_value(baked_light, vertex_id);
     return output;
 }
 
@@ -89,6 +119,8 @@ float4 ps_main(vertex_output input) : SV_Target
 
     if ((input.flags & tile_flag_premultiplied_output) != 0)
         color.rgb *= color.a;
+
+    color.rgb *= input.baked_light;
 
     return color;
 }

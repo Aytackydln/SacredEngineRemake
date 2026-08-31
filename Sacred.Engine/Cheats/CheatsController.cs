@@ -20,6 +20,9 @@ internal sealed class CheatsController : IDisposable
             ["tp"] = ParseTeleport,
             ["screenshot"] = ParseScreenshot,
             ["shot"] = ParseScreenshot,
+            ["inspect"] = ParseInspection,
+            ["traceelevation"] = ParseElevationTrace,
+            ["trace-elevation"] = ParseElevationTrace,
             ["set"] = ParseSetOption,
             ["option"] = ParseSetOption,
             ["change"] = ParseSetOption
@@ -94,16 +97,29 @@ internal sealed class CheatsController : IDisposable
             ? new ScreenshotCheatCommand(parts.Length == 2 ? parts[1] : null)
             : new InvalidCheatCommand("Usage: screenshot [label]");
 
+    private static CheatCommand ParseInspection(string[] parts) =>
+        parts.Length is 3 or 4 && TryParseCoordinates(parts[1], parts[2], out var position)
+            ? new InspectionCheatCommand(position, parts.Length == 4 ? parts[3] : null)
+            : new InvalidCheatCommand("Usage: inspect <x> <y> [label]");
+
+    private static CheatCommand ParseElevationTrace(string[] parts) =>
+        parts.Length == 2
+            ? new ElevationTraceCheatCommand(parts[1])
+            : new InvalidCheatCommand("Usage: traceelevation <bellevue-a|bellevue-b|shaddar>");
+
     private static bool TryParsePosition(string[] parts, out Vector2 position)
     {
         position = default;
-        if (parts.Length != 3 ||
-            !float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var x) ||
-            !float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out var y) ||
+        return parts.Length == 3 && TryParseCoordinates(parts[1], parts[2], out position);
+    }
+
+    private static bool TryParseCoordinates(string xText, string yText, out Vector2 position)
+    {
+        position = default;
+        if (!float.TryParse(xText, NumberStyles.Float, CultureInfo.InvariantCulture, out var x) ||
+            !float.TryParse(yText, NumberStyles.Float, CultureInfo.InvariantCulture, out var y) ||
             !float.IsFinite(x) || !float.IsFinite(y))
-        {
             return false;
-        }
 
         position = new Vector2(x, y);
         return true;
@@ -117,6 +133,10 @@ internal sealed record HelpCheatCommand : CheatCommand;
 internal sealed record TeleportCheatCommand(Vector2 Position) : CheatCommand;
 
 internal sealed record ScreenshotCheatCommand(string? Label) : CheatCommand;
+
+internal sealed record InspectionCheatCommand(Vector2 Position, string? Label) : CheatCommand;
+
+internal sealed record ElevationTraceCheatCommand(string Route) : CheatCommand;
 
 internal sealed record SetOptionCheatCommand(string Option, string Value) : CheatCommand;
 

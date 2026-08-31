@@ -29,6 +29,7 @@ internal sealed class SacredGameRuntime : IDisposable
     private readonly SacredGameSaveState _initialSaveState;
 
     private InGameScene? _inGameScene;
+    private PendingInspection? _pendingInspection;
     private GrnBackendKind _grannyBackend;
     private bool _disposed;
 
@@ -74,6 +75,7 @@ internal sealed class SacredGameRuntime : IDisposable
             CaptureScreenshot(null);
         _engineInput.Update();
         _scenes.Update(deltaSeconds);
+        UpdatePendingInspection();
     }
 
     public SacredGameSaveState CaptureSaveState() => new()
@@ -228,7 +230,7 @@ internal sealed class SacredGameRuntime : IDisposable
         switch (command)
         {
             case HelpCheatCommand:
-                EngineLog.WriteLine("Cheats: teleport <x> <y>; screenshot [label]; set overlays <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set character next; set hdr <on|off>; set pacing <vrr|vsync|limit>; set latency <off|on|boost>; set granny <managed|native>.");
+                EngineLog.WriteLine("Cheats: teleport <x> <y>; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set character next; set hdr <on|off>; set pacing <vrr|vsync|limit>; set latency <off|on|boost>; set granny <managed|native>.");
                 return;
             case TeleportCheatCommand teleport:
                 if (_inGameScene is null)
@@ -242,6 +244,31 @@ internal sealed class SacredGameRuntime : IDisposable
                 return;
             case ScreenshotCheatCommand screenshot:
                 CaptureScreenshot(screenshot.Label);
+                return;
+            case InspectionCheatCommand inspection:
+                if (_inGameScene is null)
+                {
+                    EngineLog.WriteLine("Cheat: inspect is available once the in-game scene has loaded.");
+                    return;
+                }
+
+                _inGameScene.Teleport(inspection.Position);
+                _pendingInspection = new PendingInspection(
+                    inspection.Position,
+                    inspection.Label ?? $"inspect-{inspection.Position.X:0.##}-{inspection.Position.Y:0.##}",
+                    DateTime.UtcNow + TimeSpan.FromSeconds(2));
+                EngineLog.WriteLine(
+                    $"Cheat: inspection queued at {inspection.Position.X:0.##}, {inspection.Position.Y:0.##}.");
+                return;
+            case ElevationTraceCheatCommand elevationTrace:
+                if (_inGameScene is null)
+                {
+                    EngineLog.WriteLine("Cheat: elevation tracing is available once the in-game scene has loaded.");
+                    return;
+                }
+
+                _inGameScene.TryStartElevationTrace(elevationTrace.Route, out var traceMessage);
+                EngineLog.WriteLine($"Cheat: {traceMessage}");
                 return;
             case SetOptionCheatCommand setOption:
                 ExecuteSetOptionCheat(setOption);
@@ -283,6 +310,20 @@ internal sealed class SacredGameRuntime : IDisposable
         {
             EngineLog.WriteLine($"Screenshot failed: {exception.Message}");
         }
+    }
+
+    private void UpdatePendingInspection()
+    {
+        if (_pendingInspection is not { } inspection || _inGameScene is null)
+            return;
+
+        // Keep the gameplay anchor exact while sector streaming and composition settle.
+        _inGameScene.Teleport(inspection.Position);
+        if (DateTime.UtcNow < inspection.CaptureAfter || !_inGameScene.WorldStreamingSettled)
+            return;
+
+        _pendingInspection = null;
+        CaptureScreenshot(inspection.Label);
     }
 
     private bool TrySetEngineCheatOption(string option, string value, out string message)
@@ -393,4 +434,6 @@ internal sealed class SacredGameRuntime : IDisposable
         GrnBackendKind.GrannyDll => "Granny.dll",
         _ => "Managed"
     };
+
+    private sealed record PendingInspection(Vector2 Position, string Label, DateTime CaptureAfter);
 }

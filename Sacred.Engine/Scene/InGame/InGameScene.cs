@@ -72,11 +72,15 @@ internal sealed class InGameScene : IGameScene
     internal bool BlockedTilesVisible => _scene.Debug.BlockedAreasVisible;
     internal WorldLightingMode WorldLightingMode => _worldLighting.Mode;
     internal Vector2 PlayerWorldPosition => _camera.WorldCenter;
+    internal bool WorldStreamingSettled => _worldStreamer.VisibleWorld.LoadingSectors == 0;
 
     internal Task<TextureAsset> LoadTextureAsync(string textureName, CancellationToken cancellationToken) =>
         _assets.LoadTextureAsync(textureName, cancellationToken);
 
     internal void Teleport(Vector2 destination) => _inputController.Teleport(destination);
+
+    internal bool TryStartElevationTrace(string route, out string message) =>
+        _inputController.TryStartElevationTrace(route, out message);
 
     internal bool TrySetCheatOption(string option, string value, out string message)
     {

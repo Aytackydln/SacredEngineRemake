@@ -8,6 +8,7 @@ using Sacred.Engine.Animation;
 using Sacred.Engine.Assets;
 using Sacred.Granny.Assets;
 using Sacred.Granny.Meshes;
+using Sacred.World;
 using Sacred.World.Geometry;
 
 namespace Sacred.Engine.Scene.InGame;
@@ -53,7 +54,7 @@ internal sealed class PlayerCharacterController : IDisposable
 
     public void Initialize(Vector2 worldCenter)
     {
-        UpdatePosition(worldCenter, 0.0f);
+        UpdatePosition(worldCenter, default);
         UpdatePlayerLight(_activeModelEntryId);
         _scene.AddModel(new SceneModel(
             "Loading player model",
@@ -76,11 +77,11 @@ internal sealed class PlayerCharacterController : IDisposable
         bool isMoving,
         bool isWalking,
         bool isDefending,
-        float terrainWorldHeight,
+        TerrainElevationSample terrain,
         float locomotionAnimationSpeed,
         float deltaSeconds)
     {
-        UpdatePosition(worldCenter, terrainWorldHeight);
+        UpdatePosition(worldCenter, terrain);
         if (facingDirection != Vector2.Zero)
         {
             var angleRadians = MathF.Atan2(facingDirection.Y, facingDirection.X);
@@ -348,12 +349,13 @@ internal sealed class PlayerCharacterController : IDisposable
                 : 0.0f;
     }
 
-    private void UpdatePosition(Vector2 worldPosition, float terrainWorldHeight)
+    private void UpdatePosition(Vector2 worldPosition, TerrainElevationSample terrain)
     {
         _position = new Vector3(
-            worldPosition.X + TerrainElevationProjection.HorizontalWorldOffset(terrainWorldHeight),
+            worldPosition.X + TerrainElevationProjection.HorizontalWorldOffset(
+                terrain.HorizontalOffset),
             worldPosition.Y,
-            TerrainElevationProjection.ModelVerticalWorldOffset(terrainWorldHeight) + _modelGroundOffset);
+            TerrainElevationProjection.ModelVerticalWorldOffset(terrain.Height) + _modelGroundOffset);
     }
 
     private static float CalculateModelGroundOffset(GrnAsset model)

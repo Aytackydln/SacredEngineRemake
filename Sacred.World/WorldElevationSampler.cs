@@ -16,34 +16,64 @@ public sealed class WorldElevationSampler(WorldStreamer worldStreamer)
     private readonly Dictionary<SectorCoord, Sector> _sectors = new(capacity: 9);
     private VisibleWorld? _cachedWorld;
 
+    public TerrainElevationSample SampleOrZero(Vector2 worldPosition) =>
+        TrySample(worldPosition, out var sample) ? sample : default;
+
     public float SampleHeightOrZero(Vector2 worldPosition) =>
-        TrySampleHeight(worldPosition, out var height) ? height : 0.0f;
+        SampleOrZero(worldPosition).Height;
 
     public bool TrySampleHeight(Vector2 worldPosition, out float height)
     {
+        var found = TrySample(worldPosition, out var sample);
+        height = sample.Height;
+        return found;
+    }
+
+    public bool TrySample(Vector2 worldPosition, out TerrainElevationSample sample)
+    {
         var tileX = (int)MathF.Floor(worldPosition.X);
         var tileY = (int)MathF.Floor(worldPosition.Y);
-        if (!TryGetTile(tileX, tileY, out var tile))
+        if (!TryGetTile(tileX, tileY, out var sector, out var localX, out var localY))
         {
-            height = 0.0f;
+            sample = default;
             return false;
         }
 
-        var localX = worldPosition.X - tileX;
-        var localY = worldPosition.Y - tileY;
-        height = SampleTile(tile, localX, localY) * WorldHeightPerSample;
+        var fractionX = worldPosition.X - tileX;
+        var fractionY = worldPosition.Y - tileY;
+        var elevation = sector.Elevation[localX, localY];
+        var height = SampleTile(elevation, fractionX, fractionY) * WorldHeightPerSample;
+        var horizontalOffset = SampleValues(
+            elevation.SouthWest * ResolveVertexDirection(tileX, tileY + 1),
+            elevation.NorthWest * ResolveVertexDirection(tileX, tileY),
+            elevation.NorthEast * ResolveVertexDirection(tileX + 1, tileY),
+            elevation.SouthEast * ResolveVertexDirection(tileX + 1, tileY + 1),
+            fractionX,
+            fractionY) * WorldHeightPerSample;
+        sample = new TerrainElevationSample(height, horizontalOffset);
         return true;
     }
 
     internal static float SampleTile(TerrainElevationTile tile, float x, float y)
+        => SampleValues(
+            tile.SouthWest,
+            tile.NorthWest,
+            tile.NorthEast,
+            tile.SouthEast,
+            x,
+            y);
+
+    internal static float SampleValues(
+        float southWest,
+        float northWest,
+        float northEast,
+        float southEast,
+        float x,
+        float y)
     {
         x = Math.Clamp(x, 0.0f, 1.0f);
         y = Math.Clamp(y, 0.0f, 1.0f);
 
-        var southWest = (float)tile.SouthWest;
-        var northWest = (float)tile.NorthWest;
-        var northEast = (float)tile.NorthEast;
-        var southEast = (float)tile.SouthEast;
         var center = (southWest + northWest + northEast + southEast) * 0.25f;
 
         var diagonalX = x - y;
@@ -60,21 +90,39 @@ public sealed class WorldElevationSampler(WorldStreamer worldStreamer)
             : InterpolateLeft(southWest, northWest, center, x, y);
     }
 
-    private bool TryGetTile(int worldTileX, int worldTileY, out TerrainElevationTile tile)
+    private int ResolveVertexDirection(int vertexX, int vertexY)
+    {
+        var sum = 0;
+        for (var tileY = vertexY - 1; tileY <= vertexY; tileY++)
+        for (var tileX = vertexX - 1; tileX <= vertexX; tileX++)
+        {
+            if (TryGetTile(tileX, tileY, out var sector, out var localX, out var localY))
+                sum += sector.Pathing[localX, localY].ElevationHorizontalDirection;
+        }
+
+        return Math.Sign(sum);
+    }
+
+    private bool TryGetTile(
+        int worldTileX,
+        int worldTileY,
+        out Sector sector,
+        out int localX,
+        out int localY)
     {
         RefreshSectorIndex();
         var sectorCoord = new SectorCoord(
             FloorDiv(worldTileX, Sector.TileCount),
             FloorDiv(worldTileY, Sector.TileCount));
-        if (!_sectors.TryGetValue(sectorCoord, out var sector))
+        if (!_sectors.TryGetValue(sectorCoord, out sector!))
         {
-            tile = default;
+            localX = 0;
+            localY = 0;
             return false;
         }
 
-        var localX = worldTileX - sectorCoord.X * Sector.TileCount;
-        var localY = worldTileY - sectorCoord.Y * Sector.TileCount;
-        tile = sector.Elevation[localX, localY];
+        localX = worldTileX - sectorCoord.X * Sector.TileCount;
+        localY = worldTileY - sectorCoord.Y * Sector.TileCount;
         return true;
     }
 
@@ -108,3 +156,5 @@ public sealed class WorldElevationSampler(WorldStreamer worldStreamer)
         return value < 0 && value % divisor != 0 ? quotient - 1 : quotient;
     }
 }
+
+public readonly record struct TerrainElevationSample(float Height, float HorizontalOffset);

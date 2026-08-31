@@ -1,4 +1,5 @@
 using Sacred.Core.World.Elevation;
+using Sacred.Core.World.Lighting;
 using Sacred.Core.World.Pathing;
 
 namespace Sacred.Core.World.Sector;
@@ -13,7 +14,8 @@ public sealed class Sector(
     StairsCellLayer stairsCells,
     IndoorTileGroupLayer indoorTileGroups,
     WorldPathingLayer pathing,
-    TerrainElevationLayer elevation)
+    TerrainElevationLayer elevation,
+    TerrainBakedLightLayer bakedLight)
 {
     public const int TileCount = 64;
 
@@ -27,4 +29,5 @@ public sealed class Sector(
     public IndoorTileGroupLayer IndoorTileGroups { get; } = indoorTileGroups;
     public WorldPathingLayer Pathing { get; } = pathing;
     public TerrainElevationLayer Elevation { get; } = elevation;
+    public TerrainBakedLightLayer BakedLight { get; } = bakedLight;
 }

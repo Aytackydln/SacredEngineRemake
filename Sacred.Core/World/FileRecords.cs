@@ -63,6 +63,16 @@ public readonly record struct WldxTileRecord
     [FieldOffset(0x12)] public readonly sbyte LiquidAlphaRight;
     /// <summary>Liquid alpha at the tile's bottom corner.</summary>
     [FieldOffset(0x13)] public readonly sbyte LiquidAlphaBottom;
+    // Verified by exact corner continuity across adjacent WLDX tiles. Values are
+    // authored in steps of 0x14, with 0xFF representing an unoccluded vertex.
+    /// <summary>Baked terrain brightness at the south-west corner.</summary>
+    [FieldOffset(0x14)] public readonly byte BakedBrightnessSouthWest;
+    /// <summary>Baked terrain brightness at the north-west corner.</summary>
+    [FieldOffset(0x15)] public readonly byte BakedBrightnessNorthWest;
+    /// <summary>Baked terrain brightness at the north-east corner.</summary>
+    [FieldOffset(0x16)] public readonly byte BakedBrightnessNorthEast;
+    /// <summary>Baked terrain brightness at the south-east corner.</summary>
+    [FieldOffset(0x17)] public readonly byte BakedBrightnessSouthEast;
     // Verified by exact corner continuity across adjacent elevated WLDX tiles.
     /// <summary>Signed terrain elevation at the south-west corner.</summary>
     [FieldOffset(0x18)] public readonly sbyte ElevationSouthWest;
@@ -72,9 +82,15 @@ public readonly record struct WldxTileRecord
     [FieldOffset(0x1A)] public readonly sbyte ElevationNorthEast;
     /// <summary>Signed terrain elevation at the south-east corner.</summary>
     [FieldOffset(0x1B)] public readonly sbyte ElevationSouthEast;
-    /// <summary>Raw navigation and collision flags.</summary>
+    /// <summary>
+    /// Navigation and surface-projection flags. Value 0x01 marks vertical-only actor
+    /// elevation; value 0x02 adds the rightward projection used by raised bridges.
+    /// </summary>
     [FieldOffset(0x1E)] public readonly WorldPathFlags PathFlags;
-    /// <summary>Packed path type in the low nibble and terrain-surface category in the high nibble.</summary>
+    /// <summary>
+    /// Packed path type in the low nibble and terrain-surface flags in the high nibble;
+    /// bit 0x10 suppresses visual tessellation while retaining elevation for actors.
+    /// </summary>
     [FieldOffset(0x1F)] public readonly byte TypeAndSurface;
 
     public static WldxTileRecord FromBytes(ReadOnlySpan<byte> data)

@@ -284,7 +284,8 @@ internal sealed class Dx12SectorComposer : IDisposable
                     tile.Secondary?.SourceY ?? tile.Primary.SourceY,
                     0,
                     0,
-                    flags),
+                    flags,
+                    tile.Surface),
                 primary,
                 secondary);
         }
