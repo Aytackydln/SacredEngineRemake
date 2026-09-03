@@ -303,8 +303,8 @@ internal sealed class SacredGameRuntime : IDisposable
     {
         try
         {
-            var path = WindowScreenshotCapture.Save(_window, _gameDirectory, label);
-            EngineLog.WriteLine($"Screenshot saved to {path}.");
+            _renderer.QueueScreenshot(label);
+            EngineLog.WriteLine("Screenshot queued for the next rendered frame.");
         }
         catch (Exception exception)
         {

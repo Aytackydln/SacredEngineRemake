@@ -32,6 +32,7 @@ public sealed class Dx12Renderer : IDisposable
     private readonly string _gameDirectory;
     private readonly Action _shaderReloadHandler;
     private readonly Action<Dx12FrameContext> _releaseRetiredResources;
+    private readonly Queue<string?> _pendingScreenshotLabels = new();
 
     private Dx12WorldPass? _worldPass;
     private ID3D12RootSignature _screenRootSignature = null!;
@@ -73,6 +74,8 @@ public sealed class Dx12Renderer : IDisposable
 
     public Task StartWorldPreparation() => GetWorldPass().StartPreparation();
 
+    public void QueueScreenshot(string? label) => _pendingScreenshotLabels.Enqueue(label);
+
     public void InitializeWorld(AssetManager assets, SacredWorldArchive worldArchive)
     {
         ArgumentNullException.ThrowIfNull(assets);
@@ -110,7 +113,7 @@ public sealed class Dx12Renderer : IDisposable
             GetWorldPass().UploadPreload(worldPreload, prepared);
 
         RecordScreenPass();
-        _graphics.SubmitAndPresent(verticalSyncEnabled, frameId);
+        SubmitAndPresent(verticalSyncEnabled, frameId);
         return ValueTask.CompletedTask;
     }
 
@@ -130,7 +133,7 @@ public sealed class Dx12Renderer : IDisposable
         _screenPass.Prepare(map.Map, _graphics.CurrentFrame);
         GetWorldPass().PrepareWorldMap(map.Overlay);
         RecordScreenPass(destination, map.Overlay);
-        _graphics.SubmitAndPresent(verticalSyncEnabled, frameId);
+        SubmitAndPresent(verticalSyncEnabled, frameId);
         return ValueTask.CompletedTask;
     }
 
@@ -155,7 +158,7 @@ public sealed class Dx12Renderer : IDisposable
             _rootSignature,
             _terrainPipeline,
             _terrainLiquidCoverPipeline);
-        _graphics.SubmitAndPresent(verticalSyncEnabled, frameId);
+        SubmitAndPresent(verticalSyncEnabled, frameId);
         return ValueTask.CompletedTask;
     }
 
@@ -187,6 +190,30 @@ public sealed class Dx12Renderer : IDisposable
         CreateScreenPipeline(Dx12RendererPipelineFactory.CompileScreen(_graphics.Shaders));
         if (_worldPass is not null)
             CreateWorldPipeline(Dx12RendererPipelineFactory.Compile(_graphics.Shaders, _graphics.IsHdrEnabled));
+    }
+
+    private void SubmitAndPresent(bool verticalSyncEnabled, ulong frameId)
+    {
+        var captureScreenshot = _pendingScreenshotLabels.Count > 0;
+        var label = captureScreenshot ? _pendingScreenshotLabels.Dequeue() : null;
+        var screenshot = _graphics.SubmitAndPresent(
+            verticalSyncEnabled,
+            frameId,
+            captureScreenshot);
+        if (screenshot is null)
+            return;
+
+        try
+        {
+            var path = Dx12ScreenshotWriter.CreatePath(_gameDirectory, label, screenshot);
+            Dx12ScreenshotWriter.Save(screenshot, path);
+            EngineLog.WriteLine(
+                $"Screenshot saved to {path} ({Dx12ScreenshotWriter.DescribeColorSpace(screenshot)}).");
+        }
+        catch (Exception exception)
+        {
+            EngineLog.WriteLine($"Screenshot failed: {exception.Message}");
+        }
     }
 
     private void CreateWorldPipeline(Dx12CompiledRendererPipelines shaders)

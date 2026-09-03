@@ -129,11 +129,24 @@ internal sealed class Dx12DeviceContext : IDisposable
         _commandList.Reset(CurrentFrame.CommandAllocator, initialPipeline);
     }
 
-    public void SubmitAndPresent(bool verticalSyncEnabled, ulong frameId)
+    public Dx12ScreenshotImage? SubmitAndPresent(
+        bool verticalSyncEnabled,
+        ulong frameId,
+        bool captureScreenshot)
     {
         if (!_submissionOpen)
             throw new InvalidOperationException("No Direct3D render submission is open.");
 
+        using var capture = captureScreenshot
+            ? Dx12BackBufferCapture.Record(
+                _device,
+                _commandList,
+                CurrentBackBuffer,
+                _renderWidth,
+                _renderHeight,
+                BackBufferFormat,
+                _swapChain.ColorSpace)
+            : null;
         _commandList.Close();
         _latency.Mark(LatencyMarker.RenderSubmitStart, frameId);
         _commandQueue.ExecuteCommandLists(1, _submittedCommandLists);
@@ -148,6 +161,17 @@ internal sealed class Dx12DeviceContext : IDisposable
         _latency.Mark(LatencyMarker.PresentEnd, frameId);
         _submissionOpen = false;
         _currentFrame = null;
+
+        if (capture is null)
+            return null;
+
+        if (_fence.CompletedValue < fenceValue)
+        {
+            _fence.SetEventOnCompletion(fenceValue, _fenceEvent).CheckError();
+            Kernel32.WaitForSingleObject(_fenceEvent, Kernel32.Infinite);
+        }
+
+        return capture.ReadPixels();
     }
 
     public void WaitForGpu(Action<Dx12FrameContext> releaseRetiredResources)
