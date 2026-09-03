@@ -17,7 +17,7 @@ public readonly struct WeaponPakHeaderLayout
     [FieldOffset(0x03)]
     public readonly ushort EntryCount;
 
-    public bool SignatureValid => Signature.Compare('W', 'P', 'N');
+    public bool SignatureValid => Signature == Signature3.Weapon;
 
     public void ValidateSignature()
     {

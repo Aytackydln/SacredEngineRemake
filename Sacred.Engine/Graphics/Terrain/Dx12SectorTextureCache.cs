@@ -12,7 +12,7 @@ namespace Sacred.Engine.Graphics.Terrain;
 /// <summary>Owns the bounded, fence-safe GPU cache and dedicated sector-composition queue.</summary>
 internal sealed class Dx12SectorTextureCache : IDisposable
 {
-    private const int TexturesPerSector = 4;
+    private const int TexturesPerSector = 5;
 
     private readonly int _maximumTextureCount;
     private readonly Dx12TextureUploader _uploader;
@@ -94,7 +94,8 @@ internal sealed class Dx12SectorTextureCache : IDisposable
                 cached.BaseSrvSlot,
                 cached.LiquidCoverSrvSlot,
                 cached.StairsDebugSrvSlot,
-                cached.BlockedAreaDebugSrvSlot);
+                cached.BlockedAreaDebugSrvSlot,
+                cached.TerrainTopologyDebugSrvSlot);
             return true;
         }
 
@@ -122,6 +123,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
             _freeSrvSlots.Push(composition.LiquidCoverSrvSlot);
             _freeSrvSlots.Push(composition.StairsDebugSrvSlot);
             _freeSrvSlots.Push(composition.BlockedAreaDebugSrvSlot);
+            _freeSrvSlots.Push(composition.TerrainTopologyDebugSrvSlot);
         }
 
         _pendingUploads.Clear();
@@ -136,6 +138,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
             texture.LiquidCoverResource.Dispose();
             texture.StairsDebugResource.Dispose();
             texture.BlockedAreaDebugResource.Dispose();
+            texture.TerrainTopologyDebugResource.Dispose();
         }
         _textures.Clear();
 
@@ -181,16 +184,21 @@ internal sealed class Dx12SectorTextureCache : IDisposable
             _uploader.CreateShaderResourceView(
                 composed.BlockedAreaDebugTexture,
                 SrvCpuHandle(composition.BlockedAreaDebugSrvSlot));
+            _uploader.CreateShaderResourceView(
+                composed.TerrainTopologyDebugTexture,
+                SrvCpuHandle(composition.TerrainTopologyDebugSrvSlot));
             _textures.Add(composition.Coord, new SectorTexture(
                 composition.Composition,
                 composed.BaseTexture,
                 composed.LiquidCoverTexture,
                 composed.StairsDebugTexture,
                 composed.BlockedAreaDebugTexture,
+                composed.TerrainTopologyDebugTexture,
                 composition.BaseSrvSlot,
                 composition.LiquidCoverSrvSlot,
                 composition.StairsDebugSrvSlot,
-                composition.BlockedAreaDebugSrvSlot));
+                composition.BlockedAreaDebugSrvSlot,
+                composition.TerrainTopologyDebugSrvSlot));
             EngineLog.WriteLine($"Sector GPU texture loaded: {composition.Coord.X},{composition.Coord.Y}.");
         }
     }
@@ -213,13 +221,15 @@ internal sealed class Dx12SectorTextureCache : IDisposable
             var liquidCoverSlot = _freeSrvSlots.Pop();
             var stairsDebugSlot = _freeSrvSlots.Pop();
             var blockedAreaDebugSlot = _freeSrvSlots.Pop();
+            var terrainTopologyDebugSlot = _freeSrvSlots.Pop();
             _pendingUploads.Add(image.Coord);
             if (_compositionRequests.TryAdd(new SectorCompositionRequest(
                     image,
                     baseSlot,
                     liquidCoverSlot,
                     stairsDebugSlot,
-                    blockedAreaDebugSlot)))
+                    blockedAreaDebugSlot,
+                    terrainTopologyDebugSlot)))
                 continue;
 
             _pendingUploads.Remove(image.Coord);
@@ -227,6 +237,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
             _freeSrvSlots.Push(liquidCoverSlot);
             _freeSrvSlots.Push(stairsDebugSlot);
             _freeSrvSlots.Push(blockedAreaDebugSlot);
+            _freeSrvSlots.Push(terrainTopologyDebugSlot);
             return;
         }
     }
@@ -272,10 +283,12 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         frame.RetireResource(texture.LiquidCoverResource);
         frame.RetireResource(texture.StairsDebugResource);
         frame.RetireResource(texture.BlockedAreaDebugResource);
+        frame.RetireResource(texture.TerrainTopologyDebugResource);
         frame.RetireSectorSrvSlot(texture.BaseSrvSlot);
         frame.RetireSectorSrvSlot(texture.LiquidCoverSrvSlot);
         frame.RetireSectorSrvSlot(texture.StairsDebugSrvSlot);
         frame.RetireSectorSrvSlot(texture.BlockedAreaDebugSrvSlot);
+        frame.RetireSectorSrvSlot(texture.TerrainTopologyDebugSrvSlot);
         _retiringSrvSlotCount += TexturesPerSector;
     }
 
@@ -302,6 +315,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
                 request.LiquidCoverSrvSlot,
                 request.StairsDebugSrvSlot,
                 request.BlockedAreaDebugSrvSlot,
+                request.TerrainTopologyDebugSrvSlot,
                 null);
         }
         catch (Exception exception)
@@ -314,6 +328,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
                 request.LiquidCoverSrvSlot,
                 request.StairsDebugSrvSlot,
                 request.BlockedAreaDebugSrvSlot,
+                request.TerrainTopologyDebugSrvSlot,
                 exception);
         }
         finally
@@ -337,6 +352,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
             request.LiquidCoverSrvSlot,
             request.StairsDebugSrvSlot,
             request.BlockedAreaDebugSrvSlot,
+            request.TerrainTopologyDebugSrvSlot,
             null);
     }
 
@@ -346,6 +362,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         _freeSrvSlots.Push(composition.LiquidCoverSrvSlot);
         _freeSrvSlots.Push(composition.StairsDebugSrvSlot);
         _freeSrvSlots.Push(composition.BlockedAreaDebugSrvSlot);
+        _freeSrvSlots.Push(composition.TerrainTopologyDebugSrvSlot);
     }
 
     private sealed record SectorCompositionRequest(
@@ -353,7 +370,8 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         int BaseSrvSlot,
         int LiquidCoverSrvSlot,
         int StairsDebugSrvSlot,
-        int BlockedAreaDebugSrvSlot);
+        int BlockedAreaDebugSrvSlot,
+        int TerrainTopologyDebugSrvSlot);
 
     private sealed record SubmittedSectorComposition(
         SectorCoord Coord,
@@ -363,6 +381,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         int LiquidCoverSrvSlot,
         int StairsDebugSrvSlot,
         int BlockedAreaDebugSrvSlot,
+        int TerrainTopologyDebugSrvSlot,
         Exception? Error);
 
     private sealed class SectorTexture(
@@ -371,20 +390,24 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         ID3D12Resource liquidCoverResource,
         ID3D12Resource stairsDebugResource,
         ID3D12Resource blockedAreaDebugResource,
+        ID3D12Resource terrainTopologyDebugResource,
         int baseSrvSlot,
         int liquidCoverSrvSlot,
         int stairsDebugSrvSlot,
-        int blockedAreaDebugSrvSlot)
+        int blockedAreaDebugSrvSlot,
+        int terrainTopologyDebugSrvSlot)
     {
         public TerrainSectorComposition Composition { get; } = composition;
         public ID3D12Resource BaseResource { get; } = baseResource;
         public ID3D12Resource LiquidCoverResource { get; } = liquidCoverResource;
         public ID3D12Resource StairsDebugResource { get; } = stairsDebugResource;
         public ID3D12Resource BlockedAreaDebugResource { get; } = blockedAreaDebugResource;
+        public ID3D12Resource TerrainTopologyDebugResource { get; } = terrainTopologyDebugResource;
         public int BaseSrvSlot { get; } = baseSrvSlot;
         public int LiquidCoverSrvSlot { get; } = liquidCoverSrvSlot;
         public int StairsDebugSrvSlot { get; } = stairsDebugSrvSlot;
         public int BlockedAreaDebugSrvSlot { get; } = blockedAreaDebugSrvSlot;
+        public int TerrainTopologyDebugSrvSlot { get; } = terrainTopologyDebugSrvSlot;
     }
 }
 
@@ -392,4 +415,5 @@ internal readonly record struct SectorTextureView(
     int BaseSrvSlot,
     int LiquidCoverSrvSlot,
     int StairsDebugSrvSlot,
-    int BlockedAreaDebugSrvSlot);
+    int BlockedAreaDebugSrvSlot,
+    int TerrainTopologyDebugSrvSlot);

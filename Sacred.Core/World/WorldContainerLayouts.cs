@@ -14,11 +14,12 @@ public readonly struct KeyxHeaderLayout
 }
 
 /// <summary>
-/// Descriptor for one indoor tile grid following the outdoor tile table in a
-/// decompressed <c>sectors.wldx</c> sector payload.
+/// Descriptor for one tile grid in a decompressed <c>sectors.wldx</c> sector payload.
+/// The first descriptor after the outdoor tile table identifies the outdoor origin and
+/// has no tile payload; subsequent descriptors identify sparse indoor grids.
 /// </summary>
 [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SerializedSize)]
-public readonly struct WldxIndoorGroupDescriptorLayout
+public readonly struct WldxTileGridDescriptorLayout
 {
     /// <summary>Serialized descriptor size.</summary>
     public const int SerializedSize = 0x24;
@@ -27,25 +28,34 @@ public readonly struct WldxIndoorGroupDescriptorLayout
     [FieldOffset(0x00)] public readonly int WorldX;
     /// <summary>World Y coordinate of the indoor grid origin.</summary>
     [FieldOffset(0x04)] public readonly int WorldY;
-    /// <summary>Indoor grid width in tiles.</summary>
+    /// <summary>Grid width in tiles; zero on the outdoor-origin descriptor.</summary>
     [FieldOffset(0x08)] public readonly ushort Width;
-    /// <summary>Indoor grid height in tiles.</summary>
+    /// <summary>Grid height in tiles; zero on the outdoor-origin descriptor.</summary>
     [FieldOffset(0x0A)] public readonly ushort Height;
-    /// <summary>Payload kind; observed indoor tile grids use value 6.</summary>
-    [FieldOffset(0x0C)] public readonly uint Kind;
-    /// <summary>Offset of the indoor tile array in the decompressed sector payload.</summary>
+    /// <summary>Payload kind.</summary>
+    [FieldOffset(0x0C)] public readonly WldxTileGridKind Kind;
+    /// <summary>Offset of the tile array in the decompressed sector payload.</summary>
     [FieldOffset(0x10)] public readonly uint TilesOffset;
-    /// <summary>Byte length of the indoor tile array.</summary>
+    /// <summary>Byte length of the tile array.</summary>
     [FieldOffset(0x14)] public readonly uint TilesSize;
+
+    public bool IsOutdoorOrigin =>
+        Kind == WldxTileGridKind.Terrain && Width == 0 && Height == 0 &&
+        TilesOffset == 0 && TilesSize == 0;
+
+    public bool HasIndoorTilePayload(int payloadSize)
+    {
+        var expectedSize = (ulong)Width * Height * WldxTileRecord.Size;
+        return Kind == WldxTileGridKind.Terrain && Width != 0 && Height != 0 &&
+               TilesSize == expectedSize && TilesOffset <= payloadSize &&
+               TilesSize <= (ulong)payloadSize - TilesOffset;
+    }
+
+    public static WldxTileGridDescriptorLayout FromBytes(ReadOnlySpan<byte> data) =>
+        MemoryMarshal.Cast<byte, WldxTileGridDescriptorLayout>(data)[0];
 }
 
-/// <summary>
-/// Unresolved fixed-size block between the outdoor WLDX tile table and the
-/// first indoor-grid descriptor.
-/// </summary>
-[StructLayout(LayoutKind.Explicit, Pack = 1, Size = SerializedSize)]
-public readonly struct WldxPostTileHeaderLayout
+public enum WldxTileGridKind : uint
 {
-    /// <summary>Serialized size of the unresolved block.</summary>
-    public const int SerializedSize = 0x24;
+    Terrain = 6,
 }

@@ -8,13 +8,16 @@ internal static class SolarLightingCalculator
 {
     private const float CelestialDistance = 2000.0f;
     private const float MaximumShadowOpacity = 0.5f;
-    private const float MaximumSolarElevationRadians = 52.0f * MathF.PI / 180.0f;
-    private const float NorthwardBias = 0.55f;
+    private const float MaximumSolarElevationRadians = 58.0f * MathF.PI / 180.0f;
+    private const float NoonAxisBias = 0.55f;
 
-    // In the unrotated isometric map, screen-up is decreasing X and Y. This makes
-    // north explicit and keeps the east-to-west solar path tied to map directions.
-    private static readonly Vector2 North = Vector2.Normalize(new Vector2(-1.0f, -1.0f));
-    private static readonly Vector2 East = Vector2.Normalize(new Vector2(1.0f, -1.0f));
+    // Sacred's sun is south-west of the scene. Native Y must be inverted when
+    // expressed in the remake's world coordinates; elevation is calibrated above
+    // from the original game's shadow length at the reference map position.
+    private static readonly Vector2 NoonHorizontalDirection =
+        Vector2.Normalize(new Vector2(-0.85f, -1.0f));
+    private static readonly Vector2 PerpendicularHorizontalDirection =
+        Vector2.Normalize(new Vector2(1.0f, -1.0f));
 
     public static SolarLighting Calculate(float dayTime, float nightBlend, Vector3 focusPosition)
     {
@@ -25,11 +28,11 @@ internal static class SolarLightingCalculator
         var horizontalScale = MathF.Cos(elevation);
         var verticalScale = MathF.Sin(elevation);
         var horizontalDirection =
-            East * -MathF.Sin(hourAngle) +
-            North * (NorthwardBias + MathF.Max(0.0f, solarHeight));
+            PerpendicularHorizontalDirection * -MathF.Sin(hourAngle) +
+            NoonHorizontalDirection * (NoonAxisBias + MathF.Max(0.0f, solarHeight));
         horizontalDirection = horizontalDirection.LengthSquared() > float.Epsilon
             ? Vector2.Normalize(horizontalDirection)
-            : North;
+            : NoonHorizontalDirection;
 
         var sunDirection = Vector3.Normalize(new Vector3(
             horizontalDirection.X * horizontalScale,

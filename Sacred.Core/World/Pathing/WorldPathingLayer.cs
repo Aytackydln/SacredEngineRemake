@@ -7,7 +7,7 @@ namespace Sacred.Core.World.Pathing;
 public sealed class WorldPathingLayer
 {
     private readonly WorldPathFlags[] _flags;
-    private readonly byte[] _typesAndSurfaces;
+    private readonly WldxTileProperties[] _properties;
     private readonly ulong[] _blockedBits;
 
     public WorldPathingLayer(int width, int height)
@@ -19,7 +19,7 @@ public sealed class WorldPathingLayer
         Height = height;
         var tileCount = checked(width * height);
         _flags = new WorldPathFlags[tileCount];
-        _typesAndSurfaces = new byte[tileCount];
+        _properties = new WldxTileProperties[tileCount];
         _blockedBits = new ulong[(tileCount + 63) / 64];
     }
 
@@ -31,13 +31,13 @@ public sealed class WorldPathingLayer
         get
         {
             var index = IndexOf(x, y);
-            return new WorldPathTile(_flags[index], _typesAndSurfaces[index]);
+            return new WorldPathTile(_flags[index], _properties[index]);
         }
         set
         {
             var index = IndexOf(x, y);
             _flags[index] = value.Flags;
-            _typesAndSurfaces[index] = value.TypeAndSurface;
+            _properties[index] = value.Properties;
 
             var mask = 1UL << (index & 63);
             if (value.IsBlocked)

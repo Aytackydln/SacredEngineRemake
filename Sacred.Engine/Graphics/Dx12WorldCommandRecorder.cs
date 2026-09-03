@@ -244,6 +244,24 @@ internal sealed class Dx12WorldCommandRecorder
             _commandList.ClearDepthStencilView(depthStencil, ClearFlags.Depth, 1.0f, 0, 0, []);
         }
 
+        if (scene.Debug.TerrainTopologyVisible)
+        {
+            RecordTerrainTopologyDebug(
+                sectorImages,
+                screenTransform,
+                constants,
+                worldLightBufferAddress,
+                rootSignature,
+                terrainPipeline,
+                liquidCoverPipeline,
+                displayProfile.ScenePaperWhiteNits,
+                renderTarget,
+                renderWidth,
+                renderHeight);
+            _commandList.OMSetRenderTargets(renderTarget, depthStencil);
+            _commandList.ClearDepthStencilView(depthStencil, ClearFlags.Depth, 1.0f, 0, 0, []);
+        }
+
         _models.Record(camera, scene.Models, scene.Lighting, displayProfile, frame.Index);
 
         // Light halos are screen-space overlays in Sacred and must remain above depth-tested art.
@@ -309,6 +327,49 @@ internal sealed class Dx12WorldCommandRecorder
                 debugPosition.Y,
                 screenTransform.Scale(image.StairsDebugWidth),
                 screenTransform.Scale(image.StairsDebugHeight),
+                Vector3.One,
+                true,
+                0,
+                0.0f,
+                worldLightBufferAddress,
+                constants,
+                rootSignature,
+                terrainPipeline,
+                liquidCoverPipeline,
+                paperWhiteNits,
+                renderWidth,
+                renderHeight);
+        }
+    }
+
+    private unsafe void RecordTerrainTopologyDebug(
+        IReadOnlyList<TerrainSectorComposition> sectorImages,
+        WorldScreenTransform screenTransform,
+        float* constants,
+        ulong worldLightBufferAddress,
+        ID3D12RootSignature rootSignature,
+        ID3D12PipelineState terrainPipeline,
+        ID3D12PipelineState liquidCoverPipeline,
+        float paperWhiteNits,
+        CpuDescriptorHandle renderTarget,
+        int renderWidth,
+        int renderHeight)
+    {
+        _commandList.OMSetRenderTargets(renderTarget, null);
+        foreach (var image in sectorImages)
+        {
+            if (!_sectorTextures.TryGet(image.Coord, out var texture))
+                continue;
+
+            var debugPosition = screenTransform.ToScreen(
+                image.IsoX + image.TerrainTopologyDebugOffsetX,
+                image.IsoY + image.TerrainTopologyDebugOffsetY);
+            RecordTerrainLayer(
+                texture.TerrainTopologyDebugSrvSlot,
+                debugPosition.X,
+                debugPosition.Y,
+                screenTransform.Scale(image.TerrainTopologyDebugWidth),
+                screenTransform.Scale(image.TerrainTopologyDebugHeight),
                 Vector3.One,
                 true,
                 0,

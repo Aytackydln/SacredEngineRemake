@@ -21,7 +21,7 @@ public readonly record struct ItemsPakHeaderLayout
     [FieldOffset(0x04)]
     public readonly int EntryCount;
 
-    public bool SignatureValid => Signature.Compare('I', 'T', 'M');
+    public bool SignatureValid => Signature.Equals(Signature3.Item);
 
     public void ValidateSignature()
     {

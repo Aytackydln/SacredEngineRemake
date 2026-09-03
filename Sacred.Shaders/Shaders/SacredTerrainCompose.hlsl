@@ -16,9 +16,7 @@ struct TerrainTileInstance
     uint secondary_texture_index;
     uint flags;
     uint packed_baked_light;
-    float4 elevation_samples;
-    float4 horizontal_offset_samples;
-    float2 padding1;
+    float4 visual_elevation_samples;
 };
 
 StructuredBuffer<TerrainTileInstance> tile_instances : register(t0);
@@ -39,47 +37,40 @@ struct vertex_output
     float baked_light : TEXCOORD3;
 };
 
-static const float2 destination_vertices[12] =
+// Sacred.exe submits every ground tile as the same four-vertex triangle strip:
+// left, top, bottom, right. Expanded here to two independent triangles, retaining
+// the native top-to-bottom diagonal.
+static const float2 destination_vertices[6] =
 {
-    float2(48.0f, 24.0f), float2(0.0f, 24.0f),  float2(48.0f, 0.0f),
-    float2(48.0f, 24.0f), float2(48.0f, 0.0f),  float2(96.0f, 24.0f),
-    float2(48.0f, 24.0f), float2(96.0f, 24.0f), float2(48.0f, 48.0f),
-    float2(48.0f, 24.0f), float2(48.0f, 48.0f), float2(0.0f, 24.0f)
+    float2(0.0f, 24.0f), float2(48.0f, 0.0f), float2(48.0f, 48.0f),
+    float2(48.0f, 0.0f), float2(96.0f, 24.0f), float2(48.0f, 48.0f)
 };
 
-static const float2 source_vertices[12] =
+static const float2 source_vertices[6] =
 {
-    float2(50.259f, 24.259f), float2(2.512f, 24.012f),  float2(50.512f, 1.012f),
-    float2(50.259f, 24.259f), float2(50.512f, 1.012f),  float2(98.012f, 23.500f),
-    float2(50.259f, 24.259f), float2(98.012f, 23.500f), float2(50.000f, 48.512f),
-    float2(50.259f, 24.259f), float2(50.000f, 48.512f), float2(2.512f, 24.012f)
+    float2(2.512f, 24.012f), float2(50.512f, 1.012f), float2(50.000f, 48.512f),
+    float2(50.512f, 1.012f), float2(98.012f, 23.500f), float2(50.000f, 48.512f)
 };
 
-// Corner order matches the serialized WLDX fields: south-west, north-west,
-// north-east, south-east. Index 4 is the four-corner average at the tile center.
-static const uint surface_vertex_indices[12] =
+// Corner order matches WLDX 0x10-0x13 after mapping the diamond corners:
+// south-west/left, north-west/top, north-east/right, south-east/bottom.
+static const uint surface_vertex_indices[6] =
 {
-    4, 0, 1,
-    4, 1, 2,
-    4, 2, 3,
-    4, 3, 0
+    0, 1, 3,
+    1, 2, 3
 };
 
 float surface_value(float4 corner_values, uint vertex_id)
 {
-    uint surface_index = surface_vertex_indices[vertex_id];
-    return surface_index == 4
-        ? dot(corner_values, 0.25f)
-        : corner_values[surface_index];
+    return corner_values[surface_vertex_indices[vertex_id]];
 }
 
 vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_InstanceID)
 {
     TerrainTileInstance instance = tile_instances[instance_id];
-    float elevation = surface_value(instance.elevation_samples, vertex_id);
-    float horizontal_offset = surface_value(instance.horizontal_offset_samples, vertex_id);
+    float elevation = surface_value(instance.visual_elevation_samples, vertex_id);
     float2 pixel = instance.destination_origin + destination_vertices[vertex_id] +
-                   float2(horizontal_offset, -elevation);
+                   float2(0.0f, -elevation);
     float2 clip = float2(
         pixel.x / target_size.x * 2.0f - 1.0f,
         1.0f - pixel.y / target_size.y * 2.0f);

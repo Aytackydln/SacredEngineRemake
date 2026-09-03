@@ -33,7 +33,7 @@ public readonly struct SoundPakHeaderLayout
     [FieldOffset(0x04)]
     public readonly uint EntryCount;
 
-    public bool SignatureValid => Signature.Compare('S', 'N', 'D');
+    public bool SignatureValid => Signature == Signature3.Sound;
 
     public void ValidateSignature()
     {

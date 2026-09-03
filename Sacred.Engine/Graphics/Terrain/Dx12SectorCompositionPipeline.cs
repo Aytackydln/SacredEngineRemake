@@ -1,7 +1,6 @@
 using System.Runtime.InteropServices;
 using Sacred.Engine.Rendering;
 using Sacred.Shaders;
-using Sacred.World;
 using Vortice.Direct3D12;
 using Vortice.DXGI;
 
@@ -105,19 +104,11 @@ internal readonly struct GpuTerrainTileInstance
                            (uint)bakedLight.NorthWest << 8 |
                            (uint)bakedLight.NorthEast << 16 |
                            (uint)bakedLight.SouthEast << 24;
-        var elevation = surface.Elevation;
-        const float heightScale = WorldElevationSampler.WorldHeightPerSample;
-        ElevationSouthWest = elevation.SouthWest * heightScale;
-        ElevationNorthWest = elevation.NorthWest * heightScale;
-        ElevationNorthEast = elevation.NorthEast * heightScale;
-        ElevationSouthEast = elevation.SouthEast * heightScale;
-        var horizontalOffsets = surface.HorizontalOffsets;
-        HorizontalOffsetSouthWest = horizontalOffsets.SouthWest;
-        HorizontalOffsetNorthWest = horizontalOffsets.NorthWest;
-        HorizontalOffsetNorthEast = horizontalOffsets.NorthEast;
-        HorizontalOffsetSouthEast = horizontalOffsets.SouthEast;
-        Padding1X = 0;
-        Padding1Y = 0;
+        var elevation = surface.VisualElevation;
+        VisualElevationSouthWest = elevation.SouthWest;
+        VisualElevationNorthWest = elevation.NorthWest;
+        VisualElevationNorthEast = elevation.NorthEast;
+        VisualElevationSouthEast = elevation.SouthEast;
     }
 
     public readonly float DestinationX;
@@ -130,14 +121,8 @@ internal readonly struct GpuTerrainTileInstance
     public readonly uint SecondaryTextureIndex;
     public readonly uint Flags;
     public readonly uint PackedBakedLight;
-    public readonly float ElevationSouthWest;
-    public readonly float ElevationNorthWest;
-    public readonly float ElevationNorthEast;
-    public readonly float ElevationSouthEast;
-    public readonly float HorizontalOffsetSouthWest;
-    public readonly float HorizontalOffsetNorthWest;
-    public readonly float HorizontalOffsetNorthEast;
-    public readonly float HorizontalOffsetSouthEast;
-    public readonly float Padding1X;
-    public readonly float Padding1Y;
+    public readonly float VisualElevationSouthWest;
+    public readonly float VisualElevationNorthWest;
+    public readonly float VisualElevationNorthEast;
+    public readonly float VisualElevationSouthEast;
 }

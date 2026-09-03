@@ -19,6 +19,7 @@ public sealed class WorldCollisionResolver(
     private const int MaximumSlideIterations = 4;
 
     private readonly Dictionary<SectorCoord, Sector> _sectors = new(capacity: 9);
+    private readonly Dictionary<long, IndoorTileReference> _firstFloorTiles = [];
     private VisibleWorld? _cachedWorld;
 
     public WorldCollisionResolver(WorldStreamer worldStreamer)
@@ -86,7 +87,10 @@ public sealed class WorldCollisionResolver(
         return true;
     }
 
-    /// <summary>Returns the authored state. A tile outside the streamed world is reported as unknown/clear.</summary>
+    /// <summary>
+    /// Returns the authored state. When no upper floor is active, first-floor indoor grids
+    /// participate in the outdoor navigation plane. A tile outside the streamed world is clear.
+    /// </summary>
     public bool IsBlocked(int worldTileX, int worldTileY)
     {
         RefreshSectorIndex();
@@ -242,6 +246,14 @@ public sealed class WorldCollisionResolver(
             return false;
         }
 
+        if (_firstFloorTiles.TryGetValue(TileKey(worldTileX, worldTileY), out var firstFloor))
+        {
+            group = firstFloor.Group;
+            localX = firstFloor.LocalX;
+            localY = firstFloor.LocalY;
+            return true;
+        }
+
         group = null!;
         localX = 0;
         localY = 0;
@@ -271,9 +283,32 @@ public sealed class WorldCollisionResolver(
 
         _cachedWorld = visibleWorld;
         _sectors.Clear();
+        _firstFloorTiles.Clear();
+        var indexedIndoorGroups = new HashSet<IndoorTileGroupId>();
         foreach (var sector in visibleWorld.Sectors)
+        {
             _sectors[sector.Coord] = sector;
+
+            foreach (var group in sector.IndoorTileGroups.Groups)
+            {
+                if (group.SurfaceLevel != 1 || !indexedIndoorGroups.Add(group.Id))
+                    continue;
+
+                for (var localY = 0; localY < group.Height; localY++)
+                for (var localX = 0; localX < group.Width; localX++)
+                {
+                    if (!group.Presence[localX, localY])
+                        continue;
+
+                    var key = TileKey(group.WorldX + localX, group.WorldY + localY);
+                    _firstFloorTiles.TryAdd(key, new IndoorTileReference(group, localX, localY));
+                }
+            }
+        }
     }
+
+    private static long TileKey(int worldTileX, int worldTileY) =>
+        ((long)worldTileX << 32) | (uint)worldTileY;
 
     private static int FloorDiv(int value, int divisor)
     {
@@ -282,4 +317,9 @@ public sealed class WorldCollisionResolver(
     }
 
     private readonly record struct SweepHit(float Time, Vector2 Normal);
+
+    private readonly record struct IndoorTileReference(
+        IndoorTileGroup Group,
+        int LocalX,
+        int LocalY);
 }

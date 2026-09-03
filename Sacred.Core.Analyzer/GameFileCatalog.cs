@@ -58,8 +58,7 @@ internal static class GameFileCatalog
             Section("Sector records", "Sacred.Core.World.KeyxSectorRecord", "SectorCount times")),
         File("World/sectors.wldx", "Compressed world-sector payloads",
             Section("Outdoor and indoor tiles", "Sacred.Core.World.WldxTileRecord", "once per tile in a decompressed sector"),
-            Section("Post-tile header", "Sacred.Core.World.WldxPostTileHeaderLayout", "once per decompressed sector"),
-            Section("Indoor-grid descriptors", "Sacred.Core.World.WldxIndoorGroupDescriptorLayout", "zero or more per sector",
+            Section("Tile-grid descriptors", "Sacred.Core.World.WldxTileGridDescriptorLayout", "one outdoor-origin descriptor followed by zero or more indoor descriptors per sector",
                 "The outer zlib stream and variable tile-array counts are excluded from fixed-layout coverage.")),
 
         File("bin/sets.bin", "Item-set membership",

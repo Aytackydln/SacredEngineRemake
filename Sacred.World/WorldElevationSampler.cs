@@ -43,14 +43,7 @@ public sealed class WorldElevationSampler(WorldStreamer worldStreamer)
         var fractionY = worldPosition.Y - tileY;
         var elevation = sector.Elevation[localX, localY];
         var height = SampleTile(elevation, fractionX, fractionY) * WorldHeightPerSample;
-        var horizontalOffset = SampleValues(
-            elevation.SouthWest * ResolveVertexDirection(tileX, tileY + 1),
-            elevation.NorthWest * ResolveVertexDirection(tileX, tileY),
-            elevation.NorthEast * ResolveVertexDirection(tileX + 1, tileY),
-            elevation.SouthEast * ResolveVertexDirection(tileX + 1, tileY + 1),
-            fractionX,
-            fractionY) * WorldHeightPerSample;
-        sample = new TerrainElevationSample(height, horizontalOffset);
+        sample = new TerrainElevationSample(height, 0.0f);
         return true;
     }
 
@@ -88,19 +81,6 @@ public sealed class WorldElevationSampler(WorldStreamer worldStreamer)
         return diagonalY > 0.0f
             ? InterpolateSouth(southWest, southEast, center, x, y)
             : InterpolateLeft(southWest, northWest, center, x, y);
-    }
-
-    private int ResolveVertexDirection(int vertexX, int vertexY)
-    {
-        var sum = 0;
-        for (var tileY = vertexY - 1; tileY <= vertexY; tileY++)
-        for (var tileX = vertexX - 1; tileX <= vertexX; tileX++)
-        {
-            if (TryGetTile(tileX, tileY, out var sector, out var localX, out var localY))
-                sum += sector.Pathing[localX, localY].ElevationHorizontalDirection;
-        }
-
-        return Math.Sign(sum);
     }
 
     private bool TryGetTile(

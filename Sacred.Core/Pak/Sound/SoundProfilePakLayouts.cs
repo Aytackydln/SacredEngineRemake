@@ -40,7 +40,7 @@ public readonly struct SoundProfilePakHeaderLayout
     [FieldOffset(0x04)]
     public readonly uint EntryCount;
 
-    public bool SignatureValid => Signature.Compare('S', 'P', 'F');
+    public bool SignatureValid => Signature == Signature3.SoundProfile;
 
     public void ValidateSignature()
     {

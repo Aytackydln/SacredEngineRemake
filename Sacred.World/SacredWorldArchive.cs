@@ -15,9 +15,6 @@ public sealed class SacredWorldArchive : IDisposable
     private const int SectorH = Sector.TileCount;
 
     private const int KeyxAbsoluteBias = 0x19;
-    private const byte LiquidSurfaceTypeMask = 0xF0;
-    private const byte LiquidSurfaceType90 = 0x90;
-    private const byte LiquidSurfaceTypeA0 = 0xA0;
     private const int FloorChainMaxDepth = 128;
     private const int StaticChainMaxDepth = 4096;
     private static readonly SectorCoord BellevueSector = new(52, 38);
@@ -145,6 +142,7 @@ public sealed class SacredWorldArchive : IDisposable
         var stairsCells = new StairsCellLayer();
         var indoorTileGroups = new IndoorTileGroupLayer();
         var pathing = new WorldPathingLayer(SectorW, SectorH);
+        var visualElevation = new TerrainVisualElevationLayer(SectorW, SectorH);
         var elevation = new TerrainElevationLayer(SectorW, SectorH);
         var bakedLight = new TerrainBakedLightLayer(SectorW, SectorH);
         var staticTileVisits = new List<StaticTileVisit>();
@@ -154,7 +152,12 @@ public sealed class SacredWorldArchive : IDisposable
                 var tileOffset = (y * SectorW + x) * WldxTileRecord.Size;
                 var tile = WldxTileRecord.FromBytes(tiles.AsSpan(tileOffset, WldxTileRecord.Size));
                 ground[x, y] = tile.GroundTileId;
-                pathing[x, y] = new WorldPathTile(tile.PathFlags, tile.TypeAndSurface);
+                pathing[x, y] = new WorldPathTile(tile.PathFlags, tile.Properties);
+                visualElevation[x, y] = new TerrainVisualElevationTile(
+                    tile.VisualElevationLeft,
+                    tile.VisualElevationTop,
+                    tile.VisualElevationRight,
+                    tile.VisualElevationBottom);
                 elevation[x, y] = new TerrainElevationTile(
                     tile.ElevationNorthWest,
                     tile.ElevationNorthEast,
@@ -188,6 +191,7 @@ public sealed class SacredWorldArchive : IDisposable
             stairsCells,
             indoorTileGroups,
             pathing,
+            visualElevation,
             elevation,
             bakedLight);
     }
@@ -210,14 +214,14 @@ public sealed class SacredWorldArchive : IDisposable
                 var tileOffset = (localY * payload.Width + localX) * WldxTileRecord.Size;
                 var tileBytes = payload.Tiles.AsSpan(tileOffset, WldxTileRecord.Size);
                 var tile = WldxTileRecord.FromBytes(tileBytes);
-                var pathTile = new WorldPathTile(tile.PathFlags, tile.TypeAndSurface);
+                var pathTile = new WorldPathTile(tile.PathFlags, tile.Properties);
                 pathing[localX, localY] = pathTile;
-                presence[localX, localY] = HasAuthoredData(tileBytes);
+                presence[localX, localY] = WldxTileRecord.HasAuthoredData(tileBytes);
 
                 // Older indoor sections commonly omit the Trigger flag on their door cells.
-                // Path type 9 is the stable authored door discriminator in both the
-                // outdoor and indoor grids, so retain it as a trigger regardless.
-                if (pathTile.Type == 9 || (tile.PathFlags & WorldPathFlags.Trigger) != 0)
+                // The 0x09 entrance composite is the stable authored discriminator in both
+                // the outdoor and indoor grids, so retain it as a trigger regardless.
+                if (pathTile.IsEntrance || (tile.PathFlags & WorldPathFlags.Trigger) != 0)
                 {
                     triggers.Add(new IndoorTriggerTile(
                         payload.WorldX + localX,
@@ -249,14 +253,6 @@ public sealed class SacredWorldArchive : IDisposable
                 presence,
                 triggers));
         }
-    }
-
-    private static bool HasAuthoredData(ReadOnlySpan<byte> tileBytes)
-    {
-        foreach (var value in tileBytes)
-            if (value != 0)
-                return true;
-        return false;
     }
 
     private void LoadStairsCells(StairsCellLayer layer, SectorCoord coord)
@@ -360,20 +356,24 @@ public sealed class SacredWorldArchive : IDisposable
         WldxTileRecord tile,
         KeyxSectorRecord entry)
     {
-        var surfaceType = (byte)(tile.TypeAndSurface & LiquidSurfaceTypeMask);
-        if (surfaceType is not LiquidSurfaceType90 and not LiquidSurfaceTypeA0)
+        if (!tile.Properties.IsLiquid)
             return;
 
-        var styleId = surfaceType == LiquidSurfaceType90 ? entry.Style90 : entry.StyleA0;
+        var styleId = tile.Properties.TerrainSurface switch
+        {
+            WldxTerrainSurface.LiquidA => entry.LiquidStyleA,
+            WldxTerrainSurface.LiquidB => entry.LiquidStyleB,
+            _ => throw new InvalidOperationException("A non-liquid WLDX tile reached liquid loading."),
+        };
         liquidSurfaces.Add(new LiquidSurface(
             x,
             y,
-            tile.TypeAndSurface,
+            tile.Properties,
             styleId,
-            tile.LiquidAlphaLeft,
-            tile.LiquidAlphaTop,
-            tile.LiquidAlphaRight,
-            tile.LiquidAlphaBottom));
+            tile.VisualElevationLeft,
+            tile.VisualElevationTop,
+            tile.VisualElevationRight,
+            tile.VisualElevationBottom));
     }
 
     private void LoadKeyx(byte[] data)

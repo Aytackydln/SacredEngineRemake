@@ -48,7 +48,7 @@ public readonly struct TexturePakHeaderLayout
     /// <summary>Number of 12-byte texture entry descriptors.</summary>
     [FieldOffset(0x04)] public readonly uint EntryCount;
 
-    public bool SignatureValid => Signature.Compare('T', 'E', 'X');
+    public bool SignatureValid => Signature == Signature3.Texture;
 
     public void ValidateSignature()
     {

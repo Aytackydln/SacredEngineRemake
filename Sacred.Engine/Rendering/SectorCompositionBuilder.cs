@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Sacred.Assets.Paks.Texture;
+using Sacred.Core.World.Lighting;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
 using Sacred.World.Geometry;
@@ -31,6 +32,7 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
     private readonly HashSet<FloorSourceKey> _floorSources = [];
     private readonly StairsDebugTileSourceFactory _stairsDebugTiles = new();
     private readonly BlockedAreaDebugTileSourceFactory _blockedAreaDebugTile = new();
+    private readonly TerrainTopologyDebugTileSourceFactory _terrainTopologyDebugTiles = new();
     private readonly object _cacheLock = new();
 
     public int CachedTileCount
@@ -62,6 +64,7 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
         var stairsDebugTiles = new List<TerrainCompositionTile>(sector.StairsCells.Count);
         var debugDoorTiles = new HashSet<(int X, int Y)>();
         var blockedAreaDebugTiles = new List<TerrainCompositionTile>();
+        var terrainTopologyDebugTiles = new List<TerrainCompositionTile>(Sector.TileCount * Sector.TileCount);
 
         var groundCandidateTiles = Sector.TileCount * Sector.TileCount;
         var groundDrawnTiles = 0;
@@ -91,6 +94,12 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
                 0,
                 false,
                 surface));
+            terrainTopologyDebugTiles.Add(new TerrainCompositionTile(
+                (int)MathF.Round(iso.X - sectorBounds.X),
+                (int)MathF.Round(iso.Y - sectorBounds.Y),
+                _terrainTopologyDebugTiles.Source,
+                null,
+                surface with { BakedLight = TerrainBakedLightTile.FullyLit }));
         }
 
         drawTiles.Sort(CompareDrawTiles);
@@ -196,27 +205,6 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
         for (var localY = 0; localY < Sector.TileCount; localY++)
         for (var localX = 0; localX < Sector.TileCount; localX++)
         {
-            var pathTile = sector.Pathing[localX, localY];
-            if (pathTile.Type != 9)
-                continue;
-
-            var worldX = sector.Coord.X * Sector.TileCount + localX;
-            var worldY = sector.Coord.Y * Sector.TileCount + localY;
-            if (!debugDoorTiles.Add((worldX, worldY)))
-                continue;
-
-            var iso = IsometricProjection.WorldToIso(localX, localY);
-            stairsDebugTiles.Add(new TerrainCompositionTile(
-                (int)MathF.Round(iso.X - sectorBounds.X),
-                (int)MathF.Round(iso.Y - sectorBounds.Y),
-                _stairsDebugTiles.Get(isAnchor: true),
-                null,
-                TerrainTileGeometry.GetSurface(sector, localX, localY)));
-        }
-
-        for (var localY = 0; localY < Sector.TileCount; localY++)
-        for (var localX = 0; localX < Sector.TileCount; localX++)
-        {
             if (!sector.Pathing.IsBlocked(localX, localY))
                 continue;
 
@@ -231,6 +219,7 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
 
         var stairsDebugBounds = TerrainTileGeometry.CropTiles(stairsDebugTiles);
         var blockedAreaDebugBounds = TerrainTileGeometry.CropTiles(blockedAreaDebugTiles);
+        var terrainTopologyDebugBounds = TerrainTileGeometry.CropTiles(terrainTopologyDebugTiles);
         return new TerrainSectorComposition(
             sector.Coord,
             sectorOriginIso.X + sectorBounds.X,
@@ -250,6 +239,11 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
             blockedAreaDebugBounds.Y,
             blockedAreaDebugBounds.Width,
             blockedAreaDebugBounds.Height,
+            terrainTopologyDebugTiles.ToArray(),
+            terrainTopologyDebugBounds.X,
+            terrainTopologyDebugBounds.Y,
+            terrainTopologyDebugBounds.Width,
+            terrainTopologyDebugBounds.Height,
             groundCandidateTiles,
             groundDrawnTiles,
             groundMissingTiles,

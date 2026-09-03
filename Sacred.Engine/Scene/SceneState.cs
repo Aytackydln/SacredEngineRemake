@@ -59,6 +59,7 @@ public sealed class SceneDebugState
     public bool OverlaysVisible { get; set; } = true;
     public bool StairsMapVisible { get; set; }
     public bool BlockedAreasVisible { get; set; }
+    public bool TerrainTopologyVisible { get; set; }
     public float ActorTerrainHeight { get; set; }
 }
 

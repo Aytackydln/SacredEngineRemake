@@ -230,7 +230,7 @@ internal sealed class SacredGameRuntime : IDisposable
         switch (command)
         {
             case HelpCheatCommand:
-                EngineLog.WriteLine("Cheats: teleport <x> <y>; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set character next; set hdr <on|off>; set pacing <vrr|vsync|limit>; set latency <off|on|boost>; set granny <managed|native>.");
+                EngineLog.WriteLine("Cheats: teleport <x> <y>; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set character next; set hdr <on|off>; set pacing <vrr|vsync|limit>; set latency <off|on|boost>; set granny <managed|native>.");
                 return;
             case TeleportCheatCommand teleport:
                 if (_inGameScene is null)

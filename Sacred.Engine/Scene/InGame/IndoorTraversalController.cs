@@ -10,9 +10,6 @@ namespace Sacred.Engine.Scene.InGame;
 /// <summary>Switches the visible indoor grid when the player crosses one of its entrance cells.</summary>
 internal sealed class IndoorTraversalController(WorldStreamer worldStreamer, IndoorSceneState state)
 {
-    // Every audited type-9 door has a type-A cell on its exterior side.
-    private const byte ExteriorEntranceBoundaryPathType = 0x0A;
-
     private WorldTile? _lastTile;
     private IndoorTileGroup? _pendingEntranceGroup;
 
@@ -103,8 +100,9 @@ internal sealed class IndoorTraversalController(WorldStreamer worldStreamer, Ind
         if (!group.TryGetAuthoredLocalTile(tile.X, tile.Y, out var localX, out var localY))
             return false;
 
-        var pathing = group.Pathing[localX, localY];
-        return pathing.Type is not 9 and not ExteriorEntranceBoundaryPathType;
+        // Indoor-grid records commonly leave the outdoor Indoor flag unset. The
+        // authored 0x09/0x0A doorway pair, exposed by the packed enum, bounds the crossing.
+        return !group.Pathing[localX, localY].IsEntranceBoundary;
     }
 
     private readonly record struct WorldTile(int X, int Y)

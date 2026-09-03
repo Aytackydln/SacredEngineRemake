@@ -12,7 +12,7 @@ public sealed class IndoorTileGroup(
     int worldY,
     int width,
     int height,
-    uint kind,
+    WldxTileGridKind kind,
     byte surfaceLevel,
     WorldPathingLayer pathing,
     IndoorTilePresenceLayer presence,
@@ -23,7 +23,7 @@ public sealed class IndoorTileGroup(
     public int WorldY { get; } = worldY;
     public int Width { get; } = width;
     public int Height { get; } = height;
-    public uint Kind { get; } = kind;
+    public WldxTileGridKind Kind { get; } = kind;
     public byte SurfaceLevel { get; } = surfaceLevel;
     public int SurfaceRenderLayer { get; } = 1 << surfaceLevel;
     public WorldPathingLayer Pathing { get; } = pathing;

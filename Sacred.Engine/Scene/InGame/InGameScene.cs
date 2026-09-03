@@ -102,12 +102,18 @@ internal sealed class InGameScene : IGameScene
                 _scene.Debug.BlockedAreasVisible = blockedTilesVisible;
                 message = $"blocked tiles {(blockedTilesVisible ? "visible" : "hidden")}";
                 return true;
+            case "tessellation" or "tess" or "vertices" when TryParseBoolean(value, out var topologyVisible):
+                _scene.Debug.TerrainTopologyVisible = topologyVisible;
+                message = topologyVisible
+                    ? "terrain topology visible: cyan=perimeter, magenta=native top-bottom diagonal, yellow=vertices"
+                    : "terrain topology hidden";
+                return true;
             case "character" when value.Equals("next", StringComparison.OrdinalIgnoreCase):
                 _player.CycleModel();
                 message = "loading next character";
                 return true;
             default:
-                message = "Unknown in-game option. Use overlays <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, or character next.";
+                message = "Unknown in-game option. Use overlays <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, tessellation <on|off>, or character next.";
                 return false;
         }
     }

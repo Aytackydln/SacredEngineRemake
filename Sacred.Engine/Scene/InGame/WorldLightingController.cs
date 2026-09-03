@@ -15,7 +15,7 @@ public enum WorldLightingMode
 /// <summary>Applies deterministic lighting profiles, including the world-quad ambient level.</summary>
 public sealed class WorldLightingController
 {
-    private const float NoonTime = 0.50f;
+    private const float NoonTime = 0.45f;
     private const float DayDurationSeconds = 15.0f;
     private const float NightDurationSeconds = 10.0f;
     private const float TransitionDurationSeconds = 5.0f;

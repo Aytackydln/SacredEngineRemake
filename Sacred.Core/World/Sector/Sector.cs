@@ -14,6 +14,7 @@ public sealed class Sector(
     StairsCellLayer stairsCells,
     IndoorTileGroupLayer indoorTileGroups,
     WorldPathingLayer pathing,
+    TerrainVisualElevationLayer visualElevation,
     TerrainElevationLayer elevation,
     TerrainBakedLightLayer bakedLight)
 {
@@ -28,6 +29,7 @@ public sealed class Sector(
     public StairsCellLayer StairsCells { get; } = stairsCells;
     public IndoorTileGroupLayer IndoorTileGroups { get; } = indoorTileGroups;
     public WorldPathingLayer Pathing { get; } = pathing;
+    public TerrainVisualElevationLayer VisualElevation { get; } = visualElevation;
     public TerrainElevationLayer Elevation { get; } = elevation;
     public TerrainBakedLightLayer BakedLight { get; } = bakedLight;
 }

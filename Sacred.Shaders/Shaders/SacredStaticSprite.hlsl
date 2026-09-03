@@ -139,6 +139,47 @@ float liquid_corner_alpha(float2 uv, float4 corner_alpha)
     return saturate(interpolated_alpha);
 }
 
+int positive_remainder(int value, int divisor)
+{
+    int remainder = value % divisor;
+    return remainder < 0 ? remainder + divisor : remainder;
+}
+
+float4 sample_repeating_frame(
+    Texture2D texture_to_sample,
+    uint frame_column,
+    uint frame_row,
+    uint frame_width,
+    uint frame_height,
+    float2 frame_uv)
+{
+    // Liquid frames repeat in world space. Sampling half a texel inside each
+    // frame made the first and last rows meet as a hard 4x4-cell square. Wrap
+    // the bilinear taps inside the current animation frame instead; wrapping
+    // the atlas sampler itself would bleed into neighbouring animation frames.
+    float2 frame_pixel = frame_uv * float2(frame_width, frame_height) - 0.5f;
+    int2 lower = (int2)floor(frame_pixel);
+    float2 weight = frac(frame_pixel);
+    int2 upper = lower + 1;
+    int2 frame_origin = int2(frame_column * frame_width, frame_row * frame_height);
+    int2 lower_wrapped = int2(
+        positive_remainder(lower.x, (int)frame_width),
+        positive_remainder(lower.y, (int)frame_height));
+    int2 upper_wrapped = int2(
+        positive_remainder(upper.x, (int)frame_width),
+        positive_remainder(upper.y, (int)frame_height));
+    float4 top_left = texture_to_sample.Load(int3(frame_origin + lower_wrapped, 0));
+    float4 top_right = texture_to_sample.Load(int3(
+        frame_origin + int2(upper_wrapped.x, lower_wrapped.y), 0));
+    float4 bottom_left = texture_to_sample.Load(int3(
+        frame_origin + int2(lower_wrapped.x, upper_wrapped.y), 0));
+    float4 bottom_right = texture_to_sample.Load(int3(frame_origin + upper_wrapped, 0));
+    return lerp(
+        lerp(top_left, top_right, weight.x),
+        lerp(bottom_left, bottom_right, weight.x),
+        weight.y);
+}
+
 float4 sample_sprite_texture(Texture2D texture_to_sample, vertex_output input)
 {
     if (input.frame_count <= 1 || input.animation_period_seconds <= 0.0f)
@@ -184,6 +225,13 @@ float4 sample_sprite_texture(Texture2D texture_to_sample, vertex_output input)
         uint texture_variant = input.flags >> 1;
         float2 block_cell = float2(texture_variant & 3, (texture_variant >> 2) & 3);
         frame_uv = (block_cell + cell_uv) * 0.25f;
+        return sample_repeating_frame(
+            texture_to_sample,
+            frame_column,
+            frame_row,
+            frame_width,
+            frame_height,
+            frame_uv);
     }
     float2 atlas_uv = float2(
         (frame_column * frame_width + 0.5f + frame_uv.x * (frame_width - 1.0f)) / atlas_width,

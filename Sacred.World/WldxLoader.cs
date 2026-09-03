@@ -10,7 +10,7 @@ public sealed class WldxLoader(FileStream wldxStream) : IDisposable
     private const int SectorW = Sector.TileCount;
     private const int SectorH = Sector.TileCount;
 
-    private readonly object _streamLock = new();
+    private readonly Lock _streamLock = new();
 
     public WldxSectorPayload LoadSector(uint sectorId, KeyxSectorRecord entry)
     {
@@ -44,42 +44,35 @@ public sealed class WldxLoader(FileStream wldxStream) : IDisposable
         ReadOnlySpan<byte> data,
         int tilesEnd)
     {
-        const int postTileHeaderSize = 0x24;
-        const int descriptorSize = 0x24;
-        const uint indoorTileKind = 6;
+        const int descriptorSize = WldxTileGridDescriptorLayout.SerializedSize;
 
         var groups = new List<WldxIndoorGroupPayload>();
-        var descriptorOffset = checked(tilesEnd + postTileHeaderSize);
+        if (tilesEnd > data.Length - descriptorSize)
+            return [];
+
+        var outdoorOrigin = WldxTileGridDescriptorLayout.FromBytes(data[tilesEnd..]);
+        if (!outdoorOrigin.IsOutdoorOrigin)
+            return [];
+
+        var descriptorOffset = checked(tilesEnd + descriptorSize);
         while (descriptorOffset <= data.Length - descriptorSize)
         {
-            var descriptor = data.Slice(descriptorOffset, descriptorSize);
-            var worldX = BitConverter.ToInt32(descriptor[..4]);
-            var worldY = BitConverter.ToInt32(descriptor.Slice(4, 4));
-            var width = BitConverter.ToUInt16(descriptor.Slice(8, 2));
-            var height = BitConverter.ToUInt16(descriptor.Slice(10, 2));
-            var kind = BitConverter.ToUInt32(descriptor.Slice(12, 4));
-            var tilesOffset = BitConverter.ToUInt32(descriptor.Slice(16, 4));
-            var tilesSize = BitConverter.ToUInt32(descriptor.Slice(20, 4));
-
-            var expectedSize = (ulong)width * height * WldxTileRecord.Size;
-            if (worldX < 0 || worldY < 0 || width == 0 || height == 0 ||
-                kind != indoorTileKind || tilesSize != expectedSize ||
-                tilesOffset > data.Length || tilesSize > data.Length - tilesOffset)
-            {
+            var descriptor = WldxTileGridDescriptorLayout.FromBytes(data[descriptorOffset..]);
+            if (descriptor.WorldX < 0 || descriptor.WorldY < 0 ||
+                !descriptor.HasIndoorTilePayload(data.Length))
                 break;
-            }
 
             groups.Add(new WldxIndoorGroupPayload(
-                worldX,
-                worldY,
-                width,
-                height,
-                kind,
-                data.Slice(checked((int)tilesOffset), checked((int)tilesSize)).ToArray()));
+                descriptor.WorldX,
+                descriptor.WorldY,
+                descriptor.Width,
+                descriptor.Height,
+                descriptor.Kind,
+                data.Slice(checked((int)descriptor.TilesOffset), checked((int)descriptor.TilesSize)).ToArray()));
             descriptorOffset += descriptorSize;
         }
 
-        return groups.ToArray();
+        return [.. groups];
     }
 
     public void Dispose() => wldxStream.Dispose();
@@ -94,5 +87,5 @@ public sealed record WldxIndoorGroupPayload(
     int WorldY,
     int Width,
     int Height,
-    uint Kind,
+    WldxTileGridKind Kind,
     byte[] Tiles);
