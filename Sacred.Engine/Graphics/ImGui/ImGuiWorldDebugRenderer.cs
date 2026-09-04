@@ -86,30 +86,20 @@ internal static class ImGuiWorldDebugRenderer
                 continue;
 
             var tile = sector.Pathing[localX, localY];
-            var rawFlagMatched = false;
             foreach (var option in WorldDebugFlagCatalog.PathFlags)
             {
                 if (debug.VisiblePathFlags.HasFlag(option.Flag) && tile.Flags.HasFlag(option.Flag))
-                {
                     AddQuad(drawList, points, option.Colour, 2.2f);
-                    rawFlagMatched = true;
-                }
             }
             foreach (var option in WorldDebugFlagCatalog.TileFlags)
             {
                 if (debug.VisibleTileFlags.HasFlag(option.Flag) && tile.TileFlags.HasFlag(option.Flag))
-                {
                     AddQuad(drawList, points, option.Colour, 2.2f);
-                    rawFlagMatched = true;
-                }
             }
             foreach (var option in WorldDebugFlagCatalog.SurfaceFlags)
             {
                 if (debug.VisibleSurfaceFlags.HasFlag(option.Flag) && tile.TerrainSurface.HasFlag(option.Flag))
-                {
                     AddQuad(drawList, points, option.Colour, 2.2f);
-                    rawFlagMatched = true;
-                }
             }
             if (debug.MovementFlagTilesVisible && tile.Properties.BlocksMovement)
                 AddQuad(drawList, points, PropertyColour, 2.2f);
@@ -119,7 +109,7 @@ internal static class ImGuiWorldDebugRenderer
             var worldX = sector.Coord.X * Sector.TileCount + localX;
             var worldY = sector.Coord.Y * Sector.TileCount + localY;
             var center = (points.Left + points.Top + points.Right + points.Bottom) * 0.25f;
-            var label = BuildTileLabel(sector, tile, debug, rawFlagMatched, localX, localY, worldX, worldY);
+            var label = BuildTileLabel(sector, tile, debug, localX, localY, worldX, worldY);
             if (label.Length > 0)
                 drawList.AddText(center, Colour(new Vector4(1.0f, 0.94f, 0.72f, 1.0f)), label);
 
@@ -132,7 +122,6 @@ internal static class ImGuiWorldDebugRenderer
         Sector sector,
         WorldPathTile tile,
         SceneDebugState debug,
-        bool rawFlagMatched,
         int localX,
         int localY,
         int worldX,
@@ -141,8 +130,6 @@ internal static class ImGuiWorldDebugRenderer
         var label = string.Empty;
         if (debug.TileCoordinatesVisible)
             label = $"{worldX},{worldY}";
-        if (rawFlagMatched)
-            label = Append(label, $"F:{(byte)tile.Flags:X2}/{tile.Properties}");
         if (debug.TerrainSurfacesVisible)
             label = Append(label, $"S:{(byte)tile.TerrainSurface:X2}");
         if (debug.VisualElevationVisible)
@@ -247,7 +234,6 @@ internal static class ImGuiWorldDebugRenderer
             var south = transform.ToScreen(southIso.X + 48.0f, southIso.Y);
             var west = transform.ToScreen(westIso.X + 48.0f, westIso.Y);
 
-            var matchedFlags = string.Empty;
             var matchCount = 0;
             foreach (var option in WorldDebugFlagCatalog.SectorFlags)
             {
@@ -258,18 +244,7 @@ internal static class ImGuiWorldDebugRenderer
                 }
 
                 drawList.AddQuad(north, east, south, west, Colour(option.Colour), 2.0f + matchCount);
-                matchedFlags = matchedFlags.Length == 0
-                    ? option.Flag.ToString()
-                    : matchedFlags + "," + option.Flag;
                 matchCount++;
-            }
-
-            if (matchCount > 0)
-            {
-                drawList.AddText(
-                    north + new Vector2(5.0f, 16.0f),
-                    Colour(new Vector4(1.0f, 0.94f, 0.72f, 1.0f)),
-                    $"KEYX {matchedFlags} 0x{(byte)sector.EnvironmentFlags:X2}");
             }
         }
     }
@@ -330,7 +305,6 @@ internal static class ImGuiWorldDebugRenderer
             if (anchor.X < 0.0f || anchor.X > renderWidth || anchor.Y < 0.0f || anchor.Y > renderHeight)
                 continue;
 
-            var matchedFlags = string.Empty;
             var ringIndex = 0;
             foreach (var option in WorldDebugFlagCatalog.StaticFlags)
             {
@@ -341,9 +315,6 @@ internal static class ImGuiWorldDebugRenderer
                 }
 
                 drawList.AddCircle(anchor, 6.0f + ringIndex * 3.0f, Colour(option.Colour), 16, 2.0f);
-                matchedFlags = matchedFlags.Length == 0
-                    ? option.Flag.ToString()
-                    : matchedFlags + "," + option.Flag;
                 ringIndex++;
             }
 
@@ -351,11 +322,6 @@ internal static class ImGuiWorldDebugRenderer
                 continue;
 
             drawList.AddCircleFilled(anchor, 2.5f, Colour(new Vector4(1.0f, 1.0f, 1.0f, 1.0f)));
-            drawList.AddText(
-                anchor + new Vector2(8.0f, 4.0f + ringIndex * 3.0f),
-                Colour(new Vector4(1.0f, 0.94f, 0.72f, 1.0f)),
-                $"static {staticObject.StaticId} type {staticObject.TypeId} part {staticObject.ChainDepth}\n" +
-                $"{matchedFlags} 0x{(uint)staticObject.Flags:X8}");
         }
     }
 

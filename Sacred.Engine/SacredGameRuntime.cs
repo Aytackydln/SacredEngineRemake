@@ -123,6 +123,12 @@ internal sealed class SacredGameRuntime : IDisposable
             UpdateWindowTitle();
         }
 
+        if (_debugUiControls.RequestedNoClipEnabled is { } noClipEnabled)
+        {
+            _debugUiControls.RequestedNoClipEnabled = null;
+            _inGameScene?.SetNoClipEnabled(noClipEnabled);
+        }
+
         if (_debugUiControls.ScreenshotRequested)
         {
             _debugUiControls.ScreenshotRequested = false;
@@ -138,6 +144,7 @@ internal sealed class SacredGameRuntime : IDisposable
         _debugUiControls.WorldLightingMode =
             _inGameScene?.WorldLightingMode ?? _initialSaveState.WorldLightingMode;
         _debugUiControls.BorderlessFullscreen = _window.IsBorderlessFullscreen;
+        _debugUiControls.NoClipEnabled = _inGameScene?.NoClipEnabled ?? false;
     }
 
     public SacredGameSaveState CaptureSaveState() => new()
@@ -294,7 +301,7 @@ internal sealed class SacredGameRuntime : IDisposable
         switch (command)
         {
             case HelpCheatCommand:
-                EngineLog.WriteLine("Cheats: teleport <x> <y>; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set character next; set hdr <on|off>; set pacing <vrr|vsync|limit>; set latency <off|on|boost>; set granny <managed|native>.");
+                EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set character next; set hdr <on|off>; set pacing <vrr|vsync|limit>; set latency <off|on|boost>; set granny <managed|native>.");
                 return;
             case TeleportCheatCommand teleport:
                 if (_inGameScene is null)
@@ -305,6 +312,17 @@ internal sealed class SacredGameRuntime : IDisposable
 
                 _inGameScene.Teleport(teleport.Position);
                 EngineLog.WriteLine($"Cheat: teleported to {teleport.Position.X:0.##}, {teleport.Position.Y:0.##}.");
+                return;
+            case NoClipCheatCommand noClip:
+                if (_inGameScene is null)
+                {
+                    EngineLog.WriteLine("Cheat: noclip is available once the in-game scene has loaded.");
+                    return;
+                }
+
+                var noClipEnabled = noClip.Enabled ?? !_inGameScene.NoClipEnabled;
+                _inGameScene.SetNoClipEnabled(noClipEnabled);
+                EngineLog.WriteLine($"Cheat: noclip {(noClipEnabled ? "enabled" : "disabled")}.");
                 return;
             case ScreenshotCheatCommand screenshot:
                 CaptureScreenshot(screenshot.Label);

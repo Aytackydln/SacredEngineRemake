@@ -70,11 +70,14 @@ internal sealed class InGameScene : IGameScene
     internal string SelectedCharacterName => _player.SelectedCharacterName;
     internal bool StairsTilesVisible => _scene.Debug.StairsMapVisible;
     internal bool BlockedTilesVisible => _scene.Debug.BlockedAreasVisible;
+    internal bool NoClipEnabled => _inputController.NoClipEnabled;
     internal WorldLightingMode WorldLightingMode => _worldLighting.Mode;
     internal Vector2 PlayerWorldPosition => _camera.WorldCenter;
     internal bool WorldStreamingSettled => _worldStreamer.VisibleWorld.LoadingSectors == 0;
 
     internal void SetWorldLightingMode(WorldLightingMode mode) => _worldLighting.SetMode(mode);
+
+    internal void SetNoClipEnabled(bool enabled) => _inputController.SetNoClipEnabled(enabled);
 
     internal Task<TextureAsset> LoadTextureAsync(string textureName, CancellationToken cancellationToken) =>
         _assets.LoadTextureAsync(textureName, cancellationToken);
@@ -108,6 +111,10 @@ internal sealed class InGameScene : IGameScene
                 _scene.Debug.BlockedAreasVisible = blockedTilesVisible;
                 message = $"blocked tiles {(blockedTilesVisible ? "visible" : "hidden")}";
                 return true;
+            case "noclip" or "no-clip" when TryParseBoolean(value, out var noClipEnabled):
+                SetNoClipEnabled(noClipEnabled);
+                message = $"noclip {(noClipEnabled ? "enabled" : "disabled")}";
+                return true;
             case "tessellation" or "tess" or "vertices" when TryParseBoolean(value, out var topologyVisible):
                 _scene.Debug.TerrainTopologyVisible = topologyVisible;
                 message = topologyVisible
@@ -119,7 +126,7 @@ internal sealed class InGameScene : IGameScene
                 message = "loading next character";
                 return true;
             default:
-                message = "Unknown in-game option. Use overlays <on|off>, debug-panel <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, tessellation <on|off>, or character next.";
+                message = "Unknown in-game option. Use overlays <on|off>, debug-panel <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, noclip <on|off>, tessellation <on|off>, or character next.";
                 return false;
         }
     }

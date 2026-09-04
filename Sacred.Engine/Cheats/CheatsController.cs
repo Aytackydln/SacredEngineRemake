@@ -18,6 +18,7 @@ internal sealed class CheatsController : IDisposable
             ["help"] = static _ => new HelpCheatCommand(),
             ["teleport"] = ParseTeleport,
             ["tp"] = ParseTeleport,
+            ["noclip"] = ParseNoClip,
             ["screenshot"] = ParseScreenshot,
             ["shot"] = ParseScreenshot,
             ["inspect"] = ParseInspection,
@@ -87,6 +88,15 @@ internal sealed class CheatsController : IDisposable
             ? new TeleportCheatCommand(position)
             : new InvalidCheatCommand("Usage: teleport <x> <y>");
 
+    private static CheatCommand ParseNoClip(string[] parts)
+    {
+        if (parts.Length == 1)
+            return new NoClipCheatCommand(null);
+        if (parts.Length == 2 && TryParseBoolean(parts[1], out var enabled))
+            return new NoClipCheatCommand(enabled);
+        return new InvalidCheatCommand("Usage: noclip [on|off]");
+    }
+
     private static CheatCommand ParseSetOption(string[] parts) =>
         parts.Length == 3
             ? new SetOptionCheatCommand(parts[1], parts[2])
@@ -124,6 +134,14 @@ internal sealed class CheatsController : IDisposable
         position = new Vector2(x, y);
         return true;
     }
+
+    private static bool TryParseBoolean(string value, out bool enabled)
+    {
+        enabled = value.Equals("on", StringComparison.OrdinalIgnoreCase) ||
+                  value.Equals("true", StringComparison.OrdinalIgnoreCase);
+        return enabled || value.Equals("off", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("false", StringComparison.OrdinalIgnoreCase);
+    }
 }
 
 internal abstract record CheatCommand;
@@ -131,6 +149,8 @@ internal abstract record CheatCommand;
 internal sealed record HelpCheatCommand : CheatCommand;
 
 internal sealed record TeleportCheatCommand(Vector2 Position) : CheatCommand;
+
+internal sealed record NoClipCheatCommand(bool? Enabled) : CheatCommand;
 
 internal sealed record ScreenshotCheatCommand(string? Label) : CheatCommand;
 

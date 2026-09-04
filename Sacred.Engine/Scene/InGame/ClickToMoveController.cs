@@ -39,6 +39,7 @@ public sealed class ClickToMoveController
         int viewportHeight,
         WorldCollisionResolver collision,
         WorldElevationSampler elevation,
+        bool noClipEnabled,
         float deltaSeconds)
     {
         if (HasManualMovementIntent(input))
@@ -51,13 +52,13 @@ public sealed class ClickToMoveController
         AdvanceRoute(camera);
 
         if (input.TryConsumeLeftClick(out var clickPosition))
-            BeginClick(camera, collision, elevation, clickPosition, viewportWidth, viewportHeight);
+            BeginClick(camera, collision, elevation, clickPosition, viewportWidth, viewportHeight, noClipEnabled);
 
         if (input.IsLeftMouseButtonDown && _singleClickTarget.HasValue)
-            UpdateHeldClick(input, camera, collision, elevation, viewportWidth, viewportHeight, deltaSeconds);
+            UpdateHeldClick(input, camera, collision, elevation, viewportWidth, viewportHeight, noClipEnabled, deltaSeconds);
 
         if (input.ConsumeLeftMouseButtonReleased())
-            EndClick(input, camera, collision, elevation, viewportWidth, viewportHeight);
+            EndClick(input, camera, collision, elevation, viewportWidth, viewportHeight, noClipEnabled);
     }
 
     private void BeginClick(
@@ -66,13 +67,14 @@ public sealed class ClickToMoveController
         WorldElevationSampler elevation,
         Vector2 clickPosition,
         int viewportWidth,
-        int viewportHeight)
+        int viewportHeight,
+        bool noClipEnabled)
     {
         _singleClickTarget = GameActorElevation.ScreenToWorldOnSurface(
             camera, elevation, clickPosition, viewportWidth, viewportHeight);
         _heldSeconds = 0.0f;
         _isHoldClickMovement = false;
-        SetRouteTo(camera, collision, _singleClickTarget.Value);
+        SetRouteTo(camera, collision, _singleClickTarget.Value, noClipEnabled);
     }
 
     private void UpdateHeldClick(
@@ -82,6 +84,7 @@ public sealed class ClickToMoveController
         WorldElevationSampler elevation,
         int viewportWidth,
         int viewportHeight,
+        bool noClipEnabled,
         float deltaSeconds)
     {
         _heldSeconds += deltaSeconds;
@@ -92,7 +95,7 @@ public sealed class ClickToMoveController
         var target = GameActorElevation.ScreenToWorldOnSurface(
             camera, elevation, input.MousePosition, viewportWidth, viewportHeight);
         if (ShouldRetarget(camera, target))
-            SetRouteTo(camera, collision, target);
+            SetRouteTo(camera, collision, target, noClipEnabled);
     }
 
     private void EndClick(
@@ -101,7 +104,8 @@ public sealed class ClickToMoveController
         WorldCollisionResolver collision,
         WorldElevationSampler elevation,
         int viewportWidth,
-        int viewportHeight)
+        int viewportHeight,
+        bool noClipEnabled)
     {
         if (!_singleClickTarget.HasValue)
             return;
@@ -118,7 +122,7 @@ public sealed class ClickToMoveController
             else
             {
                 SetRouteTo(camera, collision, GameActorElevation.ScreenToWorldOnSurface(
-                    camera, elevation, input.MousePosition, viewportWidth, viewportHeight));
+                    camera, elevation, input.MousePosition, viewportWidth, viewportHeight), noClipEnabled);
             }
         }
 
@@ -127,7 +131,11 @@ public sealed class ClickToMoveController
         _isHoldClickMovement = false;
     }
 
-    private void SetRouteTo(SacredCamera camera, WorldCollisionResolver collision, Vector2 target)
+    private void SetRouteTo(
+        SacredCamera camera,
+        WorldCollisionResolver collision,
+        Vector2 target,
+        bool noClipEnabled)
     {
         var direction = target - camera.WorldCenter;
         if (direction.LengthSquared() <= RotationOnlyRadius * RotationOnlyRadius)
@@ -136,6 +144,14 @@ public sealed class ClickToMoveController
             _routeTarget = null;
             camera.StopMoving();
             camera.RotateToward(direction);
+            return;
+        }
+
+        if (noClipEnabled)
+        {
+            _route.Clear();
+            _routeTarget = target;
+            camera.MoveTo(target);
             return;
         }
 

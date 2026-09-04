@@ -11,11 +11,13 @@ internal sealed class DebugUiControlState
     public LowLatencyMode LowLatencyMode { get; set; }
     public WorldLightingMode WorldLightingMode { get; set; }
     public bool BorderlessFullscreen { get; set; }
+    public bool NoClipEnabled { get; set; }
 
     public bool? RequestedHdrEnabled { get; set; }
     public FramePacingMode? RequestedFramePacingMode { get; set; }
     public LowLatencyMode? RequestedLowLatencyMode { get; set; }
     public WorldLightingMode? RequestedWorldLightingMode { get; set; }
     public bool? RequestedBorderlessFullscreen { get; set; }
+    public bool? RequestedNoClipEnabled { get; set; }
     public bool ScreenshotRequested { get; set; }
 }

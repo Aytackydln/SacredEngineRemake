@@ -86,6 +86,8 @@ internal sealed class ImGuiDebugPanel(
         }
 
         DearImGui.PushFont(renderer.BodyFont);
+        if (DearImGui.CollapsingHeader("Cheats", ImGuiTreeNodeFlags.DefaultOpen))
+            ImGuiCheatsPanel.Draw(controls);
         if (DearImGui.CollapsingHeader("Settings", ImGuiTreeNodeFlags.DefaultOpen))
             ImGuiSettingsPanel.Draw(graphics, controls);
         if (DearImGui.CollapsingHeader("Performance", ImGuiTreeNodeFlags.DefaultOpen))

@@ -89,7 +89,11 @@ public sealed class SacredCamera
         CurrentMovementSpeed = 0.0f;
     }
 
-    public void UpdateFromInput(InputState input, float dt, WorldCollisionResolver collision)
+    public void UpdateFromInput(
+        InputState input,
+        float dt,
+        WorldCollisionResolver collision,
+        bool noClipEnabled = false)
     {
         var previousWorldCenter = WorldCenter;
         var previousZoom = Zoom;
@@ -126,21 +130,26 @@ public sealed class SacredCamera
             if (joystickMovementScale > 0.0f)
             {
                 var speed = baseSpeed * joystickMovementScale;
-                if (_gamepadPathfinding.TryGetWaypoint(WorldCenter, delta, collision, out var waypoint))
-                    MoveInDirection(waypoint - WorldCenter, speed, dt, collision);
+                if (noClipEnabled)
+                {
+                    _gamepadPathfinding.Reset();
+                    MoveInDirection(delta, speed, dt, collision, true);
+                }
+                else if (_gamepadPathfinding.TryGetWaypoint(WorldCenter, delta, collision, out var waypoint))
+                    MoveInDirection(waypoint - WorldCenter, speed, dt, collision, false);
                 else
                     RotateToward(delta);
             }
             else
             {
                 _gamepadPathfinding.Reset();
-                MoveInDirection(delta, baseSpeed, dt, collision);
+                MoveInDirection(delta, baseSpeed, dt, collision, noClipEnabled);
             }
         }
         else if (_movementTarget is { } target)
         {
             _gamepadPathfinding.Reset();
-            MoveTowardTarget(target, baseSpeed, dt, collision);
+            MoveTowardTarget(target, baseSpeed, dt, collision, noClipEnabled);
         }
         else
         {
@@ -168,15 +177,30 @@ public sealed class SacredCamera
             RebuildMatrices();
     }
 
-    private void MoveInDirection(Vector2 direction, float speed, float dt, WorldCollisionResolver collision)
+    private void MoveInDirection(
+        Vector2 direction,
+        float speed,
+        float dt,
+        WorldCollisionResolver collision,
+        bool noClipEnabled)
     {
         if (direction.LengthSquared() <= float.Epsilon)
             return;
 
-        ApplyMovement(WorldCenter + Vector2.Normalize(direction) * speed * dt, collision, speed, dt);
+        ApplyMovement(
+            WorldCenter + Vector2.Normalize(direction) * speed * dt,
+            collision,
+            speed,
+            dt,
+            noClipEnabled);
     }
 
-    private void MoveTowardTarget(Vector2 target, float speed, float dt, WorldCollisionResolver collision)
+    private void MoveTowardTarget(
+        Vector2 target,
+        float speed,
+        float dt,
+        WorldCollisionResolver collision,
+        bool noClipEnabled)
     {
         var delta = target - WorldCenter;
         var distance = delta.Length();
@@ -190,7 +214,7 @@ public sealed class SacredCamera
         var step = speed * dt;
         if (step >= distance)
         {
-            var movement = ApplyMovement(target, collision, speed, dt);
+            var movement = ApplyMovement(target, collision, speed, dt, noClipEnabled);
             if (movement.ReachedIntendedEnd || !movement.Moved)
                 _movementTarget = null;
             return;
@@ -200,7 +224,8 @@ public sealed class SacredCamera
             WorldCenter + delta / distance * step,
             collision,
             speed,
-            dt);
+            dt,
+            noClipEnabled);
         if (!stepMovement.Moved)
             _movementTarget = null;
     }
@@ -209,10 +234,13 @@ public sealed class SacredCamera
         Vector2 intendedEnd,
         WorldCollisionResolver collision,
         float requestedSpeed,
-        float dt)
+        float dt,
+        bool noClipEnabled)
     {
         var start = WorldCenter;
-        var resolved = collision.ResolveMovement(start, intendedEnd);
+        var resolved = noClipEnabled
+            ? intendedEnd
+            : collision.ResolveMovement(start, intendedEnd);
         var actualDelta = resolved - start;
         WorldCenter = resolved;
         var actualDistance = actualDelta.Length();

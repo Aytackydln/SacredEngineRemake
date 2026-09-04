@@ -28,6 +28,8 @@ internal sealed class InGameInputController
     private readonly Action<bool> _setHandCursor;
     private ElevationMovementTrace? _elevationTrace;
 
+    public bool NoClipEnabled { get; private set; }
+
     public InGameInputController(
         InputState input,
         GamepadInputSource gamepad,
@@ -114,13 +116,14 @@ internal sealed class InGameInputController
                 _viewportHeight(),
                 _collision,
                 _elevation,
+                NoClipEnabled,
                 deltaSeconds);
         }
 
         if ((!uiWantsMouse && _input.ConsumeRightMouseButtonPressed()) || _gamepad.WasPressed(GamepadButtons.X))
             _player.PlayAttack();
 
-        _camera.UpdateFromInput(_input, deltaSeconds, _collision);
+        _camera.UpdateFromInput(_input, deltaSeconds, _collision, NoClipEnabled);
         var surfaceLevel = _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0;
         if (_stairs.Update(_camera, surfaceLevel, out var destinationSurfaceLevel))
         {
@@ -170,6 +173,16 @@ internal sealed class InGameInputController
     public void OnActivated() => _mapInput.OnActivated();
 
     public void OnDeactivated() => _mapInput.OnDeactivated();
+
+    public void SetNoClipEnabled(bool enabled)
+    {
+        if (NoClipEnabled == enabled)
+            return;
+
+        NoClipEnabled = enabled;
+        _clickToMove.StopMoving();
+        _camera.StopMoving();
+    }
 
     public void Teleport(Vector2 destination)
     {
