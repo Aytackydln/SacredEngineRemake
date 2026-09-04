@@ -31,7 +31,7 @@ public readonly record struct KeyxSectorRecord
     /// <summary>Style identifier for WLDX liquid material B.</summary>
     [FieldOffset(0x2E1)] public readonly byte LiquidStyleB;
 
-    public WorldZone Zone => (EnvironmentFlags & SectorEnvironmentFlags.Dungeon) != 0
+    public WorldZone Zone => EnvironmentFlags.HasFlag(SectorEnvironmentFlags.Dungeon)
         ? WorldZone.Cave
         : WorldZone.Outdoors;
 

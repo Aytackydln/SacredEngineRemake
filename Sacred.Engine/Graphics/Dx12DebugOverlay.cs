@@ -181,7 +181,7 @@ public unsafe class Dx12DebugOverlay : IDisposable
 
         var lines = new[]
         {
-            $"FPS {_fps:0.0}  FRAME {(_fps > 0.0 ? 1000.0 / _fps : 0.0):0.00} MS  {rendererStats.FramePacingStatus}",
+            $"FPS {_fps:0.0}  FRAME {rendererStats.FrameTimeMilliseconds:0.00} MS  {rendererStats.FramePacingStatus}",
             $"WORLD {camera.WorldCenter.X:0.00}, {camera.WorldCenter.Y:0.00}  SECTOR {world.CenterSector.X}, {world.CenterSector.Y}"
         };
 
@@ -224,4 +224,5 @@ public readonly record struct Dx12DebugOverlayStats(
     int CandidateHaloCount,
     int VisibleHaloCount,
     int SurfaceLightCount,
+    double FrameTimeMilliseconds,
     string FramePacingStatus);

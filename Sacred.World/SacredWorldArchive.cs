@@ -183,7 +183,7 @@ public sealed class SacredWorldArchive : IDisposable
         LoadStairsCells(stairsCells, coord);
         return new Sector(
             coord,
-            entry.Zone,
+            entry.EnvironmentFlags,
             ground,
             floorOverlays,
             liquidSurfaces,
@@ -221,7 +221,7 @@ public sealed class SacredWorldArchive : IDisposable
                 // Older indoor sections commonly omit the Trigger flag on their door cells.
                 // The 0x09 entrance composite is the stable authored discriminator in both
                 // the outdoor and indoor grids, so retain it as a trigger regardless.
-                if (pathTile.IsEntrance || (tile.PathFlags & WorldPathFlags.Trigger) != 0)
+                if (pathTile.IsEntrance || tile.PathFlags.HasFlag(WorldPathFlags.Trigger))
                 {
                     triggers.Add(new IndoorTriggerTile(
                         payload.WorldX + localX,

@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Sacred.Assets.Paks.Texture;
+using Sacred.Core.World;
+using Sacred.Core.World.Pathing;
 using Sacred.Core.World.Sector;
 using Sacred.Granny.Meshes;
 using Sacred.Inventory.Effects;
@@ -62,13 +64,12 @@ public sealed class SceneDebugState
     public bool BlockedAreasVisible { get; set; }
     public bool TerrainTopologyVisible { get; set; }
     public bool TileCoordinatesVisible { get; set; }
-    public bool TownTilesVisible { get; set; }
-    public bool IndoorTilesVisible { get; set; }
-    public bool TriggerTilesVisible { get; set; }
-    public bool RuntimeBlockedTilesVisible { get; set; }
+    public WorldPathFlags VisiblePathFlags { get; set; }
+    public WldxTileFlags VisibleTileFlags { get; set; }
+    public WldxTerrainSurface VisibleSurfaceFlags { get; set; }
+    public SectorEnvironmentFlags VisibleSectorFlags { get; set; }
+    public StaticObjectFlags VisibleStaticObjectFlags { get; set; }
     public bool MovementFlagTilesVisible { get; set; }
-    public bool ShadowableTilesVisible { get; set; }
-    public bool ModelFadeTilesVisible { get; set; }
     public bool EntranceTilesVisible { get; set; }
     public bool TerrainSurfacesVisible { get; set; }
     public bool VisualElevationVisible { get; set; }

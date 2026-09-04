@@ -8,7 +8,13 @@ namespace Sacred.Core.World.Sector;
 public enum SectorEnvironmentFlags : byte
 {
     None = 0,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal byte value.</summary>
+    Byte01 = 0x01,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal byte value.</summary>
+    Byte02 = 0x02,
     Dungeon = 0x04,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal byte value.</summary>
+    Byte08 = 0x08,
     NorthBoundary = 0x10,
     EastBoundary = 0x20,
     SouthBoundary = 0x40,

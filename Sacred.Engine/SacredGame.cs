@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Core;
@@ -18,6 +19,7 @@ public sealed class SacredGame : IDisposable
     private readonly SceneManager _scenes = new();
     private readonly FramePacingController _framePacing;
     private readonly SacredGameRuntime _runtime;
+    private double _lastCompletedFrameTimeMilliseconds;
     private bool _disposed;
 
     public SacredGame(SacredGameDirectories gameDirectories, SacredGameSaveState? saveState = null)
@@ -80,10 +82,13 @@ public sealed class SacredGame : IDisposable
         while (!cancellationToken.IsCancellationRequested)
         {
             WaitForFrameStart(frameId, cancellationToken);
+            var frameStartTimestamp = Stopwatch.GetTimestamp();
             if (!_window.ProcessMessages())
                 break;
 
             await Update(frameId, cancellationToken);
+            _lastCompletedFrameTimeMilliseconds =
+                Stopwatch.GetElapsedTime(frameStartTimestamp).TotalMilliseconds;
             frameId++;
         }
     }
@@ -91,7 +96,7 @@ public sealed class SacredGame : IDisposable
     private async ValueTask Update(ulong frameId, CancellationToken cancellationToken)
     {
         var deltaSeconds = _framePacing.Tick();
-        _renderer.BeginDebugUiFrame(deltaSeconds);
+        _renderer.BeginDebugUiFrame(deltaSeconds, _lastCompletedFrameTimeMilliseconds);
         _latency.Mark(LatencyMarker.SimulationStart, frameId);
         if (_window.Input.HasPendingLeftClick)
             _latency.Mark(LatencyMarker.LeftMouseButtonClick, frameId);

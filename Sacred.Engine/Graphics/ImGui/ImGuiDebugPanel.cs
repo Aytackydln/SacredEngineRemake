@@ -17,13 +17,7 @@ internal sealed class ImGuiDebugPanel(
     Dx12DeviceContext graphics,
     DebugUiControlState controls)
 {
-    private static readonly Vector4 TownColour = new(0.30f, 1.00f, 0.35f, 0.95f);
-    private static readonly Vector4 IndoorColour = new(0.25f, 0.65f, 1.00f, 0.95f);
-    private static readonly Vector4 TriggerColour = new(1.00f, 0.78f, 0.15f, 0.95f);
-    private static readonly Vector4 RuntimeBlockedColour = new(1.00f, 0.25f, 0.70f, 0.95f);
     private static readonly Vector4 PropertyColour = new(0.94f, 0.55f, 0.20f, 0.95f);
-    private static readonly Vector4 ShadowableColour = new(0.66f, 0.48f, 1.00f, 0.95f);
-    private static readonly Vector4 FadeColour = new(0.20f, 0.92f, 0.88f, 0.95f);
     private static readonly Vector4 EntranceColour = new(1.00f, 1.00f, 1.00f, 0.95f);
 
     public void Build(
@@ -108,6 +102,15 @@ internal sealed class ImGuiDebugPanel(
                 value => scene.Debug.WorldLightBoundsVisible = value);
             Checkbox("Static sprite bounds and anchors", scene.Debug.StaticSpriteBoundsVisible,
                 value => scene.Debug.StaticSpriteBoundsVisible = value);
+            DearImGui.Separator();
+            DearImGui.TextDisabled("Static.pak bytes 0x08-0x0B object flags");
+            foreach (var option in WorldDebugFlagCatalog.StaticFlags)
+            {
+                FlagCheckbox(
+                    option,
+                    scene.Debug.VisibleStaticObjectFlags,
+                    value => scene.Debug.VisibleStaticObjectFlags = value);
+            }
         }
         if (DearImGui.CollapsingHeader("Controls"))
             DrawControls();
@@ -118,7 +121,7 @@ internal sealed class ImGuiDebugPanel(
     private static void DrawPerformance(Dx12DebugOverlayStats stats, double fps)
     {
         DearImGui.Text($"Frame rate      {fps:0.0} FPS");
-        DearImGui.Text($"Frame time      {(fps > 0.0 ? 1000.0 / fps : 0.0):0.00} ms");
+        DearImGui.Text($"Frame time      {stats.FrameTimeMilliseconds:0.00} ms");
         DearImGui.Text($"Pacing          {stats.FramePacingStatus}");
     }
 
@@ -163,25 +166,27 @@ internal sealed class ImGuiDebugPanel(
         Checkbox("Sector bounds", debug.SectorBoundsVisible,
             value => debug.SectorBoundsVisible = value);
 
-        DearImGui.Separator();
-        DearImGui.TextDisabled("WLDX byte 0x1E path flags");
-        ColouredCheckbox("Town", TownColour, debug.TownTilesVisible,
-            value => debug.TownTilesVisible = value);
-        ColouredCheckbox("Indoor", IndoorColour, debug.IndoorTilesVisible,
-            value => debug.IndoorTilesVisible = value);
-        ColouredCheckbox("Trigger", TriggerColour, debug.TriggerTilesVisible,
-            value => debug.TriggerTilesVisible = value);
-        ColouredCheckbox("Runtime blocked", RuntimeBlockedColour, debug.RuntimeBlockedTilesVisible,
-            value => debug.RuntimeBlockedTilesVisible = value);
+        DearImGui.TextDisabled("KEYX byte 0x1CC sector flags");
+        foreach (var option in WorldDebugFlagCatalog.SectorFlags)
+            FlagCheckbox(option, debug.VisibleSectorFlags, value => debug.VisibleSectorFlags = value);
 
         DearImGui.Separator();
-        DearImGui.TextDisabled("WLDX byte 0x1F tile properties");
+        DearImGui.TextDisabled("WLDX byte 0x1E path flags");
+        foreach (var option in WorldDebugFlagCatalog.PathFlags)
+            FlagCheckbox(option, debug.VisiblePathFlags, value => debug.VisiblePathFlags = value);
+
+        DearImGui.Separator();
+        DearImGui.TextDisabled("WLDX byte 0x1F low-nibble flags");
+        foreach (var option in WorldDebugFlagCatalog.TileFlags)
+            FlagCheckbox(option, debug.VisibleTileFlags, value => debug.VisibleTileFlags = value);
+
+        DearImGui.TextDisabled("WLDX byte 0x1F high-nibble surface flags");
+        foreach (var option in WorldDebugFlagCatalog.SurfaceFlags)
+            FlagCheckbox(option, debug.VisibleSurfaceFlags, value => debug.VisibleSurfaceFlags = value);
+
+        DearImGui.TextDisabled("WLDX byte 0x1F interpreted values");
         ColouredCheckbox("Exact movement-blocker values", PropertyColour, debug.MovementFlagTilesVisible,
             value => debug.MovementFlagTilesVisible = value);
-        ColouredCheckbox("Shadowable", ShadowableColour, debug.ShadowableTilesVisible,
-            value => debug.ShadowableTilesVisible = value);
-        ColouredCheckbox("Fade models behind", FadeColour, debug.ModelFadeTilesVisible,
-            value => debug.ModelFadeTilesVisible = value);
         ColouredCheckbox("Entrance / exterior boundary", EntranceColour, debug.EntranceTilesVisible,
             value => debug.EntranceTilesVisible = value);
         Checkbox("Terrain-surface values", debug.TerrainSurfacesVisible,
@@ -227,6 +232,29 @@ internal sealed class ImGuiDebugPanel(
         DearImGui.PushStyleColor(ImGuiCol.CheckMark, colour);
         Checkbox(label, current, setter);
         DearImGui.PopStyleColor();
+    }
+
+    private static void FlagCheckbox<T>(
+        WorldDebugFlagOption<T> option,
+        T currentFlags,
+        Action<T> setter)
+        where T : struct, Enum
+    {
+        var enabled = currentFlags.HasFlag(option.Flag);
+        ColouredCheckbox(
+            option.Label,
+            option.Colour,
+            enabled,
+            value => setter(SetFlag(currentFlags, option.Flag, value)));
+    }
+
+    private static T SetFlag<T>(T currentFlags, T flag, bool enabled)
+        where T : struct, Enum
+    {
+        var current = Convert.ToUInt64(currentFlags);
+        var value = Convert.ToUInt64(flag);
+        var updated = enabled ? current | value : current & ~value;
+        return (T)Enum.ToObject(typeof(T), updated);
     }
 
     private static string FormatActiveModel(SceneState scene)

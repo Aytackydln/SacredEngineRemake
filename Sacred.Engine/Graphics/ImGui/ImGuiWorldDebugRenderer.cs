@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using ImGuiNET;
+using Sacred.Core.World;
 using Sacred.Core.World.Lighting;
 using Sacred.Core.World.Pathing;
 using Sacred.Core.World.Sector;
@@ -16,13 +17,9 @@ namespace Sacred.Engine.Graphics.ImGui;
 /// <summary>Projects decoded world records into interactive screen-space debug guides.</summary>
 internal static class ImGuiWorldDebugRenderer
 {
-    private static readonly Vector4 TownColour = new(0.30f, 1.00f, 0.35f, 0.95f);
-    private static readonly Vector4 IndoorColour = new(0.25f, 0.65f, 1.00f, 0.95f);
-    private static readonly Vector4 TriggerColour = new(1.00f, 0.78f, 0.15f, 0.95f);
-    private static readonly Vector4 RuntimeBlockedColour = new(1.00f, 0.25f, 0.70f, 0.95f);
+    private const float StaticObjectShiftX = 47.8f;
+    private const float StaticObjectShiftY = -0.3f;
     private static readonly Vector4 PropertyColour = new(0.94f, 0.55f, 0.20f, 0.95f);
-    private static readonly Vector4 ShadowableColour = new(0.66f, 0.48f, 1.00f, 0.95f);
-    private static readonly Vector4 FadeColour = new(0.20f, 0.92f, 0.88f, 0.95f);
     private static readonly Vector4 EntranceColour = new(1.00f, 1.00f, 1.00f, 0.95f);
 
     public static void Draw(
@@ -48,20 +45,27 @@ internal static class ImGuiWorldDebugRenderer
             DrawTileDiagnostics(drawList, transform, world, debug, renderWidth, renderHeight);
         if (debug.SectorBoundsVisible)
             DrawSectorBounds(drawList, transform, world);
+        if (debug.VisibleSectorFlags != SectorEnvironmentFlags.None)
+            DrawSectorFlagDiagnostics(drawList, transform, world, debug);
         if (debug.WorldLightBoundsVisible)
             DrawLightBounds(drawList, transform, worldLights);
         if (debug.StaticSpriteBoundsVisible)
             DrawStaticBounds(drawList, transform, staticSprites);
+        if (debug.VisibleStaticObjectFlags != StaticObjectFlags.None)
+            DrawStaticFlagDiagnostics(drawList, transform, world, debug, renderWidth, renderHeight);
     }
 
     private static bool AnyWorldDiagnosticVisible(SceneDebugState debug) =>
         AnyTileDiagnosticVisible(debug) || debug.SectorBoundsVisible ||
-        debug.WorldLightBoundsVisible || debug.StaticSpriteBoundsVisible;
+        debug.VisibleSectorFlags != SectorEnvironmentFlags.None ||
+        debug.WorldLightBoundsVisible || debug.StaticSpriteBoundsVisible ||
+        debug.VisibleStaticObjectFlags != StaticObjectFlags.None;
 
     private static bool AnyTileDiagnosticVisible(SceneDebugState debug) =>
-        debug.TileCoordinatesVisible || debug.TownTilesVisible || debug.IndoorTilesVisible ||
-        debug.TriggerTilesVisible || debug.RuntimeBlockedTilesVisible || debug.MovementFlagTilesVisible ||
-        debug.ShadowableTilesVisible || debug.ModelFadeTilesVisible || debug.EntranceTilesVisible ||
+        debug.TileCoordinatesVisible || debug.VisiblePathFlags != WorldPathFlags.None ||
+        debug.VisibleTileFlags != WldxTileFlags.None ||
+        debug.VisibleSurfaceFlags != WldxTerrainSurface.Default ||
+        debug.MovementFlagTilesVisible || debug.EntranceTilesVisible ||
         debug.TerrainSurfacesVisible || debug.VisualElevationVisible ||
         debug.GameplayElevationVisible || debug.BakedLightingVisible;
 
@@ -82,27 +86,40 @@ internal static class ImGuiWorldDebugRenderer
                 continue;
 
             var tile = sector.Pathing[localX, localY];
-            if (debug.TownTilesVisible && tile.Flags.HasFlag(WorldPathFlags.Town))
-                AddQuad(drawList, points, TownColour, 2.2f);
-            if (debug.IndoorTilesVisible && tile.Flags.HasFlag(WorldPathFlags.Indoor))
-                AddQuad(drawList, points, IndoorColour, 2.2f);
-            if (debug.TriggerTilesVisible && tile.Flags.HasFlag(WorldPathFlags.Trigger))
-                AddQuad(drawList, points, TriggerColour, 2.2f);
-            if (debug.RuntimeBlockedTilesVisible && tile.Flags.HasFlag(WorldPathFlags.RuntimeBlocked))
-                AddQuad(drawList, points, RuntimeBlockedColour, 2.2f);
+            var rawFlagMatched = false;
+            foreach (var option in WorldDebugFlagCatalog.PathFlags)
+            {
+                if (debug.VisiblePathFlags.HasFlag(option.Flag) && tile.Flags.HasFlag(option.Flag))
+                {
+                    AddQuad(drawList, points, option.Colour, 2.2f);
+                    rawFlagMatched = true;
+                }
+            }
+            foreach (var option in WorldDebugFlagCatalog.TileFlags)
+            {
+                if (debug.VisibleTileFlags.HasFlag(option.Flag) && tile.TileFlags.HasFlag(option.Flag))
+                {
+                    AddQuad(drawList, points, option.Colour, 2.2f);
+                    rawFlagMatched = true;
+                }
+            }
+            foreach (var option in WorldDebugFlagCatalog.SurfaceFlags)
+            {
+                if (debug.VisibleSurfaceFlags.HasFlag(option.Flag) && tile.TerrainSurface.HasFlag(option.Flag))
+                {
+                    AddQuad(drawList, points, option.Colour, 2.2f);
+                    rawFlagMatched = true;
+                }
+            }
             if (debug.MovementFlagTilesVisible && tile.Properties.BlocksMovement)
                 AddQuad(drawList, points, PropertyColour, 2.2f);
-            if (debug.ShadowableTilesVisible && tile.Properties.IsShadowable)
-                AddQuad(drawList, points, ShadowableColour, 2.2f);
-            if (debug.ModelFadeTilesVisible && tile.Properties.CanFadeModelsBehind)
-                AddQuad(drawList, points, FadeColour, 2.2f);
             if (debug.EntranceTilesVisible && tile.Properties.IsEntranceBoundary)
                 AddQuad(drawList, points, EntranceColour, 3.0f);
 
             var worldX = sector.Coord.X * Sector.TileCount + localX;
             var worldY = sector.Coord.Y * Sector.TileCount + localY;
             var center = (points.Left + points.Top + points.Right + points.Bottom) * 0.25f;
-            var label = BuildTileLabel(sector, tile, debug, localX, localY, worldX, worldY);
+            var label = BuildTileLabel(sector, tile, debug, rawFlagMatched, localX, localY, worldX, worldY);
             if (label.Length > 0)
                 drawList.AddText(center, Colour(new Vector4(1.0f, 0.94f, 0.72f, 1.0f)), label);
 
@@ -115,6 +132,7 @@ internal static class ImGuiWorldDebugRenderer
         Sector sector,
         WorldPathTile tile,
         SceneDebugState debug,
+        bool rawFlagMatched,
         int localX,
         int localY,
         int worldX,
@@ -123,6 +141,8 @@ internal static class ImGuiWorldDebugRenderer
         var label = string.Empty;
         if (debug.TileCoordinatesVisible)
             label = $"{worldX},{worldY}";
+        if (rawFlagMatched)
+            label = Append(label, $"F:{(byte)tile.Flags:X2}/{tile.Properties}");
         if (debug.TerrainSurfacesVisible)
             label = Append(label, $"S:{(byte)tile.TerrainSurface:X2}");
         if (debug.VisualElevationVisible)
@@ -208,6 +228,52 @@ internal static class ImGuiWorldDebugRenderer
         }
     }
 
+    private static void DrawSectorFlagDiagnostics(
+        ImDrawListPtr drawList,
+        WorldScreenTransform transform,
+        VisibleWorld world,
+        SceneDebugState debug)
+    {
+        foreach (var sector in world.Sectors)
+        {
+            var x = sector.Coord.X * Sector.TileCount;
+            var y = sector.Coord.Y * Sector.TileCount;
+            var northIso = IsometricProjection.WorldToIso(x, y);
+            var eastIso = IsometricProjection.WorldToIso(x + Sector.TileCount, y);
+            var southIso = IsometricProjection.WorldToIso(x + Sector.TileCount, y + Sector.TileCount);
+            var westIso = IsometricProjection.WorldToIso(x, y + Sector.TileCount);
+            var north = transform.ToScreen(northIso.X + 48.0f, northIso.Y);
+            var east = transform.ToScreen(eastIso.X + 48.0f, eastIso.Y);
+            var south = transform.ToScreen(southIso.X + 48.0f, southIso.Y);
+            var west = transform.ToScreen(westIso.X + 48.0f, westIso.Y);
+
+            var matchedFlags = string.Empty;
+            var matchCount = 0;
+            foreach (var option in WorldDebugFlagCatalog.SectorFlags)
+            {
+                if (!debug.VisibleSectorFlags.HasFlag(option.Flag) ||
+                    !sector.EnvironmentFlags.HasFlag(option.Flag))
+                {
+                    continue;
+                }
+
+                drawList.AddQuad(north, east, south, west, Colour(option.Colour), 2.0f + matchCount);
+                matchedFlags = matchedFlags.Length == 0
+                    ? option.Flag.ToString()
+                    : matchedFlags + "," + option.Flag;
+                matchCount++;
+            }
+
+            if (matchCount > 0)
+            {
+                drawList.AddText(
+                    north + new Vector2(5.0f, 16.0f),
+                    Colour(new Vector4(1.0f, 0.94f, 0.72f, 1.0f)),
+                    $"KEYX {matchedFlags} 0x{(byte)sector.EnvironmentFlags:X2}");
+            }
+        }
+    }
+
     private static void DrawLightBounds(
         ImDrawListPtr drawList,
         WorldScreenTransform transform,
@@ -244,6 +310,52 @@ internal static class ImGuiWorldDebugRenderer
             drawList.AddRect(topLeft, bottomRight, boundsColour);
             var anchor = transform.ToScreen(sprite.DepthX, sprite.DepthY);
             drawList.AddCircleFilled(anchor, 3.0f, anchorColour);
+        }
+    }
+
+    private static void DrawStaticFlagDiagnostics(
+        ImDrawListPtr drawList,
+        WorldScreenTransform transform,
+        VisibleWorld world,
+        SceneDebugState debug,
+        int renderWidth,
+        int renderHeight)
+    {
+        foreach (var sector in world.Sectors)
+        foreach (var staticObject in sector.StaticObjects.Objects)
+        {
+            var anchor = transform.ToScreen(
+                staticObject.ProjectedX + StaticObjectShiftX,
+                staticObject.ProjectedY + StaticObjectShiftY);
+            if (anchor.X < 0.0f || anchor.X > renderWidth || anchor.Y < 0.0f || anchor.Y > renderHeight)
+                continue;
+
+            var matchedFlags = string.Empty;
+            var ringIndex = 0;
+            foreach (var option in WorldDebugFlagCatalog.StaticFlags)
+            {
+                if (!debug.VisibleStaticObjectFlags.HasFlag(option.Flag) ||
+                    !staticObject.Flags.HasFlag(option.Flag))
+                {
+                    continue;
+                }
+
+                drawList.AddCircle(anchor, 6.0f + ringIndex * 3.0f, Colour(option.Colour), 16, 2.0f);
+                matchedFlags = matchedFlags.Length == 0
+                    ? option.Flag.ToString()
+                    : matchedFlags + "," + option.Flag;
+                ringIndex++;
+            }
+
+            if (ringIndex == 0)
+                continue;
+
+            drawList.AddCircleFilled(anchor, 2.5f, Colour(new Vector4(1.0f, 1.0f, 1.0f, 1.0f)));
+            drawList.AddText(
+                anchor + new Vector2(8.0f, 4.0f + ringIndex * 3.0f),
+                Colour(new Vector4(1.0f, 0.94f, 0.72f, 1.0f)),
+                $"static {staticObject.StaticId} type {staticObject.TypeId} part {staticObject.ChainDepth}\n" +
+                $"{matchedFlags} 0x{(uint)staticObject.Flags:X8}");
         }
     }
 

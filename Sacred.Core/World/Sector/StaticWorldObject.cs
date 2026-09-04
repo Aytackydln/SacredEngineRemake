@@ -25,6 +25,9 @@ public readonly record struct StaticWorldObject(
     public byte MiniObjectSourceSize => OrientationOrFrame;
     public byte MiniObjectFrameDurationTicks => AnimationFrameDurationTicks;
     public byte MiniObjectFrameCount => AnimationFrameCount;
-    public bool UsesAlternateSurface =>
-        (Flags & StaticObjectFlags.AlternateSurface) != 0;
+    public bool UsesAlternateSurface => Flags.HasFlag(StaticObjectFlags.AlternateSurface);
+    public bool IsExcludedFromNormalRender =>
+        Flags.HasFlag(StaticObjectFlags.Byte00000010) ||
+        Flags.HasFlag(StaticObjectFlags.Byte00000080) ||
+        Flags.HasFlag(StaticObjectFlags.Byte00000200);
 }

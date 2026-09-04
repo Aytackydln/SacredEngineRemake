@@ -7,12 +7,70 @@ namespace Sacred.Core.World;
 public enum StaticObjectFlags : uint
 {
     None = 0,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte00000001 = 0x0000_0001,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte00000002 = 0x0000_0002,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte00000004 = 0x0000_0004,
     AlternateSurface = 0x0000_0008,
+    /// <summary>Unresolved flag bit used by Sacred.exe's normal-render exclusion test.</summary>
+    Byte00000010 = 0x0000_0010,
     RearLayerBackground = 0x0000_0020,
     NightOnly = 0x0000_0040,
+    /// <summary>Unresolved flag bit used by Sacred.exe's normal-render exclusion test.</summary>
+    Byte00000080 = 0x0000_0080,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte00000100 = 0x0000_0100,
+    /// <summary>Unresolved flag bit used by Sacred.exe's normal-render exclusion test.</summary>
+    Byte00000200 = 0x0000_0200,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte00000400 = 0x0000_0400,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte00000800 = 0x0000_0800,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte00001000 = 0x0000_1000,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte00002000 = 0x0000_2000,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte00004000 = 0x0000_4000,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte00008000 = 0x0000_8000,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte00010000 = 0x0001_0000,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte00020000 = 0x0002_0000,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte00040000 = 0x0004_0000,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte00080000 = 0x0008_0000,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte00100000 = 0x0010_0000,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte00200000 = 0x0020_0000,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte00400000 = 0x0040_0000,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte00800000 = 0x0080_0000,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte01000000 = 0x0100_0000,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte02000000 = 0x0200_0000,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte04000000 = 0x0400_0000,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte08000000 = 0x0800_0000,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte10000000 = 0x1000_0000,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte20000000 = 0x2000_0000,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte40000000 = 0x4000_0000,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte80000000 = 0x8000_0000,
 
     /// <summary>Composite mask of objects excluded from the normal static-sprite pass.</summary>
-    NormalRenderExclusionMask = 0x0000_0290,
+    NormalRenderExclusionMask = Byte00000010 | Byte00000080 | Byte00000200,
 }
 
 /// <summary>One linked static-world object record stored in <c>Static.pak</c>.</summary>

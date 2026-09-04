@@ -53,7 +53,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
             candidateObjects += sector.StaticObjects.Count;
             foreach (var staticObject in sector.StaticObjects.Objects)
             {
-                if ((staticObject.Flags & StaticObjectFlags.NormalRenderExclusionMask) != 0)
+                if (staticObject.IsExcludedFromNormalRender)
                 {
                     continue;
                 }
@@ -133,7 +133,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                     continue;
                 }
 
-                if ((staticObject.Flags & StaticObjectFlags.NightOnly) != 0 &&
+                if (staticObject.Flags.HasFlag(StaticObjectFlags.NightOnly) &&
                     !nightObjectsVisible &&
                     sprite.FrameCount <= 1)
                     continue;
@@ -335,12 +335,12 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
         var category = item?.Category ?? SacredItemCategory.Unspecified;
         if (category == SacredItemCategory.Effect)
         {
-            if ((graphicFlags & SacredItemGraphicFlags.FrontLayer) != 0)
+            if (graphicFlags.HasFlag(SacredItemGraphicFlags.FrontLayer))
                 return 4;
             return 3;
         }
 
-        return (graphicFlags & SacredItemGraphicFlags.FrontLayer) != 0 ? 4 : 3;
+        return graphicFlags.HasFlag(SacredItemGraphicFlags.FrontLayer) ? 4 : 3;
     }
 }
 

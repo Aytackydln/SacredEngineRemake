@@ -36,6 +36,7 @@ internal sealed class Dx12WorldPass : IDisposable
     private readonly ImGuiDebugPanel _debugPanel;
     private readonly Dx12WorldCommandRecorder _commandRecorder;
     private readonly Stack<int> _freeModelSrvSlots = new();
+    private double _lastCompletedFrameTimeMilliseconds;
     private TaskCompletionSource? _preparationCompletion;
 
     public Dx12WorldPass(
@@ -144,8 +145,11 @@ internal sealed class Dx12WorldPass : IDisposable
         return _preparationCompletion.Task;
     }
 
-    public void BeginDebugUiFrame(float deltaSeconds) =>
+    public void BeginDebugUiFrame(float deltaSeconds, double lastCompletedFrameTimeMilliseconds)
+    {
+        _lastCompletedFrameTimeMilliseconds = lastCompletedFrameTimeMilliseconds;
         _imgui.BeginFrame(deltaSeconds, _graphics.RenderWidth, _graphics.RenderHeight);
+    }
 
     public void DiscardDebugUiFrame() => _imgui.DiscardFrame();
 
@@ -221,6 +225,7 @@ internal sealed class Dx12WorldPass : IDisposable
             _lightHalos.CandidateCount,
             _lightHalos.InstanceCount,
             _lightHalos.SurfaceLightCount,
+            _lastCompletedFrameTimeMilliseconds,
             framePacingStatus);
         _debugOverlay.Update(
             camera,

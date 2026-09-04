@@ -158,12 +158,12 @@ public sealed class DayWorldRasterizer(
         foreach (var staticObject in sector.StaticObjects.Objects)
         {
             candidates++;
-            if ((staticObject.Flags & StaticObjectFlags.NormalRenderExclusionMask) != 0 ||
+            if (staticObject.IsExcludedFromNormalRender ||
                 staticObject.SurfaceRenderLayer > ExteriorActiveLayer)
                 continue;
             var item = staticSprites!.GetItem(staticObject.TypeId);
             if (item is null ||
-                (staticObject.Flags & StaticObjectFlags.NightOnly) != 0 &&
+                staticObject.Flags.HasFlag(StaticObjectFlags.NightOnly) &&
                 item.Value.StaticSpriteFrameCount <= 1)
                 continue;
 
@@ -211,11 +211,11 @@ public sealed class DayWorldRasterizer(
     {
         if (category == SacredItemCategory.Effect)
         {
-            if ((graphicFlags & SacredItemGraphicFlags.FrontLayer) != 0)
+            if (graphicFlags.HasFlag(SacredItemGraphicFlags.FrontLayer))
                 return 4;
             return 3;
         }
-        return (graphicFlags & SacredItemGraphicFlags.FrontLayer) != 0 ? 4 : 3;
+        return graphicFlags.HasFlag(SacredItemGraphicFlags.FrontLayer) ? 4 : 3;
     }
 
     private static int CompareStaticDraws(StaticDraw left, StaticDraw right)

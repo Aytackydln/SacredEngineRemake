@@ -6,7 +6,7 @@ namespace Sacred.Core.World.Sector;
 
 public sealed class Sector(
     SectorCoord coord,
-    WorldZone zone,
+    SectorEnvironmentFlags environmentFlags,
     TileLayer ground,
     FloorOverlayLayer floorOverlays,
     LiquidSurfaceLayer liquidSurfaces,
@@ -21,7 +21,10 @@ public sealed class Sector(
     public const int TileCount = 64;
 
     public SectorCoord Coord { get; } = coord;
-    public WorldZone Zone { get; } = zone;
+    public SectorEnvironmentFlags EnvironmentFlags { get; } = environmentFlags;
+    public WorldZone Zone => EnvironmentFlags.HasFlag(SectorEnvironmentFlags.Dungeon)
+        ? WorldZone.Cave
+        : WorldZone.Outdoors;
     public TileLayer Ground { get; } = ground;
     public FloorOverlayLayer FloorOverlays { get; } = floorOverlays;
     public LiquidSurfaceLayer LiquidSurfaces { get; } = liquidSurfaces;

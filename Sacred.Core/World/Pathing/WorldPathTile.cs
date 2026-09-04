@@ -11,6 +11,14 @@ public enum WorldPathFlags : byte
     Town = 0x02,
     Trigger = 0x04,
     RuntimeBlocked = 0x08,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal byte value.</summary>
+    Byte10 = 0x10,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal byte value.</summary>
+    Byte20 = 0x20,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal byte value.</summary>
+    Byte40 = 0x40,
+    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal byte value.</summary>
+    Byte80 = 0x80,
 }
 
 /// <summary>

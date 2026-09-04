@@ -182,8 +182,8 @@ public sealed class Dx12Renderer : IDisposable
         _graphics.AcquireFrame(cancellationToken, _releaseRetiredResources);
     }
 
-    internal void BeginDebugUiFrame(float deltaSeconds) =>
-        _worldPass?.BeginDebugUiFrame(deltaSeconds);
+    internal void BeginDebugUiFrame(float deltaSeconds, double lastCompletedFrameTimeMilliseconds) =>
+        _worldPass?.BeginDebugUiFrame(deltaSeconds, lastCompletedFrameTimeMilliseconds);
 
     public bool ToggleHdr()
     {
