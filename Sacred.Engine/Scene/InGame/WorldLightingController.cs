@@ -178,7 +178,6 @@ public sealed class WorldLightingController
             Vector3.One,
             new Vector3(0.48f, 0.49f, 0.52f),
             blend);
-        lighting.UnlitStaticSpriteWhiteNits = SceneLighting.DefaultUnlitStaticSpriteWhiteNits;
         lighting.NightBlend = blend;
     }
 
@@ -217,7 +216,6 @@ public sealed class WorldLightingController
         lighting.DiffuseIntensity = 0;
         lighting.SpecularIntensity = 0;
         lighting.WorldSurfaceAmbientColour = Vector3.Zero;
-        lighting.UnlitStaticSpriteWhiteNits = SceneLighting.DefaultUnlitStaticSpriteWhiteNits;
         lighting.NightBlend = 1;
         lighting.ShadowOpacity = 0;
         lighting.ShadowMode = SceneShadowMode.None;

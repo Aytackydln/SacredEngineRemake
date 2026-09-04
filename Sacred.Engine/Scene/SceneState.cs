@@ -57,15 +57,31 @@ public sealed class MinimapOverlayState
 public sealed class SceneDebugState
 {
     public bool OverlaysVisible { get; set; } = true;
+    public bool PanelVisible { get; set; }
     public bool StairsMapVisible { get; set; }
     public bool BlockedAreasVisible { get; set; }
     public bool TerrainTopologyVisible { get; set; }
+    public bool TileCoordinatesVisible { get; set; }
+    public bool TownTilesVisible { get; set; }
+    public bool IndoorTilesVisible { get; set; }
+    public bool TriggerTilesVisible { get; set; }
+    public bool RuntimeBlockedTilesVisible { get; set; }
+    public bool MovementFlagTilesVisible { get; set; }
+    public bool ShadowableTilesVisible { get; set; }
+    public bool ModelFadeTilesVisible { get; set; }
+    public bool EntranceTilesVisible { get; set; }
+    public bool TerrainSurfacesVisible { get; set; }
+    public bool VisualElevationVisible { get; set; }
+    public bool GameplayElevationVisible { get; set; }
+    public bool BakedLightingVisible { get; set; }
+    public bool SectorBoundsVisible { get; set; }
+    public bool WorldLightBoundsVisible { get; set; }
+    public bool StaticSpriteBoundsVisible { get; set; }
     public float ActorTerrainHeight { get; set; }
 }
 
 public sealed class SceneLighting
 {
-    public const float DefaultUnlitStaticSpriteWhiteNits = 380.0f;
     public static readonly Vector3 DefaultLocalLightColour = new(1.0f, 0.89f, 0.55f);
 
     public Vector3 LightPosition { get; set; } = new(0.0f, 250.0f, 650.0f);
@@ -78,7 +94,6 @@ public sealed class SceneLighting
     public float SpecularIntensity { get; set; } = 0.20f;
     public float Shininess { get; set; } = 24.0f;
     public Vector3 WorldSurfaceAmbientColour { get; set; } = Vector3.One;
-    public float UnlitStaticSpriteWhiteNits { get; set; } = DefaultUnlitStaticSpriteWhiteNits;
     public float NightBlend { get; set; }
     public float PlayerLightDiameter { get; set; }
     public Vector3 PlayerLightColour { get; set; } = Vector3.One;

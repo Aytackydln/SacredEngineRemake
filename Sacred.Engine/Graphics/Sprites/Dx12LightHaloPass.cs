@@ -28,6 +28,8 @@ internal sealed class Dx12LightHaloPass : IDisposable
     private readonly CpuDescriptorHandle _haloTextureCpuHandle;
     private readonly GpuDescriptorHandle _haloTextureGpuHandle;
     private readonly LightHaloFrameState[] _frameStates;
+    private readonly List<VisibleSurfaceLight> _visibleSurfaceLights =
+        new(MaximumSurfaceIlluminationLights);
 
     private ID3D12RootSignature? _rootSignature;
     private ID3D12PipelineState? _pipeline;
@@ -179,7 +181,7 @@ internal sealed class Dx12LightHaloPass : IDisposable
         // per-pixel loop. Keep every visible source up to the shader maximum;
         // the player lamp occupies a protected first slot.
         var surfaceBudget = MaximumSurfaceIlluminationLights - instanceCount;
-        var visibleSurfaceLights = new List<VisibleSurfaceLight>(Math.Min(lights.Count, surfaceBudget));
+        _visibleSurfaceLights.Clear();
         for (var index = 0; index < lights.Count; index++)
         {
             var light = lights[index];
@@ -191,15 +193,15 @@ internal sealed class Dx12LightHaloPass : IDisposable
             if (!IntersectsViewport(drawPosition, diameter, renderWidth, renderHeight))
                 continue;
 
-            visibleSurfaceLights.Add(new VisibleSurfaceLight(light, drawPosition, diameter,
+            _visibleSurfaceLights.Add(new VisibleSurfaceLight(light, drawPosition, diameter,
                 CalculateSurfacePriority(drawPosition, diameter, light.Opacity, renderWidth, renderHeight)));
         }
 
-        visibleSurfaceLights.Sort(static (left, right) => right.Priority.CompareTo(left.Priority));
-        var selectedSurfaceLightCount = Math.Min(visibleSurfaceLights.Count, Math.Max(0, surfaceBudget));
+        _visibleSurfaceLights.Sort(static (left, right) => right.Priority.CompareTo(left.Priority));
+        var selectedSurfaceLightCount = Math.Min(_visibleSurfaceLights.Count, Math.Max(0, surfaceBudget));
         for (var index = 0; index < selectedSurfaceLightCount; index++)
         {
-            var visibleLight = visibleSurfaceLights[index];
+            var visibleLight = _visibleSurfaceLights[index];
             var light = visibleLight.Light;
             instances[instanceCount++] = new LightHaloInstance(
                 visibleLight.DrawPosition.X,

@@ -7,9 +7,9 @@ using System.IO;
 using System.Numerics;
 using System.Text;
 using Sacred.Engine;
+using Sacred.Engine.Graphics;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Scene.InGame;
-using Sacred.Granny;
 using Sacred.Granny.Abstractions;
 
 namespace SacredRemake;
@@ -19,6 +19,11 @@ internal static class SacredEngineRemakeConfig
     private const string FileName = "SacredEngineRemake.cfg";
 
     private const string HdrKey = "HDR";
+    private const string HdrSceneBrightnessKey = "HDR_SCENE_BRIGHTNESS_NITS";
+    private const string HdrUiBrightnessKey = "HDR_UI_BRIGHTNESS_NITS";
+    private const string HdrSunDiffuseKey = "HDR_SUN_DIFFUSE_NITS";
+    private const string HdrSunSpecularKey = "HDR_SUN_SPECULAR_NITS";
+    private const string HdrUnlitSpriteKey = "HDR_UNLIT_SPRITE_NITS";
     private const string BorderlessFullscreenKey = "BORDERLESS_FULLSCREEN";
     private const string WindowedWidthKey = "WINDOWED_WIDTH";
     private const string WindowedHeightKey = "WINDOWED_HEIGHT";
@@ -53,6 +58,19 @@ internal static class SacredEngineRemakeConfig
                 WindowedWidth = ReadPositiveInteger(values, WindowedWidthKey, 1600),
                 WindowedHeight = ReadPositiveInteger(values, WindowedHeightKey, 900),
                 HdrEnabled = ReadBoolean(values, HdrKey),
+                HdrBrightness = new HdrBrightnessSettings
+                {
+                    SceneBrightnessNits = ReadFiniteFloat(
+                        values, HdrSceneBrightnessKey, HdrBrightnessSettings.DefaultSceneBrightnessNits),
+                    UiBrightnessNits = ReadFiniteFloat(
+                        values, HdrUiBrightnessKey, HdrBrightnessSettings.DefaultUiBrightnessNits),
+                    SunDiffuseNits = ReadFiniteFloat(
+                        values, HdrSunDiffuseKey, HdrBrightnessSettings.DefaultSunDiffuseNits),
+                    SunSpecularNits = ReadFiniteFloat(
+                        values, HdrSunSpecularKey, HdrBrightnessSettings.DefaultSunSpecularNits),
+                    UnlitSpriteNits = ReadFiniteFloat(
+                        values, HdrUnlitSpriteKey, HdrBrightnessSettings.DefaultUnlitSpriteNits)
+                },
                 FramePacingMode = ReadEnum(values, FramePacingKey, FramePacingMode.VariableRefreshRate),
                 LowLatencyMode = ReadEnum(values, LowLatencyKey, LowLatencyMode.On),
                 GrannyBackend = ReadEnum(values, GrannyBackendKey, GrnBackendKind.ManagedParser),
@@ -119,6 +137,11 @@ internal static class SacredEngineRemakeConfig
             $"{WindowedWidthKey} : {state.WindowedWidth}",
             $"{WindowedHeightKey} : {state.WindowedHeight}",
             $"{HdrKey} : {FormatBoolean(state.HdrEnabled)}",
+            $"{HdrSceneBrightnessKey} : {FormatFloat(state.HdrBrightness.SceneBrightnessNits)}",
+            $"{HdrUiBrightnessKey} : {FormatFloat(state.HdrBrightness.UiBrightnessNits)}",
+            $"{HdrSunDiffuseKey} : {FormatFloat(state.HdrBrightness.SunDiffuseNits)}",
+            $"{HdrSunSpecularKey} : {FormatFloat(state.HdrBrightness.SunSpecularNits)}",
+            $"{HdrUnlitSpriteKey} : {FormatFloat(state.HdrBrightness.UnlitSpriteNits)}",
             $"{FramePacingKey} : {state.FramePacingMode}",
             $"{LowLatencyKey} : {state.LowLatencyMode}",
             $"{GrannyBackendKey} : {state.GrannyBackend}",
@@ -193,10 +216,18 @@ internal static class SacredEngineRemakeConfig
                float.IsFinite(value);
     }
 
+    private static float ReadFiniteFloat(
+        IReadOnlyDictionary<string, string> values,
+        string key,
+        float fallback) =>
+        TryReadFiniteFloat(values, key, out var value) ? value : fallback;
+
     private static int FormatBoolean(bool value) => value ? 1 : 0;
 
     private static string FormatLocationComponent(float? value) =>
         value?.ToString("R", CultureInfo.InvariantCulture) ?? string.Empty;
+
+    private static string FormatFloat(float value) => value.ToString("R", CultureInfo.InvariantCulture);
 
     private static string SanitizeLineValue(string? value) =>
         (value ?? string.Empty).Replace('\r', ' ').Replace('\n', ' ').Trim();

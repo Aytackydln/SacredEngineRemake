@@ -23,6 +23,9 @@ internal static class Dx12RendererPipelineFactory
             Dx12ShaderCompiler.CompileShader),
         Dx12PipelineFactory.Compile(
             Dx12PipelineCatalog.CreateModels(shaders, new Dx12ModelPipelineOptions { HdrOutput = hdrOutput }),
+            Dx12ShaderCompiler.CompileShader),
+        Dx12PipelineFactory.Compile(
+            Dx12PipelineCatalog.CreateImGui(hdrOutput),
             Dx12ShaderCompiler.CompileShader));
 
     public static Dx12CreatedPipelineGroup Create(
@@ -37,4 +40,5 @@ internal sealed record Dx12CompiledRendererPipelines(
     Dx12CompiledPipelineGroup Terrain,
     Dx12CompiledPipelineGroup StaticSprites,
     Dx12CompiledPipelineGroup LightHalos,
-    Dx12CompiledPipelineGroup Models);
+    Dx12CompiledPipelineGroup Models,
+    Dx12CompiledPipelineGroup ImGui);

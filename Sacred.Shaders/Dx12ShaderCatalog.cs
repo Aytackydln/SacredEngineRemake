@@ -32,6 +32,8 @@ public static class Dx12ShaderCatalog
         DisplayShader("SacredItemGlow", EmbeddedResource_Shaders.SacredItemGlow_hlsl, "vs_main", "vs_5_0");
     private static readonly Dx12ShaderSource InventoryUiVertexShader =
         DisplayShader("SacredInventoryUi", EmbeddedResource_Shaders.SacredInventoryUi_hlsl, "vs_main", "vs_5_0");
+    internal static readonly Dx12ShaderSource ImGuiVertexShader =
+        DisplayShader("SacredImGui", EmbeddedResource_Shaders.SacredImGui_hlsl, "vs_main", "vs_5_0");
 
     // Sector composition is display-independent; SDR/HDR conversion happens later when the
     // completed sector texture is sampled by the world-quad shader.
@@ -42,6 +44,13 @@ public static class Dx12ShaderCatalog
 
     public static readonly Dx12ShaderSet Sdr = CreateShaderSet("vs_sdr", "ps_sdr");
     public static readonly Dx12ShaderSet Hdr = CreateShaderSet("vs_hdr", "ps_hdr");
+
+    internal static Dx12ShaderSource GetImGuiPixelShader(bool hdrOutput) =>
+        DisplayShader(
+            "SacredImGui",
+            EmbeddedResource_Shaders.SacredImGui_hlsl,
+            hdrOutput ? "ps_hdr" : "ps_sdr",
+            "ps_5_0");
 
     /// <summary>Raised after the embedded shader assembly is rebuilt.</summary>
     public static event Action? Reloaded;

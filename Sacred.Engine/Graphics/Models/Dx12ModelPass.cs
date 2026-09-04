@@ -6,9 +6,7 @@ using Sacred.Assets.Paks.Texture;
 using Sacred.Engine.Graphics.Swapchain;
 using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
-using Sacred.Granny;
 using Sacred.Granny.Meshes;
-using Sacred.Inventory.Effects;
 using Sacred.Particles;
 using Sacred.Shaders;
 using Vortice.Direct3D;
@@ -144,7 +142,8 @@ internal sealed class Dx12ModelPass
             if (model.Mesh.Vertices.Length == 0 || model.Mesh.Indices.Length == 0)
                 continue;
 
-            var mesh = _geometryCache.GetOrCreate(model.Mesh, frameIndex);
+            if (!_geometryCache.TryGetOrRequest(model.Mesh, frameIndex, out var mesh))
+                continue;
             var world = model.Transform;
             var worldViewProjection = world * viewProjection;
             var modelSceneDepth = CalculateSceneDepth(camera, model);
@@ -267,7 +266,8 @@ internal sealed class Dx12ModelPass
         if (effects is null || _transparentParticlePipeline is null || _denseParticlePipeline is null || _itemGlowPipeline is null)
             return;
 
-        var mesh = _geometryCache.GetOrCreate(effects.Mesh, frameIndex);
+        if (!_geometryCache.TryGetOrRequest(effects.Mesh, frameIndex, out var mesh))
+            return;
         var vertexBufferView = mesh.VertexBufferViews[frameIndex];
         var indexBufferView = mesh.IndexBufferView;
         _commandList.IASetVertexBuffers(0, 1, &vertexBufferView);

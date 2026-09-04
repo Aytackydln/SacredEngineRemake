@@ -144,7 +144,8 @@ internal sealed class Dx12ModelShadowPass
         if (model.Mesh.Vertices.Length == 0 || model.Mesh.Indices.Length == 0)
             return;
 
-        var mesh = _geometryCache.GetOrCreate(model.Mesh, frameIndex);
+        if (!_geometryCache.TryGetOrRequest(model.Mesh, frameIndex, out var mesh))
+            return;
         var constants = stackalloc float[ModelShaderLayout.ModelConstantsCount];
         _shaderConstants.WriteModelBase(
             constants,

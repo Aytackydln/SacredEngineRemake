@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Core.Pak.Items;
+using Sacred.Engine.Graphics.Sprites;
 using Sacred.World.Particles;
 
 namespace Sacred.Engine.Assets;
@@ -88,6 +89,13 @@ internal sealed class MiniObjectSpriteLoader
         {
             var atlas = await _loadTextureAsync(key.TextureId).ConfigureAwait(false);
             sprite = BuildSprite(atlas, key);
+            if (sprite is not null)
+                SpriteTransparentEdgePadding.Apply(
+                    sprite.Rgba,
+                    sprite.AtlasWidth,
+                    sprite.AtlasHeight,
+                    sprite.Width,
+                    sprite.Height);
             if (key.FrameCount > 1)
             {
                 EngineLog.WriteLine(sprite is null

@@ -66,3 +66,13 @@ public static class WorldQuadShaderLayout
     public const int WorldLightBufferRootParameter = 2;
     public const int RootConstantsCount = WorldQuadShaderConstants.FloatCount;
 }
+
+public static class ImGuiShaderLayout
+{
+    public const int ConstantsRegister = 0; // HLSL: register(b0)
+    public const int TextureRegister = 0; // HLSL: register(t0)
+    public const int SamplerRegister = 0; // HLSL: register(s0)
+    public const int ConstantsRootParameter = 0;
+    public const int TextureRootParameter = 1;
+    public const int ConstantsCount = 5;
+}

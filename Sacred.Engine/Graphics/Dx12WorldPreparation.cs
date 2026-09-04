@@ -14,16 +14,18 @@ public readonly record struct WorldPreparationStatus(
     bool SectorImagesBuilt,
     bool SectorImagesUploaded,
     bool SpriteAssetsLoaded,
-    bool SpriteTexturesUploaded)
+    bool SpriteTexturesUploaded,
+    bool ModelGeometryPrepared)
 {
-    public static WorldPreparationStatus NotStarted => new(false, false, false, false, false);
+    public static WorldPreparationStatus NotStarted => new(false, false, false, false, false, false);
 
     public bool IsReady =>
         SectorsLoaded &&
         SectorImagesBuilt &&
         SectorImagesUploaded &&
         SpriteAssetsLoaded &&
-        SpriteTexturesUploaded;
+        SpriteTexturesUploaded &&
+        ModelGeometryPrepared;
 
     public string PendingItem
     {
@@ -34,6 +36,7 @@ public readonly record struct WorldPreparationStatus(
             if (!SpriteAssetsLoaded) return "Loading static objects";
             if (!SectorImagesUploaded) return "Uploading sectors to GPU";
             if (!SpriteTexturesUploaded) return "Uploading static objects to GPU";
+            if (!ModelGeometryPrepared) return "Preparing model geometry";
             return "World ready";
         }
     }

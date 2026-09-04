@@ -230,7 +230,7 @@ internal sealed class PlayerCharacterController : IDisposable
             if (animations is null)
                 return;
 
-            var animation = await Task.Run(
+            var animation = await _assets.ScheduleVisiblePreparation(
                     () =>
                     {
                         cancellationToken.ThrowIfCancellationRequested();
@@ -241,8 +241,7 @@ internal sealed class PlayerCharacterController : IDisposable
                             player.EquipmentEffects);
                         cancellationToken.ThrowIfCancellationRequested();
                         return state;
-                    },
-                    cancellationToken)
+                    })
                 .ConfigureAwait(false);
 
             lock (_requestGate)

@@ -5,7 +5,6 @@ using System.Numerics;
 using System.Threading.Tasks;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Rendering;
-using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
 using Sacred.Shaders;
 using Vortice.Direct3D12;
@@ -16,28 +15,21 @@ public unsafe class Dx12DebugOverlay : IDisposable
 {
     private const int DebugOverlayX = 12;
     private const int DebugOverlayY = 12;
-    private const int ControlsOverlayX = 12;
-    private const int ControlsOverlayBottomMargin = 12;
+    private const int OverlayWidth = 440;
+    private const int OverlayHeight = 52;
 
     private readonly DebugOverlayFontSet _fonts;
     private readonly DebugTextOverlay _debugOverlay;
-    private readonly DebugTextOverlay _controlsOverlay;
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private readonly ID3D12GraphicsCommandList _commandList;
     private readonly Dx12TextureUploader _textureUploader;
-    private readonly TerrainRenderer _terrain;
     private readonly CpuDescriptorHandle _debugOverlayCpuHandle;
     private readonly GpuDescriptorHandle _debugOverlayGpuHandle;
-    private readonly CpuDescriptorHandle _controlsOverlayCpuHandle;
-    private readonly GpuDescriptorHandle _controlsOverlayGpuHandle;
     private readonly WorldQuadShaderConstantsUpdater _worldQuadShaderConstants = new();
 
     private bool _debugOverlayDirty;
-    private bool _controlsOverlayDirty = true;
     private ID3D12Resource? _debugOverlayTexture;
-    private ID3D12Resource? _controlsOverlayTexture;
     private ResourceStates _debugOverlayState = ResourceStates.Common;
-    private ResourceStates _controlsOverlayState = ResourceStates.Common;
 
     private int _framesSinceTitleUpdate;
     private double _lastTitleUpdateSeconds;
@@ -47,43 +39,22 @@ public unsafe class Dx12DebugOverlay : IDisposable
     public Dx12DebugOverlay(
         ID3D12GraphicsCommandList commandList,
         Dx12TextureUploader textureUploader,
-        TerrainRenderer terrain,
-        string gameDirectory,
         CpuDescriptorHandle debugOverlayCpuHandle,
-        GpuDescriptorHandle debugOverlayGpuHandle,
-        CpuDescriptorHandle controlsOverlayCpuHandle,
-        GpuDescriptorHandle controlsOverlayGpuHandle)
+        GpuDescriptorHandle debugOverlayGpuHandle)
     {
         _commandList = commandList;
         _textureUploader = textureUploader;
-        _terrain = terrain;
-        _fonts = DebugOverlayFontSet.Load(gameDirectory);
-        _debugOverlay = new DebugTextOverlay(_fonts);
-        _controlsOverlay = new DebugTextOverlay(_fonts);
+        _fonts = DebugOverlayFontSet.LoadDebug();
+        _debugOverlay = new DebugTextOverlay(_fonts, OverlayWidth, OverlayHeight);
         _debugOverlayCpuHandle = debugOverlayCpuHandle;
         _debugOverlayGpuHandle = debugOverlayGpuHandle;
-        _controlsOverlayCpuHandle = controlsOverlayCpuHandle;
-        _controlsOverlayGpuHandle = controlsOverlayGpuHandle;
-        _controlsOverlay.SetLines(
-        [
-            DebugTextLine.CarolingTitle("CONTROLS"),
-            DebugTextLine.Default("MOVE: WASD, ARROWS, LEFT STICK"),
-            DebugTextLine.Default("CYCLE: MOUSE4/5 OR GAMEPAD B"),
-            DebugTextLine.Default("MINIMAP: HOLD TAB/MIDDLE MOUSE OR GAMEPAD SELECT"),
-            DebugTextLine.Default("WORLD MAP: M OR TAP GAMEPAD SELECT"),
-            DebugTextLine.Default("TOGGLE HDR: F4"),
-            DebugTextLine.Default("FRAME PACING: F5"),
-            DebugTextLine.Default("LOW LATENCY: F6"),
-            DebugTextLine.Default("WORLD LIGHT: F7"),
-            DebugTextLine.Default("STAIRS ZONES: F8"),
-            DebugTextLine.Default("TOGGLE FULLSCREEN: F10"),
-        ]);
     }
+
+    public double FramesPerSecond => _fps;
 
     public void Update(
         SacredCamera camera,
         VisibleWorld world,
-        SceneState scene,
         Dx12DebugOverlayStats rendererStats,
         List<ID3D12Resource> transientResources)
     {
@@ -95,14 +66,7 @@ public unsafe class Dx12DebugOverlay : IDisposable
             ref _debugOverlayState,
             _debugOverlayCpuHandle,
             transientResources);
-        UploadOverlayIfNeeded(
-            _controlsOverlay,
-            ref _controlsOverlayDirty,
-            ref _controlsOverlayTexture,
-            ref _controlsOverlayState,
-            _controlsOverlayCpuHandle,
-            transientResources);
-        QueueDebugRaster(camera, world, scene, rendererStats);
+        QueueDebugRaster(camera, world, rendererStats);
     }
 
     private void UploadOverlayIfNeeded(
@@ -120,8 +84,8 @@ public unsafe class Dx12DebugOverlay : IDisposable
         {
             texture = _textureUploader.UploadRgbaTexture(
                 _commandList,
-                DebugTextOverlay.Width,
-                DebugTextOverlay.Height,
+                overlay.Width,
+                overlay.Height,
                 overlay.Rgba,
                 transientResources);
             _textureUploader.CreateShaderResourceView(texture, cpuHandle);
@@ -132,8 +96,8 @@ public unsafe class Dx12DebugOverlay : IDisposable
             state = _textureUploader.UpdateRgbaTexture(
                 _commandList,
                 texture,
-                DebugTextOverlay.Width,
-                DebugTextOverlay.Height,
+                overlay.Width,
+                overlay.Height,
                 overlay.Rgba,
                 state,
                 transientResources);
@@ -154,15 +118,6 @@ public unsafe class Dx12DebugOverlay : IDisposable
             renderHeight,
             uiPaperWhiteNits);
 
-        RecordOverlay(
-            _controlsOverlayTexture,
-            _controlsOverlayState,
-            _controlsOverlayGpuHandle,
-            ControlsOverlayX,
-            Math.Max(DebugOverlayY, renderHeight - DebugTextOverlay.Height - ControlsOverlayBottomMargin),
-            renderWidth,
-            renderHeight,
-            uiPaperWhiteNits);
     }
 
     private void RecordOverlay(
@@ -178,8 +133,8 @@ public unsafe class Dx12DebugOverlay : IDisposable
         if (texture is null || state != ResourceStates.PixelShaderResource)
             return;
 
-        var width = Math.Min(DebugTextOverlay.Width, Math.Max(0, renderWidth - x - DebugOverlayX));
-        var height = Math.Min(DebugTextOverlay.Height, Math.Max(0, renderHeight - y - DebugOverlayY));
+        var width = Math.Min(_debugOverlay.Width, Math.Max(0, renderWidth - x - DebugOverlayX));
+        var height = Math.Min(_debugOverlay.Height, Math.Max(0, renderHeight - y - DebugOverlayY));
 
         if (width <= 0.0f || height <= 0.0f)
             return;
@@ -206,7 +161,6 @@ public unsafe class Dx12DebugOverlay : IDisposable
     private void QueueDebugRaster(
         SacredCamera camera,
         VisibleWorld world,
-        SceneState scene,
         Dx12DebugOverlayStats rendererStats)
     {
         _framesSinceTitleUpdate++;
@@ -225,23 +179,10 @@ public unsafe class Dx12DebugOverlay : IDisposable
             _lastTitleUpdateSeconds = now;
         }
 
-        var stats = _terrain.LastStats;
         var lines = new[]
         {
-            $"FPS {_fps:0.0}",
-            $"PACING {rendererStats.FramePacingStatus}",
-            $"SECTORS VISIBLE {stats.VisibleSectors} LOADING {world.LoadingSectors}",
-            $"GPU SECTORS {rendererStats.GpuSectorTextureCount}/{rendererStats.MaxSectorTextureCount} UPLOADING {rendererStats.PendingSectorUploadCount}",
-            $"IMAGES {stats.SectorImagesDrawn}/{stats.SectorImagesCached} BUILDING {stats.SectorImagesPending}",
-            $"GROUND {stats.DrawnTiles}/{stats.CandidateTiles} MISSING {stats.MissingTiles} CACHE {stats.CachedTiles}",
-            $"FLOOR {stats.FloorDrawnTiles}/{stats.FloorCandidateTiles} CACHE {stats.FloorCachedTiles}",
-            $"LIQUID {rendererStats.VisibleLiquidSpriteCount}/{stats.LiquidDrawnTiles} CANDIDATE {stats.LiquidCandidateTiles} CACHE {stats.LiquidCachedTiles}",
-            $"STATIC {rendererStats.VisibleStaticSpriteCount}/{stats.StaticDrawnObjects} CANDIDATE {stats.StaticCandidateObjects} MISSING {stats.StaticMissingObjects}  MODEL TEX R{rendererStats.ReadyModelTextureCount} A{rendererStats.LoadingModelTextureCount} G{rendererStats.UploadingModelTextureCount} F{rendererStats.FailedModelTextureCount}",
-            $"SHADOW {rendererStats.VisibleStaticShadowCount} DRAW {rendererStats.StaticShadowDrawCallCount} LEGACY {rendererStats.LegacyShadowDrawCallCount}",
-            $"LIGHTS {rendererStats.SurfaceLightCount}  HALO FX {rendererStats.VisibleHaloCount - rendererStats.SurfaceLightCount}  CANDIDATES {rendererStats.CandidateHaloCount}",
-            $"MODEL {FormatActiveModel(scene)}",
-            $"TERRAIN HEIGHT {scene.Debug.ActorTerrainHeight:0.0}  STAIRS/DOORS {(scene.Debug.StairsMapVisible ? "ON" : "OFF")}  BLOCKED {(scene.Debug.BlockedAreasVisible ? "ON" : "OFF")}",
-            $"CAMERA {camera.WorldCenter.X:0.0},{camera.WorldCenter.Y:0.0} SECTOR {world.CenterSector.X},{world.CenterSector.Y}"
+            $"FPS {_fps:0.0}  FRAME {(_fps > 0.0 ? 1000.0 / _fps : 0.0):0.00} MS  {rendererStats.FramePacingStatus}",
+            $"WORLD {camera.WorldCenter.X:0.00}, {camera.WorldCenter.Y:0.00}  SECTOR {world.CenterSector.X}, {world.CenterSector.Y}"
         };
 
         _debugRasterTask = Task.Run(() => _debugOverlay.SetLines(lines));
@@ -257,23 +198,12 @@ public unsafe class Dx12DebugOverlay : IDisposable
         _debugOverlayDirty = true;
     }
 
-    private static string FormatActiveModel(SceneState scene)
-    {
-        if (scene.Models.Count == 0)
-            return "NONE";
-
-        var model = scene.Models[0];
-        return $"{model.Name} V{model.Mesh.Vertices.Length} I{model.Mesh.Indices.Length}";
-    }
-
     public void Dispose()
     {
         _debugRasterTask?.GetAwaiter().GetResult();
         _debugRasterTask = null;
         _debugOverlayTexture?.Dispose();
         _debugOverlayTexture = null;
-        _controlsOverlayTexture?.Dispose();
-        _controlsOverlayTexture = null;
         _fonts.Dispose();
     }
 }

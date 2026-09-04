@@ -13,6 +13,41 @@ public static class Dx12PipelineCatalog
         new("TEXCOORD", 0, Format.R32G32_Float, 24, 0)
     ];
 
+    private static readonly InputElementDescription[] ImGuiInputLayout =
+    [
+        new("POSITION", 0, Format.R32G32_Float, 0, 0),
+        new("TEXCOORD", 0, Format.R32G32_Float, 8, 0),
+        new("COLOR", 0, Format.R8G8B8A8_UNorm, 16, 0)
+    ];
+
+    public static Dx12PipelineGroupDefinition CreateImGui(bool hdrOutput)
+    {
+        var rootParameters = new[]
+        {
+            new RootParameter(new RootConstants(
+                ImGuiShaderLayout.ConstantsRegister,
+                0,
+                ImGuiShaderLayout.ConstantsCount), ShaderVisibility.All),
+            TextureTable(ImGuiShaderLayout.TextureRegister)
+        };
+
+        return new Dx12PipelineGroupDefinition(
+            rootParameters,
+            [CreateSampler(
+                ImGuiShaderLayout.SamplerRegister,
+                TextureAddressMode.Clamp,
+                StaticBorderColor.TransparentBlack)],
+            [new Dx12GraphicsPipelineDefinition(
+                Dx12PipelineKind.ImGui,
+                Dx12ShaderCatalog.ImGuiVertexShader,
+                Dx12ShaderCatalog.GetImGuiPixelShader(hdrOutput),
+                ImGuiInputLayout,
+                CreatePremultipliedBlend(),
+                RasterizerDescription.CullNone,
+                DepthStencilDescription.None,
+                usesDepthBuffer: false)]);
+    }
+
     public static Dx12PipelineGroupDefinition CreateScreen(Dx12ShaderSet shaders)
     {
         var rootParameters = new[]

@@ -28,5 +28,4 @@ internal sealed class Dx12SdrSwapChain : Dx12SwapChain
 
     public override Dx12ShaderSet Shaders => Dx12ShaderCatalog.Sdr;
 
-    public override Dx12DisplayProfile DisplayProfile => Dx12DisplayProfile.Sdr;
 }

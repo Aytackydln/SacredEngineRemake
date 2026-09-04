@@ -55,15 +55,18 @@ internal sealed class Dx12DeviceContext : IDisposable
     private bool _allowTearing;
     private bool _submissionOpen;
     private long _lastResizeRequestTimestamp;
+    private HdrBrightnessSettings _hdrBrightnessSettings;
 
     public Dx12DeviceContext(
         Win32Window window,
         LowLatencySystem latency,
         int srvDescriptorCount,
-        bool hdrEnabled)
+        bool hdrEnabled,
+        HdrBrightnessSettings hdrBrightnessSettings)
     {
         _window = window;
         _latency = latency;
+        _hdrBrightnessSettings = hdrBrightnessSettings.Normalized();
         _requestedSwapChainMode = hdrEnabled ? Dx12SwapChainMode.Hdr : Dx12SwapChainMode.Sdr;
         CreateDevice();
         CreateSwapChain();
@@ -84,7 +87,13 @@ internal sealed class Dx12DeviceContext : IDisposable
     public bool IsHdrEnabled => _swapChain is Dx12HdrSwapChain;
     public Format BackBufferFormat => _swapChain.BackBufferFormat;
     public Dx12ShaderSet Shaders => _swapChain.Shaders;
-    public Dx12DisplayProfile DisplayProfile => _swapChain.DisplayProfile;
+    public HdrBrightnessSettings HdrBrightnessSettings => _hdrBrightnessSettings;
+    public Dx12DisplayProfile DisplayProfile => IsHdrEnabled
+        ? Dx12DisplayProfile.CreateHdr(_hdrBrightnessSettings)
+        : Dx12DisplayProfile.Sdr;
+
+    public void SetHdrBrightnessSettings(HdrBrightnessSettings settings) =>
+        _hdrBrightnessSettings = settings.Normalized();
 
     public Dx12FrameContext CurrentFrame =>
         _currentFrame ?? throw new InvalidOperationException("No Direct3D frame is being recorded.");
@@ -129,7 +138,7 @@ internal sealed class Dx12DeviceContext : IDisposable
         _commandList.Reset(CurrentFrame.CommandAllocator, initialPipeline);
     }
 
-    public Dx12ScreenshotImage? SubmitAndPresent(
+    public Dx12PendingScreenshot? SubmitAndPresent(
         bool verticalSyncEnabled,
         ulong frameId,
         bool captureScreenshot)
@@ -137,7 +146,7 @@ internal sealed class Dx12DeviceContext : IDisposable
         if (!_submissionOpen)
             throw new InvalidOperationException("No Direct3D render submission is open.");
 
-        using var capture = captureScreenshot
+        var capture = captureScreenshot
             ? Dx12BackBufferCapture.Record(
                 _device,
                 _commandList,
@@ -162,16 +171,9 @@ internal sealed class Dx12DeviceContext : IDisposable
         _submissionOpen = false;
         _currentFrame = null;
 
-        if (capture is null)
-            return null;
-
-        if (_fence.CompletedValue < fenceValue)
-        {
-            _fence.SetEventOnCompletion(fenceValue, _fenceEvent).CheckError();
-            Kernel32.WaitForSingleObject(_fenceEvent, Kernel32.Infinite);
-        }
-
-        return capture.ReadPixels();
+        return capture is null
+            ? null
+            : new Dx12PendingScreenshot(capture, _fence, fenceValue);
     }
 
     public void WaitForGpu(Action<Dx12FrameContext> releaseRetiredResources)

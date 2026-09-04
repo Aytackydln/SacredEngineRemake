@@ -29,8 +29,6 @@ internal sealed class Dx12HdrSwapChain : Dx12SwapChain
 
     public override Dx12ShaderSet Shaders => Dx12ShaderCatalog.Hdr;
 
-    public override Dx12DisplayProfile DisplayProfile => Dx12DisplayProfile.Hdr;
-
     private static IDXGISwapChain3 CreateHdrNativeSwapChain(
         IDXGIFactory2 factory,
         ID3D12CommandQueue commandQueue,

@@ -16,6 +16,7 @@ using Sacred.Assets.Paks.Weapon;
 using Sacred.Core;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Pak.Weapon;
+using Sacred.Engine.Graphics.Sprites;
 using Sacred.Granny.Abstractions;
 using Sacred.Granny.Assets;
 using Sacred.Inventory.Actors;
@@ -54,6 +55,7 @@ public sealed class AssetManager : IDisposable
     private readonly Dictionary<StaticSpriteAssetKey, StaticSpriteAsset?> _staticSprites = new(DefaultMaxCache);
     private readonly HashSet<StaticSpriteAssetKey> _staticSpriteLoads = new(DefaultMaxCache);
     private readonly SemaphoreSlim _staticSpriteLock = new(1, 1);
+    private readonly PrioritizedAssetLoadScheduler _assetLoads = new();
     private readonly WorldSpriteLoadQueue _worldSpriteLoadQueue = new();
     private readonly MiniObjectSpriteLoader _miniObjectSprites;
     private readonly WorldParticleSpriteLoader _worldParticleSprites;
@@ -94,13 +96,13 @@ public sealed class AssetManager : IDisposable
             .ToFrozenDictionary(static equipment => checked((ushort)equipment.IdemId));
         _mixedPak = MixedPakArchive.Load(Path.Combine(pakDirectory, "mixed.pak"));
         _miniObjectSprites = new MiniObjectSpriteLoader(
-            textureId => LoadTextureAsync(textureId),
+            textureId => LoadTextureAsync(textureId, AssetLoadPriority.Visible),
             _worldSpriteLoadQueue);
         _worldParticleSprites = new WorldParticleSpriteLoader(
-            textureName => LoadTextureAsync(textureName),
+            textureName => LoadTextureAsync(textureName, AssetLoadPriority.Background),
             _worldSpriteLoadQueue);
         _staticShadowAtlas = new StaticShadowAtlasLoader(
-            textureName => LoadTextureAsync(textureName),
+            textureName => LoadTextureAsync(textureName, AssetLoadPriority.Background),
             _worldSpriteLoadQueue);
         _modelsPak = ModelsPakArchive.Load(
             Path.Combine(pakDirectory, "models.pak"),
@@ -133,13 +135,13 @@ public sealed class AssetManager : IDisposable
             .ToFrozenDictionary(static item => checked((ushort)item.IdemId));
         _mixedPak = mixedPak;
         _miniObjectSprites = new MiniObjectSpriteLoader(
-            textureId => LoadTextureAsync(textureId),
+            textureId => LoadTextureAsync(textureId, AssetLoadPriority.Visible),
             _worldSpriteLoadQueue);
         _worldParticleSprites = new WorldParticleSpriteLoader(
-            textureName => LoadTextureAsync(textureName),
+            textureName => LoadTextureAsync(textureName, AssetLoadPriority.Background),
             _worldSpriteLoadQueue);
         _staticShadowAtlas = new StaticShadowAtlasLoader(
-            textureName => LoadTextureAsync(textureName),
+            textureName => LoadTextureAsync(textureName, AssetLoadPriority.Background),
             _worldSpriteLoadQueue);
         _modelsPak = modelsPak;
     }
@@ -153,7 +155,45 @@ public sealed class AssetManager : IDisposable
             .Max();
 
     public Task<TextureAsset> LoadTextureAsync(string textureName, CancellationToken cancellationToken = default)
+        => LoadTextureAsync(textureName, AssetLoadPriority.Visible, cancellationToken);
+
+    private Task<TextureAsset> LoadTextureAsync(
+        string textureName,
+        AssetLoadPriority priority,
+        CancellationToken cancellationToken = default) =>
+        LoadTextureAsync(
+            _texturePak,
+            textureName,
+            _textures,
+            _textureLoads,
+            _textureLru,
+            _textureLock,
+            MaxTextureCacheEntries,
+            priority,
+            cancellationToken);
+
+    public Task<TextureAsset> LoadTextureAsync(uint textureId, CancellationToken cancellationToken = default)
+        => LoadTextureAsync(textureId, AssetLoadPriority.Visible, cancellationToken);
+
+    internal Task<TextureAsset> LoadTerrainTextureAsync(
+        string textureName,
+        CancellationToken cancellationToken = default) =>
+        LoadTextureAsync(textureName, AssetLoadPriority.Background, cancellationToken);
+
+    internal Task<T> ScheduleVisiblePreparation<T>(Func<T> operation) =>
+        _assetLoads.Schedule(AssetLoadPriority.Visible, operation);
+
+    private Task<TextureAsset> LoadTextureAsync(
+        uint textureId,
+        AssetLoadPriority priority,
+        CancellationToken cancellationToken = default)
     {
+        if (!_texturePak.TryGetTextureName(textureId, out var textureName))
+        {
+            return Task.FromException<TextureAsset>(
+                new FileNotFoundException($"Texture entry #{textureId} was not found."));
+        }
+
         return LoadTextureAsync(
             _texturePak,
             textureName,
@@ -162,19 +202,8 @@ public sealed class AssetManager : IDisposable
             _textureLru,
             _textureLock,
             MaxTextureCacheEntries,
-            runOnWorker: true,
+            priority,
             cancellationToken);
-    }
-
-    public Task<TextureAsset> LoadTextureAsync(uint textureId, CancellationToken cancellationToken = default)
-    {
-        if (!_texturePak.TryGetTextureName(textureId, out var textureName))
-        {
-            return Task.FromException<TextureAsset>(
-                new FileNotFoundException($"Texture entry #{textureId} was not found."));
-        }
-
-        return LoadTextureAsync(textureName, cancellationToken);
     }
 
     public Task<TextureAsset> LoadModelTextureAsync(string textureName, CancellationToken cancellationToken = default)
@@ -187,13 +216,16 @@ public sealed class AssetManager : IDisposable
             _modelTextureLru,
             _modelTextureLock,
             MaxModelTextureCacheEntries,
-            runOnWorker: true,
+            AssetLoadPriority.Critical,
             cancellationToken);
     }
 
     internal void ReleaseModelTexture(string textureName, TextureAsset asset)
     {
-        _modelTextureLock.Wait();
+        // Called from frame preparation after the pixels have reached an upload buffer.
+        // Missing this opportunistic trim is harmless: the bounded LRU will evict it later.
+        if (!_modelTextureLock.Wait(0))
+            return;
         try
         {
             if (!_modelTextures.TryGetValue(textureName, out var cached) ||
@@ -219,7 +251,7 @@ public sealed class AssetManager : IDisposable
         LinkedList<string> lru,
         SemaphoreSlim cacheLock,
         int maxCacheEntries,
-        bool runOnWorker,
+        AssetLoadPriority priority,
         CancellationToken cancellationToken)
     {
         Task<TextureAsset> loadTask;
@@ -239,23 +271,16 @@ public sealed class AssetManager : IDisposable
             }
             else
             {
-                loadTask = runOnWorker
-                    ? Task.Run(() => LoadAndCacheTextureAsync(
+                loadTask = _assetLoads.Schedule(
+                    priority,
+                    () => LoadAndCacheTextureAsync(
                         archive,
                         textureName,
                         cache,
                         loads,
                         lru,
                         cacheLock,
-                        maxCacheEntries), CancellationToken.None)
-                    : LoadAndCacheTextureAsync(
-                        archive,
-                        textureName,
-                        cache,
-                        loads,
-                        lru,
-                        cacheLock,
-                        maxCacheEntries);
+                        maxCacheEntries));
                 loads[textureName] = loadTask;
             }
         }
@@ -425,8 +450,10 @@ public sealed class AssetManager : IDisposable
 
             if (!_textureFrameSequenceLoads.ContainsKey(key))
             {
-                _textureFrameSequenceLoads[key] = Task.Run(
-                    () => LoadAndCacheTextureFrameSequenceAsync(key, frameNameFormat, frameCount));
+                // This method only orchestrates individually scheduled texture loads. Starting it
+                // directly avoids consuming a shared thread-pool worker merely to await them.
+                _textureFrameSequenceLoads[key] =
+                    LoadAndCacheTextureFrameSequenceAsync(key, frameNameFormat, frameCount);
             }
 
             return false;
@@ -488,7 +515,7 @@ public sealed class AssetManager : IDisposable
         for (var frameIndex = 0; frameIndex < frameCount; frameIndex++)
         {
             var frameName = string.Format(CultureInfo.InvariantCulture, frameNameFormat, frameIndex);
-            var frame = await LoadTextureAsync(frameName).ConfigureAwait(false);
+            var frame = await LoadTerrainTextureAsync(frameName).ConfigureAwait(false);
             if (firstFrame is null)
             {
                 firstFrame = frame;
@@ -535,6 +562,13 @@ public sealed class AssetManager : IDisposable
         try
         {
             var sprite = await BuildStaticSpriteAsync(key);
+            if (sprite is not null)
+                SpriteTransparentEdgePadding.Apply(
+                    sprite.Rgba,
+                    sprite.AtlasWidth,
+                    sprite.AtlasHeight,
+                    sprite.Width,
+                    sprite.Height);
             await _staticSpriteLock.WaitAsync();
             try
             {
@@ -800,9 +834,9 @@ public sealed class AssetManager : IDisposable
             }
             else
             {
-                loadTask = Task.Run(
-                    () => LoadAndCacheGrnModelAsync(key, cacheKey, meshExtractionMode),
-                    CancellationToken.None);
+                loadTask = _assetLoads.Schedule(
+                    AssetLoadPriority.Critical,
+                    () => LoadAndCacheGrnModelAsync(key, cacheKey, meshExtractionMode));
                 _grnModelLoads[cacheKey] = loadTask;
             }
         }
@@ -906,9 +940,9 @@ public sealed class AssetManager : IDisposable
             _modelLock.Release();
         }
 
-        var asset = await Task.Run(
-                () => LoadPlayerCharacterCoreAsync(entryId, cancellationToken),
-                cancellationToken)
+        var asset = await _assetLoads.Schedule(
+                AssetLoadPriority.Critical,
+                () => LoadPlayerCharacterCoreAsync(entryId, cancellationToken))
             .ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -1044,6 +1078,7 @@ public sealed class AssetManager : IDisposable
         _disposed = true;
 
         _worldSpriteLoadQueue.Dispose();
+        _assetLoads.Dispose();
 
         _textureLock.Wait();
         _textures.Clear();

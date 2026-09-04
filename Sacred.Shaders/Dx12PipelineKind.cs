@@ -19,5 +19,6 @@ public enum Dx12PipelineKind
     TransparentItemParticle,
     DenseItemParticle,
     ItemGlow,
-    InventoryUi
+    InventoryUi,
+    ImGui
 }

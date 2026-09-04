@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Core.World.Lighting;
@@ -34,24 +35,12 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
     private readonly BlockedAreaDebugTileSourceFactory _blockedAreaDebugTile = new();
     private readonly TerrainTopologyDebugTileSourceFactory _terrainTopologyDebugTiles = new();
     private readonly object _cacheLock = new();
+    private int _cachedTileCount;
+    private int _cachedFloorCount;
 
-    public int CachedTileCount
-    {
-        get
-        {
-            lock (_cacheLock)
-                return _tileSources.Count;
-        }
-    }
+    public int CachedTileCount => Volatile.Read(ref _cachedTileCount);
 
-    public int CachedFloorCount
-    {
-        get
-        {
-            lock (_cacheLock)
-                return _floorSources.Count;
-        }
-    }
+    public int CachedFloorCount => Volatile.Read(ref _cachedFloorCount);
 
     public async Task<TerrainSectorComposition> BuildAsync(Sector sector)
     {
@@ -155,7 +144,10 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
                 secondary = await GetTileSourceAsync(item.SecondaryTileId).ConfigureAwait(false);
 
             lock (_cacheLock)
+            {
                 _floorSources.Add(new FloorSourceKey(item.PrimaryTileId, item.SecondaryTileId));
+                Volatile.Write(ref _cachedFloorCount, _floorSources.Count);
+            }
 
             var compositionTile = new TerrainCompositionTile(item.ScreenX, item.ScreenY, primary, secondary, item.Surface);
             (item.AboveLiquid ? coverTiles : baseTiles).Add(compositionTile);
@@ -265,6 +257,7 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
                 return cached;
 
             _tileSources[tileId] = source;
+            Volatile.Write(ref _cachedTileCount, _tileSources.Count);
             return source;
         }
     }
@@ -278,7 +271,7 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
         TextureAsset sheet;
         try
         {
-            sheet = await assets.LoadTextureAsync(definition.Value.FileName).ConfigureAwait(false);
+            sheet = await assets.LoadTerrainTextureAsync(definition.Value.FileName).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is FileNotFoundException or InvalidDataException or NotSupportedException)
         {

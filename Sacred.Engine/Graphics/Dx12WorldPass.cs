@@ -4,10 +4,12 @@ using System.Threading.Tasks;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Graphics.Frames;
+using Sacred.Engine.Graphics.ImGui;
 using Sacred.Engine.Graphics.Minimap;
 using Sacred.Engine.Graphics.Models;
 using Sacred.Engine.Graphics.Sprites;
 using Sacred.Engine.Graphics.Terrain;
+using Sacred.Engine.Platform;
 using Sacred.Engine.Rendering;
 using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
@@ -30,6 +32,8 @@ internal sealed class Dx12WorldPass : IDisposable
     private readonly Dx12LightHaloPass _lightHalos;
     private readonly Dx12MinimapPass _minimap;
     private readonly Dx12DebugOverlay _debugOverlay;
+    private readonly Dx12ImGuiRenderer _imgui;
+    private readonly ImGuiDebugPanel _debugPanel;
     private readonly Dx12WorldCommandRecorder _commandRecorder;
     private readonly Stack<int> _freeModelSrvSlots = new();
     private TaskCompletionSource? _preparationCompletion;
@@ -39,7 +43,9 @@ internal sealed class Dx12WorldPass : IDisposable
         SacredWorldArchive worldArchive,
         Dx12DeviceContext graphics,
         Dx12TextureUploader textureUploader,
-        string gameDirectory)
+        string gameDirectory,
+        InputState input,
+        DebugUiControlState debugUiControls)
     {
         _graphics = graphics;
         for (var slot = Dx12DescriptorLayout.FirstModelTexture + Dx12DescriptorLayout.MaximumModelTextures - 1;
@@ -89,7 +95,7 @@ internal sealed class Dx12WorldPass : IDisposable
             graphics.SrvDescriptorSize,
             _freeModelSrvSlots,
             Dx12DescriptorLayout.MaximumModelTextures);
-        _modelGeometry = new Dx12ModelGeometryCache(textureUploader, Dx12DeviceContext.FrameCount);
+        _modelGeometry = new Dx12ModelGeometryCache(assets, textureUploader, Dx12DeviceContext.FrameCount);
         _models = new Dx12ModelPass(
             graphics.CommandList,
             _modelGeometry,
@@ -100,12 +106,18 @@ internal sealed class Dx12WorldPass : IDisposable
         _debugOverlay = new Dx12DebugOverlay(
             graphics.CommandList,
             textureUploader,
-            _terrain,
-            gameDirectory,
             graphics.SrvCpuHandle(Dx12DescriptorLayout.DebugOverlay),
-            graphics.SrvGpuHandle(Dx12DescriptorLayout.DebugOverlay),
-            graphics.SrvCpuHandle(Dx12DescriptorLayout.ControlsOverlay),
-            graphics.SrvGpuHandle(Dx12DescriptorLayout.ControlsOverlay));
+            graphics.SrvGpuHandle(Dx12DescriptorLayout.DebugOverlay));
+        _imgui = new Dx12ImGuiRenderer(
+            graphics.Device,
+            graphics.CommandList,
+            textureUploader,
+            graphics.SrvHeap,
+            graphics.SrvDescriptorSize,
+            Dx12DescriptorLayout.ImGuiFont,
+            Dx12DeviceContext.FrameCount,
+            input);
+        _debugPanel = new ImGuiDebugPanel(_imgui, _terrain, graphics, debugUiControls);
         _commandRecorder = new Dx12WorldCommandRecorder(
             graphics.CommandList,
             graphics.SrvHeap,
@@ -115,6 +127,7 @@ internal sealed class Dx12WorldPass : IDisposable
             _lightHalos,
             _models,
             _debugOverlay,
+            _imgui,
             _minimap);
     }
 
@@ -130,6 +143,11 @@ internal sealed class Dx12WorldPass : IDisposable
         }
         return _preparationCompletion.Task;
     }
+
+    public void BeginDebugUiFrame(float deltaSeconds) =>
+        _imgui.BeginFrame(deltaSeconds, _graphics.RenderWidth, _graphics.RenderHeight);
+
+    public void DiscardDebugUiFrame() => _imgui.DiscardFrame();
 
     public Dx12PreparedWorldFrame Prepare(
         SacredCamera camera,
@@ -150,6 +168,7 @@ internal sealed class Dx12WorldPass : IDisposable
         WorldPreloadRequest request,
         Dx12PreparedWorldFrame prepared)
     {
+        var modelGeometryReady = _modelGeometry.Prepare(request.Scene.Models);
         _modelTextures.PrepareFrame(request.Scene, _graphics.CurrentFrame);
         _sprites.PrepareTextures(
             prepared.LiquidSprites,
@@ -157,7 +176,7 @@ internal sealed class Dx12WorldPass : IDisposable
             _graphics.CurrentFrame,
             _terrain.WorldSpriteRevision);
         _lightHalos.PrepareTexture(prepared.WorldLights, _graphics.CurrentFrame);
-        UpdatePreparationStatus(request.World, prepared.SectorImages);
+        UpdatePreparationStatus(request.World, prepared.SectorImages, modelGeometryReady);
     }
 
     public void UploadAndRecord(
@@ -170,6 +189,7 @@ internal sealed class Dx12WorldPass : IDisposable
         ID3D12PipelineState terrainPipeline,
         ID3D12PipelineState liquidCoverPipeline)
     {
+        _modelGeometry.Prepare(scene.Models);
         _modelTextures.PrepareFrame(scene, _graphics.CurrentFrame);
         _sprites.PrepareTextures(
             prepared.LiquidSprites,
@@ -185,28 +205,41 @@ internal sealed class Dx12WorldPass : IDisposable
                 _graphics.CurrentFrame);
 
         var modelStats = _modelTextures.Stats;
+        var debugStats = new Dx12DebugOverlayStats(
+            _sectorTextures.Count,
+            _sectorTextures.MaximumTextureCount,
+            _sectorTextures.PendingUploadCount,
+            modelStats.Ready,
+            modelStats.Loading,
+            modelStats.Uploading,
+            modelStats.Failed,
+            _sprites.VisibleLiquidSpriteCount,
+            _sprites.VisibleStaticSpriteCount,
+            _sprites.VisibleStaticShadowCount,
+            _sprites.StaticShadowDrawCallCount,
+            _sprites.LegacyShadowDrawCallCount,
+            _lightHalos.CandidateCount,
+            _lightHalos.InstanceCount,
+            _lightHalos.SurfaceLightCount,
+            framePacingStatus);
         _debugOverlay.Update(
             camera,
             world,
-            scene,
-            new Dx12DebugOverlayStats(
-                _sectorTextures.Count,
-                _sectorTextures.MaximumTextureCount,
-                _sectorTextures.PendingUploadCount,
-                modelStats.Ready,
-                modelStats.Loading,
-                modelStats.Uploading,
-                modelStats.Failed,
-                _sprites.VisibleLiquidSpriteCount,
-                _sprites.VisibleStaticSpriteCount,
-                _sprites.VisibleStaticShadowCount,
-                _sprites.StaticShadowDrawCallCount,
-                _sprites.LegacyShadowDrawCallCount,
-                _lightHalos.CandidateCount,
-                _lightHalos.InstanceCount,
-                _lightHalos.SurfaceLightCount,
-                framePacingStatus),
+            debugStats,
             _graphics.CurrentFrame.TransientResources);
+        if (_imgui.IsFrameBegun)
+        {
+            _debugPanel.Build(
+                camera,
+                world,
+                scene,
+                debugStats,
+                prepared.StaticSprites,
+                prepared.WorldLights,
+                _debugOverlay.FramesPerSecond,
+                _graphics.RenderWidth,
+                _graphics.RenderHeight);
+        }
         _commandRecorder.Record(
             camera,
             prepared.SectorImages,
@@ -273,11 +306,13 @@ internal sealed class Dx12WorldPass : IDisposable
     public void SetPipelines(
         Dx12CreatedPipelineGroup staticSprites,
         Dx12CreatedPipelineGroup lightHalos,
-        Dx12CreatedPipelineGroup models)
+        Dx12CreatedPipelineGroup models,
+        Dx12CreatedPipelineGroup imgui)
     {
         _sprites.SetPipeline(staticSprites);
         _lightHalos.SetPipeline(lightHalos);
         _models.SetPipeline(models);
+        _imgui.SetPipeline(imgui);
     }
 
     public void DisposePipelines()
@@ -285,6 +320,7 @@ internal sealed class Dx12WorldPass : IDisposable
         _models.DisposePipeline();
         _sprites.DisposePipeline();
         _lightHalos.DisposePipeline();
+        _imgui.DisposePipeline();
     }
 
     public void ReleaseRetiredResources(Dx12FrameContext frame)
@@ -293,16 +329,23 @@ internal sealed class Dx12WorldPass : IDisposable
         _sectorTextures.OnFrameRetired(released);
     }
 
+    public void OnForegroundFrameSubmitted() =>
+        _sectorTextures.OnForegroundFrameSubmitted();
+
     public void StopBackgroundWork()
     {
+        _terrain.StopBackgroundWork();
         _sectorTextures.StopWorker();
+        _modelGeometry.WaitForPendingLoads();
         _modelTextures.WaitForPendingLoads();
     }
 
     public void Dispose()
     {
         _sectorTextures.Dispose();
+        _terrain.Dispose();
         _debugOverlay.Dispose();
+        _imgui.Dispose();
         _modelGeometry.Dispose();
         _modelTextures.Dispose();
         _sprites.Dispose();
@@ -312,7 +355,8 @@ internal sealed class Dx12WorldPass : IDisposable
 
     private void UpdatePreparationStatus(
         VisibleWorld world,
-        IReadOnlyList<TerrainSectorComposition> sectorImages)
+        IReadOnlyList<TerrainSectorComposition> sectorImages,
+        bool modelGeometryReady)
     {
         var terrainStats = _terrain.LastStats;
         LastPreparationStatus = new WorldPreparationStatus(
@@ -320,7 +364,8 @@ internal sealed class Dx12WorldPass : IDisposable
             terrainStats.SectorImagesPending == 0 && sectorImages.Count == world.Sectors.Count,
             _sectorTextures.PendingUploadCount == 0 && _sectorTextures.Count >= sectorImages.Count,
             !_terrain.HasPendingSpriteAssetRequests,
-            _sprites.VisibleTexturesPrepared(_terrain.WorldSpriteRevision));
+            _sprites.VisibleTexturesPrepared(_terrain.WorldSpriteRevision),
+            modelGeometryReady);
         if (LastPreparationStatus.IsReady && _preparationCompletion?.TrySetResult() == true)
             EngineLog.WriteLine("World preparation completed.");
     }

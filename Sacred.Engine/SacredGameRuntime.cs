@@ -5,6 +5,7 @@ using Sacred.Core;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Cheats;
 using Sacred.Engine.Graphics;
+using Sacred.Engine.Graphics.ImGui;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Platform;
 using Sacred.Engine.Scene;
@@ -27,6 +28,7 @@ internal sealed class SacredGameRuntime : IDisposable
     private readonly CheatsController _cheats;
     private readonly string _gameDirectory;
     private readonly SacredGameSaveState _initialSaveState;
+    private readonly DebugUiControlState _debugUiControls;
 
     private InGameScene? _inGameScene;
     private PendingInspection? _pendingInspection;
@@ -49,6 +51,7 @@ internal sealed class SacredGameRuntime : IDisposable
         _window = window;
         _latency = latency;
         _renderer = renderer;
+        _debugUiControls = renderer.DebugUiControls;
         _framePacing = framePacing;
         _scenes = scenes;
         _resourceLoader = new GameResourceLoader(gameDirectories, _grannyBackend);
@@ -61,6 +64,8 @@ internal sealed class SacredGameRuntime : IDisposable
             UpdateWindowTitle);
         _cheats = new CheatsController(Console.In);
 
+        SynchronizeDebugUiControls();
+
         RegisterScenes();
         scenes.SceneChanged += UpdateWindowTitle;
         scenes.Start(GameSceneId.InitialLoading);
@@ -69,13 +74,70 @@ internal sealed class SacredGameRuntime : IDisposable
 
     public void Update(float deltaSeconds)
     {
+        ApplyDebugUiRequests();
         _gamepad.Poll(_window.Input);
         _cheats.Update(ExecuteCheat);
         if (_window.Input.ConsumePressed(VirtualKey.F12))
             CaptureScreenshot(null);
         _engineInput.Update();
         _scenes.Update(deltaSeconds);
+        SynchronizeDebugUiControls();
         UpdatePendingInspection();
+    }
+
+    private void ApplyDebugUiRequests()
+    {
+        if (_debugUiControls.RequestedHdrEnabled is { } hdrEnabled)
+        {
+            _debugUiControls.RequestedHdrEnabled = null;
+            if (_renderer.IsHdrEnabled != hdrEnabled)
+                _renderer.ToggleHdr();
+            UpdateWindowTitle();
+        }
+
+        if (_debugUiControls.RequestedFramePacingMode is { } framePacingMode)
+        {
+            _debugUiControls.RequestedFramePacingMode = null;
+            _framePacing.SetMode(framePacingMode);
+            UpdateWindowTitle();
+        }
+
+        if (_debugUiControls.RequestedLowLatencyMode is { } lowLatencyMode)
+        {
+            _debugUiControls.RequestedLowLatencyMode = null;
+            _framePacing.SetLowLatencyMode(lowLatencyMode);
+            UpdateWindowTitle();
+        }
+
+        if (_debugUiControls.RequestedWorldLightingMode is { } worldLightingMode)
+        {
+            _debugUiControls.RequestedWorldLightingMode = null;
+            _inGameScene?.SetWorldLightingMode(worldLightingMode);
+            UpdateWindowTitle();
+        }
+
+        if (_debugUiControls.RequestedBorderlessFullscreen is { } fullscreen)
+        {
+            _debugUiControls.RequestedBorderlessFullscreen = null;
+            _window.SetBorderlessFullscreen(fullscreen);
+            UpdateWindowTitle();
+        }
+
+        if (_debugUiControls.ScreenshotRequested)
+        {
+            _debugUiControls.ScreenshotRequested = false;
+            CaptureScreenshot(null);
+        }
+    }
+
+    private void SynchronizeDebugUiControls()
+    {
+        _debugUiControls.HdrEnabled = _renderer.IsHdrEnabled;
+        _debugUiControls.FramePacingMode = _framePacing.Mode;
+        _debugUiControls.LowLatencyMode = _latency.Mode;
+        _debugUiControls.WorldLightingMode =
+            _inGameScene?.WorldLightingMode ?? _initialSaveState.WorldLightingMode;
+        _debugUiControls.BorderlessFullscreen = _window.IsBorderlessFullscreen;
     }
 
     public SacredGameSaveState CaptureSaveState() => new()
@@ -84,6 +146,7 @@ internal sealed class SacredGameRuntime : IDisposable
         WindowedWidth = _window.WindowedWidth,
         WindowedHeight = _window.WindowedHeight,
         HdrEnabled = _renderer.IsHdrEnabled,
+        HdrBrightness = _renderer.HdrBrightnessSettings,
         FramePacingMode = _framePacing.Mode,
         LowLatencyMode = _latency.Mode,
         GrannyBackend = _grannyBackend,
@@ -124,6 +187,7 @@ internal sealed class SacredGameRuntime : IDisposable
         {
             WindowedWidth = NormalizeWindowDimension(state.WindowedWidth, 1600),
             WindowedHeight = NormalizeWindowDimension(state.WindowedHeight, 900),
+            HdrBrightness = (state.HdrBrightness ?? HdrBrightnessSettings.Default).Normalized(),
             FramePacingMode = Enum.IsDefined(state.FramePacingMode)
                 ? state.FramePacingMode
                 : FramePacingMode.VariableRefreshRate,
@@ -230,7 +294,7 @@ internal sealed class SacredGameRuntime : IDisposable
         switch (command)
         {
             case HelpCheatCommand:
-                EngineLog.WriteLine("Cheats: teleport <x> <y>; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set character next; set hdr <on|off>; set pacing <vrr|vsync|limit>; set latency <off|on|boost>; set granny <managed|native>.");
+                EngineLog.WriteLine("Cheats: teleport <x> <y>; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set character next; set hdr <on|off>; set pacing <vrr|vsync|limit>; set latency <off|on|boost>; set granny <managed|native>.");
                 return;
             case TeleportCheatCommand teleport:
                 if (_inGameScene is null)

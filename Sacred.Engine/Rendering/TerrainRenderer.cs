@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Threading.Tasks;
@@ -8,13 +9,15 @@ using Sacred.Engine.Assets;
 
 namespace Sacred.Engine.Rendering;
 
-public sealed class TerrainRenderer
+public sealed class TerrainRenderer : IDisposable
 {
     private const int MaxConcurrentSectorImageBuilds = 1;
 
     private readonly SectorCompositionBuilder _sectorCompositionBuilder;
     private readonly TerrainLiquidSpriteBuilder _liquidSpriteBuilder;
     private readonly TerrainStaticSpriteBuilder _staticSpriteBuilder;
+    private readonly PrioritizedAssetLoadScheduler _sectorBuildScheduler =
+        new("Sacred sector builder");
     private readonly Dictionary<SectorCoord, TerrainSectorComposition> _sectorCache = new();
     private readonly Dictionary<SectorCoord, Task<TerrainSectorComposition>> _sectorBuildTasks = new();
     private readonly List<TerrainSectorComposition> _visibleSectorImages = new(9);
@@ -206,7 +209,8 @@ public sealed class TerrainRenderer
 
         if (!_sectorBuildTasks.ContainsKey(sector.Coord) && CountPendingSectorBuilds() < MaxConcurrentSectorImageBuilds)
         {
-            _sectorBuildTasks[sector.Coord] = Task.Run(
+            _sectorBuildTasks[sector.Coord] = _sectorBuildScheduler.Schedule(
+                AssetLoadPriority.Background,
                 () => _sectorCompositionBuilder.BuildAsync(sector));
         }
 
@@ -222,6 +226,10 @@ public sealed class TerrainRenderer
 
         return count;
     }
+
+    public void StopBackgroundWork() => _sectorBuildScheduler.Dispose();
+
+    public void Dispose() => StopBackgroundWork();
 
 }
 

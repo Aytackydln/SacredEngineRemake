@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Assets.Paks.Texture;
+using Sacred.Engine.Graphics.Sprites;
 using Sacred.Particles;
 
 namespace Sacred.Engine.Assets;
@@ -38,7 +39,9 @@ internal sealed class WorldParticleSpriteLoader
                 return true;
 
             if (_loads.Add(reference))
-                _loadQueue.Enqueue(() => LoadAndCacheAsync(reference));
+                _loadQueue.Enqueue(
+                    () => LoadAndCacheAsync(reference),
+                    AssetLoadPriority.Background);
             return false;
         }
         finally
@@ -68,6 +71,13 @@ internal sealed class WorldParticleSpriteLoader
         {
             var atlas = await _loadTextureAsync(reference.TextureName).ConfigureAwait(false);
             sprite = BuildSprite(atlas, reference);
+            if (sprite is not null)
+                SpriteTransparentEdgePadding.Apply(
+                    sprite.Rgba,
+                    sprite.AtlasWidth,
+                    sprite.AtlasHeight,
+                    sprite.Width,
+                    sprite.Height);
             EngineLog.WriteLine(sprite is null
                 ? $"World particle atlas rejected: {reference.TextureName}."
                 : $"World particle atlas loaded: {reference.TextureName} " +

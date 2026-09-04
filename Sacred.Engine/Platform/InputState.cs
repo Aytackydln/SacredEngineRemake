@@ -33,6 +33,12 @@ public sealed class InputState
 
     public bool IsMiddleMouseButtonDown => _middleMouseButtonDown;
 
+    public int MouseWheelDelta => _mouseWheelDelta;
+
+    public bool UiWantsMouse { get; private set; }
+
+    public bool UiWantsKeyboard { get; private set; }
+
     public bool UsingController { get; private set; }
 
     public bool HasPendingLeftClick => _leftClickPosition.HasValue;
@@ -168,6 +174,20 @@ public sealed class InputState
 
     public void MarkControllerInput() => UsingController = true;
 
+    internal void SetUiCapture(bool mouse, bool keyboard)
+    {
+        UiWantsMouse = mouse;
+        UiWantsKeyboard = keyboard;
+    }
+
+    public void DiscardUiCapturedPointerEvents()
+    {
+        DiscardPointerMovementEvents();
+        _rightMouseButtonPressed = false;
+        _rightMouseButtonReleased = false;
+        _mouseWheelDelta = 0;
+    }
+
     /// <summary>Discards one-shot events when input ownership moves to another scene.</summary>
     public void ClearTransientEvents()
     {
@@ -178,5 +198,7 @@ public sealed class InputState
         _rightMouseButtonReleased = false;
         _xButtonCyclePressed = false;
         _mouseWheelDelta = 0;
+        UiWantsMouse = false;
+        UiWantsKeyboard = false;
     }
 }

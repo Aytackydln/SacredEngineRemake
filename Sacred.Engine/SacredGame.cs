@@ -32,7 +32,12 @@ public sealed class SacredGame : IDisposable
             initialSaveState.WindowedWidth,
             initialSaveState.WindowedHeight,
             initialSaveState.BorderlessFullscreen);
-        _renderer = new Dx12Renderer(_window, gameDirectory, _latency, initialSaveState.HdrEnabled);
+        _renderer = new Dx12Renderer(
+            _window,
+            gameDirectory,
+            _latency,
+            initialSaveState.HdrEnabled,
+            initialSaveState.HdrBrightness);
         _framePacing = new FramePacingController(
             _renderer,
             _latency,
@@ -86,6 +91,7 @@ public sealed class SacredGame : IDisposable
     private async ValueTask Update(ulong frameId, CancellationToken cancellationToken)
     {
         var deltaSeconds = _framePacing.Tick();
+        _renderer.BeginDebugUiFrame(deltaSeconds);
         _latency.Mark(LatencyMarker.SimulationStart, frameId);
         if (_window.Input.HasPendingLeftClick)
             _latency.Mark(LatencyMarker.LeftMouseButtonClick, frameId);

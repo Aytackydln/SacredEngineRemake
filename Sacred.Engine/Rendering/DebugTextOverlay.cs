@@ -7,10 +7,10 @@ using System.Runtime.InteropServices;
 
 namespace Sacred.Engine.Rendering;
 
-public sealed class DebugTextOverlay(DebugOverlayFontSet fonts)
+public sealed class DebugTextOverlay
 {
-    public const int Width = 460;
-    public const int Height = 280;
+    public const int DefaultWidth = 460;
+    public const int DefaultHeight = 280;
 
     private const int Padding = 8;
     private const int DefaultLineAdvance = 16;
@@ -22,8 +22,26 @@ public sealed class DebugTextOverlay(DebugOverlayFontSet fonts)
         Trimming = StringTrimming.None
     };
 
-    public byte[] Rgba { get; } = new byte[Width * Height * 4];
-    private byte[] _bitmapPixels = new byte[Width * Height * 4];
+    private readonly DebugOverlayFontSet _fonts;
+    private byte[] _bitmapPixels;
+
+    public DebugTextOverlay(
+        DebugOverlayFontSet fonts,
+        int width = DefaultWidth,
+        int height = DefaultHeight)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        _fonts = fonts;
+        Width = width;
+        Height = height;
+        Rgba = new byte[width * height * 4];
+        _bitmapPixels = new byte[width * height * 4];
+    }
+
+    public int Width { get; }
+    public int Height { get; }
+    public byte[] Rgba { get; }
 
     public void SetLines(string[] lines)
     {
@@ -48,7 +66,7 @@ public sealed class DebugTextOverlay(DebugOverlayFontSet fonts)
         var y = Padding;
         foreach (var line in lines)
         {
-            var font = fonts.GetFont(line.Font);
+            var font = _fonts.GetFont(line.Font);
             DrawString(graphics, line.Text, font, Padding + 1, y + 1, 0, 0, 0, 190);
             DrawString(graphics, line.Text, font, Padding, y, 238, 246, 255, 245);
 
@@ -204,6 +222,12 @@ public sealed class DebugOverlayFontSet : IDisposable
             CreateFont(carolingCollection, FontFamily.GenericSerif, DebugTextOverlayFontSizes.Title));
     }
 
+    public static DebugOverlayFontSet LoadDebug() => new(
+        null,
+        null,
+        CreateSystemFont("Consolas", FontFamily.GenericMonospace, DebugTextOverlayFontSizes.Default),
+        CreateSystemFont("Segoe UI Semibold", FontFamily.GenericSansSerif, DebugTextOverlayFontSizes.Title));
+
     public Font GetFont(DebugTextFont font) =>
         font == DebugTextFont.CarolingTitle ? _carolingTitleFont : _defaultFont;
 
@@ -233,6 +257,18 @@ public sealed class DebugOverlayFontSet : IDisposable
         var family = collection is { Families.Length: > 0 } ? collection.Families[0] : fallback;
         return new Font(family, size, FontStyle.Regular, GraphicsUnit.Pixel);
     }
+
+    private static Font CreateSystemFont(string familyName, FontFamily fallback, float size)
+    {
+        try
+        {
+            return new Font(familyName, size, FontStyle.Regular, GraphicsUnit.Pixel);
+        }
+        catch (ArgumentException)
+        {
+            return new Font(fallback, size, FontStyle.Regular, GraphicsUnit.Pixel);
+        }
+    }
 }
 
 public readonly record struct DebugTextLine(string Text, DebugTextFont Font)
@@ -250,6 +286,6 @@ public enum DebugTextFont
 
 internal static class DebugTextOverlayFontSizes
 {
-    public const int Default = 20;
-    public const int Title = 27;
+    public const int Default = 17;
+    public const int Title = 23;
 }

@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Assets.Paks.Texture;
+using Sacred.Engine.Graphics.Sprites;
 
 namespace Sacred.Engine.Assets;
 
@@ -44,7 +45,7 @@ internal sealed class StaticShadowAtlasLoader
             if (!_loadRequested)
             {
                 _loadRequested = true;
-                _loadQueue.Enqueue(LoadAsync);
+                _loadQueue.Enqueue(LoadAsync, AssetLoadPriority.Background);
             }
 
             return false;
@@ -85,6 +86,12 @@ internal sealed class StaticShadowAtlasLoader
                     0,
                     0,
                     texture.Rgba8);
+                SpriteTransparentEdgePadding.Apply(
+                    atlas.Rgba,
+                    atlas.AtlasWidth,
+                    atlas.AtlasHeight,
+                    atlas.Width,
+                    atlas.Height);
             }
 
             EngineLog.WriteLine(atlas is null

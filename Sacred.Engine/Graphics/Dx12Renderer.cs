@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Graphics.Frames;
+using Sacred.Engine.Graphics.ImGui;
 using Sacred.Engine.Graphics.Swapchain;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Platform;
@@ -33,6 +34,9 @@ public sealed class Dx12Renderer : IDisposable
     private readonly Action _shaderReloadHandler;
     private readonly Action<Dx12FrameContext> _releaseRetiredResources;
     private readonly Queue<string?> _pendingScreenshotLabels = new();
+    private readonly Dx12ScreenshotWriterQueue _screenshotWriter;
+    private readonly InputState _input;
+    private readonly DebugUiControlState _debugUiControls = new();
 
     private Dx12WorldPass? _worldPass;
     private ID3D12RootSignature _screenRootSignature = null!;
@@ -46,16 +50,20 @@ public sealed class Dx12Renderer : IDisposable
         Win32Window window,
         string gameDirectory,
         LowLatencySystem latency,
-        bool hdrEnabled = false)
+        bool hdrEnabled = false,
+        HdrBrightnessSettings? hdrBrightnessSettings = null)
     {
         _gameDirectory = gameDirectory;
+        _screenshotWriter = new Dx12ScreenshotWriterQueue(gameDirectory);
+        _input = window.Input;
         _shaderReloadHandler = RequestShaderReload;
         _releaseRetiredResources = ReleaseRetiredResources;
         _graphics = new Dx12DeviceContext(
             window,
             latency,
             Dx12DescriptorLayout.TotalCount,
-            hdrEnabled);
+            hdrEnabled,
+            hdrBrightnessSettings ?? HdrBrightnessSettings.Default);
         _textureUploader = new Dx12TextureUploader(_graphics.Device);
         _screenPass = new Dx12ScreenPass(
             _graphics.CommandList,
@@ -68,6 +76,8 @@ public sealed class Dx12Renderer : IDisposable
 
     public bool VariableRefreshRateSupported => _graphics.VariableRefreshRateSupported;
     public bool IsHdrEnabled => _graphics.IsHdrEnabled;
+    public HdrBrightnessSettings HdrBrightnessSettings => _graphics.HdrBrightnessSettings;
+    internal DebugUiControlState DebugUiControls => _debugUiControls;
     public bool WorldInitialized => _worldPass is not null;
     public WorldPreparationStatus LastWorldPreparationStatus =>
         _worldPass?.LastPreparationStatus ?? WorldPreparationStatus.NotStarted;
@@ -88,7 +98,9 @@ public sealed class Dx12Renderer : IDisposable
             worldArchive,
             _graphics,
             _textureUploader,
-            _gameDirectory);
+            _gameDirectory,
+            _input,
+            _debugUiControls);
         _graphics.WaitForGpu(_releaseRetiredResources);
         CreateWorldPipeline(Dx12RendererPipelineFactory.Compile(_graphics.Shaders, _graphics.IsHdrEnabled));
     }
@@ -100,6 +112,7 @@ public sealed class Dx12Renderer : IDisposable
         CancellationToken cancellationToken = default,
         WorldPreloadRequest? worldPreload = null)
     {
+        _worldPass?.DiscardDebugUiFrame();
         Dx12PreparedWorldFrame prepared = default;
         if (worldPreload is not null)
             prepared = GetWorldPass().Prepare(
@@ -123,6 +136,7 @@ public sealed class Dx12Renderer : IDisposable
         ulong frameId,
         CancellationToken cancellationToken = default)
     {
+        _worldPass?.DiscardDebugUiFrame();
         var destination = new Vector4(
             _graphics.RenderWidth * 0.5f - map.Center.X * map.Zoom,
             _graphics.RenderHeight * 0.5f - map.Center.Y * map.Zoom,
@@ -168,6 +182,9 @@ public sealed class Dx12Renderer : IDisposable
         _graphics.AcquireFrame(cancellationToken, _releaseRetiredResources);
     }
 
+    internal void BeginDebugUiFrame(float deltaSeconds) =>
+        _worldPass?.BeginDebugUiFrame(deltaSeconds);
+
     public bool ToggleHdr()
     {
         RecreateSwapChain(_graphics.IsHdrEnabled ? Dx12SwapChainMode.Sdr : Dx12SwapChainMode.Hdr);
@@ -182,6 +199,7 @@ public sealed class Dx12Renderer : IDisposable
         _worldPass?.Dispose();
         _screenPass.Dispose();
         DisposePipelineResources();
+        _screenshotWriter.Dispose();
         _graphics.Dispose();
     }
 
@@ -200,20 +218,11 @@ public sealed class Dx12Renderer : IDisposable
             verticalSyncEnabled,
             frameId,
             captureScreenshot);
+        _worldPass?.OnForegroundFrameSubmitted();
         if (screenshot is null)
             return;
 
-        try
-        {
-            var path = Dx12ScreenshotWriter.CreatePath(_gameDirectory, label, screenshot);
-            Dx12ScreenshotWriter.Save(screenshot, path);
-            EngineLog.WriteLine(
-                $"Screenshot saved to {path} ({Dx12ScreenshotWriter.DescribeColorSpace(screenshot)}).");
-        }
-        catch (Exception exception)
-        {
-            EngineLog.WriteLine($"Screenshot failed: {exception.Message}");
-        }
+        _screenshotWriter.Enqueue(screenshot, label);
     }
 
     private void CreateWorldPipeline(Dx12CompiledRendererPipelines shaders)
@@ -235,7 +244,11 @@ public sealed class Dx12Renderer : IDisposable
                 _graphics.Device,
                 shaders.Models,
                 _graphics.BackBufferFormat,
-                Dx12DeviceContext.DepthBufferFormat));
+                Dx12DeviceContext.DepthBufferFormat),
+            Dx12RendererPipelineFactory.Create(
+                _graphics.Device,
+                shaders.ImGui,
+                _graphics.BackBufferFormat));
     }
 
     private void CreateScreenPipeline(Dx12CompiledPipelineGroup shaders)

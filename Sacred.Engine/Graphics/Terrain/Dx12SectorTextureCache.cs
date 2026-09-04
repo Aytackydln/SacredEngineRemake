@@ -21,16 +21,16 @@ internal sealed class Dx12SectorTextureCache : IDisposable
     private readonly int _descriptorSize;
     private readonly Dictionary<SectorCoord, SectorTexture> _textures = new();
     private readonly HashSet<SectorCoord> _pendingUploads = [];
-    private readonly Dictionary<SectorCoord, TerrainSectorComposition> _wantedCompositions = new();
     private readonly List<SectorCoord> _texturesToRetire = new(9);
     private readonly BlockingCollection<SectorCompositionRequest> _compositionRequests = new();
     private readonly ConcurrentQueue<SubmittedSectorComposition> _submittedCompositions = new();
     private readonly Stack<int> _freeSrvSlots;
-    private readonly object _wantedCompositionsLock = new();
+    private readonly AutoResetEvent _compositionOpportunity = new(false);
 
+    private Dictionary<SectorCoord, TerrainSectorComposition> _wantedCompositions = new();
     private Thread? _uploadThread;
     private int _retiringSrvSlotCount;
-    private bool _stopped;
+    private volatile bool _stopped;
 
     public Dx12SectorTextureCache(
         ID3D12Device device,
@@ -51,7 +51,8 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         _uploadThread = new Thread(UploadWorkerLoop)
         {
             IsBackground = true,
-            Name = "Sacred GPU sector compositor"
+            Name = "Sacred GPU sector compositor",
+            Priority = ThreadPriority.BelowNormal
         };
         _uploadThread.Start();
     }
@@ -60,6 +61,12 @@ internal sealed class Dx12SectorTextureCache : IDisposable
     public int PendingUploadCount => _pendingUploads.Count;
     public int MaximumTextureCount => _maximumTextureCount;
     public Stack<int> FreeSrvSlots => _freeSrvSlots;
+
+    /// <summary>
+    /// Gives the compositor one opportunity after foreground commands have been submitted.
+    /// This prevents background GPU work from racing ahead while frames are being recorded.
+    /// </summary>
+    public void OnForegroundFrameSubmitted() => _compositionOpportunity.Set();
 
     public void OnFrameRetired(int releasedSectorSlotCount)
     {
@@ -109,9 +116,9 @@ internal sealed class Dx12SectorTextureCache : IDisposable
             return;
 
         _stopped = true;
-        lock (_wantedCompositionsLock)
-            _wantedCompositions.Clear();
+        Volatile.Write(ref _wantedCompositions, new Dictionary<SectorCoord, TerrainSectorComposition>());
         _compositionRequests.CompleteAdding();
+        _compositionOpportunity.Set();
         _uploadThread?.Join();
         _uploadThread = null;
 
@@ -143,6 +150,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         _textures.Clear();
 
         _compositionRequests.Dispose();
+        _compositionOpportunity.Dispose();
         _composer.Dispose();
     }
 
@@ -244,21 +252,37 @@ internal sealed class Dx12SectorTextureCache : IDisposable
 
     private void UpdateWantedCompositions(IReadOnlyList<TerrainSectorComposition> images)
     {
-        lock (_wantedCompositionsLock)
+        var current = Volatile.Read(ref _wantedCompositions);
+        if (current.Count == images.Count)
         {
-            _wantedCompositions.Clear();
+            var unchanged = true;
             foreach (var image in images)
-                _wantedCompositions[image.Coord] = image;
+            {
+                if (current.TryGetValue(image.Coord, out var currentComposition) &&
+                    ReferenceEquals(currentComposition, image))
+                {
+                    continue;
+                }
+
+                unchanged = false;
+                break;
+            }
+
+            if (unchanged)
+                return;
         }
+
+        var wanted = new Dictionary<SectorCoord, TerrainSectorComposition>(images.Count);
+        foreach (var image in images)
+            wanted[image.Coord] = image;
+        Volatile.Write(ref _wantedCompositions, wanted);
     }
 
     private bool IsWanted(TerrainSectorComposition composition)
     {
-        lock (_wantedCompositionsLock)
-        {
-            return _wantedCompositions.TryGetValue(composition.Coord, out var wanted) &&
-                   ReferenceEquals(wanted, composition);
-        }
+        var wantedCompositions = Volatile.Read(ref _wantedCompositions);
+        return wantedCompositions.TryGetValue(composition.Coord, out var wanted) &&
+               ReferenceEquals(wanted, composition);
     }
 
     private void RetireUnneededTextures(Dx12FrameContext frame)
@@ -296,7 +320,10 @@ internal sealed class Dx12SectorTextureCache : IDisposable
     {
         foreach (var request in _compositionRequests.GetConsumingEnumerable())
         {
-            _submittedCompositions.Enqueue(IsWanted(request.Composition)
+            if (!_stopped)
+                _compositionOpportunity.WaitOne();
+
+            _submittedCompositions.Enqueue(!_stopped && IsWanted(request.Composition)
                 ? Compose(request)
                 : Skip(request));
         }
@@ -365,55 +392,4 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         _freeSrvSlots.Push(composition.TerrainTopologyDebugSrvSlot);
     }
 
-    private sealed record SectorCompositionRequest(
-        TerrainSectorComposition Composition,
-        int BaseSrvSlot,
-        int LiquidCoverSrvSlot,
-        int StairsDebugSrvSlot,
-        int BlockedAreaDebugSrvSlot,
-        int TerrainTopologyDebugSrvSlot);
-
-    private sealed record SubmittedSectorComposition(
-        SectorCoord Coord,
-        TerrainSectorComposition Composition,
-        Dx12ComposedSector? Composed,
-        int BaseSrvSlot,
-        int LiquidCoverSrvSlot,
-        int StairsDebugSrvSlot,
-        int BlockedAreaDebugSrvSlot,
-        int TerrainTopologyDebugSrvSlot,
-        Exception? Error);
-
-    private sealed class SectorTexture(
-        TerrainSectorComposition composition,
-        ID3D12Resource baseResource,
-        ID3D12Resource liquidCoverResource,
-        ID3D12Resource stairsDebugResource,
-        ID3D12Resource blockedAreaDebugResource,
-        ID3D12Resource terrainTopologyDebugResource,
-        int baseSrvSlot,
-        int liquidCoverSrvSlot,
-        int stairsDebugSrvSlot,
-        int blockedAreaDebugSrvSlot,
-        int terrainTopologyDebugSrvSlot)
-    {
-        public TerrainSectorComposition Composition { get; } = composition;
-        public ID3D12Resource BaseResource { get; } = baseResource;
-        public ID3D12Resource LiquidCoverResource { get; } = liquidCoverResource;
-        public ID3D12Resource StairsDebugResource { get; } = stairsDebugResource;
-        public ID3D12Resource BlockedAreaDebugResource { get; } = blockedAreaDebugResource;
-        public ID3D12Resource TerrainTopologyDebugResource { get; } = terrainTopologyDebugResource;
-        public int BaseSrvSlot { get; } = baseSrvSlot;
-        public int LiquidCoverSrvSlot { get; } = liquidCoverSrvSlot;
-        public int StairsDebugSrvSlot { get; } = stairsDebugSrvSlot;
-        public int BlockedAreaDebugSrvSlot { get; } = blockedAreaDebugSrvSlot;
-        public int TerrainTopologyDebugSrvSlot { get; } = terrainTopologyDebugSrvSlot;
-    }
 }
-
-internal readonly record struct SectorTextureView(
-    int BaseSrvSlot,
-    int LiquidCoverSrvSlot,
-    int StairsDebugSrvSlot,
-    int BlockedAreaDebugSrvSlot,
-    int TerrainTopologyDebugSrvSlot);

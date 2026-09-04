@@ -12,8 +12,10 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
 {
     public const int MaximumTextureCount = 4096;
 
-    private const int StaticUploadBatchSize = 32;
-    private const int LiquidUploadBatchSize = 2;
+    // Resource creation and upload-buffer copies must use the render command list.
+    // Keep those unavoidable render-thread operations to one of each kind per frame.
+    private const int StaticUploadBatchSize = 1;
+    private const int LiquidUploadBatchSize = 1;
 
     private readonly Dx12TextureUploader _uploader;
     private readonly ID3D12GraphicsCommandList _commandList;
@@ -196,18 +198,11 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
         ID3D12Resource? resource = null;
         try
         {
-            var rgba = sprite.Rgba;
-            SpriteTransparentEdgePadding.Apply(
-                rgba,
-                sprite.AtlasWidth,
-                sprite.AtlasHeight,
-                sprite.Width,
-                sprite.Height);
             resource = _uploader.UploadRgbaTexture(
                 _commandList,
                 sprite.AtlasWidth,
                 sprite.AtlasHeight,
-                rgba,
+                sprite.Rgba,
                 frame.TransientResources);
             _uploader.CreateShaderResourceView(resource, SrvCpuHandle(slot));
             _staticTextures[sprite] = new SpriteTexture(resource, slot);

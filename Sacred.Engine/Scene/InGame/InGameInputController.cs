@@ -67,11 +67,15 @@ internal sealed class InGameInputController
     {
         _player.ApplyPendingAssets();
 
+        var uiWantsMouse = _input.UiWantsMouse;
+        if (uiWantsMouse)
+            _input.DiscardUiCapturedPointerEvents();
+
         if (_mapInput.Update(deltaSeconds))
             return;
 
-        if (_input.ConsumeXButtonCyclePressed() ||
-            _gamepad.WasPressed(GamepadButtons.B))
+        if (!uiWantsMouse && (_input.ConsumeXButtonCyclePressed() ||
+            _gamepad.WasPressed(GamepadButtons.B)))
         {
             _player.CycleModel();
         }
@@ -96,7 +100,7 @@ internal sealed class InGameInputController
         }
 
         var isDefending = _input.IsDefendDown;
-        if (isDefending)
+        if (isDefending || uiWantsMouse)
         {
             _clickToMove.StopMoving();
             _input.DiscardPointerMovementEvents();
@@ -113,7 +117,7 @@ internal sealed class InGameInputController
                 deltaSeconds);
         }
 
-        if (_input.ConsumeRightMouseButtonPressed() || _gamepad.WasPressed(GamepadButtons.X))
+        if ((!uiWantsMouse && _input.ConsumeRightMouseButtonPressed()) || _gamepad.WasPressed(GamepadButtons.X))
             _player.PlayAttack();
 
         _camera.UpdateFromInput(_input, deltaSeconds, _collision);
@@ -160,7 +164,7 @@ internal sealed class InGameInputController
             _input.MousePosition,
             _viewportWidth(),
             _viewportHeight());
-        _setHandCursor(_stairs.IsStairsAt(mouseWorld, _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0));
+        _setHandCursor(!uiWantsMouse && _stairs.IsStairsAt(mouseWorld, _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0));
     }
 
     public void OnActivated() => _mapInput.OnActivated();

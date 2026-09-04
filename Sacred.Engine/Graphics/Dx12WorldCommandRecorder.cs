@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Numerics;
 using Sacred.Engine.Graphics.Frames;
+using Sacred.Engine.Graphics.ImGui;
 using Sacred.Engine.Graphics.Minimap;
 using Sacred.Engine.Graphics.Models;
 using Sacred.Engine.Graphics.Sprites;
@@ -29,6 +30,7 @@ internal sealed class Dx12WorldCommandRecorder
     private readonly Dx12LightHaloPass _lightHalos;
     private readonly Dx12ModelPass _models;
     private readonly Dx12DebugOverlay _debugOverlay;
+    private readonly Dx12ImGuiRenderer _imgui;
     private readonly Dx12MinimapPass _minimap;
     private readonly WorldQuadShaderConstantsUpdater _worldQuadConstants = new();
 
@@ -41,6 +43,7 @@ internal sealed class Dx12WorldCommandRecorder
         Dx12LightHaloPass lightHalos,
         Dx12ModelPass models,
         Dx12DebugOverlay debugOverlay,
+        Dx12ImGuiRenderer imgui,
         Dx12MinimapPass minimap)
     {
         _commandList = commandList;
@@ -51,6 +54,7 @@ internal sealed class Dx12WorldCommandRecorder
         _lightHalos = lightHalos;
         _models = models;
         _debugOverlay = debugOverlay;
+        _imgui = imgui;
         _minimap = minimap;
     }
 
@@ -219,7 +223,7 @@ internal sealed class Dx12WorldCommandRecorder
             spriteBatch,
             scene.Lighting.WorldSurfaceAmbientColour,
             displayProfile.ScenePaperWhiteNits,
-            scene.Lighting.UnlitStaticSpriteWhiteNits,
+            displayProfile.UnlitSpriteNits,
             surfaceLightCount,
             scene.Lighting.NightBlend,
             frame,
@@ -269,7 +273,7 @@ internal sealed class Dx12WorldCommandRecorder
         _lightHalos.Record(
             lightHaloInstanceCount,
             scene.Lighting.NightBlend,
-            scene.Lighting.UnlitStaticSpriteWhiteNits,
+            displayProfile.UnlitSpriteNits,
             frame,
             renderWidth,
             renderHeight);
@@ -291,6 +295,7 @@ internal sealed class Dx12WorldCommandRecorder
                 renderHeight,
                 displayProfile.UiPaperWhiteNits);
         }
+        _imgui.Record(frame, displayProfile.UiPaperWhiteNits);
 
         Dx12TextureUploader.Transition(
             _commandList,

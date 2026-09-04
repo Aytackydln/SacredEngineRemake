@@ -239,13 +239,19 @@ internal sealed class Dx12ModelTextureCache : IDisposable
         try
         {
             var asset = await _assets.LoadModelTextureAsync(texture.Name).ConfigureAwait(false);
+            var hasTranslucentPixels = HasTranslucentPixels(asset.Rgba8);
             texture.Stage = ModelTextureStage.ReadyForGpu;
-            _completedLoads.Enqueue(new CompletedTextureLoad(texture, asset, srvSlot, null));
+            _completedLoads.Enqueue(new CompletedTextureLoad(
+                texture,
+                asset,
+                srvSlot,
+                hasTranslucentPixels,
+                null));
         }
         catch (Exception exception)
         {
             texture.Stage = ModelTextureStage.Failed;
-            _completedLoads.Enqueue(new CompletedTextureLoad(texture, null, srvSlot, exception));
+            _completedLoads.Enqueue(new CompletedTextureLoad(texture, null, srvSlot, false, exception));
         }
     }
 
@@ -287,7 +293,7 @@ internal sealed class Dx12ModelTextureCache : IDisposable
                 _uploader.CreateShaderResourceView(resource, SrvCpuHandle(completed.SrvSlot));
                 texture.SrvSlot = completed.SrvSlot;
                 texture.Resource = resource;
-                texture.HasTranslucentPixels = HasTranslucentPixels(asset.Rgba8);
+                texture.HasTranslucentPixels = completed.HasTranslucentPixels;
                 _assets.ReleaseModelTexture(texture.Name, asset);
             }
             catch
@@ -318,6 +324,7 @@ internal sealed class Dx12ModelTextureCache : IDisposable
         ModelTexture Texture,
         TextureAsset? Asset,
         int SrvSlot,
+        bool HasTranslucentPixels,
         Exception? Error);
 
     internal enum ModelTextureStage

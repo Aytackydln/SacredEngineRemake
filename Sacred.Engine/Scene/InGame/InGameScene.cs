@@ -74,6 +74,8 @@ internal sealed class InGameScene : IGameScene
     internal Vector2 PlayerWorldPosition => _camera.WorldCenter;
     internal bool WorldStreamingSettled => _worldStreamer.VisibleWorld.LoadingSectors == 0;
 
+    internal void SetWorldLightingMode(WorldLightingMode mode) => _worldLighting.SetMode(mode);
+
     internal Task<TextureAsset> LoadTextureAsync(string textureName, CancellationToken cancellationToken) =>
         _assets.LoadTextureAsync(textureName, cancellationToken);
 
@@ -89,6 +91,10 @@ internal sealed class InGameScene : IGameScene
             case "overlays" or "debug-overlay" when TryParseBoolean(value, out var overlaysVisible):
                 _scene.Debug.OverlaysVisible = overlaysVisible;
                 message = $"debug overlays {(overlaysVisible ? "visible" : "hidden")}";
+                return true;
+            case "debug-panel" or "panel" when TryParseBoolean(value, out var panelVisible):
+                _scene.Debug.PanelVisible = panelVisible;
+                message = $"ImGui debug panel {(panelVisible ? "visible" : "hidden")}";
                 return true;
             case "lighting" when TryParseLightingMode(value, out var lightingMode):
                 _worldLighting.SetMode(lightingMode);
@@ -113,7 +119,7 @@ internal sealed class InGameScene : IGameScene
                 message = "loading next character";
                 return true;
             default:
-                message = "Unknown in-game option. Use overlays <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, tessellation <on|off>, or character next.";
+                message = "Unknown in-game option. Use overlays <on|off>, debug-panel <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, tessellation <on|off>, or character next.";
                 return false;
         }
     }

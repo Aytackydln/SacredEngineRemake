@@ -30,8 +30,6 @@ internal abstract class Dx12SwapChain : IDisposable
 
     public abstract Dx12ShaderSet Shaders { get; }
 
-    public abstract Dx12DisplayProfile DisplayProfile { get; }
-
     public uint CurrentBackBufferIndex => SwapChain.CurrentBackBufferIndex;
 
     public void WaitForPresentSlot(CancellationToken cancellationToken)
