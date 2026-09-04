@@ -26,6 +26,7 @@ ReadOnlySpan<IExperiment> experiments = [
     new ExpHealingPotion(),
     new ExpDragonShield(),
     new ExpPeekValues(),
+    new ExpBlockedTiles(),
 ];
 foreach (var experiment in experiments)
 {

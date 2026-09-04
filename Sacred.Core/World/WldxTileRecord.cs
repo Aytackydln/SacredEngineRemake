@@ -7,9 +7,9 @@ namespace Sacred.Core.World;
 public enum WldxTileFlags : byte
 {
     None = 0,
-    /// <summary>First exact authored movement-blocking value.</summary>
+    /// <summary>Full movement blocker that cannot be flown over.</summary>
     MovementBlockerA = 0x01,
-    /// <summary>Second exact authored movement-blocking value.</summary>
+    /// <summary>Ground movement blocker that can be flown over.</summary>
     MovementBlockerB = 0x02,
     Shadowable = 0x04,
     CanFadeModelsBehind = 0x08,
