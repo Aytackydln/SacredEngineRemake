@@ -11,11 +11,8 @@ public enum WldxTileFlags : byte
     MovementBlockerA = 0x01,
     /// <summary>Ground movement blocker that can be flown over.</summary>
     MovementBlockerB = 0x02,
-    Shadowable = 0x04,
-    CanFadeModelsBehind = 0x08,
 
-    Entrance = MovementBlockerA | CanFadeModelsBehind,
-    ExteriorEntranceBoundary = MovementBlockerB | CanFadeModelsBehind,
+    Entrance = 0x08,
 }
 
 /// <summary>
@@ -63,13 +60,10 @@ public readonly record struct WldxTileProperties
     /// Whether the complete low-nibble value is one of Sacred's two movement blockers.
     /// Door composites 0x09 and 0x0A reuse these bits but remain traversable.
     /// </summary>
-    public bool BlocksMovement =>
-        TileFlags is WldxTileFlags.MovementBlockerA or WldxTileFlags.MovementBlockerB;
-    public bool IsShadowable => TileFlags.HasFlag(WldxTileFlags.Shadowable);
-    public bool CanFadeModelsBehind => TileFlags.HasFlag(WldxTileFlags.CanFadeModelsBehind);
+    public bool BlocksMovement => (
+        TileFlags.HasFlag(WldxTileFlags.MovementBlockerA) || TileFlags.HasFlag(WldxTileFlags.MovementBlockerB)) && !TileFlags.HasFlag(WldxTileFlags.Entrance);
     public bool IsEntrance => TileFlags.HasFlag(WldxTileFlags.Entrance);
-    public bool IsEntranceBoundary =>
-        TileFlags is WldxTileFlags.Entrance or WldxTileFlags.ExteriorEntranceBoundary;
+    public bool IsEntranceBoundary => TileFlags is WldxTileFlags.Entrance;
     public bool IsLiquid => TerrainSurface is WldxTerrainSurface.LiquidA or WldxTerrainSurface.LiquidB;
 
     // Sacred.exe keeps the low nibble when selecting the floor-chain insertion point.

@@ -44,8 +44,7 @@ internal static class WorldDebugFlagCatalog
     [
         Option(WldxTileFlags.MovementBlockerA, "Movement blocker A", 0),
         Option(WldxTileFlags.MovementBlockerB, "Movement blocker B", 1),
-        Option(WldxTileFlags.Shadowable, "Shadowable", 2),
-        Option(WldxTileFlags.CanFadeModelsBehind, "Fade models behind", 3),
+        Option(WldxTileFlags.Entrance, "Entrance", 2),
     ];
 
     public static IReadOnlyList<WorldDebugFlagOption<WldxTerrainSurface>> SurfaceFlags { get; } =
