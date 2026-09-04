@@ -10,12 +10,13 @@ public static class WorldMapProjection
 
     // The 2004 map uses one fixed affine step for each world-sector axis. It is
     // not the 16x8 screen-space isometric projection used to draw the terrain.
-    // These values are calibrated against original-game map/gameplay pairs in
-    // the Bellevue and eastern swamp regions and the Shaddar-Nur castle.
-    private const float MapOriginX = 700.5922f;
-    private const float MapOriginY = -704.3138f;
-    private static readonly Vector2 SectorXAxis = new(25.0f, 25.0f);
-    private static readonly Vector2 SectorYAxis = new(-17.782867f, 14.130317f);
+    // These values are fitted against original-game world-map screenshots at
+    // six positions spanning Ancaria. The screenshots render the authored map
+    // at 80%, so their marked positions are registered back to its 2048px grid.
+    private const float MapOriginX = 1018.5140f;
+    private const float MapOriginY = -958.0883f;
+    private static readonly Vector2 SectorXAxis = new(22.841148f, 22.913492f);
+    private static readonly Vector2 SectorYAxis = new(-22.86053f, 22.94859f);
     private static readonly float SectorAxisDeterminant =
         SectorXAxis.X * SectorYAxis.Y - SectorYAxis.X * SectorXAxis.Y;
 
