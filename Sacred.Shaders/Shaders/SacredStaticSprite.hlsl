@@ -283,7 +283,9 @@ pixel_output ps_sdr(vertex_output input)
     color.rgb *= is_unlit ? 1.0f : lerp(lighting, 1.0f, emission);
 
     pixel_output output;
-    output.color = color;
+    // Static sprites use the premultiplied blend state (One / InverseSourceAlpha),
+    // while SDR liquids retain their separate straight-alpha pipeline.
+    output.color = is_liquid ? color : float4(color.rgb * color.a, color.a);
     output.depth = input.depth;
     return output;
 }

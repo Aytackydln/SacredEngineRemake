@@ -152,7 +152,7 @@ public static class Dx12PipelineCatalog
                     Dx12PipelineKind.StaticSprite,
                     shaders.StaticSpriteVertexShader,
                     shaders.StaticSpritePixelShader,
-                    hdrOutput ? CreatePremultipliedBlend() : BlendDescription.AlphaBlend,
+                    CreatePremultipliedBlend(),
                     RasterizerDescription.CullNone,
                     CreateLessEqualDepth(),
                     usesDepthBuffer: true),
