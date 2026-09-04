@@ -31,9 +31,9 @@ struct vertex_output
     float2 tex_coord : TEXCOORD0;
 };
 
-float3 surface_lighting(float2 pixel_position)
+float surface_lighting(float2 pixel_position)
 {
-    float3 lighting = ambient_colour;
+    float lighting = 0.0f;
     uint count = min((uint)(world_light_count + 0.5f), 64u);
     float night_visibility = lerp(0.10f, 1.0f, saturate(night_blend));
     for (uint index = 0; index < count; index++)
@@ -49,9 +49,11 @@ float3 surface_lighting(float2 pixel_position)
         // Local illumination is a grayscale light-map contribution. Emitter
         // colour is used only by visible particle/halo rendering.
         lighting += falloff * light.opacity * night_visibility;
+        if (lighting >= 1.0f)
+            return 1.0f;
     }
 
-    return min(lighting, 1.0f);
+    return lighting;
 }
 
 static const float2 quad_uvs[6] =
@@ -82,7 +84,7 @@ vertex_output vs_main(uint vertex_id : SV_VertexID)
 float4 ps_sdr(vertex_output input) : SV_Target
 {
     float4 color = texture0.Sample(sampler0, input.tex_coord);
-    color.rgb *= surface_lighting(input.position.xy);
+    color.rgb *= min(ambient_colour + surface_lighting(input.position.xy), 1.0f);
     return color;
 }
 
@@ -94,7 +96,7 @@ float4 ps_sdr_screen(vertex_output input) : SV_Target
 float4 ps_hdr(vertex_output input) : SV_Target
 {
     float4 tex = texture0.Sample(sampler0, input.tex_coord);
-    tex.rgb *= surface_lighting(input.position.xy);
+    tex.rgb *= min(ambient_colour + surface_lighting(input.position.xy), 1.0f);
     if (premultiplied_alpha > 0.5f)
     {
         float3 straight_color = tex.a > 0.0f ? tex.rgb / tex.a : 0.0f;
