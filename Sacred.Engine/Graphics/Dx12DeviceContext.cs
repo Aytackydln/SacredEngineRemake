@@ -20,6 +20,7 @@ internal sealed class Dx12DeviceContext : IDisposable
 {
     public const int FrameCount = 2;
     public const Format DepthBufferFormat = Format.D32_Float;
+    private const FeatureLevel MinimumFeatureLevel = FeatureLevel.Level_11_0;
 
     private static readonly TimeSpan ResizeDebounce = TimeSpan.FromMilliseconds(150);
 
@@ -235,7 +236,10 @@ internal sealed class Dx12DeviceContext : IDisposable
         if (_allowTearing)
             _swapChainFlags |= SwapChainFlags.AllowTearing;
 
-        _device = D3D12CreateDevice<ID3D12Device>(null, FeatureLevel.Level_12_2);
+        // This is a minimum, not a cap on the device's available features. Requiring
+        // 12.2 rejects older D3D12 runtimes and GPUs even though the engine uses the
+        // feature-level 11 shader/resource baseline.
+        _device = D3D12CreateDevice<ID3D12Device>(null, MinimumFeatureLevel);
         _commandQueue = _device.CreateCommandQueue(CommandListType.Direct);
         _latency.AttachD3D12(_device.NativePointer, _commandQueue.NativePointer);
     }
