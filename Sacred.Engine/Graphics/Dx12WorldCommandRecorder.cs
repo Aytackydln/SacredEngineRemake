@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Sacred.Engine.Graphics.Frames;
 using Sacred.Engine.Graphics.ImGui;
+using Sacred.Engine.Graphics.Lighting;
 using Sacred.Engine.Graphics.Minimap;
 using Sacred.Engine.Graphics.Models;
 using Sacred.Engine.Graphics.Sprites;
@@ -27,6 +28,7 @@ internal sealed class Dx12WorldCommandRecorder
     private readonly int _srvDescriptorSize;
     private readonly Dx12SectorTextureCache _sectorTextures;
     private readonly Dx12SpritePass _sprites;
+    private readonly Dx12SurfaceLightMapPass _surfaceLights;
     private readonly Dx12LightHaloPass _lightHalos;
     private readonly Dx12ModelPass _models;
     private readonly Dx12DebugOverlay _debugOverlay;
@@ -40,6 +42,7 @@ internal sealed class Dx12WorldCommandRecorder
         int srvDescriptorSize,
         Dx12SectorTextureCache sectorTextures,
         Dx12SpritePass sprites,
+        Dx12SurfaceLightMapPass surfaceLights,
         Dx12LightHaloPass lightHalos,
         Dx12ModelPass models,
         Dx12DebugOverlay debugOverlay,
@@ -51,6 +54,7 @@ internal sealed class Dx12WorldCommandRecorder
         _srvDescriptorSize = srvDescriptorSize;
         _sectorTextures = sectorTextures;
         _sprites = sprites;
+        _surfaceLights = surfaceLights;
         _lightHalos = lightHalos;
         _models = models;
         _debugOverlay = debugOverlay;
@@ -114,7 +118,13 @@ internal sealed class Dx12WorldCommandRecorder
             renderHeight,
             worldSpriteRevision);
         var surfaceLightCount = _lightHalos.SurfaceLightCount;
-        var worldLightBufferAddress = frame.LightHaloInstanceBuffer.GPUVirtualAddress;
+        _surfaceLights.Record(
+            surfaceLightCount,
+            scene.Lighting.NightBlend,
+            frame,
+            renderWidth,
+            renderHeight);
+        _commandList.OMSetRenderTargets(renderTarget, null);
 
         // Terrain and sprites use this exact transform for the whole frame. Independently
         // deriving it per pass opens moving seams at float rounding boundaries.
@@ -141,9 +151,6 @@ internal sealed class Dx12WorldCommandRecorder
                 drawHeight,
                 scene.Lighting.WorldSurfaceAmbientColour,
                 false,
-                surfaceLightCount,
-                scene.Lighting.NightBlend,
-                worldLightBufferAddress,
                 constants,
                 rootSignature,
                 terrainPipeline,
@@ -158,8 +165,6 @@ internal sealed class Dx12WorldCommandRecorder
                     liquidRange,
                     scene.Lighting.WorldSurfaceAmbientColour,
                     displayProfile.ScenePaperWhiteNits,
-                    surfaceLightCount,
-                    scene.Lighting.NightBlend,
                     frame,
                     renderWidth,
                     renderHeight);
@@ -173,9 +178,6 @@ internal sealed class Dx12WorldCommandRecorder
                 drawHeight,
                 scene.Lighting.WorldSurfaceAmbientColour,
                 true,
-                surfaceLightCount,
-                scene.Lighting.NightBlend,
-                worldLightBufferAddress,
                 constants,
                 rootSignature,
                 terrainPipeline,
@@ -197,9 +199,6 @@ internal sealed class Dx12WorldCommandRecorder
                     screenTransform.Scale(image.BlockedAreaDebugHeight),
                     Vector3.One,
                     true,
-                    0,
-                    0.0f,
-                    worldLightBufferAddress,
                     constants,
                     rootSignature,
                     terrainPipeline,
@@ -225,8 +224,6 @@ internal sealed class Dx12WorldCommandRecorder
             scene.Lighting.WorldSurfaceAmbientColour,
             displayProfile.ScenePaperWhiteNits,
             displayProfile.UnlitSpriteNits,
-            surfaceLightCount,
-            scene.Lighting.NightBlend,
             frame,
             renderWidth,
             renderHeight);
@@ -237,7 +234,6 @@ internal sealed class Dx12WorldCommandRecorder
                 sectorImages,
                 screenTransform,
                 constants,
-                worldLightBufferAddress,
                 rootSignature,
                 terrainPipeline,
                 liquidCoverPipeline,
@@ -255,7 +251,6 @@ internal sealed class Dx12WorldCommandRecorder
                 sectorImages,
                 screenTransform,
                 constants,
-                worldLightBufferAddress,
                 rootSignature,
                 terrainPipeline,
                 liquidCoverPipeline,
@@ -273,8 +268,6 @@ internal sealed class Dx12WorldCommandRecorder
             scene.Lighting.WorldSurfaceAmbientColour,
             displayProfile.ScenePaperWhiteNits,
             displayProfile.UnlitSpriteNits,
-            surfaceLightCount,
-            scene.Lighting.NightBlend,
             frame,
             renderWidth,
             renderHeight);
@@ -291,9 +284,9 @@ internal sealed class Dx12WorldCommandRecorder
 
         _commandList.SetGraphicsRootSignature(rootSignature);
         _commandList.SetPipelineState(terrainPipeline);
-        _commandList.SetGraphicsRootShaderResourceView(
-            WorldQuadShaderLayout.WorldLightBufferRootParameter,
-            worldLightBufferAddress);
+        _commandList.SetGraphicsRootDescriptorTable(
+            WorldQuadShaderLayout.SurfaceLightMapRootParameter,
+            _surfaceLights.ShaderResourceHandle);
         _commandList.OMSetRenderTargets(renderTarget, null);
         if (scene.Debug.OverlaysVisible)
             _debugOverlay.RecordDebugOverlay(renderWidth, renderHeight, displayProfile.UiPaperWhiteNits);
@@ -319,7 +312,6 @@ internal sealed class Dx12WorldCommandRecorder
         IReadOnlyList<TerrainSectorComposition> sectorImages,
         WorldScreenTransform screenTransform,
         float* constants,
-        ulong worldLightBufferAddress,
         ID3D12RootSignature rootSignature,
         ID3D12PipelineState terrainPipeline,
         ID3D12PipelineState liquidCoverPipeline,
@@ -345,9 +337,6 @@ internal sealed class Dx12WorldCommandRecorder
                 screenTransform.Scale(image.StairsDebugHeight),
                 Vector3.One,
                 true,
-                0,
-                0.0f,
-                worldLightBufferAddress,
                 constants,
                 rootSignature,
                 terrainPipeline,
@@ -362,7 +351,6 @@ internal sealed class Dx12WorldCommandRecorder
         IReadOnlyList<TerrainSectorComposition> sectorImages,
         WorldScreenTransform screenTransform,
         float* constants,
-        ulong worldLightBufferAddress,
         ID3D12RootSignature rootSignature,
         ID3D12PipelineState terrainPipeline,
         ID3D12PipelineState liquidCoverPipeline,
@@ -388,9 +376,6 @@ internal sealed class Dx12WorldCommandRecorder
                 screenTransform.Scale(image.TerrainTopologyDebugHeight),
                 Vector3.One,
                 true,
-                0,
-                0.0f,
-                worldLightBufferAddress,
                 constants,
                 rootSignature,
                 terrainPipeline,
@@ -409,9 +394,6 @@ internal sealed class Dx12WorldCommandRecorder
         float drawHeight,
         Vector3 ambientColour,
         bool premultipliedAlpha,
-        int worldLightCount,
-        float nightBlend,
-        ulong worldLightBufferAddress,
         float* constants,
         ID3D12RootSignature rootSignature,
         ID3D12PipelineState terrainPipeline,
@@ -430,9 +412,7 @@ internal sealed class Dx12WorldCommandRecorder
                 new Vector2(renderWidth, renderHeight),
                 ambientColour,
                 premultipliedAlpha,
-                paperWhiteNits,
-                worldLightCount,
-                nightBlend));
+                paperWhiteNits));
         _commandList.SetGraphicsRoot32BitConstants(
             WorldQuadShaderLayout.RootConstantsRootParameter,
             WorldQuadShaderLayout.RootConstantsCount,
@@ -441,9 +421,9 @@ internal sealed class Dx12WorldCommandRecorder
         _commandList.SetGraphicsRootDescriptorTable(
             WorldQuadShaderLayout.TextureRootParameter,
             _srvHeapStart + srvSlot * _srvDescriptorSize);
-        _commandList.SetGraphicsRootShaderResourceView(
-            WorldQuadShaderLayout.WorldLightBufferRootParameter,
-            worldLightBufferAddress);
+        _commandList.SetGraphicsRootDescriptorTable(
+            WorldQuadShaderLayout.SurfaceLightMapRootParameter,
+            _surfaceLights.ShaderResourceHandle);
         _commandList.DrawInstanced(6, 1, 0, 0);
     }
 }

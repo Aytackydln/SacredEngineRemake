@@ -18,31 +18,22 @@ struct SpriteInstance
 
 StructuredBuffer<SpriteInstance> instances : register(t0);
 Texture2D static_texture : register(t1);
-struct WorldLight
-{
-    float2 position;
-    float diameter;
-    float opacity;
-    float3 colour;
-    uint shape;
-};
-StructuredBuffer<WorldLight> world_lights : register(t2);
+Texture2D<float> surface_light_map : register(t2);
 SamplerState sampler0 : register(s0);
 
 cbuffer StaticSpriteSceneConstants : register(b0)
 {
     float2 viewport_size;
     float alpha_cutoff;
-    float world_light_count;
+    float animation_time;
     float3 ambient_colour;
     float scene_paper_white;
     float unlit_white_nits;
-    float animation_time;
-    float night_blend;
     float occluder_opacity;
     float2 player_screen_position;
     float player_scene_depth;
     float occluder_radius_pixels;
+    float2 constants_padding;
 }
 
 struct vertex_output
@@ -60,25 +51,8 @@ struct vertex_output
 
 float3 surface_lighting(float2 pixel_position)
 {
-    float3 lighting = ambient_colour;
-    uint count = min((uint)(world_light_count + 0.5f), 64u);
-    float night_visibility = lerp(0.10f, 1.0f, saturate(night_blend));
-    for (uint index = 0; index < count; index++)
-    {
-        WorldLight light = world_lights[index];
-        if (light.shape != 2u || light.diameter <= 0.0f)
-            continue;
-
-        float radius = length(
-            (pixel_position - (light.position + light.diameter * 0.5f)) /
-            (light.diameter * 0.5f));
-        float falloff = 1.0f - smoothstep(0.12f, 1.0f, radius);
-        // Sacred's surface light map stores intensity, not emitter hue. The
-        // visible flame/magic sprite remains coloured in the separate halo pass.
-        lighting += falloff * light.opacity * night_visibility;
-    }
-
-    return min(lighting, 1.0f);
+    float lighting = surface_light_map.Sample(sampler0, pixel_position / viewport_size);
+    return min(ambient_colour + lighting, 1.0f);
 }
 
 struct pixel_output

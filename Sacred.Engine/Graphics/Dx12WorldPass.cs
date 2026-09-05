@@ -5,6 +5,7 @@ using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Graphics.Frames;
 using Sacred.Engine.Graphics.ImGui;
+using Sacred.Engine.Graphics.Lighting;
 using Sacred.Engine.Graphics.Minimap;
 using Sacred.Engine.Graphics.Models;
 using Sacred.Engine.Graphics.Sprites;
@@ -29,6 +30,7 @@ internal sealed class Dx12WorldPass : IDisposable
     private readonly Dx12ModelGeometryCache _modelGeometry;
     private readonly Dx12ModelPass _models;
     private readonly Dx12SpritePass _sprites;
+    private readonly Dx12SurfaceLightMapPass _surfaceLights;
     private readonly Dx12LightHaloPass _lightHalos;
     private readonly Dx12MinimapPass _minimap;
     private readonly Dx12DebugOverlay _debugOverlay;
@@ -63,6 +65,11 @@ internal sealed class Dx12WorldPass : IDisposable
             graphics.SrvHeap,
             graphics.SrvDescriptorSize,
             Dx12DescriptorLayout.MaximumSectorTextures);
+        _surfaceLights = new Dx12SurfaceLightMapPass(
+            graphics.Device,
+            graphics.CommandList,
+            graphics.SrvCpuHandle(Dx12DescriptorLayout.SurfaceLightMap),
+            graphics.SrvGpuHandle(Dx12DescriptorLayout.SurfaceLightMap));
         _sprites = new Dx12SpritePass(
             graphics.Device,
             graphics.CommandList,
@@ -70,6 +77,7 @@ internal sealed class Dx12WorldPass : IDisposable
             graphics.SrvHeap,
             graphics.SrvDescriptorSize,
             Dx12DescriptorLayout.FirstStaticSprite,
+            _surfaceLights.ShaderResourceHandle,
             Dx12DeviceContext.FrameCount);
         _lightHalos = new Dx12LightHaloPass(
             graphics.Device,
@@ -125,6 +133,7 @@ internal sealed class Dx12WorldPass : IDisposable
             graphics.SrvDescriptorSize,
             _sectorTextures,
             _sprites,
+            _surfaceLights,
             _lightHalos,
             _models,
             _debugOverlay,
@@ -309,11 +318,13 @@ internal sealed class Dx12WorldPass : IDisposable
     }
 
     public void SetPipelines(
+        Dx12CreatedPipelineGroup surfaceLights,
         Dx12CreatedPipelineGroup staticSprites,
         Dx12CreatedPipelineGroup lightHalos,
         Dx12CreatedPipelineGroup models,
         Dx12CreatedPipelineGroup imgui)
     {
+        _surfaceLights.SetPipeline(surfaceLights);
         _sprites.SetPipeline(staticSprites);
         _lightHalos.SetPipeline(lightHalos);
         _models.SetPipeline(models);
@@ -325,6 +336,7 @@ internal sealed class Dx12WorldPass : IDisposable
         _models.DisposePipeline();
         _sprites.DisposePipeline();
         _lightHalos.DisposePipeline();
+        _surfaceLights.DisposePipeline();
         _imgui.DisposePipeline();
     }
 
@@ -354,6 +366,7 @@ internal sealed class Dx12WorldPass : IDisposable
         _modelGeometry.Dispose();
         _modelTextures.Dispose();
         _sprites.Dispose();
+        _surfaceLights.Dispose();
         _lightHalos.Dispose();
         _minimap.Dispose();
     }

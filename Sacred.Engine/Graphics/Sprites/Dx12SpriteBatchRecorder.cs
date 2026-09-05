@@ -20,6 +20,7 @@ internal sealed class Dx12SpriteBatchRecorder
     private readonly GpuDescriptorHandle _srvHeapGpuStart;
     private readonly int _descriptorSize;
     private readonly int _firstTextureSrvSlot;
+    private readonly GpuDescriptorHandle _surfaceLightMap;
     private readonly StaticSpriteShaderConstantsUpdater _shaderConstants = new();
     private readonly long _startTimestamp = Stopwatch.GetTimestamp();
     private ID3D12RootSignature? _rootSignature;
@@ -28,12 +29,14 @@ internal sealed class Dx12SpriteBatchRecorder
         ID3D12GraphicsCommandList commandList,
         GpuDescriptorHandle srvHeapGpuStart,
         int descriptorSize,
-        int firstTextureSrvSlot)
+        int firstTextureSrvSlot,
+        GpuDescriptorHandle surfaceLightMap)
     {
         _commandList = commandList;
         _srvHeapGpuStart = srvHeapGpuStart;
         _descriptorSize = descriptorSize;
         _firstTextureSrvSlot = firstTextureSrvSlot;
+        _surfaceLightMap = surfaceLightMap;
     }
 
     public void SetRootSignature(ID3D12RootSignature rootSignature) => _rootSignature = rootSignature;
@@ -47,8 +50,6 @@ internal sealed class Dx12SpriteBatchRecorder
         Vector3 ambientColour,
         float paperWhiteNits,
         float unlitWhiteNits,
-        int worldLightCount,
-        float nightBlend,
         PlayerOcclusionProbe playerOcclusion,
         Dx12FrameContext frame,
         int renderWidth,
@@ -67,8 +68,6 @@ internal sealed class Dx12SpriteBatchRecorder
                 paperWhiteNits,
                 unlitWhiteNits,
                 (float)Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds,
-                worldLightCount,
-                nightBlend,
                 PlayerOccluderOpacity,
                 playerOcclusion.ScreenPosition,
                 playerOcclusion.SceneDepth,
@@ -82,9 +81,9 @@ internal sealed class Dx12SpriteBatchRecorder
             StaticSpriteShaderLayout.SceneConstantsCount,
             sceneConstants,
             0);
-        _commandList.SetGraphicsRootShaderResourceView(
-            StaticSpriteShaderLayout.WorldLightBufferRootParameter,
-            frame.LightHaloInstanceBuffer.GPUVirtualAddress);
+        _commandList.SetGraphicsRootDescriptorTable(
+            StaticSpriteShaderLayout.SurfaceLightMapRootParameter,
+            _surfaceLightMap);
         var instances = (StaticSpriteInstance*)frame.SpriteInstanceBufferMapped + startInstance;
         var firstInstance = 0;
         while (firstInstance < instanceCount)

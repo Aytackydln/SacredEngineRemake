@@ -8,11 +8,9 @@ public readonly record struct WorldQuadShaderConstants(
     Vector2 ViewportSize,
     Vector3 AmbientColour,
     bool IsPremultipliedAlpha,
-    float PaperWhiteNits,
-    int WorldLightCount = 0,
-    float NightBlend = 0.0f)
+    float PaperWhiteNits)
 {
-    public const int FloatCount = 13;
+    public const int FloatCount = 12;
 }
 
 /// <summary>Serializes world-quad values in the order declared by HLSL.</summary>
@@ -26,12 +24,11 @@ public sealed class WorldQuadShaderConstantsUpdater
         target[3] = constants.Rect.W;
         target[4] = constants.ViewportSize.X;
         target[5] = constants.ViewportSize.Y;
-        target[6] = Math.Max(0, constants.WorldLightCount);
-        target[7] = Math.Clamp(constants.NightBlend, 0.0f, 1.0f);
+        target[6] = constants.IsPremultipliedAlpha ? 1.0f : 0.0f;
+        target[7] = Math.Max(0.0f, constants.PaperWhiteNits);
         target[8] = Math.Max(0.0f, constants.AmbientColour.X);
         target[9] = Math.Max(0.0f, constants.AmbientColour.Y);
         target[10] = Math.Max(0.0f, constants.AmbientColour.Z);
-        target[11] = constants.IsPremultipliedAlpha ? 1.0f : 0.0f;
-        target[12] = Math.Max(0.0f, constants.PaperWhiteNits);
+        target[11] = 0.0f;
     }
 }

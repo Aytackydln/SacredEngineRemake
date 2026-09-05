@@ -45,8 +45,6 @@ public readonly record struct StaticSpriteSceneConstants(
     float ScenePaperWhiteNits,
     float UnlitWhiteNits,
     float AnimationTimeSeconds,
-    int WorldLightCount,
-    float NightBlend,
     float OccluderOpacity,
     Vector2 PlayerScreenPosition,
     float PlayerSceneDepth,
@@ -63,18 +61,18 @@ public sealed class StaticSpriteShaderConstantsUpdater
         target[0] = constants.ViewportSize.X;
         target[1] = constants.ViewportSize.Y;
         target[2] = Math.Max(0.0f, constants.AlphaCutoff);
-        target[3] = Math.Max(0, constants.WorldLightCount);
+        target[3] = Math.Max(0.0f, constants.AnimationTimeSeconds);
         target[4] = Math.Max(0.0f, constants.AmbientColour.X);
         target[5] = Math.Max(0.0f, constants.AmbientColour.Y);
         target[6] = Math.Max(0.0f, constants.AmbientColour.Z);
         target[7] = Math.Max(0.0f, constants.ScenePaperWhiteNits);
         target[8] = Math.Max(0.0f, constants.UnlitWhiteNits);
-        target[9] = Math.Max(0.0f, constants.AnimationTimeSeconds);
-        target[10] = Math.Clamp(constants.NightBlend, 0.0f, 1.0f);
-        target[11] = Math.Clamp(constants.OccluderOpacity, 0.0f, 1.0f);
-        target[12] = constants.PlayerScreenPosition.X;
-        target[13] = constants.PlayerScreenPosition.Y;
-        target[14] = Math.Clamp(constants.PlayerSceneDepth, 0.0f, 1.0f);
-        target[15] = Math.Max(0.0f, constants.OccluderRadiusPixels);
+        target[9] = Math.Clamp(constants.OccluderOpacity, 0.0f, 1.0f);
+        target[10] = constants.PlayerScreenPosition.X;
+        target[11] = constants.PlayerScreenPosition.Y;
+        target[12] = Math.Clamp(constants.PlayerSceneDepth, 0.0f, 1.0f);
+        target[13] = Math.Max(0.0f, constants.OccluderRadiusPixels);
+        target[14] = 0.0f;
+        target[15] = 0.0f;
     }
 }

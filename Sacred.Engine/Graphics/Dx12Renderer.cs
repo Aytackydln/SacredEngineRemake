@@ -8,6 +8,7 @@ using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Graphics.Frames;
 using Sacred.Engine.Graphics.ImGui;
+using Sacred.Engine.Graphics.Lighting;
 using Sacred.Engine.Graphics.Swapchain;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Platform;
@@ -231,6 +232,10 @@ public sealed class Dx12Renderer : IDisposable
         var worldPass = _worldPass
                         ?? throw new InvalidOperationException("World rendering is not initialized.");
         worldPass.SetPipelines(
+            Dx12RendererPipelineFactory.Create(
+                _graphics.Device,
+                shaders.SurfaceLightMap,
+                Dx12SurfaceLightMapPass.TextureFormat),
             Dx12RendererPipelineFactory.Create(
                 _graphics.Device,
                 shaders.StaticSprites,

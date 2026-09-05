@@ -34,6 +34,7 @@ internal sealed class Dx12SpritePass : IDisposable
         ID3D12DescriptorHeap srvHeap,
         int descriptorSize,
         int firstTextureSrvSlot,
+        GpuDescriptorHandle surfaceLightMap,
         int frameCount)
     {
         var srvHeapGpuStart = srvHeap.GetGPUDescriptorHandleForHeapStart();
@@ -41,7 +42,8 @@ internal sealed class Dx12SpritePass : IDisposable
             commandList,
             srvHeapGpuStart,
             descriptorSize,
-            firstTextureSrvSlot);
+            firstTextureSrvSlot,
+            surfaceLightMap);
         _shadowPass = new Dx12StaticSpriteShadowPass(
             commandList,
             srvHeapGpuStart,
@@ -127,8 +129,6 @@ internal sealed class Dx12SpritePass : IDisposable
         LiquidSpriteDrawRange range,
         Vector3 ambientColour,
         float paperWhiteNits,
-        int worldLightCount,
-        float nightBlend,
         Dx12FrameContext frame,
         int renderWidth,
         int renderHeight) =>
@@ -139,8 +139,6 @@ internal sealed class Dx12SpritePass : IDisposable
             ambientColour,
             paperWhiteNits,
             paperWhiteNits,
-            worldLightCount,
-            nightBlend,
             default,
             frame,
             renderWidth,
@@ -151,8 +149,6 @@ internal sealed class Dx12SpritePass : IDisposable
         Vector3 ambientColour,
         float paperWhiteNits,
         float unlitWhiteNits,
-        int worldLightCount,
-        float nightBlend,
         Dx12FrameContext frame,
         int renderWidth,
         int renderHeight) =>
@@ -163,8 +159,6 @@ internal sealed class Dx12SpritePass : IDisposable
             ambientColour,
             paperWhiteNits,
             unlitWhiteNits,
-            worldLightCount,
-            nightBlend,
             batch.PlayerOcclusion,
             frame,
             renderWidth,
@@ -175,8 +169,6 @@ internal sealed class Dx12SpritePass : IDisposable
         Vector3 ambientColour,
         float paperWhiteNits,
         float unlitWhiteNits,
-        int worldLightCount,
-        float nightBlend,
         Dx12FrameContext frame,
         int renderWidth,
         int renderHeight) =>
@@ -187,8 +179,6 @@ internal sealed class Dx12SpritePass : IDisposable
             ambientColour,
             paperWhiteNits,
             unlitWhiteNits,
-            worldLightCount,
-            nightBlend,
             batch.PlayerOcclusion,
             frame,
             renderWidth,

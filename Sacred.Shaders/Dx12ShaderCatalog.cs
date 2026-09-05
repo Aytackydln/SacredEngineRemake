@@ -20,6 +20,10 @@ public static class Dx12ShaderCatalog
         Shader("SacredStaticSpriteShadow", EmbeddedResource_Shaders.SacredStaticSpriteShadow_hlsl, "vs_main", "vs_5_0");
     private static readonly Dx12ShaderSource StaticSpriteShadowPixelShader =
         Shader("SacredStaticSpriteShadow", EmbeddedResource_Shaders.SacredStaticSpriteShadow_hlsl, "ps_main", "ps_5_0");
+    internal static readonly Dx12ShaderSource SurfaceLightMapVertexShader =
+        Shader("SacredSurfaceLightMap", EmbeddedResource_Shaders.SacredSurfaceLightMap_hlsl, "vs_main", "vs_5_0");
+    internal static readonly Dx12ShaderSource SurfaceLightMapPixelShader =
+        Shader("SacredSurfaceLightMap", EmbeddedResource_Shaders.SacredSurfaceLightMap_hlsl, "ps_main", "ps_5_0");
     private static readonly Dx12ShaderSource ModelVertexShader =
         DisplayShader("SacredModel", EmbeddedResource_Shaders.SacredModel_hlsl, "vs_main", "vs_5_0");
     private static readonly Dx12ShaderSource AnimatedModelVertexShader =

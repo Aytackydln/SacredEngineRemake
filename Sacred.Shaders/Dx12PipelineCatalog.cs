@@ -84,8 +84,7 @@ public static class Dx12PipelineCatalog
                 0,
                 WorldQuadShaderLayout.RootConstantsCount), ShaderVisibility.All),
             TextureTable(WorldQuadShaderLayout.TextureRegister),
-            new(RootParameterType.ShaderResourceView,
-                new RootDescriptor(WorldQuadShaderLayout.WorldLightBufferRegister, 0), ShaderVisibility.Pixel)
+            TextureTable(WorldQuadShaderLayout.SurfaceLightMapRegister)
         };
 
         // Sector images are atlas-like render targets. Clamping prevents bilinear samples
@@ -129,8 +128,7 @@ public static class Dx12PipelineCatalog
             new(RootParameterType.ShaderResourceView,
                 new RootDescriptor(StaticSpriteShaderLayout.InstanceBufferRegister, 0), ShaderVisibility.Vertex),
             TextureTable(StaticSpriteShaderLayout.FirstTextureRegister),
-            new(RootParameterType.ShaderResourceView,
-                new RootDescriptor(StaticSpriteShaderLayout.WorldLightBufferRegister, 0), ShaderVisibility.Pixel)
+            TextureTable(StaticSpriteShaderLayout.SurfaceLightMapRegister)
         };
 
         return new Dx12PipelineGroupDefinition(

@@ -17,20 +17,12 @@ namespace Sacred.Engine.Graphics.Sprites;
 internal sealed class Dx12LightHaloPass : IDisposable
 {
     private static readonly int InstanceStride = Marshal.SizeOf<LightHaloInstance>();
-    // Ground and static sprites evaluate every surface light per covered pixel.
-    // This matches the shader's fixed maximum. A smaller selection made ordinary
-    // lamp clusters switch light volumes while the camera moved.
-    private const int MaximumSurfaceIlluminationLights = 64;
-
     private readonly ID3D12Device _device;
     private readonly ID3D12GraphicsCommandList _commandList;
     private readonly Dx12TextureUploader _textureUploader;
     private readonly CpuDescriptorHandle _haloTextureCpuHandle;
     private readonly GpuDescriptorHandle _haloTextureGpuHandle;
     private readonly LightHaloFrameState[] _frameStates;
-    private readonly List<VisibleSurfaceLight> _visibleSurfaceLights =
-        new(MaximumSurfaceIlluminationLights);
-
     private ID3D12RootSignature? _rootSignature;
     private ID3D12PipelineState? _pipeline;
     private ID3D12Resource? _haloTexture;
@@ -177,11 +169,8 @@ internal sealed class Dx12LightHaloPass : IDisposable
                 (uint)WorldLightShape.SurfaceIllumination);
         }
 
-        // Only surface illumination enters the terrain/static-sprite shader's
-        // per-pixel loop. Keep every visible source up to the shader maximum;
-        // the player lamp occupies a protected first slot.
-        var surfaceBudget = MaximumSurfaceIlluminationLights - instanceCount;
-        _visibleSurfaceLights.Clear();
+        // Surface illumination is accumulated into the light map before scene art.
+        // Keep every visible source; its quad only shades pixels inside that light.
         for (var index = 0; index < lights.Count; index++)
         {
             var light = lights[index];
@@ -193,20 +182,10 @@ internal sealed class Dx12LightHaloPass : IDisposable
             if (!IntersectsViewport(drawPosition, diameter, renderWidth, renderHeight))
                 continue;
 
-            _visibleSurfaceLights.Add(new VisibleSurfaceLight(light, drawPosition, diameter,
-                CalculateSurfacePriority(drawPosition, diameter, light.Opacity, renderWidth, renderHeight)));
-        }
-
-        _visibleSurfaceLights.Sort(static (left, right) => right.Priority.CompareTo(left.Priority));
-        var selectedSurfaceLightCount = Math.Min(_visibleSurfaceLights.Count, Math.Max(0, surfaceBudget));
-        for (var index = 0; index < selectedSurfaceLightCount; index++)
-        {
-            var visibleLight = _visibleSurfaceLights[index];
-            var light = visibleLight.Light;
             instances[instanceCount++] = new LightHaloInstance(
-                visibleLight.DrawPosition.X,
-                visibleLight.DrawPosition.Y,
-                visibleLight.Diameter,
+                drawPosition.X,
+                drawPosition.Y,
+                diameter,
                 light.Opacity,
                 light.Colour,
                 (uint)light.Shape);
@@ -263,23 +242,6 @@ internal sealed class Dx12LightHaloPass : IDisposable
     private static bool IntersectsViewport(Vector2 drawPosition, float diameter, int renderWidth, int renderHeight) =>
         drawPosition.X < renderWidth && drawPosition.Y < renderHeight &&
         drawPosition.X + diameter > 0.0f && drawPosition.Y + diameter > 0.0f;
-
-    private static float CalculateSurfacePriority(
-        Vector2 drawPosition, float diameter, float opacity, int renderWidth, int renderHeight)
-    {
-        var lightCenter = drawPosition + new Vector2(diameter * 0.5f);
-        var viewportCenter = new Vector2(renderWidth * 0.5f, renderHeight * 0.5f);
-        var distance = Vector2.Distance(lightCenter, viewportCenter);
-        // A large/bright volume is useful over a broader part of the current
-        // view; nearby volumes win ties, avoiding obvious illumination pops.
-        return MathF.Max(0.0f, opacity) * diameter / (1.0f + distance / MathF.Max(1.0f, diameter));
-    }
-
-    private readonly record struct VisibleSurfaceLight(
-        TerrainWorldLight Light,
-        Vector2 DrawPosition,
-        float Diameter,
-        float Priority);
 
     public unsafe void Record(
         int instanceCount,
