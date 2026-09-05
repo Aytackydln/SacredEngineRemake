@@ -62,8 +62,8 @@ public enum SacredItemStaticShadowProjection : byte
 
 /// <summary>
 /// Graphic representation stored at Items.pak model-descriptor offset 0x00.
-/// The low nibble selects the representation. Bit 0x10 is an observed mixed-sprite
-/// variant and does not determine whether a static object casts a shadow.
+/// The low nibble selects the representation. Bit 0x10 allows a static world
+/// object to fade when it obscures the player.
 /// </summary>
 [Flags]
 public enum SacredItemGraphicType : ushort
@@ -76,11 +76,10 @@ public enum SacredItemGraphicType : ushort
     RepresentationMask = 0b1111,
 
     /// <summary>
-    /// Observed on one mixed-sprite variant. Shadow selection instead comes from
-    /// <see cref="SacredItemGraphicFlags.CastsStaticShadow"/> at descriptor offset
-    /// 0x02; this is not the native render-list's similarly valued flag byte.
+    /// Allows the world object to become translucent when it obscures the player.
+    /// This bit is authored on mixed sprites such as trees, roofs, walls, and arches.
     /// </summary>
-    MixedSpriteVariant = 0b1_0000,
+    AllowsTransparency = 0b1_0000,
 }
 
 /// <summary>Known descriptor-state bits stored at Items.pak model-descriptor offset 0x31.</summary>
@@ -94,11 +93,6 @@ public enum SacredItemDescriptorFlags : byte
     /// record in the Sacred Gold Items.pak except the reserved entry zero.
     /// </summary>
     Present = 0x01,
-
-    /// <summary>
-    /// Marks that the object can become transparent to display models behind it.
-    /// </summary>
-    AllowsTransparency = 0x10,
 }
 
 /// <summary>

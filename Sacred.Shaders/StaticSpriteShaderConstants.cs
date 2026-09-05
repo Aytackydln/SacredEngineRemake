@@ -46,9 +46,13 @@ public readonly record struct StaticSpriteSceneConstants(
     float UnlitWhiteNits,
     float AnimationTimeSeconds,
     int WorldLightCount,
-    float NightBlend)
+    float NightBlend,
+    float OccluderOpacity,
+    Vector2 PlayerScreenPosition,
+    float PlayerSceneDepth,
+    float OccluderRadiusPixels)
 {
-    public const int FloatCount = 11;
+    public const int FloatCount = 16;
 }
 
 /// <summary>Serializes static-sprite scene constants in the HLSL declaration order.</summary>
@@ -67,5 +71,10 @@ public sealed class StaticSpriteShaderConstantsUpdater
         target[8] = Math.Max(0.0f, constants.UnlitWhiteNits);
         target[9] = Math.Max(0.0f, constants.AnimationTimeSeconds);
         target[10] = Math.Clamp(constants.NightBlend, 0.0f, 1.0f);
+        target[11] = Math.Clamp(constants.OccluderOpacity, 0.0f, 1.0f);
+        target[12] = constants.PlayerScreenPosition.X;
+        target[13] = constants.PlayerScreenPosition.Y;
+        target[14] = Math.Clamp(constants.PlayerSceneDepth, 0.0f, 1.0f);
+        target[15] = Math.Max(0.0f, constants.OccluderRadiusPixels);
     }
 }

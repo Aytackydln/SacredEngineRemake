@@ -7,6 +7,7 @@ using Sacred.Core.Pak.Items;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Graphics.Frames;
 using Sacred.Engine.Rendering;
+using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
 using Sacred.Shaders;
 using Sacred.World.Geometry;
@@ -53,6 +54,7 @@ internal sealed class Dx12SpriteInstanceBuilder
 
     public unsafe WorldSpriteBatch Prepare(
         SacredCamera camera,
+        SceneModel? playerModel,
         IReadOnlyList<TerrainLiquidSprite> liquidSprites,
         IReadOnlyList<TerrainStaticSprite> staticSprites,
         Dx12FrameContext frame,
@@ -61,6 +63,11 @@ internal sealed class Dx12SpriteInstanceBuilder
         ulong spriteRevision)
     {
         var state = _frameStates[frame.Index];
+        var playerOcclusion = Dx12PlayerOcclusionProbeFactory.Create(
+            camera,
+            playerModel,
+            renderWidth,
+            renderHeight);
         CandidateLiquidSpriteCount = liquidSprites.Count;
         CandidateStaticSpriteCount = staticSprites.Count;
         if (state.Matches(
@@ -69,7 +76,8 @@ internal sealed class Dx12SpriteInstanceBuilder
                 camera.WorldCenter,
                 camera.ViewportZoom,
                 renderWidth,
-                renderHeight))
+                renderHeight,
+                playerOcclusion))
         {
             _activeLiquidRanges = state.LiquidRanges;
             ApplyCounts(state.Batch, state.LiquidInstanceCount);
@@ -87,6 +95,7 @@ internal sealed class Dx12SpriteInstanceBuilder
                 camera.ViewportZoom,
                 renderWidth,
                 renderHeight,
+                playerOcclusion,
                 default,
                 0);
             ApplyCounts(default, 0);
@@ -179,6 +188,7 @@ internal sealed class Dx12SpriteInstanceBuilder
         }
 
         var staticStartInstance = instanceCount;
+        var transparentStaticStartInstance = -1;
         var shadowInstanceCount = 0;
         var legacyShadowDrawCallCount = 0;
         var previousLegacyInstanceCastsShadow = false;
@@ -266,6 +276,8 @@ internal sealed class Dx12SpriteInstanceBuilder
 
             if (spriteVisible)
             {
+                if (sprite.AllowsTransparency && transparentStaticStartInstance < 0)
+                    transparentStaticStartInstance = instanceCount;
                 instances[instanceCount++] = new StaticSpriteInstance(
                     drawPosition.X,
                     drawPosition.Y,
@@ -301,13 +313,18 @@ internal sealed class Dx12SpriteInstanceBuilder
             }
         }
 
+        if (transparentStaticStartInstance < 0)
+            transparentStaticStartInstance = instanceCount;
         var batch = new WorldSpriteBatch(
             staticStartInstance,
-            instanceCount - staticStartInstance,
+            transparentStaticStartInstance - staticStartInstance,
+            transparentStaticStartInstance,
+            instanceCount - transparentStaticStartInstance,
             shadowInstanceCount,
             shadowTextureSlot,
             shadowAtlasTexelSize,
-            legacyShadowDrawCallCount);
+            legacyShadowDrawCallCount,
+            playerOcclusion);
         state.Remember(
             spriteRevision,
             _textureCache.ResidencyRevision,
@@ -315,6 +332,7 @@ internal sealed class Dx12SpriteInstanceBuilder
             screenTransform.Zoom,
             renderWidth,
             renderHeight,
+            playerOcclusion,
             batch,
             staticStartInstance);
         ApplyCounts(batch, staticStartInstance);
@@ -338,7 +356,7 @@ internal sealed class Dx12SpriteInstanceBuilder
     private void ApplyCounts(WorldSpriteBatch batch, int liquidInstanceCount)
     {
         VisibleLiquidSpriteCount = liquidInstanceCount;
-        VisibleStaticSpriteCount = batch.StaticInstanceCount;
+        VisibleStaticSpriteCount = batch.OpaqueStaticInstanceCount + batch.TransparentStaticInstanceCount;
         VisibleStaticShadowCount = batch.ShadowInstanceCount;
         LegacyShadowDrawCallCount = batch.LegacyShadowDrawCallCount;
     }

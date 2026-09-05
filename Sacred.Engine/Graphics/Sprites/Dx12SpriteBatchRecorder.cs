@@ -12,6 +12,8 @@ namespace Sacred.Engine.Graphics.Sprites;
 internal sealed class Dx12SpriteBatchRecorder
 {
     private const float AlphaCutoff = 0.45f;
+    private const float PlayerOccluderOpacity = 0.48f;
+    private const float PlayerOccluderRadiusViewportFraction = 0.15f;
     private static readonly int InstanceStride = Marshal.SizeOf<StaticSpriteInstance>();
 
     private readonly ID3D12GraphicsCommandList _commandList;
@@ -47,6 +49,7 @@ internal sealed class Dx12SpriteBatchRecorder
         float unlitWhiteNits,
         int worldLightCount,
         float nightBlend,
+        PlayerOcclusionProbe playerOcclusion,
         Dx12FrameContext frame,
         int renderWidth,
         int renderHeight)
@@ -65,7 +68,11 @@ internal sealed class Dx12SpriteBatchRecorder
                 unlitWhiteNits,
                 (float)Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds,
                 worldLightCount,
-                nightBlend));
+                nightBlend,
+                PlayerOccluderOpacity,
+                playerOcclusion.ScreenPosition,
+                playerOcclusion.SceneDepth,
+                renderHeight * PlayerOccluderRadiusViewportFraction));
 
         _commandList.SetGraphicsRootSignature(_rootSignature);
         _commandList.SetPipelineState(pipeline);

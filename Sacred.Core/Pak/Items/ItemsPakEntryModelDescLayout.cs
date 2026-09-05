@@ -126,6 +126,7 @@ public readonly struct ItemsPakEntryModelDescLayout
     public bool UsesStaticMiniObject => Representation == SacredItemGraphicType.StaticMiniObject;
     public bool UsesMixedSpriteOrLightMarker => Representation == SacredItemGraphicType.MixedSpriteOrLightMarker;
     public bool IsPresent => DescriptorFlags.HasFlag(SacredItemDescriptorFlags.Present);
+    public bool AllowsTransparency => GraphicType.HasFlag(SacredItemGraphicType.AllowsTransparency);
 
     public bool UsesMiniObjectTexture => UsesAnimatedMiniObject || UsesStaticMiniObject;
 

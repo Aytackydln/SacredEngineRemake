@@ -239,6 +239,7 @@ public readonly record struct TerrainStaticSprite(
     bool IsParticleSprite,
     bool IsMixedLightEmitter,
     bool TransposeTexture,
+    bool AllowsTransparency,
     TerrainStaticShadow? Shadow,
     float RenderWidth,
     float RenderHeight,

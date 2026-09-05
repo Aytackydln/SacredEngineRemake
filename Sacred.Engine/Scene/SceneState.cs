@@ -123,6 +123,7 @@ public enum SceneShadowMode
 public sealed class SceneModel
 {
     private Matrix4x4 _transform;
+    private Vector3 _localBoundsCenter;
 
     public SceneModel(
         string name,
@@ -143,7 +144,7 @@ public sealed class SceneModel
         TextureAliases = textureAliases;
         EquipmentEffects = equipmentEffects;
         GroundPlaneZ = groundPlaneZ ?? position.Z;
-        GroundShadowRadius = CalculateGroundShadowRadius(mesh);
+        (_localBoundsCenter, GroundShadowRadius) = CalculateBounds(mesh);
         RebuildTransform();
     }
 
@@ -155,6 +156,7 @@ public sealed class SceneModel
     public float Scale { get; }
     public float GroundShadowRadius { get; private set; }
     public float GroundPlaneZ { get; private set; }
+    public Vector3 VisualCenter => Vector3.Transform(_localBoundsCenter, _transform);
     public IReadOnlyDictionary<string, ModelTextureReference>? TextureAliases { get; }
     public EquipmentEffectScene? EquipmentEffects { get; }
     public Matrix4x4 Transform => _transform;
@@ -187,7 +189,7 @@ public sealed class SceneModel
             return false;
 
         Mesh = mesh;
-        GroundShadowRadius = CalculateGroundShadowRadius(mesh);
+        (_localBoundsCenter, GroundShadowRadius) = CalculateBounds(mesh);
         return true;
     }
 
@@ -208,10 +210,10 @@ public sealed class SceneModel
                      Matrix4x4.CreateTranslation(Position);
     }
 
-    private static float CalculateGroundShadowRadius(Mesh mesh)
+    private static (Vector3 Center, float GroundShadowRadius) CalculateBounds(Mesh mesh)
     {
         if (mesh.Vertices.Length == 0)
-            return 6.0f;
+            return (Vector3.Zero, 6.0f);
 
         var minimum = mesh.Vertices[0].Position;
         var maximum = minimum;
@@ -224,6 +226,7 @@ public sealed class SceneModel
         var size = maximum - minimum;
         var horizontalRadius = MathF.Max(size.X, size.Y) * 0.575f;
         var heightRadius = size.Z * 0.10f;
-        return MathF.Max(6.0f, MathF.Max(horizontalRadius, heightRadius));
+        return ((minimum + maximum) * 0.5f,
+            MathF.Max(6.0f, MathF.Max(horizontalRadius, heightRadius)));
     }
 }

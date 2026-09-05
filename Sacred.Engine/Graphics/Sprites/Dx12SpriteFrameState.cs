@@ -13,6 +13,7 @@ internal sealed class Dx12SpriteFrameState
     private float _viewportZoom;
     private int _renderWidth;
     private int _renderHeight;
+    private PlayerOcclusionProbe _playerOcclusion;
     private bool _valid;
 
     public List<LiquidSpriteDrawRange> LiquidRanges { get; } = new(9);
@@ -25,14 +26,16 @@ internal sealed class Dx12SpriteFrameState
         Vector2 worldCenter,
         float viewportZoom,
         int renderWidth,
-        int renderHeight) =>
+        int renderHeight,
+        PlayerOcclusionProbe playerOcclusion) =>
         _valid &&
         _spriteRevision == spriteRevision &&
         _residencyRevision == residencyRevision &&
         _worldCenter == worldCenter &&
         _viewportZoom == viewportZoom &&
         _renderWidth == renderWidth &&
-        _renderHeight == renderHeight;
+        _renderHeight == renderHeight &&
+        _playerOcclusion == playerOcclusion;
 
     public void Remember(
         ulong spriteRevision,
@@ -41,6 +44,7 @@ internal sealed class Dx12SpriteFrameState
         float viewportZoom,
         int renderWidth,
         int renderHeight,
+        PlayerOcclusionProbe playerOcclusion,
         WorldSpriteBatch batch,
         int liquidInstanceCount)
     {
@@ -50,6 +54,7 @@ internal sealed class Dx12SpriteFrameState
         _viewportZoom = viewportZoom;
         _renderWidth = renderWidth;
         _renderHeight = renderHeight;
+        _playerOcclusion = playerOcclusion;
         Batch = batch;
         LiquidInstanceCount = liquidInstanceCount;
         _valid = true;
@@ -57,12 +62,15 @@ internal sealed class Dx12SpriteFrameState
 }
 
 internal readonly record struct WorldSpriteBatch(
-    int StaticStartInstance,
-    int StaticInstanceCount,
+    int OpaqueStaticStartInstance,
+    int OpaqueStaticInstanceCount,
+    int TransparentStaticStartInstance,
+    int TransparentStaticInstanceCount,
     int ShadowInstanceCount,
     uint ShadowTextureSlot,
     Vector2 ShadowAtlasTexelSize,
-    int LegacyShadowDrawCallCount);
+    int LegacyShadowDrawCallCount,
+    PlayerOcclusionProbe PlayerOcclusion);
 
 internal readonly record struct LiquidSpriteDrawRange(
     SectorCoord Coord,

@@ -157,6 +157,14 @@ public static class Dx12PipelineCatalog
                     CreateLessEqualDepth(),
                     usesDepthBuffer: true),
                 Pipeline(
+                    Dx12PipelineKind.TransparentStaticSprite,
+                    shaders.StaticSpriteVertexShader,
+                    shaders.TransparentStaticSpritePixelShader,
+                    CreatePremultipliedBlend(),
+                    RasterizerDescription.CullNone,
+                    CreateLessEqualDepth(),
+                    usesDepthBuffer: true),
+                Pipeline(
                     Dx12PipelineKind.LiquidSprite,
                     shaders.StaticSpriteVertexShader,
                     shaders.StaticSpritePixelShader,

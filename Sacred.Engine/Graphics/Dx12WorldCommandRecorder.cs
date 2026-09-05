@@ -92,6 +92,7 @@ internal sealed class Dx12WorldCommandRecorder
 
         var spriteBatch = _sprites.PrepareInstances(
             camera,
+            scene.Models.Count > 0 ? scene.Models[0] : null,
             liquidSprites,
             staticSprites,
             frame,
@@ -219,7 +220,7 @@ internal sealed class Dx12WorldCommandRecorder
             renderHeight);
         _commandList.ClearDepthStencilView(depthStencil, ClearFlags.Depth, 1.0f, 0, 0, []);
         _models.RecordShadows(camera, scene.Models, scene.Lighting, frame.Index);
-        _sprites.RecordStatic(
+        _sprites.RecordOpaqueStatic(
             spriteBatch,
             scene.Lighting.WorldSurfaceAmbientColour,
             displayProfile.ScenePaperWhiteNits,
@@ -267,6 +268,16 @@ internal sealed class Dx12WorldCommandRecorder
         }
 
         _models.Record(camera, scene.Models, scene.Lighting, displayProfile, frame.Index);
+        _sprites.RecordTransparentStatic(
+            spriteBatch,
+            scene.Lighting.WorldSurfaceAmbientColour,
+            displayProfile.ScenePaperWhiteNits,
+            displayProfile.UnlitSpriteNits,
+            surfaceLightCount,
+            scene.Lighting.NightBlend,
+            frame,
+            renderWidth,
+            renderHeight);
 
         // Light halos are screen-space overlays in Sacred and must remain above depth-tested art.
         _commandList.OMSetRenderTargets(renderTarget, null);

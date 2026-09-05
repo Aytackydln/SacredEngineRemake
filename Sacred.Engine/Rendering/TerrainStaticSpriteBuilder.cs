@@ -46,6 +46,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
         var animatedSpriteCount = 0;
         var mixedLightEmitterCount = 0;
         var worldLightMarkerCount = 0;
+        var transparencyCandidateCount = 0;
         var requestsPending = false;
         foreach (var sector in sectors)
         {
@@ -194,6 +195,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                     false,
                     isMixedLightEmitter,
                     false,
+                    item is { AllowsTransparency: true },
                     staticShadow,
                     renderWidth,
                     renderHeight,
@@ -212,16 +214,19 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                     animatedSpriteCount++;
                 if (isMixedLightEmitter)
                     mixedLightEmitterCount++;
+                if (item is { AllowsTransparency: true })
+                    transparencyCandidateCount++;
             }
         }
 
         _visibleSprites.Sort(CompareSprites);
         _assetRequestsPending = requestsPending;
         if (!requestsPending)
-            LogParticleSummary(
+            LogWorldSpriteSummary(
                 animatedSpriteCount,
                 mixedLightEmitterCount,
-                worldLightMarkerCount);
+                worldLightMarkerCount,
+                transparencyCandidateCount);
         return new TerrainStaticPreparation(_visibleSprites, _visibleLights, true, candidateObjects, missingObjects);
     }
 
@@ -257,14 +262,16 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
             descriptor.StaticShadowProjection);
     }
 
-    private void LogParticleSummary(
+    private void LogWorldSpriteSummary(
         int animatedSprites,
         int mixedLightEmitters,
-        int worldLightMarkers)
+        int worldLightMarkers,
+        int transparencyCandidates)
     {
         var summary = $"World effects ready: animated static sprites={animatedSprites}, " +
                       $"mixed light emitters={mixedLightEmitters}, " +
-                      $"authored light markers={worldLightMarkers}.";
+                      $"authored light markers={worldLightMarkers}, " +
+                      $"transparency candidates={transparencyCandidates}.";
         if (summary == _lastParticleSummary)
             return;
 
@@ -295,6 +302,11 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
 
     private static int CompareSprites(TerrainStaticSprite left, TerrainStaticSprite right)
     {
+        // Transparency-capable sprites use a late render pass so player geometry is
+        // already available beneath them when their authored descriptor requests a fade.
+        var transparency = left.AllowsTransparency.CompareTo(right.AllowsTransparency);
+        if (transparency != 0)
+            return transparency;
         var queue = left.QueueIndex.CompareTo(right.QueueIndex);
         if (queue != 0)
             return queue;

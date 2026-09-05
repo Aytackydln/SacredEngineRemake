@@ -39,6 +39,10 @@ cbuffer StaticSpriteSceneConstants : register(b0)
     float unlit_white_nits;
     float animation_time;
     float night_blend;
+    float occluder_opacity;
+    float2 player_screen_position;
+    float player_scene_depth;
+    float occluder_radius_pixels;
 }
 
 struct vertex_output
@@ -251,7 +255,21 @@ float mixed_light_emission(float3 colour)
     return max(max(blue_dominance, warm_dominance), white_glint);
 }
 
-pixel_output ps_sdr(vertex_output input)
+float player_occluder_opacity(vertex_output input)
+{
+    // Smaller painter-depth values are closer to the camera. Fade only foreground
+    // pixels within a soft circular reveal centered on the player's visual center.
+    if (input.depth >= player_scene_depth)
+        return 1.0f;
+
+    float radius = max(occluder_radius_pixels, 1.0f);
+    float feather = max(radius * 0.35f, 1.0f);
+    float distance_to_player = length(input.position.xy - player_screen_position);
+    float reveal = 1.0f - smoothstep(radius - feather, radius, distance_to_player);
+    return lerp(1.0f, occluder_opacity, reveal);
+}
+
+pixel_output render_sdr(vertex_output input, float opacity)
 {
     float4 color = sample_sprite_texture(static_texture, input);
 
@@ -276,6 +294,7 @@ pixel_output ps_sdr(vertex_output input)
     }
     if (color.a < (is_liquid || is_particle || is_mixed_light ? (1.0f / 255.0f) : alpha_cutoff))
         discard;
+    color.a *= opacity;
 
     bool is_unlit = !is_liquid && (input.flags & 0x80000000u) != 0;
     float emission = is_mixed_light ? mixed_light_emission(color.rgb) : 0.0f;
@@ -290,7 +309,17 @@ pixel_output ps_sdr(vertex_output input)
     return output;
 }
 
-pixel_output ps_hdr(vertex_output input)
+pixel_output ps_sdr(vertex_output input)
+{
+    return render_sdr(input, 1.0f);
+}
+
+pixel_output ps_transparent_sdr(vertex_output input)
+{
+    return render_sdr(input, player_occluder_opacity(input));
+}
+
+pixel_output render_hdr(vertex_output input, float opacity)
 {
     float4 tex = sample_sprite_texture(static_texture, input);
 
@@ -310,6 +339,7 @@ pixel_output ps_hdr(vertex_output input)
         if (tex.a < (is_particle || is_mixed_light ? (1.0f / 255.0f) : alpha_cutoff))
             discard;
     }
+    tex.a *= opacity;
 
     bool is_unlit = !is_liquid && (input.flags & 0x80000000u) != 0;
     bool is_mixed_light = !is_liquid && (input.flags & 0x20000000u) != 0;
@@ -328,4 +358,14 @@ pixel_output ps_hdr(vertex_output input)
     output.color = float4(SdrTextureToHdr10(tex.rgb, nits) * tex.a, tex.a);
     output.depth = input.depth;
     return output;
+}
+
+pixel_output ps_hdr(vertex_output input)
+{
+    return render_hdr(input, 1.0f);
+}
+
+pixel_output ps_transparent_hdr(vertex_output input)
+{
+    return render_hdr(input, player_occluder_opacity(input));
 }

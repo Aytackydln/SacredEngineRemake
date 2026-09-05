@@ -22,6 +22,7 @@ public readonly record struct ItemsPakEntry(
     public uint EffectTextureId => ModelDesc.EffectTextureId;
     public ushort StaticSpriteFrameCount => ModelDesc.StaticSpriteFrameCount;
     public byte StaticSpriteFrameDuration10Ms => ModelDesc.StaticSpriteFrameDuration10Ms;
+    public bool AllowsTransparency => ModelDesc.AllowsTransparency;
 
     public static IEnumerable<ItemsPakEntry> ReadMany(
         byte[] pakBytes,

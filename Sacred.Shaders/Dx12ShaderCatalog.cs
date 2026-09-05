@@ -76,6 +76,11 @@ public static class Dx12ShaderCatalog
             "ps_5_0"),
         StaticSpriteVertexShader,
         DisplayShader("SacredStaticSprite", EmbeddedResource_Shaders.SacredStaticSprite_hlsl, pixelEntryPoint, "ps_5_0"),
+        DisplayShader(
+            "SacredStaticSprite",
+            EmbeddedResource_Shaders.SacredStaticSprite_hlsl,
+            pixelEntryPoint == "ps_hdr" ? "ps_transparent_hdr" : "ps_transparent_sdr",
+            "ps_5_0"),
         StaticSpriteShadowVertexShader,
         StaticSpriteShadowPixelShader,
         DisplayShader(
@@ -122,6 +127,7 @@ public sealed record Dx12ShaderSet(
     Dx12ShaderSource QuadScreenPixelShader,
     Dx12ShaderSource StaticSpriteVertexShader,
     Dx12ShaderSource StaticSpritePixelShader,
+    Dx12ShaderSource TransparentStaticSpritePixelShader,
     Dx12ShaderSource StaticSpriteShadowVertexShader,
     Dx12ShaderSource StaticSpriteShadowPixelShader,
     Dx12ShaderSource LightHaloVertexShader,

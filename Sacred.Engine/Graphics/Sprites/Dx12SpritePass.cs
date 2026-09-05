@@ -24,6 +24,7 @@ internal sealed class Dx12SpritePass : IDisposable
     private ID3D12RootSignature? _rootSignature;
     private ID3D12PipelineState? _staticShadowPipeline;
     private ID3D12PipelineState? _staticPipeline;
+    private ID3D12PipelineState? _transparentStaticPipeline;
     private ID3D12PipelineState? _liquidPipeline;
 
     public Dx12SpritePass(
@@ -68,6 +69,7 @@ internal sealed class Dx12SpritePass : IDisposable
         _rootSignature = pipeline.RootSignature;
         _staticShadowPipeline = pipeline[Dx12PipelineKind.StaticSpriteShadow];
         _staticPipeline = pipeline[Dx12PipelineKind.StaticSprite];
+        _transparentStaticPipeline = pipeline[Dx12PipelineKind.TransparentStaticSprite];
         _liquidPipeline = pipeline[Dx12PipelineKind.LiquidSprite];
         _batchRecorder.SetRootSignature(_rootSignature);
         _shadowPass.SetPipeline(_rootSignature, _staticShadowPipeline);
@@ -81,6 +83,8 @@ internal sealed class Dx12SpritePass : IDisposable
         _staticShadowPipeline = null;
         _staticPipeline?.Dispose();
         _staticPipeline = null;
+        _transparentStaticPipeline?.Dispose();
+        _transparentStaticPipeline = null;
         _liquidPipeline?.Dispose();
         _liquidPipeline = null;
         _rootSignature?.Dispose();
@@ -99,6 +103,7 @@ internal sealed class Dx12SpritePass : IDisposable
 
     public WorldSpriteBatch PrepareInstances(
         SacredCamera camera,
+        SceneModel? playerModel,
         IReadOnlyList<TerrainLiquidSprite> liquidSprites,
         IReadOnlyList<TerrainStaticSprite> staticSprites,
         Dx12FrameContext frame,
@@ -107,6 +112,7 @@ internal sealed class Dx12SpritePass : IDisposable
         ulong spriteRevision) =>
         _instances.Prepare(
             camera,
+            playerModel,
             liquidSprites,
             staticSprites,
             frame,
@@ -135,11 +141,12 @@ internal sealed class Dx12SpritePass : IDisposable
             paperWhiteNits,
             worldLightCount,
             nightBlend,
+            default,
             frame,
             renderWidth,
             renderHeight);
 
-    public void RecordStatic(
+    public void RecordOpaqueStatic(
         WorldSpriteBatch batch,
         Vector3 ambientColour,
         float paperWhiteNits,
@@ -150,14 +157,39 @@ internal sealed class Dx12SpritePass : IDisposable
         int renderWidth,
         int renderHeight) =>
         _batchRecorder.Record(
-            batch.StaticStartInstance,
-            batch.StaticInstanceCount,
+            batch.OpaqueStaticStartInstance,
+            batch.OpaqueStaticInstanceCount,
             _staticPipeline,
             ambientColour,
             paperWhiteNits,
             unlitWhiteNits,
             worldLightCount,
             nightBlend,
+            batch.PlayerOcclusion,
+            frame,
+            renderWidth,
+            renderHeight);
+
+    public void RecordTransparentStatic(
+        WorldSpriteBatch batch,
+        Vector3 ambientColour,
+        float paperWhiteNits,
+        float unlitWhiteNits,
+        int worldLightCount,
+        float nightBlend,
+        Dx12FrameContext frame,
+        int renderWidth,
+        int renderHeight) =>
+        _batchRecorder.Record(
+            batch.TransparentStaticStartInstance,
+            batch.TransparentStaticInstanceCount,
+            _transparentStaticPipeline,
+            ambientColour,
+            paperWhiteNits,
+            unlitWhiteNits,
+            worldLightCount,
+            nightBlend,
+            batch.PlayerOcclusion,
             frame,
             renderWidth,
             renderHeight);
