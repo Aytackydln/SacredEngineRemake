@@ -14,8 +14,14 @@ public enum SacredItemGraphicFlags : ushort
     /// </summary>
     CastsStaticShadow = 0x0001,
 
-    /// <summary>Marks the graphic as a light emitter.</summary>
+    /// <summary>Marks a graphic that carries the existing halo/light-marker effect.</summary>
     LightEmitting = 0x0002,
+
+    /// <summary>Observed unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte0004 = 0x0004,
+
+    /// <summary>Observed unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte0008 = 0x0008,
 
     /// <summary>Scrolls an equipment multitexture fill.</summary>
     MultitextureScroll = 0x0010,
@@ -23,8 +29,23 @@ public enum SacredItemGraphicFlags : ushort
     /// <summary>Scrolls an effect texture vertically.</summary>
     VerticalTextureScroll = 0x0020,
 
+    /// <summary>Observed unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte0040 = 0x0040,
+
     /// <summary>Places the graphic in a front render layer.</summary>
     FrontLayer = 0x0080,
+
+    /// <summary>Observed unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte0100 = 0x0100,
+
+    /// <summary>Observed unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte0200 = 0x0200,
+
+    /// <summary>Observed unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte0400 = 0x0400,
+
+    /// <summary>Observed unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    Byte0800 = 0x0800,
 }
 
 /// <summary>
@@ -73,6 +94,11 @@ public enum SacredItemDescriptorFlags : byte
     /// record in the Sacred Gold Items.pak except the reserved entry zero.
     /// </summary>
     Present = 0x01,
+
+    /// <summary>
+    /// Marks that the object can become transparent to display models behind it.
+    /// </summary>
+    AllowsTransparency = 0x10,
 }
 
 /// <summary>

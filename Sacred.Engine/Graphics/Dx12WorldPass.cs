@@ -118,7 +118,7 @@ internal sealed class Dx12WorldPass : IDisposable
             Dx12DescriptorLayout.ImGuiFont,
             Dx12DeviceContext.FrameCount,
             input);
-        _debugPanel = new ImGuiDebugPanel(_imgui, _terrain, graphics, debugUiControls);
+        _debugPanel = new ImGuiDebugPanel(_imgui, _terrain, assets, graphics, debugUiControls);
         _commandRecorder = new Dx12WorldCommandRecorder(
             graphics.CommandList,
             graphics.SrvHeap,

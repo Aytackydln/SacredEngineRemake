@@ -4,3 +4,5 @@ obj/
 riderModule.iml
 /_ReSharper.Caches/
 /world-debug-images/
+/fullBlockedTiles.json
+/flyableBlockedTiles.json

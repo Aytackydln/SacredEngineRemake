@@ -1,8 +1,10 @@
 using System;
+using System.Globalization;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Assets.Paks.Texture;
+using Sacred.Core.Pak.Items;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Graphics;
@@ -121,12 +123,16 @@ internal sealed class InGameScene : IGameScene
                     ? "terrain topology visible: cyan=perimeter, magenta=native top-bottom diagonal, yellow=vertices"
                     : "terrain topology hidden";
                 return true;
+            case "item-flags" or "item-flag" when TryParseItemGraphicFlags(value, out var itemFlags):
+                _scene.Debug.VisibleItemGraphicFlags = itemFlags;
+                message = $"Items.pak graphic flag overlay set to 0x{(ushort)itemFlags:X4}";
+                return true;
             case "character" when value.Equals("next", StringComparison.OrdinalIgnoreCase):
                 _player.CycleModel();
                 message = "loading next character";
                 return true;
             default:
-                message = "Unknown in-game option. Use overlays <on|off>, debug-panel <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, noclip <on|off>, tessellation <on|off>, or character next.";
+                message = "Unknown in-game option. Use overlays <on|off>, debug-panel <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, noclip <on|off>, tessellation <on|off>, item-flags <hex>, or character next.";
                 return false;
         }
     }
@@ -218,6 +224,14 @@ internal sealed class InGameScene : IGameScene
                   value.Equals("true", StringComparison.OrdinalIgnoreCase);
         return enabled || value.Equals("off", StringComparison.OrdinalIgnoreCase) ||
                value.Equals("false", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryParseItemGraphicFlags(string value, out SacredItemGraphicFlags flags)
+    {
+        var digits = value.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? value[2..] : value;
+        var parsed = ushort.TryParse(digits, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out var bits);
+        flags = (SacredItemGraphicFlags)bits;
+        return parsed;
     }
 
     public void Dispose()

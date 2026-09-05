@@ -15,7 +15,6 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
     private const int ExteriorActiveLayer = 1;
     private const float ObjectShiftX = 47.8f;
     private const float ObjectShiftY = -0.3f;
-    private const float LargeUnlitMixedLightRadius = 480.0f;
     private const float AuthoredLightOpacity = 0.48f;
     private static readonly Vector3 AuthoredLightColour = Vector3.One;
 
@@ -89,7 +88,6 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                         AuthoredLightOpacity,
                         WorldLightShape.SurfaceIllumination));
                     worldLightMarkerCount++;
-                    //continue;
                 }
 
                 if (!assets.TryGetStaticSpriteOrRequest(staticObject.TypeId, out var sprite))
@@ -169,28 +167,13 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                     }
                 }
 
-                MixedLightAppearance lightAppearance = default;
                 var isMixedLightEmitter = item is { } mixedLightItem &&
                                           WorldParticleMapper.TryResolveMixedLightEmitter(
                                               mixedLightItem,
                                               out _) &&
                                           _mixedLightAppearanceCache.TryGet(
                                               sprite,
-                                              out lightAppearance);
-                if (isMixedLightEmitter)
-                {
-                    var surfaceRadius = lightAppearance.SurfaceLightRadius;
-                    if (item!.Value.ModelDesc.CastsStaticShadow)
-                        surfaceRadius = MathF.Max(surfaceRadius, LargeUnlitMixedLightRadius);
-                    var surfaceDiameter = surfaceRadius * 2.0f;
-                    _visibleLights.Add(new TerrainWorldLight(
-                        footX - surfaceDiameter * 0.5f,
-                        footY - surfaceDiameter * 0.5f,
-                        surfaceDiameter,
-                        Vector3.One,
-                        lightAppearance.SurfaceLightOpacity,
-                        WorldLightShape.SurfaceIllumination));
-                }
+                                              out _);
 
                 TerrainStaticShadow? staticShadow = null;
                 if (item is { } shadowItem && shadowItem.ModelDesc.CastsStaticShadow)

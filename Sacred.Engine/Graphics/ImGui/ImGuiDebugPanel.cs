@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using ImGuiNET;
+using Sacred.Core.Pak.Items;
 using Sacred.Core.World.Sector;
+using Sacred.Engine.Assets;
 using Sacred.Engine.Rendering;
 using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
@@ -14,6 +16,7 @@ namespace Sacred.Engine.Graphics.ImGui;
 internal sealed class ImGuiDebugPanel(
     Dx12ImGuiRenderer renderer,
     TerrainRenderer terrain,
+    AssetManager assets,
     Dx12DeviceContext graphics,
     DebugUiControlState controls)
 {
@@ -42,6 +45,7 @@ internal sealed class ImGuiDebugPanel(
             camera,
             world,
             scene.Debug,
+            assets,
             staticSprites,
             worldLights,
             renderWidth,
@@ -112,6 +116,55 @@ internal sealed class ImGuiDebugPanel(
                     option,
                     scene.Debug.VisibleStaticObjectFlags,
                     value => scene.Debug.VisibleStaticObjectFlags = value);
+            }
+            DearImGui.Separator();
+            DearImGui.TextDisabled("Items.pak model descriptor bytes 0x02-0x03 graphic flags");
+            foreach (var option in WorldDebugFlagCatalog.ItemGraphicFlags)
+            {
+                FlagCheckbox(
+                    option,
+                    scene.Debug.VisibleItemGraphicFlags,
+                    value => scene.Debug.VisibleItemGraphicFlags = value);
+            }
+            DearImGui.Separator();
+            DearImGui.TextDisabled("Items.pak raw model descriptor byte");
+            var itemByteOffset = scene.Debug.ItemDescriptorByteOffset;
+            if (DearImGui.InputInt("Byte offset", ref itemByteOffset, 1, 16))
+            {
+                scene.Debug.ItemDescriptorByteOffset = Math.Clamp(
+                    itemByteOffset,
+                    0,
+                    ItemsPakEntryModelDescLayout.SerializedSize - 1);
+                EngineLog.WriteLine(
+                    $"Debug input: Items.pak descriptor byte offset set to 0x{scene.Debug.ItemDescriptorByteOffset:X2}");
+            }
+            DearImGui.SameLine();
+            DearImGui.Text($"0x{scene.Debug.ItemDescriptorByteOffset:X2}");
+            Checkbox(
+                "Show byte values",
+                scene.Debug.ItemDescriptorByteValuesVisible,
+                value => scene.Debug.ItemDescriptorByteValuesVisible = value);
+            Checkbox(
+                "Match whole byte",
+                scene.Debug.ItemDescriptorByteMatchEnabled,
+                value => scene.Debug.ItemDescriptorByteMatchEnabled = value);
+            var itemByteMatchInput = (int)scene.Debug.ItemDescriptorByteMatchValue;
+            DearImGui.BeginDisabled(!scene.Debug.ItemDescriptorByteMatchEnabled);
+            if (DearImGui.InputInt("Byte value", ref itemByteMatchInput, 1, 16))
+            {
+                scene.Debug.ItemDescriptorByteMatchValue = (byte)Math.Clamp(itemByteMatchInput, 0, byte.MaxValue);
+                EngineLog.WriteLine(
+                    $"Debug input: Items.pak descriptor byte match set to 0x{scene.Debug.ItemDescriptorByteMatchValue:X2}");
+            }
+            DearImGui.SameLine();
+            DearImGui.Text($"0x{scene.Debug.ItemDescriptorByteMatchValue:X2}");
+            DearImGui.EndDisabled();
+            foreach (var option in WorldDebugFlagCatalog.ItemDescriptorByteFlags)
+            {
+                ByteFlagCheckbox(
+                    option,
+                    scene.Debug.VisibleItemDescriptorByteBits,
+                    value => scene.Debug.VisibleItemDescriptorByteBits = value);
             }
         }
         if (DearImGui.CollapsingHeader("Controls"))
@@ -257,6 +310,21 @@ internal sealed class ImGuiDebugPanel(
         var value = Convert.ToUInt64(flag);
         var updated = enabled ? current | value : current & ~value;
         return (T)Enum.ToObject(typeof(T), updated);
+    }
+
+    private static void ByteFlagCheckbox(
+        WorldDebugByteFlagOption option,
+        byte currentFlags,
+        Action<byte> setter)
+    {
+        var enabled = (currentFlags & option.Flag) != 0;
+        ColouredCheckbox(
+            option.Label,
+            option.Colour,
+            enabled,
+            value => setter(value
+                ? (byte)(currentFlags | option.Flag)
+                : (byte)(currentFlags & ~option.Flag)));
     }
 
     private static string FormatActiveModel(SceneState scene)

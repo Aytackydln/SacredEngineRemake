@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Sacred.Core.Pak.Items;
 using Sacred.Core.World;
 using Sacred.Core.World.Pathing;
 using Sacred.Core.World.Sector;
@@ -12,6 +13,11 @@ internal readonly record struct WorldDebugFlagOption<T>(
     string Label,
     Vector4 Colour)
     where T : struct, Enum;
+
+internal readonly record struct WorldDebugByteFlagOption(
+    byte Flag,
+    string Label,
+    Vector4 Colour);
 
 /// <summary>Raw game-file flag bits available to the interactive world debugger.</summary>
 internal static class WorldDebugFlagCatalog
@@ -70,6 +76,12 @@ internal static class WorldDebugFlagCatalog
     public static IReadOnlyList<WorldDebugFlagOption<StaticObjectFlags>> StaticFlags { get; } =
         CreateStaticObjectOptions();
 
+    public static IReadOnlyList<WorldDebugFlagOption<SacredItemGraphicFlags>> ItemGraphicFlags { get; } =
+        CreateItemGraphicOptions();
+
+    public static IReadOnlyList<WorldDebugByteFlagOption> ItemDescriptorByteFlags { get; } =
+        CreateByteOptions();
+
     private static WorldDebugFlagOption<T> Option<T>(T flag, string label, int colourIndex)
         where T : struct, Enum =>
         new(flag, $"{label} ({Hex(flag)})", Colours[colourIndex % Colours.Length]);
@@ -91,6 +103,45 @@ internal static class WorldDebugFlagCatalog
                 _ => flag.ToString(),
             };
             options.Add(Option(flag, label, BitIndex(value)));
+        }
+
+        return options;
+    }
+
+    private static IReadOnlyList<WorldDebugFlagOption<SacredItemGraphicFlags>> CreateItemGraphicOptions()
+    {
+        var options = new List<WorldDebugFlagOption<SacredItemGraphicFlags>>(12);
+        foreach (var flag in Enum.GetValues<SacredItemGraphicFlags>())
+        {
+            var value = (ushort)flag;
+            if (value == 0 || !IsSingleBit(value))
+                continue;
+
+            var label = flag switch
+            {
+                SacredItemGraphicFlags.CastsStaticShadow => "Casts static shadow",
+                SacredItemGraphicFlags.LightEmitting => "Light emitting",
+                SacredItemGraphicFlags.MultitextureScroll => "Multitexture scroll",
+                SacredItemGraphicFlags.VerticalTextureScroll => "Vertical texture scroll",
+                SacredItemGraphicFlags.FrontLayer => "Front layer",
+                _ => flag.ToString(),
+            };
+            options.Add(Option(flag, label, BitIndex(value)));
+        }
+
+        return options;
+    }
+
+    private static IReadOnlyList<WorldDebugByteFlagOption> CreateByteOptions()
+    {
+        var options = new WorldDebugByteFlagOption[8];
+        for (var bit = 0; bit < options.Length; bit++)
+        {
+            var value = (byte)(1 << bit);
+            options[bit] = new WorldDebugByteFlagOption(
+                value,
+                $"Bit 0x{value:X2}",
+                Colours[bit]);
         }
 
         return options;

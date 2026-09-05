@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Sacred.Assets.Paks.Texture;
+using Sacred.Core.Pak.Items;
 using Sacred.Core.World;
 using Sacred.Core.World.Pathing;
 using Sacred.Core.World.Sector;
@@ -69,6 +70,12 @@ public sealed class SceneDebugState
     public WldxTerrainSurface VisibleSurfaceFlags { get; set; }
     public SectorEnvironmentFlags VisibleSectorFlags { get; set; }
     public StaticObjectFlags VisibleStaticObjectFlags { get; set; }
+    public SacredItemGraphicFlags VisibleItemGraphicFlags { get; set; }
+    public int ItemDescriptorByteOffset { get; set; }
+    public byte VisibleItemDescriptorByteBits { get; set; }
+    public byte ItemDescriptorByteMatchValue { get; set; }
+    public bool ItemDescriptorByteMatchEnabled { get; set; }
+    public bool ItemDescriptorByteValuesVisible { get; set; }
     public bool MovementFlagTilesVisible { get; set; }
     public bool EntranceTilesVisible { get; set; }
     public bool TerrainSurfacesVisible { get; set; }

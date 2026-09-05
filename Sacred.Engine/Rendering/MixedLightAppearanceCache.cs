@@ -13,7 +13,6 @@ namespace Sacred.Engine.Rendering;
 internal sealed class MixedLightAppearanceCache
 {
     private const float LocalHaloOpacity = 0.035f;
-    private const float SurfaceLightOpacity = 0.46f;
     private readonly Dictionary<StaticSpriteAsset, MixedLightAppearance?> _appearances =
         new(ReferenceEqualityComparer.Instance);
 
@@ -131,23 +130,14 @@ internal sealed class MixedLightAppearanceCache
 
         var luminousExtent = Math.Max(right - left, bottom - top);
         var localHaloDiameter = Math.Clamp(luminousExtent * 2.4f, 64.0f, 144.0f);
-        // The outlined reference captures show the magical fixture family using
-        // roughly 150-230 pixel radii, while compact fire sources are nearer
-        // 130 pixels. Preserve that family-level range and let the authored
-        // emissive-pixel extent choose within it.
-        var surfaceLightRadius = blueEmitter
-            ? Math.Clamp(400.0f + luminousExtent * 2.0f, 440.0f, 600.0f)
-            : Math.Clamp(240.0f + luminousExtent * 2.0f, 260.0f, 420.0f);
         return new MixedLightAppearance(
             (float)(xSum / weightSum),
             (float)(ySum / weightSum),
             top,
             localHaloDiameter,
-            surfaceLightRadius,
             Math.Clamp(luminousExtent * 1.15f, 34.0f, 52.0f),
             colour,
             LocalHaloOpacity,
-            SurfaceLightOpacity,
             blueEmitter && blueWeightSum >= warmWeightSum);
     }
 }
@@ -157,9 +147,7 @@ internal readonly record struct MixedLightAppearance(
     float CenterY,
     float EmitterTop,
     float LocalHaloDiameter,
-    float SurfaceLightRadius,
     float SparkleDiameter,
     Vector3 Colour,
     float LocalHaloOpacity,
-    float SurfaceLightOpacity,
     bool HasSparkles);

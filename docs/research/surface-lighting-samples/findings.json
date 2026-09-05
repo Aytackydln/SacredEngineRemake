@@ -1,0 +1,316 @@
+{
+  "schema_version": 1,
+  "counts": {
+    "scenes": 13,
+    "scenes_with_lights_outlined": 9,
+    "scenes_without_lights_outlined": 4,
+    "scenes_with_positive_samples": 9,
+    "positive_placement_evidence": 61,
+    "unique_positive_static_ids": 60,
+    "positive_item_types": 16,
+    "positive_only_item_types": 12,
+    "positive_and_negative_item_types": 4
+  },
+  "observations": [
+    "All positive item definitions use Items.pak graphic representation 0x0009.",
+    "Positive definitions do not share a graphic flag: observed values are 0x0000, 0x0001, and 0x0002.",
+    "Candelabra 1, Candle 5, Candle 6, and SimpleLightSmall have both positive and negative placements.",
+    "MiniObjTex20 is a negative sample despite graphic flag 0x0002; it is an animated local halo, not surface lighting.",
+    "The 5085_606 lights-outlined screenshot contributes 23 positives: ten SimpleLight markers, ten Candle 5/6 sconces, two Candelabra 1 fixtures, and one CandleWall01 fixture.",
+    "No additional byte meaning is proven by this sample set. The raw records are retained for further correlation."
+  ],
+  "single_source_of_truth": {
+    "status": "no_complete_game_file_discriminator_found",
+    "conclusion": "No one field in Static.PAK, Items.pak, mixed.pak, Texture.pak, Floor.PAK, or sectors.wldx classifies every annotated surface-light source and rejects every negative sample.",
+    "proven_game_file_rule": {
+      "applies_to": "explicit invisible SimpleLight markers only",
+      "source": "pak/Items.pak model descriptor",
+      "predicate": "(graphic_type_raw \u0026 0x000F) == 0x0009 \u0026\u0026 (graphic_flags_raw \u0026 0x0002) != 0",
+      "radius_field": "model_extent at descriptor offset 0x32"
+    },
+    "unresolved_mixed_sprite_rule": {
+      "applies_to": "visible mixed-sprite fixtures such as Candle 5/6, DUN_light_1, 3S_FIRE, LICHTER_*, and FEUERSTELLE_MIT_STEIN_01",
+      "evidence": [
+        "Their Items.pak graphic flags vary across 0x0000 and 0x0001 and therefore do not use the explicit marker bit.",
+        "Positive and negative instances of the same item type have identical non-coordinate Static.PAK properties.",
+        "mixed.pak group and piece metadata has no shared positive-only value.",
+        "Texture.pak and Texture.TMP headers have no shared positive-only metadata value.",
+        "Floor.PAK overlays are absent within five tiles of most positive fixtures.",
+        "Outdoor positive locations can have ordinary fully bright sectors.wldx baked-light values.",
+        "Sacred.exe contains no direct 16-bit or 32-bit immediate comparison against any sampled positive or hard-negative item ID."
+      ],
+      "implication": "Do not turn the current model-name, item-ID, colour, or atlas heuristics into a generic Sacred.* rule. More native-renderer tracing is required before a complete game-data mapping can be named."
+    },
+    "supervised_label_source": "The positive_static_ids in the generated scenes.json are the canonical labels for this research dataset; archive JSONL files derive their labels from that one list."
+  },
+  "positive_item_types": [
+    {
+      "record_id": 1000,
+      "model_name": "SimpleLightSmall",
+      "aggregate_label": "mixed",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0002",
+      "mixed_base_group_id": 0,
+      "model_extent": 300,
+      "positive_evidence_count": 4,
+      "negative_evidence_count": 1
+    },
+    {
+      "record_id": 1001,
+      "model_name": "SimpleLightMedium",
+      "aggregate_label": "positive",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0002",
+      "mixed_base_group_id": 0,
+      "model_extent": 450,
+      "positive_evidence_count": 2,
+      "negative_evidence_count": 0
+    },
+    {
+      "record_id": 1003,
+      "model_name": "SimpleLightTiny",
+      "aggregate_label": "positive",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0002",
+      "mixed_base_group_id": 0,
+      "model_extent": 220,
+      "positive_evidence_count": 5,
+      "negative_evidence_count": 0
+    },
+    {
+      "record_id": 9205,
+      "model_name": "Candelabra 1",
+      "aggregate_label": "mixed",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0000",
+      "mixed_base_group_id": 637,
+      "model_extent": 0,
+      "positive_evidence_count": 2,
+      "negative_evidence_count": 10
+    },
+    {
+      "record_id": 9211,
+      "model_name": "Candle 5",
+      "aggregate_label": "mixed",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0000",
+      "mixed_base_group_id": 643,
+      "model_extent": 0,
+      "positive_evidence_count": 7,
+      "negative_evidence_count": 2
+    },
+    {
+      "record_id": 9212,
+      "model_name": "Candle 6",
+      "aggregate_label": "mixed",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0000",
+      "mixed_base_group_id": 644,
+      "model_extent": 0,
+      "positive_evidence_count": 10,
+      "negative_evidence_count": 3
+    },
+    {
+      "record_id": 9320,
+      "model_name": "DUN_light_1",
+      "aggregate_label": "positive",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0001",
+      "mixed_base_group_id": 752,
+      "model_extent": 0,
+      "positive_evidence_count": 14,
+      "negative_evidence_count": 0
+    },
+    {
+      "record_id": 9343,
+      "model_name": "DUN_torch2",
+      "aggregate_label": "positive",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0000",
+      "mixed_base_group_id": 775,
+      "model_extent": 0,
+      "positive_evidence_count": 1,
+      "negative_evidence_count": 0
+    },
+    {
+      "record_id": 9462,
+      "model_name": "CandleWall01",
+      "aggregate_label": "positive",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0000",
+      "mixed_base_group_id": 894,
+      "model_extent": 0,
+      "positive_evidence_count": 1,
+      "negative_evidence_count": 0
+    },
+    {
+      "record_id": 15398,
+      "model_name": "3S_FIRE",
+      "aggregate_label": "positive",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0000",
+      "mixed_base_group_id": 15398,
+      "model_extent": 0,
+      "positive_evidence_count": 2,
+      "negative_evidence_count": 0
+    },
+    {
+      "record_id": 21917,
+      "model_name": "LICHTER_HAENGEND_KLEIN",
+      "aggregate_label": "positive",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0000",
+      "mixed_base_group_id": 21917,
+      "model_extent": 0,
+      "positive_evidence_count": 1,
+      "negative_evidence_count": 0
+    },
+    {
+      "record_id": 21918,
+      "model_name": "LICHTER_HAENGEND_MITTEL",
+      "aggregate_label": "positive",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0000",
+      "mixed_base_group_id": 21918,
+      "model_extent": 0,
+      "positive_evidence_count": 3,
+      "negative_evidence_count": 0
+    },
+    {
+      "record_id": 21920,
+      "model_name": "LICHTER_KLEIN",
+      "aggregate_label": "positive",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0000",
+      "mixed_base_group_id": 21920,
+      "model_extent": 0,
+      "positive_evidence_count": 4,
+      "negative_evidence_count": 0
+    },
+    {
+      "record_id": 21921,
+      "model_name": "LICHTER_MITTEL",
+      "aggregate_label": "positive",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0000",
+      "mixed_base_group_id": 21921,
+      "model_extent": 0,
+      "positive_evidence_count": 3,
+      "negative_evidence_count": 0
+    },
+    {
+      "record_id": 24978,
+      "model_name": "FEUERSTELLE_MIT_STEIN_01",
+      "aggregate_label": "positive",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0000",
+      "mixed_base_group_id": 24978,
+      "model_extent": 0,
+      "positive_evidence_count": 1,
+      "negative_evidence_count": 0
+    },
+    {
+      "record_id": 26096,
+      "model_name": "LICHTER_HAENGEND_KLEIN_1",
+      "aggregate_label": "positive",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0000",
+      "mixed_base_group_id": 26096,
+      "model_extent": 0,
+      "positive_evidence_count": 1,
+      "negative_evidence_count": 0
+    }
+  ],
+  "selected_hard_negative_item_types": [
+    {
+      "record_id": 1053,
+      "model_name": "MiniObjTex20",
+      "graphic_type_raw": "0x0008",
+      "graphic_flags_raw": "0x0002",
+      "mixed_base_group_id": 0,
+      "model_extent": 200,
+      "evidence_count": 60
+    },
+    {
+      "record_id": 9206,
+      "model_name": "Candle 1",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0000",
+      "mixed_base_group_id": 638,
+      "model_extent": 0,
+      "evidence_count": 3
+    },
+    {
+      "record_id": 9207,
+      "model_name": "Candle 10",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0000",
+      "mixed_base_group_id": 639,
+      "model_extent": 0,
+      "evidence_count": 3
+    },
+    {
+      "record_id": 9208,
+      "model_name": "Candle 2",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0000",
+      "mixed_base_group_id": 640,
+      "model_extent": 0,
+      "evidence_count": 1
+    },
+    {
+      "record_id": 9209,
+      "model_name": "Candle 3",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0000",
+      "mixed_base_group_id": 641,
+      "model_extent": 0,
+      "evidence_count": 3
+    },
+    {
+      "record_id": 9210,
+      "model_name": "Candle 4",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0000",
+      "mixed_base_group_id": 642,
+      "model_extent": 0,
+      "evidence_count": 2
+    },
+    {
+      "record_id": 9214,
+      "model_name": "Candle 8",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0000",
+      "mixed_base_group_id": 646,
+      "model_extent": 0,
+      "evidence_count": 8
+    },
+    {
+      "record_id": 9215,
+      "model_name": "Candle 9",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0000",
+      "mixed_base_group_id": 647,
+      "model_extent": 0,
+      "evidence_count": 3
+    },
+    {
+      "record_id": 9257,
+      "model_name": "Firepit 1",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0000",
+      "mixed_base_group_id": 689,
+      "model_extent": 0,
+      "evidence_count": 1
+    },
+    {
+      "record_id": 9384,
+      "model_name": "firepit002",
+      "graphic_type_raw": "0x0009",
+      "graphic_flags_raw": "0x0001",
+      "mixed_base_group_id": 816,
+      "model_extent": 0,
+      "evidence_count": 2
+    }
+  ]
+}

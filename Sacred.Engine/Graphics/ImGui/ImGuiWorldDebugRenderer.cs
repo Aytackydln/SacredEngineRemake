@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using ImGuiNET;
+using Sacred.Core.Pak.Items;
 using Sacred.Core.World;
 using Sacred.Core.World.Lighting;
 using Sacred.Core.World.Pathing;
 using Sacred.Core.World.Sector;
+using Sacred.Engine.Assets;
 using Sacred.Engine.Rendering;
 using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
@@ -26,6 +28,7 @@ internal static class ImGuiWorldDebugRenderer
         SacredCamera camera,
         VisibleWorld world,
         SceneDebugState debug,
+        AssetManager assets,
         IReadOnlyList<TerrainStaticSprite> staticSprites,
         IReadOnlyList<TerrainWorldLight> worldLights,
         int renderWidth,
@@ -51,15 +54,25 @@ internal static class ImGuiWorldDebugRenderer
             DrawLightBounds(drawList, transform, worldLights);
         if (debug.StaticSpriteBoundsVisible)
             DrawStaticBounds(drawList, transform, staticSprites);
-        if (debug.VisibleStaticObjectFlags != StaticObjectFlags.None)
-            DrawStaticFlagDiagnostics(drawList, transform, world, debug, renderWidth, renderHeight);
+        if (debug.VisibleStaticObjectFlags != StaticObjectFlags.None ||
+            debug.VisibleItemGraphicFlags != SacredItemGraphicFlags.None ||
+            debug.VisibleItemDescriptorByteBits != 0 ||
+            debug.ItemDescriptorByteMatchEnabled ||
+            debug.ItemDescriptorByteValuesVisible)
+        {
+            DrawObjectFlagDiagnostics(drawList, transform, world, debug, assets, renderWidth, renderHeight);
+        }
     }
 
     private static bool AnyWorldDiagnosticVisible(SceneDebugState debug) =>
         AnyTileDiagnosticVisible(debug) || debug.SectorBoundsVisible ||
         debug.VisibleSectorFlags != SectorEnvironmentFlags.None ||
         debug.WorldLightBoundsVisible || debug.StaticSpriteBoundsVisible ||
-        debug.VisibleStaticObjectFlags != StaticObjectFlags.None;
+        debug.VisibleStaticObjectFlags != StaticObjectFlags.None ||
+        debug.VisibleItemGraphicFlags != SacredItemGraphicFlags.None ||
+        debug.VisibleItemDescriptorByteBits != 0 ||
+        debug.ItemDescriptorByteMatchEnabled ||
+        debug.ItemDescriptorByteValuesVisible;
 
     private static bool AnyTileDiagnosticVisible(SceneDebugState debug) =>
         debug.TileCoordinatesVisible || debug.VisiblePathFlags != WorldPathFlags.None ||
@@ -288,11 +301,12 @@ internal static class ImGuiWorldDebugRenderer
         }
     }
 
-    private static void DrawStaticFlagDiagnostics(
+    private static void DrawObjectFlagDiagnostics(
         ImDrawListPtr drawList,
         WorldScreenTransform transform,
         VisibleWorld world,
         SceneDebugState debug,
+        AssetManager assets,
         int renderWidth,
         int renderHeight)
     {
@@ -318,10 +332,68 @@ internal static class ImGuiWorldDebugRenderer
                 ringIndex++;
             }
 
-            if (ringIndex == 0)
+            var item = assets.GetItem(staticObject.TypeId);
+            if (debug.VisibleItemGraphicFlags != SacredItemGraphicFlags.None && item is { } graphicItem)
+            {
+                foreach (var option in WorldDebugFlagCatalog.ItemGraphicFlags)
+                {
+                    if (!debug.VisibleItemGraphicFlags.HasFlag(option.Flag) ||
+                        !graphicItem.GraphicFlags.HasFlag(option.Flag))
+                    {
+                        continue;
+                    }
+
+                    drawList.AddCircle(anchor, 6.0f + ringIndex * 3.0f, Colour(option.Colour), 16, 2.0f);
+                    ringIndex++;
+                }
+            }
+
+            var rawByteMatched = false;
+            byte rawByte = 0;
+            if (item is { } descriptorItem &&
+                (debug.VisibleItemDescriptorByteBits != 0 ||
+                 debug.ItemDescriptorByteMatchEnabled ||
+                 debug.ItemDescriptorByteValuesVisible))
+            {
+                rawByte = descriptorItem.ModelDesc.GetRawByte(debug.ItemDescriptorByteOffset);
+                if (debug.ItemDescriptorByteMatchEnabled &&
+                    rawByte == debug.ItemDescriptorByteMatchValue)
+                {
+                    drawList.AddCircle(
+                        anchor,
+                        6.0f + ringIndex * 3.0f,
+                        Colour(new Vector4(1.0f, 1.0f, 1.0f, 0.95f)),
+                        16,
+                        2.0f);
+                    ringIndex++;
+                    rawByteMatched = true;
+                }
+                foreach (var option in WorldDebugFlagCatalog.ItemDescriptorByteFlags)
+                {
+                    if ((debug.VisibleItemDescriptorByteBits & option.Flag) == 0 ||
+                        (rawByte & option.Flag) == 0)
+                    {
+                        continue;
+                    }
+
+                    drawList.AddCircle(anchor, 6.0f + ringIndex * 3.0f, Colour(option.Colour), 16, 2.0f);
+                    ringIndex++;
+                    rawByteMatched = true;
+                }
+            }
+
+            if (ringIndex == 0 && !debug.ItemDescriptorByteValuesVisible)
                 continue;
 
             drawList.AddCircleFilled(anchor, 2.5f, Colour(new Vector4(1.0f, 1.0f, 1.0f, 1.0f)));
+            if (item is { } labelItem && (debug.ItemDescriptorByteValuesVisible || rawByteMatched))
+            {
+                drawList.AddText(
+                    anchor + new Vector2(8.0f, 4.0f + ringIndex * 3.0f),
+                    Colour(new Vector4(1.0f, 0.94f, 0.72f, 1.0f)),
+                    $"item {labelItem.ItemIndex} {labelItem.ModelName}\n" +
+                    $"[0x{debug.ItemDescriptorByteOffset:X2}]=0x{rawByte:X2}");
+            }
         }
     }
 

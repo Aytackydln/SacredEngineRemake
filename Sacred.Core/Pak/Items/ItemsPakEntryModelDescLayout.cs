@@ -14,7 +14,8 @@ public struct ItemsPakEntryModelNameBytes
 [StructLayout(LayoutKind.Explicit, Pack = 1, Size = Size)]
 public readonly struct ItemsPakEntryModelDescLayout
 {
-    internal const int Size = 128;
+    public const int SerializedSize = 128;
+    internal const int Size = SerializedSize;
     internal const int ModelNameLength = 32;
     private const int ModelNameOffset = 55;
 
@@ -133,4 +134,15 @@ public readonly struct ItemsPakEntryModelDescLayout
     public bool IsWorldLightMarker => UsesMixedSpriteOrLightMarker && IsLightEmitting;
 
     public bool MayContainMixedSpriteEmission => UsesMixedSpriteOrLightMarker && MixedBaseGroupId != 0 && IsPresent;
+
+    /// <summary>Returns one byte from the unmodified 0x80-byte game-file record.</summary>
+    public byte GetRawByte(int offset)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(offset, SerializedSize);
+        var descriptor = MemoryMarshal.CreateReadOnlySpan(
+            ref Unsafe.AsRef(in this),
+            1);
+        return MemoryMarshal.AsBytes(descriptor)[offset];
+    }
 }

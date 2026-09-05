@@ -1,0 +1,358 @@
+[
+  {
+    "scene_id": "1733_2522",
+    "world_coordinate": {
+      "x": 1733,
+      "y": 2522
+    },
+    "base_screenshot": "C:\\Users\\Aytac\\Pictures\\Screenshots\\Sacred\\Unlit objects\\1733 2522.png",
+    "lights_outlined_screenshot": null,
+    "annotation_rule": "no lights-outlined copy exists; all objects are negative",
+    "approximate_projection": {
+      "scale": 0.6,
+      "player_screen_anchor": {
+        "x": 856,
+        "y": 540
+      },
+      "note": "screen coordinates are approximate and intended for locating records, not pixel-accurate boxes"
+    },
+    "positive_static_count": 0,
+    "negative_static_count": 616,
+    "terrain_cell_count": 1830,
+    "positive_static_ids": []
+  },
+  {
+    "scene_id": "1866_3067",
+    "world_coordinate": {
+      "x": 1866,
+      "y": 3067
+    },
+    "base_screenshot": "C:\\Users\\Aytac\\Pictures\\Screenshots\\Sacred\\Unlit objects\\1866 3067.png",
+    "lights_outlined_screenshot": null,
+    "annotation_rule": "no lights-outlined copy exists; all objects are negative",
+    "approximate_projection": {
+      "scale": 0.6,
+      "player_screen_anchor": {
+        "x": 865,
+        "y": 540
+      },
+      "note": "screen coordinates are approximate and intended for locating records, not pixel-accurate boxes"
+    },
+    "positive_static_count": 0,
+    "negative_static_count": 403,
+    "terrain_cell_count": 1792,
+    "positive_static_ids": []
+  },
+  {
+    "scene_id": "2270_3130",
+    "world_coordinate": {
+      "x": 2270,
+      "y": 3130
+    },
+    "base_screenshot": "C:\\Users\\Aytac\\Pictures\\Screenshots\\Sacred\\Unlit objects\\2270 3130.png",
+    "lights_outlined_screenshot": null,
+    "annotation_rule": "no lights-outlined copy exists; all objects are negative",
+    "approximate_projection": {
+      "scale": 0.6,
+      "player_screen_anchor": {
+        "x": 866,
+        "y": 540
+      },
+      "note": "screen coordinates are approximate and intended for locating records, not pixel-accurate boxes"
+    },
+    "positive_static_count": 0,
+    "negative_static_count": 540,
+    "terrain_cell_count": 1421,
+    "positive_static_ids": []
+  },
+  {
+    "scene_id": "2666_3182",
+    "world_coordinate": {
+      "x": 2666,
+      "y": 3182
+    },
+    "base_screenshot": "C:\\Users\\Aytac\\Pictures\\Screenshots\\Sacred\\Unlit objects\\2666 3182.png",
+    "lights_outlined_screenshot": "C:\\Users\\Aytac\\Pictures\\Screenshots\\Sacred\\Unlit objects\\2666 3182 lights outlined.png",
+    "annotation_rule": "green outlines mark positive surface-light source objects; all other objects are negative",
+    "approximate_projection": {
+      "scale": 0.6,
+      "player_screen_anchor": {
+        "x": 856,
+        "y": 540
+      },
+      "note": "screen coordinates are approximate and intended for locating records, not pixel-accurate boxes"
+    },
+    "positive_static_count": 1,
+    "negative_static_count": 260,
+    "terrain_cell_count": 1348,
+    "positive_static_ids": [
+      609866
+    ]
+  },
+  {
+    "scene_id": "3191_1146",
+    "world_coordinate": {
+      "x": 3191,
+      "y": 1146
+    },
+    "base_screenshot": "C:\\Users\\Aytac\\Pictures\\Screenshots\\Sacred\\Unlit objects\\3191 1146.png",
+    "lights_outlined_screenshot": "C:\\Users\\Aytac\\Pictures\\Screenshots\\Sacred\\Unlit objects\\3191 1146 lights outlined.png",
+    "annotation_rule": "green outlines mark positive surface-light source objects; all other objects are negative",
+    "approximate_projection": {
+      "scale": 0.6,
+      "player_screen_anchor": {
+        "x": 856,
+        "y": 460
+      },
+      "note": "screen coordinates are approximate and intended for locating records, not pixel-accurate boxes"
+    },
+    "positive_static_count": 4,
+    "negative_static_count": 68,
+    "terrain_cell_count": 1045,
+    "positive_static_ids": [
+      728489,
+      728499,
+      728502,
+      728532
+    ]
+  },
+  {
+    "scene_id": "3387_2725",
+    "world_coordinate": {
+      "x": 3387,
+      "y": 2725
+    },
+    "base_screenshot": "C:\\Users\\Aytac\\Pictures\\Screenshots\\Sacred\\Unlit objects\\3387 2725.png",
+    "lights_outlined_screenshot": "C:\\Users\\Aytac\\Pictures\\Screenshots\\Sacred\\Unlit objects\\3387 2725 lights outlined.png",
+    "annotation_rule": "green outlines mark positive surface-light source objects; all other objects are negative",
+    "approximate_projection": {
+      "scale": 0.6,
+      "player_screen_anchor": {
+        "x": 838,
+        "y": 450
+      },
+      "note": "screen coordinates are approximate and intended for locating records, not pixel-accurate boxes"
+    },
+    "positive_static_count": 1,
+    "negative_static_count": 130,
+    "terrain_cell_count": 1118,
+    "positive_static_ids": [
+      795110
+    ]
+  },
+  {
+    "scene_id": "3401_2742",
+    "world_coordinate": {
+      "x": 3401,
+      "y": 2742
+    },
+    "base_screenshot": "C:\\Users\\Aytac\\Pictures\\Screenshots\\Sacred\\Unlit objects\\3401 2742.png",
+    "lights_outlined_screenshot": "C:\\Users\\Aytac\\Pictures\\Screenshots\\Sacred\\Unlit objects\\3401 2742 lights outlined.png",
+    "annotation_rule": "green outlines mark positive surface-light source objects; all other objects are negative",
+    "approximate_projection": {
+      "scale": 0.6,
+      "player_screen_anchor": {
+        "x": 852,
+        "y": 555
+      },
+      "note": "screen coordinates are approximate and intended for locating records, not pixel-accurate boxes"
+    },
+    "positive_static_count": 1,
+    "negative_static_count": 187,
+    "terrain_cell_count": 1325,
+    "positive_static_ids": [
+      795110
+    ]
+  },
+  {
+    "scene_id": "3437_2529",
+    "world_coordinate": {
+      "x": 3437,
+      "y": 2529
+    },
+    "base_screenshot": "C:\\Users\\Aytac\\Pictures\\Screenshots\\Sacred\\Unlit objects\\3437 2529.png",
+    "lights_outlined_screenshot": null,
+    "annotation_rule": "no lights-outlined copy exists; all objects are negative",
+    "approximate_projection": {
+      "scale": 0.6,
+      "player_screen_anchor": {
+        "x": 856,
+        "y": 430
+      },
+      "note": "screen coordinates are approximate and intended for locating records, not pixel-accurate boxes"
+    },
+    "positive_static_count": 0,
+    "negative_static_count": 810,
+    "terrain_cell_count": 2174,
+    "positive_static_ids": []
+  },
+  {
+    "scene_id": "3765_105",
+    "world_coordinate": {
+      "x": 3765,
+      "y": 105
+    },
+    "base_screenshot": "C:\\Users\\Aytac\\Pictures\\Screenshots\\Sacred\\Unlit objects\\3765 105.png",
+    "lights_outlined_screenshot": "C:\\Users\\Aytac\\Pictures\\Screenshots\\Sacred\\Unlit objects\\3765 105 lights outlined.png",
+    "annotation_rule": "green outlines mark positive surface-light source objects; all other objects are negative",
+    "approximate_projection": {
+      "scale": 0.6,
+      "player_screen_anchor": {
+        "x": 856,
+        "y": 565
+      },
+      "note": "screen coordinates are approximate and intended for locating records, not pixel-accurate boxes"
+    },
+    "positive_static_count": 14,
+    "negative_static_count": 184,
+    "terrain_cell_count": 1830,
+    "positive_static_ids": [
+      864500,
+      864501,
+      864503,
+      864518,
+      864545,
+      864547,
+      864549,
+      864551,
+      864645,
+      864646,
+      864647,
+      864648,
+      864670,
+      878577
+    ]
+  },
+  {
+    "scene_id": "4586_991",
+    "world_coordinate": {
+      "x": 4586,
+      "y": 991
+    },
+    "base_screenshot": "C:\\Users\\Aytac\\Pictures\\Screenshots\\Sacred\\Unlit objects\\4586 991.png",
+    "lights_outlined_screenshot": "C:\\Users\\Aytac\\Pictures\\Screenshots\\Sacred\\Unlit objects\\4586 991 lights outlined.png",
+    "annotation_rule": "green outlines mark positive surface-light source objects; all other objects are negative",
+    "approximate_projection": {
+      "scale": 0.6,
+      "player_screen_anchor": {
+        "x": 856,
+        "y": 525
+      },
+      "note": "screen coordinates are approximate and intended for locating records, not pixel-accurate boxes"
+    },
+    "positive_static_count": 10,
+    "negative_static_count": 131,
+    "terrain_cell_count": 2173,
+    "positive_static_ids": [
+      979138,
+      979204,
+      979205,
+      979230,
+      979233,
+      979267,
+      979307,
+      979312,
+      979381,
+      979420
+    ]
+  },
+  {
+    "scene_id": "5085_606",
+    "world_coordinate": {
+      "x": 5085,
+      "y": 606
+    },
+    "base_screenshot": "C:\\Users\\Aytac\\Pictures\\Screenshots\\Sacred\\Unlit objects\\5085 606.png",
+    "lights_outlined_screenshot": "C:\\Users\\Aytac\\Pictures\\Screenshots\\Sacred\\Unlit objects\\5085 606 lights outlined.png",
+    "annotation_rule": "green outlines mark positive surface-light source objects; all other objects are negative",
+    "approximate_projection": {
+      "scale": 0.6,
+      "player_screen_anchor": {
+        "x": 850,
+        "y": 470
+      },
+      "note": "screen coordinates are approximate and intended for locating records, not pixel-accurate boxes"
+    },
+    "positive_static_count": 23,
+    "negative_static_count": 666,
+    "terrain_cell_count": 2205,
+    "positive_static_ids": [
+      994409,
+      994478,
+      994482,
+      994557,
+      994680,
+      994695,
+      994729,
+      994751,
+      994786,
+      994889,
+      994897,
+      994901,
+      994987,
+      994991,
+      995055,
+      995058,
+      995258,
+      995272,
+      995290,
+      995292,
+      995293,
+      995328,
+      995336
+    ]
+  },
+  {
+    "scene_id": "534_3051",
+    "world_coordinate": {
+      "x": 534,
+      "y": 3051
+    },
+    "base_screenshot": "C:\\Users\\Aytac\\Pictures\\Screenshots\\Sacred\\Unlit objects\\534 3051.png",
+    "lights_outlined_screenshot": "C:\\Users\\Aytac\\Pictures\\Screenshots\\Sacred\\Unlit objects\\534 3051 lights outlined.png",
+    "annotation_rule": "green outlines mark positive surface-light source objects; all other objects are negative",
+    "approximate_projection": {
+      "scale": 0.6,
+      "player_screen_anchor": {
+        "x": 856,
+        "y": 460
+      },
+      "note": "screen coordinates are approximate and intended for locating records, not pixel-accurate boxes"
+    },
+    "positive_static_count": 2,
+    "negative_static_count": 365,
+    "terrain_cell_count": 1440,
+    "positive_static_ids": [
+      42209,
+      42305
+    ]
+  },
+  {
+    "scene_id": "5475_1754",
+    "world_coordinate": {
+      "x": 5475,
+      "y": 1754
+    },
+    "base_screenshot": "C:\\Users\\Aytac\\Pictures\\Screenshots\\Sacred\\Unlit objects\\5475 1754.png",
+    "lights_outlined_screenshot": "C:\\Users\\Aytac\\Pictures\\Screenshots\\Sacred\\Unlit objects\\5475 1754 lights outlined.png",
+    "annotation_rule": "green outlines mark positive surface-light source objects; all other objects are negative",
+    "approximate_projection": {
+      "scale": 0.6,
+      "player_screen_anchor": {
+        "x": 843,
+        "y": 545
+      },
+      "note": "screen coordinates are approximate and intended for locating records, not pixel-accurate boxes"
+    },
+    "positive_static_count": 5,
+    "negative_static_count": 79,
+    "terrain_cell_count": 1740,
+    "positive_static_ids": [
+      1007078,
+      1007086,
+      1007098,
+      1007106,
+      1007122
+    ]
+  }
+]
