@@ -39,7 +39,7 @@ public sealed class ClickToMoveController
         int viewportHeight,
         WorldCollisionResolver collision,
         WorldElevationSampler elevation,
-        bool noClipEnabled,
+        CollisionCheatMode collisionMode,
         float deltaSeconds)
     {
         if (HasManualMovementIntent(input))
@@ -52,13 +52,13 @@ public sealed class ClickToMoveController
         AdvanceRoute(camera);
 
         if (input.TryConsumeLeftClick(out var clickPosition))
-            BeginClick(camera, collision, elevation, clickPosition, viewportWidth, viewportHeight, noClipEnabled);
+            BeginClick(camera, collision, elevation, clickPosition, viewportWidth, viewportHeight, collisionMode);
 
         if (input.IsLeftMouseButtonDown && _singleClickTarget.HasValue)
-            UpdateHeldClick(input, camera, collision, elevation, viewportWidth, viewportHeight, noClipEnabled, deltaSeconds);
+            UpdateHeldClick(input, camera, collision, elevation, viewportWidth, viewportHeight, collisionMode, deltaSeconds);
 
         if (input.ConsumeLeftMouseButtonReleased())
-            EndClick(input, camera, collision, elevation, viewportWidth, viewportHeight, noClipEnabled);
+            EndClick(input, camera, collision, elevation, viewportWidth, viewportHeight, collisionMode);
     }
 
     private void BeginClick(
@@ -68,13 +68,13 @@ public sealed class ClickToMoveController
         Vector2 clickPosition,
         int viewportWidth,
         int viewportHeight,
-        bool noClipEnabled)
+        CollisionCheatMode collisionMode)
     {
         _singleClickTarget = GameActorElevation.ScreenToWorldOnSurface(
             camera, elevation, clickPosition, viewportWidth, viewportHeight);
         _heldSeconds = 0.0f;
         _isHoldClickMovement = false;
-        SetRouteTo(camera, collision, _singleClickTarget.Value, noClipEnabled);
+        SetRouteTo(camera, collision, _singleClickTarget.Value, collisionMode);
     }
 
     private void UpdateHeldClick(
@@ -84,7 +84,7 @@ public sealed class ClickToMoveController
         WorldElevationSampler elevation,
         int viewportWidth,
         int viewportHeight,
-        bool noClipEnabled,
+        CollisionCheatMode collisionMode,
         float deltaSeconds)
     {
         _heldSeconds += deltaSeconds;
@@ -95,7 +95,7 @@ public sealed class ClickToMoveController
         var target = GameActorElevation.ScreenToWorldOnSurface(
             camera, elevation, input.MousePosition, viewportWidth, viewportHeight);
         if (ShouldRetarget(camera, target))
-            SetRouteTo(camera, collision, target, noClipEnabled);
+            SetRouteTo(camera, collision, target, collisionMode);
     }
 
     private void EndClick(
@@ -105,7 +105,7 @@ public sealed class ClickToMoveController
         WorldElevationSampler elevation,
         int viewportWidth,
         int viewportHeight,
-        bool noClipEnabled)
+        CollisionCheatMode collisionMode)
     {
         if (!_singleClickTarget.HasValue)
             return;
@@ -122,7 +122,7 @@ public sealed class ClickToMoveController
             else
             {
                 SetRouteTo(camera, collision, GameActorElevation.ScreenToWorldOnSurface(
-                    camera, elevation, input.MousePosition, viewportWidth, viewportHeight), noClipEnabled);
+                    camera, elevation, input.MousePosition, viewportWidth, viewportHeight), collisionMode);
             }
         }
 
@@ -135,7 +135,7 @@ public sealed class ClickToMoveController
         SacredCamera camera,
         WorldCollisionResolver collision,
         Vector2 target,
-        bool noClipEnabled)
+        CollisionCheatMode collisionMode)
     {
         var direction = target - camera.WorldCenter;
         if (direction.LengthSquared() <= RotationOnlyRadius * RotationOnlyRadius)
@@ -147,7 +147,7 @@ public sealed class ClickToMoveController
             return;
         }
 
-        if (noClipEnabled)
+        if (collisionMode is CollisionCheatMode.Fly or CollisionCheatMode.NoClip)
         {
             _route.Clear();
             _routeTarget = target;

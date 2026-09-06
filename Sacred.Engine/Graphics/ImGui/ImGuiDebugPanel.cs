@@ -34,6 +34,7 @@ internal sealed class ImGuiDebugPanel(
         int renderWidth,
         int renderHeight)
     {
+        scene.Debug.HoveredStaticObjectId = null;
         if (!scene.Debug.OverlaysVisible)
             return;
 

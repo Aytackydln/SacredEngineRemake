@@ -16,9 +16,13 @@ internal static class Dx12RendererPipelineFactory
     public static Dx12CompiledPipelineGroup CompileSurfaceLightMap() =>
         Dx12PipelineFactory.Compile(Dx12SurfaceLightMapPipelineCatalog.Create(), Dx12ShaderCompiler.CompileShader);
 
+    public static Dx12CompiledPipelineGroup CompilePlayerOcclusionMap() =>
+        Dx12PipelineFactory.Compile(Dx12PlayerOcclusionMapPipelineCatalog.Create(), Dx12ShaderCompiler.CompileShader);
+
     public static Dx12CompiledRendererPipelines Compile(Dx12ShaderSet shaders, bool hdrOutput) => new(
         CompileTerrain(shaders),
         CompileSurfaceLightMap(),
+        CompilePlayerOcclusionMap(),
         Dx12PipelineFactory.Compile(
             Dx12PipelineCatalog.CreateStaticSprites(shaders, hdrOutput),
             Dx12ShaderCompiler.CompileShader),
@@ -43,6 +47,7 @@ internal static class Dx12RendererPipelineFactory
 internal sealed record Dx12CompiledRendererPipelines(
     Dx12CompiledPipelineGroup Terrain,
     Dx12CompiledPipelineGroup SurfaceLightMap,
+    Dx12CompiledPipelineGroup PlayerOcclusionMap,
     Dx12CompiledPipelineGroup StaticSprites,
     Dx12CompiledPipelineGroup LightHalos,
     Dx12CompiledPipelineGroup Models,

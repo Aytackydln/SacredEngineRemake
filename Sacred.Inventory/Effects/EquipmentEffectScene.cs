@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using Sacred.Granny;
 using Sacred.Granny.Animation;
 using Sacred.Granny.Meshes;
 using Sacred.Particles;
@@ -11,7 +10,7 @@ namespace Sacred.Inventory.Effects;
 
 public sealed class EquipmentEffectScene
 {
-    private const float EmittedParticleLifetimeSeconds = 0.25f;
+    private const float EmittedParticleLifetimeSeconds = 0.15f;
 
     private readonly Vector3[] _bindPositions;
     private readonly string?[] _vertexBoneNames;

@@ -29,6 +29,7 @@ internal static class ImGuiSettingsPanel
             controls.WorldLightingMode,
             value => controls.RequestedWorldLightingMode = value,
             FormatWorldLightingMode);
+        DrawSunAngleControls();
         Checkbox("Borderless fullscreen (F10)", controls.BorderlessFullscreen,
             value => controls.RequestedBorderlessFullscreen = value);
         if (DearImGui.Button("Capture screenshot (F12)"))
@@ -116,6 +117,30 @@ internal static class ImGuiSettingsPanel
         }
 
         return changed;
+    }
+
+    private static void DrawSunAngleControls()
+    {
+        DearImGui.TextDisabled("Sun direction");
+        var azimuth = SolarLightingCalculator.SunAzimuthDegrees;
+        var elevation = SolarLightingCalculator.SunElevationDegrees;
+        var changed = false;
+
+        changed |= DearImGui.SliderFloat("Sun azimuth", ref azimuth, -180.0f, 180.0f, "%.2f deg");
+        changed |= DearImGui.SliderFloat("Sun elevation", ref elevation, -89.0f, 89.0f, "%.2f deg");
+        if (changed)
+        {
+            SolarLightingCalculator.SunAzimuthDegrees = azimuth;
+            SolarLightingCalculator.SunElevationDegrees = elevation;
+            EngineLog.WriteLine($"Debug input: sun angles set to azimuth {azimuth:0.00}°, elevation {elevation:0.00}°");
+        }
+
+        if (DearImGui.SmallButton("Reset sun angles"))
+        {
+            SolarLightingCalculator.SunAzimuthDegrees = SolarLightingCalculator.DefaultSunAzimuthDegrees;
+            SolarLightingCalculator.SunElevationDegrees = SolarLightingCalculator.DefaultSunElevationDegrees;
+            EngineLog.WriteLine("Debug input: sun angles reset to the previous fixed direction");
+        }
     }
 
     private static void Checkbox(string label, bool current, Action<bool> setter)

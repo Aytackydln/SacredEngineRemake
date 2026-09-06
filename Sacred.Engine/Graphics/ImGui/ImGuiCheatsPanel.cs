@@ -1,3 +1,5 @@
+using System;
+using Sacred.Engine.Scene.InGame;
 using DearImGui = ImGuiNET.ImGui;
 
 namespace Sacred.Engine.Graphics.ImGui;
@@ -7,13 +9,25 @@ internal static class ImGuiCheatsPanel
 {
     public static void Draw(DebugUiControlState controls)
     {
-        var noClipEnabled = controls.NoClipEnabled;
-        if (DearImGui.Checkbox("No collision (noclip)", ref noClipEnabled))
+        DearImGui.SetNextItemWidth(180.0f);
+        if (DearImGui.BeginCombo("Collision", controls.CollisionMode.ToString()))
         {
-            controls.RequestedNoClipEnabled = noClipEnabled;
-            EngineLog.WriteLine($"Debug input: noclip {(noClipEnabled ? "enabled" : "disabled")}");
+            foreach (var mode in Enum.GetValues<CollisionCheatMode>())
+            {
+                var selected = mode == controls.CollisionMode;
+                if (DearImGui.Selectable(mode.ToString(), selected))
+                {
+                    controls.RequestedCollisionMode = mode;
+                    EngineLog.WriteLine($"Debug input: collision set to {mode}");
+                }
+
+                if (selected)
+                    DearImGui.SetItemDefaultFocus();
+            }
+
+            DearImGui.EndCombo();
         }
 
-        DearImGui.TextDisabled("Console: noclip [on|off]");
+        DearImGui.TextDisabled("Console: set collision <walk|fly|noclip>");
     }
 }

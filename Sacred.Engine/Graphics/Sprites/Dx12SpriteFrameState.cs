@@ -14,6 +14,7 @@ internal sealed class Dx12SpriteFrameState
     private int _renderWidth;
     private int _renderHeight;
     private PlayerOcclusionProbe _playerOcclusion;
+    private uint? _highlightedStaticObjectId;
     private bool _valid;
 
     public List<LiquidSpriteDrawRange> LiquidRanges { get; } = new(9);
@@ -27,7 +28,8 @@ internal sealed class Dx12SpriteFrameState
         float viewportZoom,
         int renderWidth,
         int renderHeight,
-        PlayerOcclusionProbe playerOcclusion) =>
+        PlayerOcclusionProbe playerOcclusion,
+        uint? highlightedStaticObjectId) =>
         _valid &&
         _spriteRevision == spriteRevision &&
         _residencyRevision == residencyRevision &&
@@ -35,7 +37,8 @@ internal sealed class Dx12SpriteFrameState
         _viewportZoom == viewportZoom &&
         _renderWidth == renderWidth &&
         _renderHeight == renderHeight &&
-        _playerOcclusion == playerOcclusion;
+        _playerOcclusion == playerOcclusion &&
+        _highlightedStaticObjectId == highlightedStaticObjectId;
 
     public void Remember(
         ulong spriteRevision,
@@ -45,6 +48,7 @@ internal sealed class Dx12SpriteFrameState
         int renderWidth,
         int renderHeight,
         PlayerOcclusionProbe playerOcclusion,
+        uint? highlightedStaticObjectId,
         WorldSpriteBatch batch,
         int liquidInstanceCount)
     {
@@ -55,6 +59,7 @@ internal sealed class Dx12SpriteFrameState
         _renderWidth = renderWidth;
         _renderHeight = renderHeight;
         _playerOcclusion = playerOcclusion;
+        _highlightedStaticObjectId = highlightedStaticObjectId;
         Batch = batch;
         LiquidInstanceCount = liquidInstanceCount;
         _valid = true;
@@ -70,6 +75,7 @@ internal readonly record struct WorldSpriteBatch(
     uint ShadowTextureSlot,
     Vector2 ShadowAtlasTexelSize,
     int LegacyShadowDrawCallCount,
+    int HighlightedStaticInstance,
     PlayerOcclusionProbe PlayerOcclusion);
 
 internal readonly record struct LiquidSpriteDrawRange(

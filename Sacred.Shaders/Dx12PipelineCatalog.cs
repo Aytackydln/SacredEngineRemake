@@ -128,7 +128,8 @@ public static class Dx12PipelineCatalog
             new(RootParameterType.ShaderResourceView,
                 new RootDescriptor(StaticSpriteShaderLayout.InstanceBufferRegister, 0), ShaderVisibility.Vertex),
             TextureTable(StaticSpriteShaderLayout.FirstTextureRegister),
-            TextureTable(StaticSpriteShaderLayout.SurfaceLightMapRegister)
+            TextureTable(StaticSpriteShaderLayout.SurfaceLightMapRegister),
+            TextureTable(StaticSpriteShaderLayout.PlayerOcclusionMapRegister)
         };
 
         return new Dx12PipelineGroupDefinition(
@@ -160,7 +161,7 @@ public static class Dx12PipelineCatalog
                     shaders.TransparentStaticSpritePixelShader,
                     CreatePremultipliedBlend(),
                     RasterizerDescription.CullNone,
-                    CreateLessEqualDepth(),
+                    CreateTransparentSpriteDepth(),
                     usesDepthBuffer: true),
                 Pipeline(
                     Dx12PipelineKind.LiquidSprite,
@@ -321,6 +322,13 @@ public static class Dx12PipelineCatalog
     {
         var depth = DepthStencilDescription.Default;
         depth.DepthFunc = ComparisonFunction.LessEqual;
+        return depth;
+    }
+
+    private static DepthStencilDescription CreateTransparentSpriteDepth()
+    {
+        var depth = CreateLessEqualDepth();
+        depth.DepthWriteMask = DepthWriteMask.Zero;
         return depth;
     }
 

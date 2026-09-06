@@ -3,48 +3,34 @@ using System.Numerics;
 
 namespace Sacred.Engine.Scene.InGame;
 
-/// <summary>Converts Sacred map time into sun, moon, and shadow directions.</summary>
+/// <summary>Builds the fixed, user-adjustable celestial direction and shadow data.</summary>
 internal static class SolarLightingCalculator
 {
     private const float CelestialDistance = 2000.0f;
     private const float MaximumShadowOpacity = 0.5f;
-    private const float MaximumSolarElevationRadians = 58.0f * MathF.PI / 180.0f;
-    private const float NoonAxisBias = 0.55f;
 
-    // Sacred's sun is south-west of the scene. Native Y must be inverted when
-    // expressed in the remake's world coordinates; elevation is calibrated above
-    // from the original game's shadow length at the reference map position.
-    private static readonly Vector2 NoonHorizontalDirection =
-        Vector2.Normalize(new Vector2(-0.85f, -1.0f));
-    private static readonly Vector2 PerpendicularHorizontalDirection =
-        Vector2.Normalize(new Vector2(1.0f, -1.0f));
+    // These reproduce the previous fixed 0.45 daytime direction. They are static so
+    // debug controls can tune the authored shadow projection without coupling it to time of day.
+    public const float DefaultSunAzimuthDegrees = -125f;
+    public const float DefaultSunElevationDegrees = 60f;
+    public static float SunAzimuthDegrees = DefaultSunAzimuthDegrees;
+    public static float SunElevationDegrees = DefaultSunElevationDegrees;
 
-    public static SolarLighting Calculate(float dayTime, float nightBlend, Vector3 focusPosition)
+    public static SolarLighting Calculate(float nightBlend, Vector3 focusPosition)
     {
-        var time = dayTime - MathF.Floor(dayTime);
-        var hourAngle = (time - 0.5f) * MathF.Tau;
-        var solarHeight = MathF.Cos(hourAngle);
-        var elevation = solarHeight * MaximumSolarElevationRadians;
+        var azimuth = SunAzimuthDegrees * MathF.PI / 180.0f;
+        var elevation = SunElevationDegrees * MathF.PI / 180.0f;
         var horizontalScale = MathF.Cos(elevation);
-        var verticalScale = MathF.Sin(elevation);
-        var horizontalDirection =
-            PerpendicularHorizontalDirection * -MathF.Sin(hourAngle) +
-            NoonHorizontalDirection * (NoonAxisBias + MathF.Max(0.0f, solarHeight));
-        horizontalDirection = horizontalDirection.LengthSquared() > float.Epsilon
-            ? Vector2.Normalize(horizontalDirection)
-            : NoonHorizontalDirection;
-
-        var sunDirection = Vector3.Normalize(new Vector3(
-            horizontalDirection.X * horizontalScale,
-            horizontalDirection.Y * horizontalScale,
-            verticalScale));
-        var sunAboveHorizon = MathF.Max(0.0f, solarHeight);
-        var directionToLight = solarHeight >= 0.0f ? sunDirection : -sunDirection;
+        var sunDirection = new Vector3(
+            MathF.Cos(azimuth) * horizontalScale,
+            MathF.Sin(azimuth) * horizontalScale,
+            MathF.Sin(elevation));
+        var sunAboveHorizon = MathF.Max(0.0f, sunDirection.Z);
         var daylight = 1.0f - Math.Clamp(nightBlend, 0.0f, 1.0f);
 
         return new SolarLighting(
-            focusPosition + directionToLight * CelestialDistance,
-            directionToLight,
+            focusPosition + sunDirection * CelestialDistance,
+            sunDirection,
             sunDirection,
             sunAboveHorizon,
             MaximumShadowOpacity * daylight);

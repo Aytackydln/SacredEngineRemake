@@ -23,7 +23,9 @@ internal sealed class Dx12SpriteInstanceBuilder
     private const uint MixedLightEmitterFlag = 0x20000000;
     private const uint ParticleSpriteFlag = 0x40000000;
     private const uint UnlitSpriteFlag = 0x80000000;
+    private const uint PlayerOcclusionFadeFlag = 0x10000000;
     private const uint DirectionalShadowFlag = 0x00000100;
+    private const uint IndoorSurfaceShadowFlag = 0x00000200;
     private const float PainterDepthScale = 1.0f / 4096.0f;
     private static readonly int SpriteInstanceStride = Marshal.SizeOf<StaticSpriteInstance>();
     private static readonly int ShadowInstanceStride = Marshal.SizeOf<StaticSpriteShadowInstance>();
@@ -57,6 +59,7 @@ internal sealed class Dx12SpriteInstanceBuilder
         SceneModel? playerModel,
         IReadOnlyList<TerrainLiquidSprite> liquidSprites,
         IReadOnlyList<TerrainStaticSprite> staticSprites,
+        uint? highlightedStaticObjectId,
         Dx12FrameContext frame,
         int renderWidth,
         int renderHeight,
@@ -77,7 +80,8 @@ internal sealed class Dx12SpriteInstanceBuilder
                 camera.ViewportZoom,
                 renderWidth,
                 renderHeight,
-                playerOcclusion))
+                playerOcclusion,
+                highlightedStaticObjectId))
         {
             _activeLiquidRanges = state.LiquidRanges;
             ApplyCounts(state.Batch, state.LiquidInstanceCount);
@@ -96,6 +100,7 @@ internal sealed class Dx12SpriteInstanceBuilder
                 renderWidth,
                 renderHeight,
                 playerOcclusion,
+                highlightedStaticObjectId,
                 default,
                 0);
             ApplyCounts(default, 0);
@@ -189,6 +194,7 @@ internal sealed class Dx12SpriteInstanceBuilder
 
         var staticStartInstance = instanceCount;
         var transparentStaticStartInstance = -1;
+        var highlightedStaticInstance = -1;
         var shadowInstanceCount = 0;
         var legacyShadowDrawCallCount = 0;
         var previousLegacyInstanceCastsShadow = false;
@@ -276,8 +282,10 @@ internal sealed class Dx12SpriteInstanceBuilder
 
             if (spriteVisible)
             {
-                if (sprite.AllowsTransparency && transparentStaticStartInstance < 0)
+                if (sprite.RequiresTransparentPass && transparentStaticStartInstance < 0)
                     transparentStaticStartInstance = instanceCount;
+                if (sprite.StaticObjectId == highlightedStaticObjectId)
+                    highlightedStaticInstance = instanceCount;
                 instances[instanceCount++] = new StaticSpriteInstance(
                     drawPosition.X,
                     drawPosition.Y,
@@ -289,6 +297,7 @@ internal sealed class Dx12SpriteInstanceBuilder
                     (sprite.IsUnlit ? UnlitSpriteFlag : 0) |
                     (sprite.IsParticleSprite ? ParticleSpriteFlag : 0) |
                     (sprite.IsMixedLightEmitter ? MixedLightEmitterFlag : 0) |
+                    (sprite.AllowsPlayerOcclusionFade ? PlayerOcclusionFadeFlag : 0) |
                     (sprite.TransposeTexture ? TransposeTextureFlag : 0),
                     sprite.Sprite.AnimationPeriodSeconds,
                     1.0f,
@@ -304,6 +313,8 @@ internal sealed class Dx12SpriteInstanceBuilder
                 var atlasCellAndProjection = (uint)shadow.AtlasCellIndex;
                 if (shadow.Projection == SacredItemStaticShadowProjection.Directional)
                     atlasCellAndProjection |= DirectionalShadowFlag;
+                if (sprite.IsIndoorSurface)
+                    atlasCellAndProjection |= IndoorSurfaceShadowFlag;
                 shadowInstances![shadowInstanceCount++] = new StaticSpriteShadowInstance(
                     shadowRoot.X,
                     shadowRoot.Y,
@@ -324,6 +335,7 @@ internal sealed class Dx12SpriteInstanceBuilder
             shadowTextureSlot,
             shadowAtlasTexelSize,
             legacyShadowDrawCallCount,
+            highlightedStaticInstance,
             playerOcclusion);
         state.Remember(
             spriteRevision,
@@ -333,6 +345,7 @@ internal sealed class Dx12SpriteInstanceBuilder
             renderWidth,
             renderHeight,
             playerOcclusion,
+            highlightedStaticObjectId,
             batch,
             staticStartInstance);
         ApplyCounts(batch, staticStartInstance);

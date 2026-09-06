@@ -19,6 +19,7 @@ struct SpriteInstance
 StructuredBuffer<SpriteInstance> instances : register(t0);
 Texture2D static_texture : register(t1);
 Texture2D<float> surface_light_map : register(t2);
+Texture2D<float> player_occlusion_map : register(t3);
 SamplerState sampler0 : register(s0);
 
 cbuffer StaticSpriteSceneConstants : register(b0)
@@ -30,10 +31,8 @@ cbuffer StaticSpriteSceneConstants : register(b0)
     float scene_paper_white;
     float unlit_white_nits;
     float occluder_opacity;
-    float2 player_screen_position;
     float player_scene_depth;
-    float occluder_radius_pixels;
-    float2 constants_padding;
+    float constants_padding;
 }
 
 struct vertex_output
@@ -231,15 +230,17 @@ float mixed_light_emission(float3 colour)
 
 float player_occluder_opacity(vertex_output input)
 {
+    if ((input.flags & 0x10000000u) == 0)
+        return 1.0f;
+
     // Smaller painter-depth values are closer to the camera. Fade only foreground
-    // pixels within a soft circular reveal centered on the player's visual center.
+    // pixels using the player-occlusion texture generated for this frame.
     if (input.depth >= player_scene_depth)
         return 1.0f;
 
-    float radius = max(occluder_radius_pixels, 1.0f);
-    float feather = max(radius * 0.35f, 1.0f);
-    float distance_to_player = length(input.position.xy - player_screen_position);
-    float reveal = 1.0f - smoothstep(radius - feather, radius, distance_to_player);
+    float reveal = player_occlusion_map.Sample(
+        sampler0,
+        input.position.xy / viewport_size);
     return lerp(1.0f, occluder_opacity, reveal);
 }
 

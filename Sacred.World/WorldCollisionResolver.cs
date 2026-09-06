@@ -1,4 +1,5 @@
 using System.Numerics;
+using Sacred.Core.World;
 using Sacred.Core.World.Sector;
 
 namespace Sacred.World;
@@ -31,6 +32,26 @@ public sealed class WorldCollisionResolver(
     {
         RefreshSectorIndex();
 
+        return ResolveMovement(start, intendedEnd, IsMovementBlockedFromCache);
+    }
+
+    /// <summary>
+    /// Resolves movement for flying actors. Movement Blocker A and missing streamed tiles
+    /// remain solid; other authored ground blockers are passable.
+    /// </summary>
+    public Vector2 ResolveFlightMovement(Vector2 start, Vector2 intendedEnd)
+    {
+        RefreshSectorIndex();
+
+        return ResolveMovement(start, intendedEnd, IsFlightBlockedFromCache);
+    }
+
+    private Vector2 ResolveMovement(
+        Vector2 start,
+        Vector2 intendedEnd,
+        Func<int, int, bool> isBlocked)
+    {
+
         var position = start;
         var remaining = intendedEnd - start;
         for (var iteration = 0; iteration < MaximumSlideIterations; iteration++)
@@ -39,7 +60,7 @@ public sealed class WorldCollisionResolver(
             if (remainingLength <= float.Epsilon)
                 break;
 
-            if (!TryFindFirstHit(position, remaining, out var hit))
+            if (!TryFindFirstHit(position, remaining, isBlocked, out var hit))
             {
                 position += remaining;
                 break;
@@ -111,7 +132,11 @@ public sealed class WorldCollisionResolver(
         return IsMovementBlockedFromCache(worldTileX, worldTileY);
     }
 
-    private bool TryFindFirstHit(Vector2 start, Vector2 delta, out SweepHit firstHit)
+    private bool TryFindFirstHit(
+        Vector2 start,
+        Vector2 delta,
+        Func<int, int, bool> isBlocked,
+        out SweepHit firstHit)
     {
         firstHit = default;
         var found = false;
@@ -123,7 +148,7 @@ public sealed class WorldCollisionResolver(
         for (var tileY = minimumTileY; tileY <= maximumTileY; tileY++)
         for (var tileX = minimumTileX; tileX <= maximumTileX; tileX++)
         {
-            if (!IsMovementBlockedFromCache(tileX, tileY))
+            if (!isBlocked(tileX, tileY))
                 continue;
 
             var minimum = new Vector2(tileX, tileY);
@@ -224,6 +249,18 @@ public sealed class WorldCollisionResolver(
         return !TryGetSectorTile(worldTileX, worldTileY, out var sector, out var localX, out var localY) ||
                sector.Pathing.IsBlocked(localX, localY);
     }
+
+    private bool IsFlightBlockedFromCache(int worldTileX, int worldTileY)
+    {
+        if (TryGetIndoorTile(worldTileX, worldTileY, out var indoorGroup, out var indoorX, out var indoorY))
+            return HasMovementBlockerA(indoorGroup.Pathing[indoorX, indoorY].TileFlags);
+
+        return !TryGetSectorTile(worldTileX, worldTileY, out var sector, out var localX, out var localY) ||
+               HasMovementBlockerA(sector.Pathing[localX, localY].TileFlags);
+    }
+
+    private static bool HasMovementBlockerA(WldxTileFlags tileFlags) =>
+        (tileFlags & WldxTileFlags.MovementBlockerA) != 0;
 
     private bool TryGetIndoorTile(
         int worldTileX,

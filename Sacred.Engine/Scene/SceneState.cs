@@ -85,6 +85,7 @@ public sealed class SceneDebugState
     public bool SectorBoundsVisible { get; set; }
     public bool WorldLightBoundsVisible { get; set; }
     public bool StaticSpriteBoundsVisible { get; set; }
+    public uint? HoveredStaticObjectId { get; set; }
     public float ActorTerrainHeight { get; set; }
 }
 
@@ -108,6 +109,10 @@ public sealed class SceneLighting
     public float PlayerLightOpacity { get; set; } = 0.35f;
     /// <summary>Normalized solar elevation: zero at/below the horizon and one at noon.</summary>
     public float SunHeight { get; set; } = 1.0f;
+    /// <summary>Solar shadow opacity used by objects on the outdoor surface.</summary>
+    public float OutdoorShadowOpacity { get; set; } = 0.5f;
+    /// <summary>Contact-shadow opacity used by objects on the active indoor surface.</summary>
+    public float IndoorShadowOpacity { get; set; }
     public float ShadowOpacity { get; set; } = 0.5f;
     public SceneShadowMode ShadowMode { get; set; } = SceneShadowMode.Directional;
 }

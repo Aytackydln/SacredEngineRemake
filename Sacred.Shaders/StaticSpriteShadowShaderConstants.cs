@@ -20,7 +20,8 @@ public readonly struct StaticSpriteShadowInstance(
 
 public readonly record struct StaticSpriteShadowSceneConstants(
     Vector2 ViewportSize,
-    float Opacity,
+    float OutdoorOpacity,
+    float IndoorOpacity,
     Vector2 Projection,
     Vector2 AtlasTexelSize)
 {
@@ -34,8 +35,8 @@ public sealed class StaticSpriteShadowShaderConstantsUpdater
     {
         target[0] = Math.Max(1.0f, constants.ViewportSize.X);
         target[1] = Math.Max(1.0f, constants.ViewportSize.Y);
-        target[2] = Math.Clamp(constants.Opacity, 0.0f, 1.0f);
-        target[3] = 0.0f;
+        target[2] = Math.Clamp(constants.OutdoorOpacity, 0.0f, 1.0f);
+        target[3] = Math.Clamp(constants.IndoorOpacity, 0.0f, 1.0f);
         target[4] = constants.Projection.X;
         target[5] = constants.Projection.Y;
         target[6] = Math.Max(0.0f, constants.AtlasTexelSize.X);

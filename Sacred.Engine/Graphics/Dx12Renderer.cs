@@ -9,6 +9,7 @@ using Sacred.Engine.Assets;
 using Sacred.Engine.Graphics.Frames;
 using Sacred.Engine.Graphics.ImGui;
 using Sacred.Engine.Graphics.Lighting;
+using Sacred.Engine.Graphics.Sprites;
 using Sacred.Engine.Graphics.Swapchain;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Platform;
@@ -236,6 +237,10 @@ public sealed class Dx12Renderer : IDisposable
                 _graphics.Device,
                 shaders.SurfaceLightMap,
                 Dx12SurfaceLightMapPass.TextureFormat),
+            Dx12RendererPipelineFactory.Create(
+                _graphics.Device,
+                shaders.PlayerOcclusionMap,
+                Dx12PlayerOcclusionMapPass.TextureFormat),
             Dx12RendererPipelineFactory.Create(
                 _graphics.Device,
                 shaders.StaticSprites,

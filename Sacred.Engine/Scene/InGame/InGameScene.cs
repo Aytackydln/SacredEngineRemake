@@ -72,14 +72,17 @@ internal sealed class InGameScene : IGameScene
     internal string SelectedCharacterName => _player.SelectedCharacterName;
     internal bool StairsTilesVisible => _scene.Debug.StairsMapVisible;
     internal bool BlockedTilesVisible => _scene.Debug.BlockedAreasVisible;
-    internal bool NoClipEnabled => _inputController.NoClipEnabled;
+    internal CollisionCheatMode CollisionMode => _inputController.CollisionMode;
     internal WorldLightingMode WorldLightingMode => _worldLighting.Mode;
     internal Vector2 PlayerWorldPosition => _camera.WorldCenter;
     internal bool WorldStreamingSettled => _worldStreamer.VisibleWorld.LoadingSectors == 0;
 
     internal void SetWorldLightingMode(WorldLightingMode mode) => _worldLighting.SetMode(mode);
 
-    internal void SetNoClipEnabled(bool enabled) => _inputController.SetNoClipEnabled(enabled);
+    internal void SetCollisionMode(CollisionCheatMode mode) => _inputController.SetCollisionMode(mode);
+
+    internal void SetNoClipEnabled(bool enabled) =>
+        SetCollisionMode(enabled ? CollisionCheatMode.NoClip : CollisionCheatMode.Walk);
 
     internal Task<TextureAsset> LoadTextureAsync(string textureName, CancellationToken cancellationToken) =>
         _assets.LoadTextureAsync(textureName, cancellationToken);
@@ -117,6 +120,10 @@ internal sealed class InGameScene : IGameScene
                 SetNoClipEnabled(noClipEnabled);
                 message = $"noclip {(noClipEnabled ? "enabled" : "disabled")}";
                 return true;
+            case "collision" when TryParseCollisionMode(value, out var collisionMode):
+                SetCollisionMode(collisionMode);
+                message = $"collision set to {collisionMode}";
+                return true;
             case "tessellation" or "tess" or "vertices" when TryParseBoolean(value, out var topologyVisible):
                 _scene.Debug.TerrainTopologyVisible = topologyVisible;
                 message = topologyVisible
@@ -132,10 +139,13 @@ internal sealed class InGameScene : IGameScene
                 message = "loading next character";
                 return true;
             default:
-                message = "Unknown in-game option. Use overlays <on|off>, debug-panel <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, noclip <on|off>, tessellation <on|off>, item-flags <hex>, or character next.";
+                message = "Unknown in-game option. Use overlays <on|off>, debug-panel <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, collision <walk|fly|noclip>, noclip <on|off>, tessellation <on|off>, item-flags <hex>, or character next.";
                 return false;
         }
     }
+
+    private static bool TryParseCollisionMode(string value, out CollisionCheatMode mode) =>
+        Enum.TryParse(value, ignoreCase: true, out mode);
 
     public void OnActivated()
     {

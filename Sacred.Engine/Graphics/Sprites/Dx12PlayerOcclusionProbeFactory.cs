@@ -37,8 +37,11 @@ internal static class Dx12PlayerOcclusionProbeFactory
             0.20f,
             0.72f);
         var sceneDepth = Math.Clamp(painterDepth + PlayerDepthBias, 0.0f, 1.0f);
-        return new PlayerOcclusionProbe(screenPosition, sceneDepth);
+        return new PlayerOcclusionProbe(screenPosition, sceneDepth, true);
     }
 }
 
-internal readonly record struct PlayerOcclusionProbe(Vector2 ScreenPosition, float SceneDepth);
+internal readonly record struct PlayerOcclusionProbe(
+    Vector2 ScreenPosition,
+    float SceneDepth,
+    bool IsActive);

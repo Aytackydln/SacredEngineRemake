@@ -25,11 +25,14 @@ public unsafe class Dx12DebugOverlay : IDisposable
     private readonly Dx12TextureUploader _textureUploader;
     private readonly CpuDescriptorHandle _debugOverlayCpuHandle;
     private readonly GpuDescriptorHandle _debugOverlayGpuHandle;
+    private readonly CpuDescriptorHandle _sceneDimCpuHandle;
+    private readonly GpuDescriptorHandle _sceneDimGpuHandle;
     private readonly WorldQuadShaderConstantsUpdater _worldQuadShaderConstants = new();
 
     private bool _debugOverlayDirty;
     private ID3D12Resource? _debugOverlayTexture;
     private ResourceStates _debugOverlayState = ResourceStates.Common;
+    private ID3D12Resource? _sceneDimTexture;
 
     private int _framesSinceTitleUpdate;
     private double _lastTitleUpdateSeconds;
@@ -40,7 +43,9 @@ public unsafe class Dx12DebugOverlay : IDisposable
         ID3D12GraphicsCommandList commandList,
         Dx12TextureUploader textureUploader,
         CpuDescriptorHandle debugOverlayCpuHandle,
-        GpuDescriptorHandle debugOverlayGpuHandle)
+        GpuDescriptorHandle debugOverlayGpuHandle,
+        CpuDescriptorHandle sceneDimCpuHandle,
+        GpuDescriptorHandle sceneDimGpuHandle)
     {
         _commandList = commandList;
         _textureUploader = textureUploader;
@@ -48,6 +53,8 @@ public unsafe class Dx12DebugOverlay : IDisposable
         _debugOverlay = new DebugTextOverlay(_fonts, OverlayWidth, OverlayHeight);
         _debugOverlayCpuHandle = debugOverlayCpuHandle;
         _debugOverlayGpuHandle = debugOverlayGpuHandle;
+        _sceneDimCpuHandle = sceneDimCpuHandle;
+        _sceneDimGpuHandle = sceneDimGpuHandle;
     }
 
     public double FramesPerSecond => _fps;
@@ -58,6 +65,7 @@ public unsafe class Dx12DebugOverlay : IDisposable
         Dx12DebugOverlayStats rendererStats,
         List<ID3D12Resource> transientResources)
     {
+        EnsureSceneDimTexture(transientResources);
         CompleteDebugRasterIfReady();
         UploadOverlayIfNeeded(
             _debugOverlay,
@@ -67,6 +75,20 @@ public unsafe class Dx12DebugOverlay : IDisposable
             _debugOverlayCpuHandle,
             transientResources);
         QueueDebugRaster(camera, world, rendererStats);
+    }
+
+    private void EnsureSceneDimTexture(List<ID3D12Resource> transientResources)
+    {
+        if (_sceneDimTexture is not null)
+            return;
+
+        _sceneDimTexture = _textureUploader.UploadRgbaTexture(
+            _commandList,
+            1,
+            1,
+            [0, 0, 0, 150],
+            transientResources);
+        _textureUploader.CreateShaderResourceView(_sceneDimTexture, _sceneDimCpuHandle);
     }
 
     private void UploadOverlayIfNeeded(
@@ -118,6 +140,32 @@ public unsafe class Dx12DebugOverlay : IDisposable
             renderHeight,
             uiPaperWhiteNits);
 
+    }
+
+    public void RecordSceneDim(int renderWidth, int renderHeight, float paperWhiteNits)
+    {
+        if (_sceneDimTexture is null)
+            return;
+
+        var constants = stackalloc float[WorldQuadShaderLayout.RootConstantsCount];
+        _worldQuadShaderConstants.Write(
+            constants,
+            new WorldQuadShaderConstants(
+                new Vector4(0.0f, 0.0f, renderWidth, renderHeight),
+                new Vector2(renderWidth, renderHeight),
+                AmbientColour: Vector3.One,
+                IsPremultipliedAlpha: true,
+                PaperWhiteNits: paperWhiteNits));
+
+        _commandList.SetGraphicsRoot32BitConstants(
+            WorldQuadShaderLayout.RootConstantsRootParameter,
+            WorldQuadShaderLayout.RootConstantsCount,
+            constants,
+            0);
+        _commandList.SetGraphicsRootDescriptorTable(
+            WorldQuadShaderLayout.TextureRootParameter,
+            _sceneDimGpuHandle);
+        _commandList.DrawInstanced(6, 1, 0, 0);
     }
 
     private void RecordOverlay(
@@ -204,6 +252,8 @@ public unsafe class Dx12DebugOverlay : IDisposable
         _debugRasterTask = null;
         _debugOverlayTexture?.Dispose();
         _debugOverlayTexture = null;
+        _sceneDimTexture?.Dispose();
+        _sceneDimTexture = null;
         _fonts.Dispose();
     }
 }

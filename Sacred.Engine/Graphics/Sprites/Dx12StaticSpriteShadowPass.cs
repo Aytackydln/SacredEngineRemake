@@ -56,9 +56,7 @@ internal sealed class Dx12StaticSpriteShadowPass
     {
         DrawCallCount = 0;
         if (batch.ShadowInstanceCount == 0 ||
-            lighting.ShadowMode == SceneShadowMode.None ||
-            lighting.DirectionToSun.Z <= 0.0f ||
-            lighting.ShadowOpacity <= 0.001f ||
+            MathF.Max(lighting.OutdoorShadowOpacity, lighting.IndoorShadowOpacity) <= 0.001f ||
             _rootSignature is null ||
             _pipeline is null)
         {
@@ -70,7 +68,8 @@ internal sealed class Dx12StaticSpriteShadowPass
             constants,
             new StaticSpriteShadowSceneConstants(
                 new Vector2(renderWidth, renderHeight),
-                lighting.ShadowOpacity,
+                lighting.OutdoorShadowOpacity,
+                lighting.IndoorShadowOpacity,
                 CalculateScreenProjection(camera, lighting.DirectionToSun, renderWidth, renderHeight),
                 batch.ShadowAtlasTexelSize));
 

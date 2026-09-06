@@ -10,6 +10,7 @@ public enum Dx12PipelineKind
     TransparentStaticSprite,
     LiquidSprite,
     SurfaceLightMap,
+    PlayerOcclusionMap,
     LightHalo,
     StaticModel,
     ModelShadow,

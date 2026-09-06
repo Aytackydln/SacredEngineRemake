@@ -72,7 +72,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                                              staticObject.MiniObjectFrameCount,
                                              out miniObjectReference) &&
                                          miniObjectReference.FrameCount > 1;
-                if (!IsVisibleOnSurface(staticObject, activeIndoorGroup))
+                if (!TryResolveVisibleSurface(staticObject, activeIndoorGroup, out var isIndoorSurface))
                     continue;
 
                 if (item is { } haloItem &&
@@ -191,6 +191,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
 
                 _visibleSprites.Add(new TerrainStaticSprite(
                     sprite,
+                    staticObject.StaticId,
                     false,
                     false,
                     isMixedLightEmitter,
@@ -204,6 +205,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                     footX,
                     footY,
                     staticObject.SurfaceRenderLayer,
+                    isIndoorSurface,
                     EngineQueueIndex(staticObject),
                     staticObject.TileDepth,
                     staticObject.TileWorldY,
@@ -279,10 +281,12 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
         EngineLog.WriteLine(summary);
     }
 
-    private static bool IsVisibleOnSurface(
+    private static bool TryResolveVisibleSurface(
         StaticWorldObject staticObject,
-        IndoorTileGroup? activeIndoorGroup)
+        IndoorTileGroup? activeIndoorGroup,
+        out bool isIndoorSurface)
     {
+        isIndoorSurface = false;
         if (activeIndoorGroup is null)
             return staticObject.SurfaceRenderLayer <= ExteriorActiveLayer;
 
@@ -291,8 +295,9 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
             staticObject.TileWorldY);
         if (staticObject.SurfaceRenderLayer > ExteriorActiveLayer)
         {
-            return belongsToActiveSection &&
-                   staticObject.SurfaceRenderLayer == activeIndoorGroup.SurfaceRenderLayer;
+            isIndoorSurface = belongsToActiveSection &&
+                              staticObject.SurfaceRenderLayer == activeIndoorGroup.SurfaceRenderLayer;
+            return isIndoorSurface;
         }
 
         return !belongsToActiveSection ||
@@ -302,9 +307,9 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
 
     private static int CompareSprites(TerrainStaticSprite left, TerrainStaticSprite right)
     {
-        // Transparency-capable sprites use a late render pass so player geometry is
-        // already available beneath them when their authored descriptor requests a fade.
-        var transparency = left.AllowsTransparency.CompareTo(right.AllowsTransparency);
+        // Authored player fades and fractional-alpha source textures use a late pass so
+        // player geometry is available beneath their alpha composition.
+        var transparency = left.RequiresTransparentPass.CompareTo(right.RequiresTransparentPass);
         if (transparency != 0)
             return transparency;
         var queue = left.QueueIndex.CompareTo(right.QueueIndex);

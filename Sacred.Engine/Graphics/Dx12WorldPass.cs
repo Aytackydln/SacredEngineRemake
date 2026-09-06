@@ -31,6 +31,7 @@ internal sealed class Dx12WorldPass : IDisposable
     private readonly Dx12ModelPass _models;
     private readonly Dx12SpritePass _sprites;
     private readonly Dx12SurfaceLightMapPass _surfaceLights;
+    private readonly Dx12PlayerOcclusionMapPass _playerOcclusionMap;
     private readonly Dx12LightHaloPass _lightHalos;
     private readonly Dx12MinimapPass _minimap;
     private readonly Dx12DebugOverlay _debugOverlay;
@@ -70,6 +71,11 @@ internal sealed class Dx12WorldPass : IDisposable
             graphics.CommandList,
             graphics.SrvCpuHandle(Dx12DescriptorLayout.SurfaceLightMap),
             graphics.SrvGpuHandle(Dx12DescriptorLayout.SurfaceLightMap));
+        _playerOcclusionMap = new Dx12PlayerOcclusionMapPass(
+            graphics.Device,
+            graphics.CommandList,
+            graphics.SrvCpuHandle(Dx12DescriptorLayout.PlayerOcclusionMap),
+            graphics.SrvGpuHandle(Dx12DescriptorLayout.PlayerOcclusionMap));
         _sprites = new Dx12SpritePass(
             graphics.Device,
             graphics.CommandList,
@@ -78,6 +84,7 @@ internal sealed class Dx12WorldPass : IDisposable
             graphics.SrvDescriptorSize,
             Dx12DescriptorLayout.FirstStaticSprite,
             _surfaceLights.ShaderResourceHandle,
+            _playerOcclusionMap.ShaderResourceHandle,
             Dx12DeviceContext.FrameCount);
         _lightHalos = new Dx12LightHaloPass(
             graphics.Device,
@@ -116,7 +123,9 @@ internal sealed class Dx12WorldPass : IDisposable
             graphics.CommandList,
             textureUploader,
             graphics.SrvCpuHandle(Dx12DescriptorLayout.DebugOverlay),
-            graphics.SrvGpuHandle(Dx12DescriptorLayout.DebugOverlay));
+            graphics.SrvGpuHandle(Dx12DescriptorLayout.DebugOverlay),
+            graphics.SrvCpuHandle(Dx12DescriptorLayout.DebugSceneDim),
+            graphics.SrvGpuHandle(Dx12DescriptorLayout.DebugSceneDim));
         _imgui = new Dx12ImGuiRenderer(
             graphics.Device,
             graphics.CommandList,
@@ -134,6 +143,7 @@ internal sealed class Dx12WorldPass : IDisposable
             _sectorTextures,
             _sprites,
             _surfaceLights,
+            _playerOcclusionMap,
             _lightHalos,
             _models,
             _debugOverlay,
@@ -319,12 +329,14 @@ internal sealed class Dx12WorldPass : IDisposable
 
     public void SetPipelines(
         Dx12CreatedPipelineGroup surfaceLights,
+        Dx12CreatedPipelineGroup playerOcclusionMap,
         Dx12CreatedPipelineGroup staticSprites,
         Dx12CreatedPipelineGroup lightHalos,
         Dx12CreatedPipelineGroup models,
         Dx12CreatedPipelineGroup imgui)
     {
         _surfaceLights.SetPipeline(surfaceLights);
+        _playerOcclusionMap.SetPipeline(playerOcclusionMap);
         _sprites.SetPipeline(staticSprites);
         _lightHalos.SetPipeline(lightHalos);
         _models.SetPipeline(models);
@@ -337,6 +349,7 @@ internal sealed class Dx12WorldPass : IDisposable
         _sprites.DisposePipeline();
         _lightHalos.DisposePipeline();
         _surfaceLights.DisposePipeline();
+        _playerOcclusionMap.DisposePipeline();
         _imgui.DisposePipeline();
     }
 
@@ -367,6 +380,7 @@ internal sealed class Dx12WorldPass : IDisposable
         _modelTextures.Dispose();
         _sprites.Dispose();
         _surfaceLights.Dispose();
+        _playerOcclusionMap.Dispose();
         _lightHalos.Dispose();
         _minimap.Dispose();
     }

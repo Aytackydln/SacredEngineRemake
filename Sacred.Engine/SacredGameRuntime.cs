@@ -123,10 +123,10 @@ internal sealed class SacredGameRuntime : IDisposable
             UpdateWindowTitle();
         }
 
-        if (_debugUiControls.RequestedNoClipEnabled is { } noClipEnabled)
+        if (_debugUiControls.RequestedCollisionMode is { } collisionMode)
         {
-            _debugUiControls.RequestedNoClipEnabled = null;
-            _inGameScene?.SetNoClipEnabled(noClipEnabled);
+            _debugUiControls.RequestedCollisionMode = null;
+            _inGameScene?.SetCollisionMode(collisionMode);
         }
 
         if (_debugUiControls.ScreenshotRequested)
@@ -144,7 +144,7 @@ internal sealed class SacredGameRuntime : IDisposable
         _debugUiControls.WorldLightingMode =
             _inGameScene?.WorldLightingMode ?? _initialSaveState.WorldLightingMode;
         _debugUiControls.BorderlessFullscreen = _window.IsBorderlessFullscreen;
-        _debugUiControls.NoClipEnabled = _inGameScene?.NoClipEnabled ?? false;
+        _debugUiControls.CollisionMode = _inGameScene?.CollisionMode ?? CollisionCheatMode.Walk;
     }
 
     public SacredGameSaveState CaptureSaveState() => new()
@@ -320,7 +320,8 @@ internal sealed class SacredGameRuntime : IDisposable
                     return;
                 }
 
-                var noClipEnabled = noClip.Enabled ?? !_inGameScene.NoClipEnabled;
+                var noClipEnabled = noClip.Enabled ??
+                    _inGameScene.CollisionMode != CollisionCheatMode.NoClip;
                 _inGameScene.SetNoClipEnabled(noClipEnabled);
                 EngineLog.WriteLine($"Cheat: noclip {(noClipEnabled ? "enabled" : "disabled")}.");
                 return;

@@ -235,11 +235,12 @@ public sealed class TerrainRenderer : IDisposable
 
 public readonly record struct TerrainStaticSprite(
     StaticSpriteAsset Sprite,
+    uint StaticObjectId,
     bool IsUnlit,
     bool IsParticleSprite,
     bool IsMixedLightEmitter,
     bool TransposeTexture,
-    bool AllowsTransparency,
+    bool AllowsPlayerOcclusionFade,
     TerrainStaticShadow? Shadow,
     float RenderWidth,
     float RenderHeight,
@@ -248,12 +249,17 @@ public readonly record struct TerrainStaticSprite(
     float DepthX,
     float DepthY,
     short SurfaceRenderLayer,
+    bool IsIndoorSurface,
     int QueueIndex,
     int TileDepth,
     int TileWorldY,
     int TileWorldX,
     int ChainDepth,
-    int InsertionOrder);
+    int InsertionOrder)
+{
+    /// <summary>Fractional source alpha and authored player fading both need alpha composition after models.</summary>
+    public bool RequiresTransparentPass => AllowsPlayerOcclusionFade || Sprite.HasTranslucentPixels;
+}
 
 public readonly record struct TerrainStaticShadow(
     StaticSpriteAsset Atlas,

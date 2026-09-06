@@ -3,6 +3,7 @@
 
 static const uint shadow_atlas_cell_mask = 0x000000FFu;
 static const uint directional_shadow_flag = 0x00000100u;
+static const uint indoor_surface_shadow_flag = 0x00000200u;
 static const float shadow_atlas_grid_size = 16.0f;
 
 struct ShadowInstance
@@ -19,8 +20,8 @@ SamplerState sampler0 : register(s0);
 cbuffer StaticSpriteShadowSceneConstants : register(b0)
 {
     float2 viewport_size;
-    float shadow_opacity;
-    float padding;
+    float outdoor_shadow_opacity;
+    float indoor_shadow_opacity;
     // Screen-space direction and solar-elevation length factor, in authored extents.
     float2 directional_projection;
     // Supplied by the CPU so atlas addressing is resolved once per vertex, not per pixel.
@@ -31,7 +32,7 @@ struct vertex_output
 {
     float4 position : SV_Position;
     float2 atlas_uv : TEXCOORD0;
-    nointerpolation float opacity_scale : TEXCOORD1;
+    nointerpolation float opacity : TEXCOORD1;
 };
 
 static const float2 quad_uvs[4] =
@@ -66,7 +67,12 @@ vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_Instan
     float2 cell_span = 1.0f / shadow_atlas_grid_size;
     output.atlas_uv = cell_origin + atlas_texel_size * 0.5f +
         uv * (cell_span - atlas_texel_size);
-    output.opacity_scale = directional ? 1.08f : 0.86f;
+    bool indoor_surface =
+        (instance.atlas_cell_and_projection & indoor_surface_shadow_flag) != 0u;
+    float surface_opacity = indoor_surface
+        ? indoor_shadow_opacity
+        : outdoor_shadow_opacity;
+    output.opacity = surface_opacity * (directional ? 1.08f : 0.86f);
     return output;
 }
 
@@ -78,5 +84,5 @@ float4 ps_main(vertex_output input) : SV_Target
         0.0f,
         0.0f,
         0.0f,
-        saturate(shadow_opacity * input.opacity_scale * alpha));
+        saturate(input.opacity * alpha));
 }

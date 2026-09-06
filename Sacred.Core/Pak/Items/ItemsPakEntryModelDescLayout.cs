@@ -124,7 +124,6 @@ public readonly struct ItemsPakEntryModelDescLayout
 
     public bool UsesAnimatedMiniObject => Representation == SacredItemGraphicType.AnimatedMiniObject;
     public bool UsesStaticMiniObject => Representation == SacredItemGraphicType.StaticMiniObject;
-    public bool UsesMixedSpriteOrLightMarker => Representation == SacredItemGraphicType.MixedSpriteOrLightMarker;
     public bool IsPresent => DescriptorFlags.HasFlag(SacredItemDescriptorFlags.Present);
     public bool AllowsTransparency => GraphicType.HasFlag(SacredItemGraphicType.AllowsTransparency);
 
@@ -132,9 +131,9 @@ public readonly struct ItemsPakEntryModelDescLayout
 
     public bool EmitsAnimatedSpriteHalo => UsesMiniObjectTexture && IsLightEmitting;
 
-    public bool IsWorldLightMarker => UsesMixedSpriteOrLightMarker && IsLightEmitting;
+    public bool IsWorldLightMarker => Representation.HasFlag(SacredItemGraphicType.LightMarker) && IsLightEmitting;
 
-    public bool MayContainMixedSpriteEmission => UsesMixedSpriteOrLightMarker && MixedBaseGroupId != 0 && IsPresent;
+    public bool MayContainMixedSpriteEmission => Representation.HasFlag(SacredItemGraphicType.AnimatedMiniObject) && MixedBaseGroupId != 0 && IsPresent;
 
     /// <summary>Returns one byte from the unmodified 0x80-byte game-file record.</summary>
     public byte GetRawByte(int offset)

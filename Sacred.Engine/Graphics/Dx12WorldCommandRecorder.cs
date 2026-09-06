@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Sacred.Engine.Graphics.Frames;
@@ -23,12 +24,14 @@ namespace Sacred.Engine.Graphics;
 /// <summary>Records the ordered world-rendering passes into one Direct3D 12 command list.</summary>
 internal sealed class Dx12WorldCommandRecorder
 {
+    private const float MinimumHighlightNits = 1000.0f;
     private readonly ID3D12GraphicsCommandList _commandList;
     private readonly GpuDescriptorHandle _srvHeapStart;
     private readonly int _srvDescriptorSize;
     private readonly Dx12SectorTextureCache _sectorTextures;
     private readonly Dx12SpritePass _sprites;
     private readonly Dx12SurfaceLightMapPass _surfaceLights;
+    private readonly Dx12PlayerOcclusionMapPass _playerOcclusionMap;
     private readonly Dx12LightHaloPass _lightHalos;
     private readonly Dx12ModelPass _models;
     private readonly Dx12DebugOverlay _debugOverlay;
@@ -43,6 +46,7 @@ internal sealed class Dx12WorldCommandRecorder
         Dx12SectorTextureCache sectorTextures,
         Dx12SpritePass sprites,
         Dx12SurfaceLightMapPass surfaceLights,
+        Dx12PlayerOcclusionMapPass playerOcclusionMap,
         Dx12LightHaloPass lightHalos,
         Dx12ModelPass models,
         Dx12DebugOverlay debugOverlay,
@@ -55,6 +59,7 @@ internal sealed class Dx12WorldCommandRecorder
         _sectorTextures = sectorTextures;
         _sprites = sprites;
         _surfaceLights = surfaceLights;
+        _playerOcclusionMap = playerOcclusionMap;
         _lightHalos = lightHalos;
         _models = models;
         _debugOverlay = debugOverlay;
@@ -99,6 +104,7 @@ internal sealed class Dx12WorldCommandRecorder
             scene.Models.Count > 0 ? scene.Models[0] : null,
             liquidSprites,
             staticSprites,
+            scene.Debug.HoveredStaticObjectId,
             frame,
             renderWidth,
             renderHeight,
@@ -124,6 +130,7 @@ internal sealed class Dx12WorldCommandRecorder
             frame,
             renderWidth,
             renderHeight);
+        _playerOcclusionMap.Record(spriteBatch.PlayerOcclusion, renderWidth, renderHeight);
         _commandList.OMSetRenderTargets(renderTarget, null);
 
         // Terrain and sprites use this exact transform for the whole frame. Independently
@@ -281,6 +288,31 @@ internal sealed class Dx12WorldCommandRecorder
             frame,
             renderWidth,
             renderHeight);
+
+        if (spriteBatch.HighlightedStaticInstance >= 0)
+        {
+            _commandList.SetGraphicsRootSignature(rootSignature);
+            _commandList.SetPipelineState(liquidCoverPipeline);
+            _commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
+            _commandList.SetGraphicsRootDescriptorTable(
+                WorldQuadShaderLayout.SurfaceLightMapRootParameter,
+                _surfaceLights.ShaderResourceHandle);
+            _debugOverlay.RecordSceneDim(
+                renderWidth,
+                renderHeight,
+                displayProfile.ScenePaperWhiteNits);
+
+            _commandList.OMSetRenderTargets(renderTarget, depthStencil);
+            var highlightNits = MathF.Max(
+                MinimumHighlightNits,
+                displayProfile.UnlitSpriteNits * 1.5f);
+            _sprites.RecordHighlightedStatic(
+                spriteBatch,
+                highlightNits,
+                frame,
+                renderWidth,
+                renderHeight);
+        }
 
         _commandList.SetGraphicsRootSignature(rootSignature);
         _commandList.SetPipelineState(terrainPipeline);

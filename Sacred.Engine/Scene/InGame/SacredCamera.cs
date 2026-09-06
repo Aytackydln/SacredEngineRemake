@@ -93,7 +93,7 @@ public sealed class SacredCamera
         InputState input,
         float dt,
         WorldCollisionResolver collision,
-        bool noClipEnabled = false)
+        CollisionCheatMode collisionMode = CollisionCheatMode.Walk)
     {
         var previousWorldCenter = WorldCenter;
         var previousZoom = Zoom;
@@ -130,26 +130,26 @@ public sealed class SacredCamera
             if (joystickMovementScale > 0.0f)
             {
                 var speed = baseSpeed * joystickMovementScale;
-                if (noClipEnabled)
+                if (collisionMode is CollisionCheatMode.Fly or CollisionCheatMode.NoClip)
                 {
                     _gamepadPathfinding.Reset();
-                    MoveInDirection(delta, speed, dt, collision, true);
+                    MoveInDirection(delta, speed, dt, collision, collisionMode);
                 }
                 else if (_gamepadPathfinding.TryGetWaypoint(WorldCenter, delta, collision, out var waypoint))
-                    MoveInDirection(waypoint - WorldCenter, speed, dt, collision, false);
+                    MoveInDirection(waypoint - WorldCenter, speed, dt, collision, CollisionCheatMode.Walk);
                 else
                     RotateToward(delta);
             }
             else
             {
                 _gamepadPathfinding.Reset();
-                MoveInDirection(delta, baseSpeed, dt, collision, noClipEnabled);
+                MoveInDirection(delta, baseSpeed, dt, collision, collisionMode);
             }
         }
         else if (_movementTarget is { } target)
         {
             _gamepadPathfinding.Reset();
-            MoveTowardTarget(target, baseSpeed, dt, collision, noClipEnabled);
+            MoveTowardTarget(target, baseSpeed, dt, collision, collisionMode);
         }
         else
         {
@@ -182,7 +182,7 @@ public sealed class SacredCamera
         float speed,
         float dt,
         WorldCollisionResolver collision,
-        bool noClipEnabled)
+        CollisionCheatMode collisionMode)
     {
         if (direction.LengthSquared() <= float.Epsilon)
             return;
@@ -192,7 +192,7 @@ public sealed class SacredCamera
             collision,
             speed,
             dt,
-            noClipEnabled);
+            collisionMode);
     }
 
     private void MoveTowardTarget(
@@ -200,7 +200,7 @@ public sealed class SacredCamera
         float speed,
         float dt,
         WorldCollisionResolver collision,
-        bool noClipEnabled)
+        CollisionCheatMode collisionMode)
     {
         var delta = target - WorldCenter;
         var distance = delta.Length();
@@ -214,7 +214,7 @@ public sealed class SacredCamera
         var step = speed * dt;
         if (step >= distance)
         {
-            var movement = ApplyMovement(target, collision, speed, dt, noClipEnabled);
+            var movement = ApplyMovement(target, collision, speed, dt, collisionMode);
             if (movement.ReachedIntendedEnd || !movement.Moved)
                 _movementTarget = null;
             return;
@@ -225,7 +225,7 @@ public sealed class SacredCamera
             collision,
             speed,
             dt,
-            noClipEnabled);
+            collisionMode);
         if (!stepMovement.Moved)
             _movementTarget = null;
     }
@@ -235,12 +235,15 @@ public sealed class SacredCamera
         WorldCollisionResolver collision,
         float requestedSpeed,
         float dt,
-        bool noClipEnabled)
+        CollisionCheatMode collisionMode)
     {
         var start = WorldCenter;
-        var resolved = noClipEnabled
-            ? intendedEnd
-            : collision.ResolveMovement(start, intendedEnd);
+        var resolved = collisionMode switch
+        {
+            CollisionCheatMode.NoClip => intendedEnd,
+            CollisionCheatMode.Fly => collision.ResolveFlightMovement(start, intendedEnd),
+            _ => collision.ResolveMovement(start, intendedEnd)
+        };
         var actualDelta = resolved - start;
         WorldCenter = resolved;
         var actualDistance = actualDelta.Length();

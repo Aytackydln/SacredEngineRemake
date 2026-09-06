@@ -15,7 +15,6 @@ public enum WorldLightingMode
 /// <summary>Applies deterministic lighting profiles, including the world-quad ambient level.</summary>
 public sealed class WorldLightingController
 {
-    private const float NoonTime = 0.45f;
     private const float DayDurationSeconds = 15.0f;
     private const float NightDurationSeconds = 10.0f;
     private const float TransitionDurationSeconds = 5.0f;
@@ -69,6 +68,7 @@ public sealed class WorldLightingController
         var zoneChanged = !_zoneInitialized || CurrentZone != zone;
         CurrentZone = zone;
         _zoneInitialized = true;
+        lighting.IndoorShadowOpacity = 0.0f;
         if (Mode == WorldLightingMode.TimedDayNightCycle)
         {
             _cycleElapsedSeconds = (_cycleElapsedSeconds + MathF.Max(0.0f, elapsedSeconds)) %
@@ -81,6 +81,7 @@ public sealed class WorldLightingController
             ApplyCelestialLighting(lighting, focusPosition);
             lighting.ShadowMode = SceneShadowMode.None;
             lighting.ShadowOpacity = 0.0f;
+            lighting.OutdoorShadowOpacity = 0.0f;
         }
         else if (Mode == WorldLightingMode.PitchBlack)
         {
@@ -95,11 +96,16 @@ public sealed class WorldLightingController
             {
                 lighting.ShadowMode = SceneShadowMode.SoftContact;
                 lighting.ShadowOpacity = IndoorContactShadowOpacity;
+                lighting.IndoorShadowOpacity = IndoorContactShadowOpacity;
             }
         }
 
         if (zoneChanged)
-            EngineLog.WriteLine($"Lighting zone: {zone}");
+        {
+            EngineLog.WriteLine(
+                $"Lighting zone: {zone}; surface shadows outdoor={lighting.OutdoorShadowOpacity:0.00}, " +
+                $"indoor={lighting.IndoorShadowOpacity:0.00}");
+        }
 
         return zoneChanged ||
                Mode == WorldLightingMode.TimedDayNightCycle && previousPhase != GetCyclePhase();
@@ -184,17 +190,17 @@ public sealed class WorldLightingController
     private void ApplyCelestialLighting(SceneLighting lighting, Vector3 focusPosition)
     {
         // Sacred's billboard art and authored static-shadow atlas assume one fixed
-        // projection. Time of day changes the lighting profile and shadow opacity,
-        // but does not rotate or stretch the shadow geometry.
+        // projection. The lighting profile changes with time of day, while the sun
+        // angles remain independently controlled by the debug settings.
         var solar = SolarLightingCalculator.Calculate(
-            NoonTime,
             lighting.NightBlend,
             focusPosition);
         lighting.LightPosition = solar.LightPosition;
         lighting.DirectionToLight = solar.DirectionToLight;
         lighting.DirectionToSun = solar.DirectionToSun;
         lighting.SunHeight = solar.SunHeight;
-        lighting.ShadowOpacity = Mode == WorldLightingMode.PitchBlack ? 0.0f : solar.ShadowOpacity;
+        lighting.OutdoorShadowOpacity = Mode == WorldLightingMode.PitchBlack ? 0.0f : solar.ShadowOpacity;
+        lighting.ShadowOpacity = lighting.OutdoorShadowOpacity;
         lighting.ShadowMode = lighting.ShadowOpacity > 0.0f
             ? SceneShadowMode.Directional
             : SceneShadowMode.None;
@@ -217,6 +223,8 @@ public sealed class WorldLightingController
         lighting.SpecularIntensity = 0;
         lighting.WorldSurfaceAmbientColour = Vector3.Zero;
         lighting.NightBlend = 1;
+        lighting.OutdoorShadowOpacity = 0;
+        lighting.IndoorShadowOpacity = 0;
         lighting.ShadowOpacity = 0;
         lighting.ShadowMode = SceneShadowMode.None;
     }

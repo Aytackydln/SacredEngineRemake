@@ -53,7 +53,7 @@ float ps_main(vertex_output input) : SV_Target
 {
     float2 centered = input.tex_coord * 2.0f - 1.0f;
     float radius = length(centered);
-    float falloff = 1.0f - smoothstep(0.12f, 1.0f, radius);
+    float falloff = 1.0f - smoothstep(0.15f, 1.0f, radius);
     float night_visibility = saturate(night_blend);
     return falloff * input.opacity * night_visibility;
 }

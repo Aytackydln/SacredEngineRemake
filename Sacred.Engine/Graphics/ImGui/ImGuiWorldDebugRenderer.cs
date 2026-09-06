@@ -19,8 +19,6 @@ namespace Sacred.Engine.Graphics.ImGui;
 /// <summary>Projects decoded world records into interactive screen-space debug guides.</summary>
 internal static class ImGuiWorldDebugRenderer
 {
-    private const float StaticObjectShiftX = 47.8f;
-    private const float StaticObjectShiftY = -0.3f;
     private static readonly Vector4 PropertyColour = new(0.94f, 0.55f, 0.20f, 0.95f);
     private static readonly Vector4 EntranceColour = new(1.00f, 1.00f, 1.00f, 0.95f);
 
@@ -60,7 +58,15 @@ internal static class ImGuiWorldDebugRenderer
             debug.ItemDescriptorByteMatchEnabled ||
             debug.ItemDescriptorByteValuesVisible)
         {
-            DrawObjectFlagDiagnostics(drawList, transform, world, debug, assets, renderWidth, renderHeight);
+            ImGuiObjectDebugRenderer.Draw(
+                drawList,
+                transform,
+                world,
+                debug,
+                assets,
+                staticSprites,
+                renderWidth,
+                renderHeight);
         }
     }
 
@@ -298,102 +304,6 @@ internal static class ImGuiWorldDebugRenderer
             drawList.AddRect(topLeft, bottomRight, boundsColour);
             var anchor = transform.ToScreen(sprite.DepthX, sprite.DepthY);
             drawList.AddCircleFilled(anchor, 3.0f, anchorColour);
-        }
-    }
-
-    private static void DrawObjectFlagDiagnostics(
-        ImDrawListPtr drawList,
-        WorldScreenTransform transform,
-        VisibleWorld world,
-        SceneDebugState debug,
-        AssetManager assets,
-        int renderWidth,
-        int renderHeight)
-    {
-        foreach (var sector in world.Sectors)
-        foreach (var staticObject in sector.StaticObjects.Objects)
-        {
-            var anchor = transform.ToScreen(
-                staticObject.ProjectedX + StaticObjectShiftX,
-                staticObject.ProjectedY + StaticObjectShiftY);
-            if (anchor.X < 0.0f || anchor.X > renderWidth || anchor.Y < 0.0f || anchor.Y > renderHeight)
-                continue;
-
-            var ringIndex = 0;
-            foreach (var option in WorldDebugFlagCatalog.StaticFlags)
-            {
-                if (!debug.VisibleStaticObjectFlags.HasFlag(option.Flag) ||
-                    !staticObject.Flags.HasFlag(option.Flag))
-                {
-                    continue;
-                }
-
-                drawList.AddCircle(anchor, 6.0f + ringIndex * 3.0f, Colour(option.Colour), 16, 2.0f);
-                ringIndex++;
-            }
-
-            var item = assets.GetItem(staticObject.TypeId);
-            if (debug.VisibleItemGraphicFlags != SacredItemGraphicFlags.None && item is { } graphicItem)
-            {
-                foreach (var option in WorldDebugFlagCatalog.ItemGraphicFlags)
-                {
-                    if (!debug.VisibleItemGraphicFlags.HasFlag(option.Flag) ||
-                        !graphicItem.GraphicFlags.HasFlag(option.Flag))
-                    {
-                        continue;
-                    }
-
-                    drawList.AddCircle(anchor, 6.0f + ringIndex * 3.0f, Colour(option.Colour), 16, 2.0f);
-                    ringIndex++;
-                }
-            }
-
-            var rawByteMatched = false;
-            byte rawByte = 0;
-            if (item is { } descriptorItem &&
-                (debug.VisibleItemDescriptorByteBits != 0 ||
-                 debug.ItemDescriptorByteMatchEnabled ||
-                 debug.ItemDescriptorByteValuesVisible))
-            {
-                rawByte = descriptorItem.ModelDesc.GetRawByte(debug.ItemDescriptorByteOffset);
-                if (debug.ItemDescriptorByteMatchEnabled &&
-                    rawByte == debug.ItemDescriptorByteMatchValue)
-                {
-                    drawList.AddCircle(
-                        anchor,
-                        6.0f + ringIndex * 3.0f,
-                        Colour(new Vector4(1.0f, 1.0f, 1.0f, 0.95f)),
-                        16,
-                        2.0f);
-                    ringIndex++;
-                    rawByteMatched = true;
-                }
-                foreach (var option in WorldDebugFlagCatalog.ItemDescriptorByteFlags)
-                {
-                    if ((debug.VisibleItemDescriptorByteBits & option.Flag) == 0 ||
-                        (rawByte & option.Flag) == 0)
-                    {
-                        continue;
-                    }
-
-                    drawList.AddCircle(anchor, 6.0f + ringIndex * 3.0f, Colour(option.Colour), 16, 2.0f);
-                    ringIndex++;
-                    rawByteMatched = true;
-                }
-            }
-
-            if (ringIndex == 0 && !debug.ItemDescriptorByteValuesVisible)
-                continue;
-
-            drawList.AddCircleFilled(anchor, 2.5f, Colour(new Vector4(1.0f, 1.0f, 1.0f, 1.0f)));
-            if (item is { } labelItem && (debug.ItemDescriptorByteValuesVisible || rawByteMatched))
-            {
-                drawList.AddText(
-                    anchor + new Vector2(8.0f, 4.0f + ringIndex * 3.0f),
-                    Colour(new Vector4(1.0f, 0.94f, 0.72f, 1.0f)),
-                    $"item {labelItem.ItemIndex} {labelItem.ModelName}\n" +
-                    $"[0x{debug.ItemDescriptorByteOffset:X2}]=0x{rawByte:X2}");
-            }
         }
     }
 

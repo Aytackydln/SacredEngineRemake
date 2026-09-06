@@ -70,8 +70,9 @@ public enum SacredItemGraphicType : ushort
 {
     None = 0,
     Model = 0b0010,
+    Shadowable = 0b0100,
     AnimatedMiniObject = 0b1000,
-    MixedSpriteOrLightMarker = 0b1001,
+    LightMarker = 0b0001,
     StaticMiniObject = 0b1100,
     RepresentationMask = 0b1111,
 

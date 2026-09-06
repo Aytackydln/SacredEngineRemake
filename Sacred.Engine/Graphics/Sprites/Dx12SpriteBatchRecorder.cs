@@ -13,7 +13,6 @@ internal sealed class Dx12SpriteBatchRecorder
 {
     private const float AlphaCutoff = 0.45f;
     private const float PlayerOccluderOpacity = 0.48f;
-    private const float PlayerOccluderRadiusViewportFraction = 0.15f;
     private static readonly int InstanceStride = Marshal.SizeOf<StaticSpriteInstance>();
 
     private readonly ID3D12GraphicsCommandList _commandList;
@@ -21,6 +20,7 @@ internal sealed class Dx12SpriteBatchRecorder
     private readonly int _descriptorSize;
     private readonly int _firstTextureSrvSlot;
     private readonly GpuDescriptorHandle _surfaceLightMap;
+    private readonly GpuDescriptorHandle _playerOcclusionMap;
     private readonly StaticSpriteShaderConstantsUpdater _shaderConstants = new();
     private readonly long _startTimestamp = Stopwatch.GetTimestamp();
     private ID3D12RootSignature? _rootSignature;
@@ -30,13 +30,15 @@ internal sealed class Dx12SpriteBatchRecorder
         GpuDescriptorHandle srvHeapGpuStart,
         int descriptorSize,
         int firstTextureSrvSlot,
-        GpuDescriptorHandle surfaceLightMap)
+        GpuDescriptorHandle surfaceLightMap,
+        GpuDescriptorHandle playerOcclusionMap)
     {
         _commandList = commandList;
         _srvHeapGpuStart = srvHeapGpuStart;
         _descriptorSize = descriptorSize;
         _firstTextureSrvSlot = firstTextureSrvSlot;
         _surfaceLightMap = surfaceLightMap;
+        _playerOcclusionMap = playerOcclusionMap;
     }
 
     public void SetRootSignature(ID3D12RootSignature rootSignature) => _rootSignature = rootSignature;
@@ -69,9 +71,7 @@ internal sealed class Dx12SpriteBatchRecorder
                 unlitWhiteNits,
                 (float)Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds,
                 PlayerOccluderOpacity,
-                playerOcclusion.ScreenPosition,
-                playerOcclusion.SceneDepth,
-                renderHeight * PlayerOccluderRadiusViewportFraction));
+                playerOcclusion.SceneDepth));
 
         _commandList.SetGraphicsRootSignature(_rootSignature);
         _commandList.SetPipelineState(pipeline);
@@ -84,6 +84,9 @@ internal sealed class Dx12SpriteBatchRecorder
         _commandList.SetGraphicsRootDescriptorTable(
             StaticSpriteShaderLayout.SurfaceLightMapRootParameter,
             _surfaceLightMap);
+        _commandList.SetGraphicsRootDescriptorTable(
+            StaticSpriteShaderLayout.PlayerOcclusionMapRootParameter,
+            _playerOcclusionMap);
         var instances = (StaticSpriteInstance*)frame.SpriteInstanceBufferMapped + startInstance;
         var firstInstance = 0;
         while (firstInstance < instanceCount)

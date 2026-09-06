@@ -35,6 +35,7 @@ internal sealed class Dx12SpritePass : IDisposable
         int descriptorSize,
         int firstTextureSrvSlot,
         GpuDescriptorHandle surfaceLightMap,
+        GpuDescriptorHandle playerOcclusionMap,
         int frameCount)
     {
         var srvHeapGpuStart = srvHeap.GetGPUDescriptorHandleForHeapStart();
@@ -43,7 +44,8 @@ internal sealed class Dx12SpritePass : IDisposable
             srvHeapGpuStart,
             descriptorSize,
             firstTextureSrvSlot,
-            surfaceLightMap);
+            surfaceLightMap,
+            playerOcclusionMap);
         _shadowPass = new Dx12StaticSpriteShadowPass(
             commandList,
             srvHeapGpuStart,
@@ -108,6 +110,7 @@ internal sealed class Dx12SpritePass : IDisposable
         SceneModel? playerModel,
         IReadOnlyList<TerrainLiquidSprite> liquidSprites,
         IReadOnlyList<TerrainStaticSprite> staticSprites,
+        uint? highlightedStaticObjectId,
         Dx12FrameContext frame,
         int renderWidth,
         int renderHeight,
@@ -117,10 +120,29 @@ internal sealed class Dx12SpritePass : IDisposable
             playerModel,
             liquidSprites,
             staticSprites,
+            highlightedStaticObjectId,
             frame,
             renderWidth,
             renderHeight,
             spriteRevision);
+
+    public void RecordHighlightedStatic(
+        WorldSpriteBatch batch,
+        float highlightNits,
+        Dx12FrameContext frame,
+        int renderWidth,
+        int renderHeight) =>
+        _batchRecorder.Record(
+            batch.HighlightedStaticInstance,
+            batch.HighlightedStaticInstance >= 0 ? 1 : 0,
+            _staticPipeline,
+            Vector3.One,
+            highlightNits,
+            highlightNits,
+            default,
+            frame,
+            renderWidth,
+            renderHeight);
 
     public bool TryGetLiquidRange(SectorCoord coord, out LiquidSpriteDrawRange range) =>
         _instances.TryGetLiquidRange(coord, out range);

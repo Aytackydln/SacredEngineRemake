@@ -33,6 +33,7 @@ public sealed class StaticSpriteAsset
         FrameDurationSeconds = frameDurationSeconds;
         PlacementX = placementX;
         PlacementY = placementY;
+        HasTranslucentPixels = ContainsFractionalAlpha(rgba);
     }
 
     public uint GroupId { get; }
@@ -52,8 +53,21 @@ public sealed class StaticSpriteAsset
     public int AtlasWidth => checked(Width * AtlasColumns);
     public int AtlasHeight => checked(Height * AtlasRows);
     public float AnimationPeriodSeconds => FrameDurationSeconds * FrameCount;
+    /// <summary>Whether the authored sprite contains alpha values between fully transparent and opaque.</summary>
+    public bool HasTranslucentPixels { get; }
 
     public void ReleasePixelData() => Interlocked.Exchange(ref _rgba, []);
+
+    private static bool ContainsFractionalAlpha(ReadOnlySpan<byte> rgba)
+    {
+        for (var index = 3; index < rgba.Length; index += 4)
+        {
+            if (rgba[index] is not 0 and not byte.MaxValue)
+                return true;
+        }
+
+        return false;
+    }
 }
 
 public sealed class TextureFrameSequenceAsset
