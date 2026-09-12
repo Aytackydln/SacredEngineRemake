@@ -75,6 +75,24 @@ public static class Dx12PipelineCatalog
                 usesDepthBuffer: false)]);
     }
 
+    public static Dx12PipelineGroupDefinition CreateUpscale(Dx12ShaderSet shaders, bool hdrOutput)
+    {
+        var rootParameters = new[]
+        {
+            new RootParameter(new RootConstants(
+                WorldQuadShaderLayout.RootConstantsRegister,
+                0,
+                WorldQuadShaderLayout.RootConstantsCount), ShaderVisibility.All),
+            TextureTable(WorldQuadShaderLayout.TextureRegister)
+        };
+        return new Dx12PipelineGroupDefinition(
+            rootParameters,
+            [CreateSampler(WorldQuadShaderLayout.SamplerRegister, TextureAddressMode.Clamp, StaticBorderColor.TransparentBlack)],
+            [Pipeline(Dx12PipelineKind.Terrain, shaders.QuadWorldVertexShader,
+                Dx12ShaderCatalog.GetUpscalePixelShader(hdrOutput), BlendDescription.AlphaBlend,
+                RasterizerDescription.CullNone, DepthStencilDescription.None, false)]);
+    }
+
     public static Dx12PipelineGroupDefinition CreateTerrain(Dx12ShaderSet shaders)
     {
         var rootParameters = new[]
@@ -132,46 +150,88 @@ public static class Dx12PipelineCatalog
             TextureTable(StaticSpriteShaderLayout.PlayerOcclusionMapRegister)
         };
 
+        var pipelines = new List<Dx12GraphicsPipelineDefinition>
+        {
+            Pipeline(
+                Dx12PipelineKind.StaticSpriteShadow,
+                shaders.StaticSpriteShadowVertexShader,
+                shaders.StaticSpriteShadowPixelShader,
+                hdrOutput ? CreatePremultipliedBlend() : BlendDescription.AlphaBlend,
+                RasterizerDescription.CullNone,
+                DepthStencilDescription.None,
+                usesDepthBuffer: false),
+            Pipeline(
+                Dx12PipelineKind.StaticSprite,
+                shaders.StaticSpriteVertexShader,
+                shaders.StaticSpritePixelShader,
+                CreatePremultipliedBlend(),
+                RasterizerDescription.CullNone,
+                CreateLessEqualDepth(),
+                usesDepthBuffer: true),
+            Pipeline(
+                Dx12PipelineKind.TransparentStaticSprite,
+                shaders.StaticSpriteVertexShader,
+                shaders.TransparentStaticSpritePixelShader,
+                CreatePremultipliedBlend(),
+                RasterizerDescription.CullNone,
+                CreateTransparentSpriteDepth(),
+                usesDepthBuffer: true),
+            Pipeline(
+                Dx12PipelineKind.UnlitStaticSprite,
+                shaders.StaticSpriteVertexShader,
+                shaders.UnlitStaticSpritePixelShader,
+                CreatePremultipliedBlend(),
+                RasterizerDescription.CullNone,
+                CreateLessEqualDepth(),
+                usesDepthBuffer: true),
+            Pipeline(
+                Dx12PipelineKind.TransparentUnlitStaticSprite,
+                shaders.StaticSpriteVertexShader,
+                shaders.TransparentUnlitStaticSpritePixelShader,
+                CreatePremultipliedBlend(),
+                RasterizerDescription.CullNone,
+                CreateTransparentSpriteDepth(),
+                usesDepthBuffer: true),
+            Pipeline(
+                Dx12PipelineKind.LiquidSprite,
+                shaders.StaticSpriteVertexShader,
+                shaders.WaterPixelShader,
+                hdrOutput ? CreatePremultipliedBlend() : CreateLiquidSpriteBlend(),
+                RasterizerDescription.CullNone,
+                DepthStencilDescription.None,
+                usesDepthBuffer: false)
+        };
+
+        if (hdrOutput)
+        {
+            var transparentDepth = CreateTransparentSpriteDepth();
+            pipelines.Add(Pipeline(
+                Dx12PipelineKind.TransparentUnlitParticleRgb,
+                shaders.StaticSpriteVertexShader,
+                shaders.TransparentUnlitParticleRgbPixelShader,
+                CreatePremultipliedBlend(), RasterizerDescription.CullNone,
+                transparentDepth, usesDepthBuffer: true));
+            pipelines.Add(Pipeline(
+                Dx12PipelineKind.TransparentUnlitParticleArgb,
+                shaders.StaticSpriteVertexShader,
+                shaders.TransparentUnlitParticleArgbPixelShader,
+                CreatePremultipliedBlend(), RasterizerDescription.CullNone,
+                transparentDepth, usesDepthBuffer: true));
+            pipelines.Add(Pipeline(
+                Dx12PipelineKind.TransparentUnlitParticleAlphaMask,
+                shaders.StaticSpriteVertexShader,
+                shaders.TransparentUnlitParticleAlphaMaskPixelShader,
+                CreatePremultipliedBlend(), RasterizerDescription.CullNone,
+                transparentDepth, usesDepthBuffer: true));
+        }
+
         return new Dx12PipelineGroupDefinition(
             rootParameters,
             [CreateSampler(
                 StaticSpriteShaderLayout.SamplerRegister,
                 TextureAddressMode.Clamp,
                 StaticBorderColor.TransparentBlack)],
-            [
-                Pipeline(
-                    Dx12PipelineKind.StaticSpriteShadow,
-                    shaders.StaticSpriteShadowVertexShader,
-                    shaders.StaticSpriteShadowPixelShader,
-                    hdrOutput ? CreatePremultipliedBlend() : BlendDescription.AlphaBlend,
-                    RasterizerDescription.CullNone,
-                    DepthStencilDescription.None,
-                    usesDepthBuffer: false),
-                Pipeline(
-                    Dx12PipelineKind.StaticSprite,
-                    shaders.StaticSpriteVertexShader,
-                    shaders.StaticSpritePixelShader,
-                    CreatePremultipliedBlend(),
-                    RasterizerDescription.CullNone,
-                    CreateLessEqualDepth(),
-                    usesDepthBuffer: true),
-                Pipeline(
-                    Dx12PipelineKind.TransparentStaticSprite,
-                    shaders.StaticSpriteVertexShader,
-                    shaders.TransparentStaticSpritePixelShader,
-                    CreatePremultipliedBlend(),
-                    RasterizerDescription.CullNone,
-                    CreateTransparentSpriteDepth(),
-                    usesDepthBuffer: true),
-                Pipeline(
-                    Dx12PipelineKind.LiquidSprite,
-                    shaders.StaticSpriteVertexShader,
-                    shaders.StaticSpritePixelShader,
-                    hdrOutput ? CreatePremultipliedBlend() : CreateLiquidSpriteBlend(),
-                    RasterizerDescription.CullNone,
-                    DepthStencilDescription.None,
-                    usesDepthBuffer: false)
-            ]);
+            pipelines);
     }
 
     public static Dx12PipelineGroupDefinition CreateLightHalos(Dx12ShaderSet shaders)
@@ -266,6 +326,28 @@ public static class Dx12PipelineCatalog
                 particleDepth));
         }
 
+        if (options.HdrOutput)
+        {
+            pipelines.Add(ModelPipeline(Dx12PipelineKind.ItemParticleRgb,
+                shaders.ItemParticleVertexShader, shaders.ItemParticleRgbPixelShader,
+                particleBlend, RasterizerDescription.CullNone, particleDepth));
+            pipelines.Add(ModelPipeline(Dx12PipelineKind.ItemParticleArgb,
+                shaders.ItemParticleVertexShader, shaders.ItemParticleArgbPixelShader,
+                particleBlend, RasterizerDescription.CullNone, particleDepth));
+            pipelines.Add(ModelPipeline(Dx12PipelineKind.ItemParticleAlphaMask,
+                shaders.ItemParticleVertexShader, shaders.ItemParticleAlphaMaskPixelShader,
+                particleBlend, RasterizerDescription.CullNone, particleDepth));
+            pipelines.Add(ModelPipeline(Dx12PipelineKind.ItemGlowRgb,
+                shaders.ItemGlowVertexShader, shaders.ItemGlowRgbPixelShader,
+                particleBlend, RasterizerDescription.CullNone, particleDepth));
+            pipelines.Add(ModelPipeline(Dx12PipelineKind.ItemGlowArgb,
+                shaders.ItemGlowVertexShader, shaders.ItemGlowArgbPixelShader,
+                particleBlend, RasterizerDescription.CullNone, particleDepth));
+            pipelines.Add(ModelPipeline(Dx12PipelineKind.ItemGlowAlphaMask,
+                shaders.ItemGlowVertexShader, shaders.ItemGlowAlphaMaskPixelShader,
+                particleBlend, RasterizerDescription.CullNone, particleDepth));
+        }
+
         if (options.IncludeInventoryUi)
         {
             pipelines.Add(ModelPipeline(
@@ -342,8 +424,12 @@ public static class Dx12PipelineCatalog
 
     private static DepthStencilDescription CreateShadowDepth()
     {
-        var depth = DepthStencilDescription.Default;
-        depth.DepthFunc = ComparisonFunction.Less;
+        // Projected player shadows are a colour overlay on the authored world
+        // surface. Static objects such as bridges can stand above water, so
+        // testing against their sprite depth would prevent the player shadow
+        // from reaching those visible surfaces.
+        var depth = DepthStencilDescription.None;
+        depth.DepthWriteMask = DepthWriteMask.Zero;
         return depth;
     }
 
@@ -367,10 +453,17 @@ public static class Dx12PipelineCatalog
     private static BlendDescription CreateParticleBlend(bool hdrOutput)
     {
         var blend = BlendDescription.AlphaBlend;
-        if (!hdrOutput)
+        // For SDR, shader-premultiplied RGB makes ONE / ONE equivalent to
+        // Sacred's straight-colour SRC_ALPHA / ONE particle blend.
+        blend.RenderTarget[0].DestinationBlend = Blend.One;
+        blend.RenderTarget[0].DestinationBlendAlpha = Blend.One;
+        if (hdrOutput)
         {
-            blend.RenderTarget[0].DestinationBlend = Blend.One;
-            blend.RenderTarget[0].DestinationBlendAlpha = Blend.One;
+            // HDR shaders supply a calibrated screen-blend contribution. Unlike
+            // adding PQ code values, screen composition remains bounded.
+            blend.RenderTarget[0].SourceBlend = Blend.One;
+            blend.RenderTarget[0].DestinationBlend = Blend.InverseSourceColor;
+            blend.RenderTarget[0].SourceBlendAlpha = Blend.One;
         }
 
         return blend;

@@ -1,26 +1,31 @@
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace Sacred.Core.Pak.Weapon;
 
-public readonly record struct SacredDamageRange(ushort Minimum, ushort Maximum)
-{
-    public bool IsPresent => Minimum != 0 || Maximum != 0;
-}
-
+[StructLayout(LayoutKind.Sequential)]
 public readonly record struct SacredEquipmentDamage(
-    SacredDamageRange Physical,
-    SacredDamageRange Fire,
-    SacredDamageRange Magic,
-    SacredDamageRange Poison)
+    ushort PhysicalDamageMinimum,
+    ushort FireDamageMinimum,
+    ushort MagicDamageMinimum,
+    ushort PoisonDamageMinimum,
+    ushort PhysicalDamageMaximum,
+    ushort FireDamageMaximum,
+    ushort MagicDamageMaximum,
+    ushort PoisonDamageMaximum
+    )
 {
-    public bool HasElementalDamage => Fire.IsPresent || Magic.IsPresent || Poison.IsPresent;
-
+    public bool HasPhysicalDamage => PhysicalDamageMinimum != 0 || PhysicalDamageMaximum != 0;
+    public bool HasFireDamage => FireDamageMinimum != 0 || FireDamageMaximum != 0;
+    public bool HasMagicDamage => MagicDamageMinimum != 0 || MagicDamageMaximum != 0;
+    public bool HasPoisonDamage => PoisonDamageMinimum != 0 || PoisonDamageMaximum != 0;
+    
     public override string ToString()
     {
-        var phys = Physical.IsPresent ? $"{Physical.Minimum}-{Physical.Maximum} phys" : "";
-        var fire = Fire.IsPresent ? $"{Fire.Minimum}-{Fire.Maximum} fire" : "";
-        var magic = Magic.IsPresent ? $"{Magic.Minimum}-{Magic.Maximum} magic" : "";
-        var pois = Poison.IsPresent ? $"{Poison.Minimum}-{Poison.Maximum} poison" : "";
+        var phys = HasPhysicalDamage ? $"{PhysicalDamageMinimum}-{PhysicalDamageMaximum} phys" : "";
+        var fire = HasFireDamage ? $"{FireDamageMinimum}-{FireDamageMaximum} fire" : "";
+        var magic = HasMagicDamage ? $"{MagicDamageMinimum}-{MagicDamageMaximum} magic" : "";
+        var pois = HasPoisonDamage ? $"{PoisonDamageMinimum}-{PoisonDamageMaximum} poison" : "";
         var strings = new[]
         {
             phys, fire, magic, pois
@@ -30,10 +35,10 @@ public readonly record struct SacredEquipmentDamage(
 
     private bool PrintMembers(StringBuilder builder)
     {
-        var phys = Physical.IsPresent ? $"{Physical.Minimum}-{Physical.Maximum} phys" : "";
-        var fire = Fire.IsPresent ? $"{Fire.Minimum}-{Fire.Maximum} fire" : "";
-        var magic = Magic.IsPresent ? $"{Magic.Minimum}-{Magic.Maximum} magic" : "";
-        var pois = Poison.IsPresent ? $"{Poison.Minimum}-{Poison.Maximum} poison" : "";
+        var phys = HasPhysicalDamage ? $"{PhysicalDamageMinimum}-{PhysicalDamageMaximum} phys" : "";
+        var fire = HasFireDamage ? $"{FireDamageMinimum}-{FireDamageMaximum} fire" : "";
+        var magic = HasMagicDamage ? $"{MagicDamageMinimum}-{MagicDamageMaximum} magic" : "";
+        var pois = HasPoisonDamage ? $"{PoisonDamageMinimum}-{PoisonDamageMaximum} poison" : "";
 
         builder.Append(phys);
         builder.Append(fire);

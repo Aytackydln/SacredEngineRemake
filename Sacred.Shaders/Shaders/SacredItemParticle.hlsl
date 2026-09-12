@@ -34,6 +34,7 @@ struct vs_output
     float4 position : SV_position;
     float2 tex_coord : TEXCOORD0;
     float opacity : TEXCOORD1;
+    float3 tint : COLOR0;
 };
 
 vs_output vs_main(vs_input input)
@@ -41,6 +42,15 @@ vs_output vs_main(vs_input input)
     vs_output output;
     float3 world_position = mul(float4(input.position, 1.0f), world).xyz;
     output.opacity = 1.0f;
+    output.tint = 1.0f;
+    if (texture_flags.x > 9.5f)
+    {
+        uint rgb = (uint)input.normal.z - 1u;
+        uint r = (rgb >> 16) & 255u;
+        uint g = (rgb >> 8) & 255u;
+        uint b = rgb & 255u;
+        output.tint = float3(r, g, b) / 255.0f;
+    }
     bool is_short_lived_elemental_particle =
         texture_flags.x > 5.5f && texture_flags.x < 7.5f;
     if (input.normal.z > 0.5f)
@@ -114,7 +124,7 @@ float2 animated_tex_coord(float2 tex_coord)
 float4 ps_sdr(vs_output input) : SV_Target
 {
     float4 sampled = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord));
-    float coverage = 0.92f * sampled.a;
+    float coverage = (texture_flags.x > 8.5f ? 1.0f : 0.92f) * sampled.a;
     float alpha = coverage * model_color.a * input.opacity;
     if (alpha < 0.02f)
         discard;
@@ -123,27 +133,50 @@ float4 ps_sdr(vs_output input) : SV_Target
     // channel with black RGB, so multiplying by sampled.rgb creates a black frame.
     bool uses_alpha_mask = texture_flags.x > 2.5f && texture_flags.x < 4.5f;
     float3 texture_color = uses_alpha_mask ? 1.0f : sampled.rgb;
-    float3 color = texture_color * model_color.rgb;
+    float3 color = texture_color * model_color.rgb * input.tint;
     return float4(color * alpha, alpha);
 }
 
-float4 ps_hdr(vs_output input) : SV_Target
+// HDR uses separate fragment entry points for the channel conventions found in
+// Texture.pak. SDR continues to compile ps_sdr unchanged.
+float4 ps_hdr_rgb(vs_output input) : SV_Target
 {
     float4 sampled = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord));
-    bool uses_dense_composition = texture_flags.x > 4.5f && texture_flags.x < 7.5f;
+    float coverage = (texture_flags.x > 8.5f ? 1.0f : 0.92f) * model_color.a * input.opacity;
+    if (coverage < 0.02f)
+        discard;
 
-    // Dense elemental fields use a soft mask authored in the 0..0.6 alpha range.
-    // Reconstruct a narrow, full-strength core for source-over HDR composition.
-    float dense_coverage = saturate(sampled.a / 0.6f);
-    dense_coverage *= dense_coverage;
-    float coverage = uses_dense_composition ? dense_coverage : sampled.a;
+    float3 color = sampled.rgb * model_color.rgb * input.tint;
+    return float4(SdrParticleToHdr10Screen(
+        color, coverage, hdr_display.x, hdr_display.w), 0.0f);
+}
+
+float4 ps_hdr_argb(vs_output input) : SV_Target
+{
+    float4 sampled = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord));
+    float coverage = (texture_flags.x > 8.5f ? 1.0f : 0.92f) * sampled.a;
     float alpha = coverage * model_color.a * input.opacity;
     if (alpha < 0.02f)
         discard;
 
-    float3 texture_color = uses_dense_composition ? sampled.rgb : 1.0f;
-    float3 color = texture_color * model_color.rgb;
-    // The HDR render target and its fixed-function blend unit both use PQ values.
-    float3 hdr_color = SdrTextureToHdr10(color, hdr_display.w) * alpha;
-    return float4(hdr_color, alpha);
+    float3 color = sampled.rgb * model_color.rgb * input.tint;
+    return float4(SdrParticleToHdr10Screen(
+        color, alpha, hdr_display.x, hdr_display.w), 0.0f);
+}
+
+float4 ps_hdr_alpha_mask(vs_output input) : SV_Target
+{
+    float coverage = particle_texture.Sample(
+        particle_sampler, animated_tex_coord(input.tex_coord)).a;
+    float alpha = coverage * model_color.a * input.opacity;
+    if (alpha < 0.02f)
+        discard;
+
+    float3 color = model_color.rgb * input.tint;
+    return float4(SdrParticleToHdr10Screen(color, alpha, hdr_display.x * input.tint, hdr_display.w), hdr_display.w);
+}
+
+float4 ps_hdr(vs_output input) : SV_Target
+{
+    return ps_hdr_argb(input);
 }

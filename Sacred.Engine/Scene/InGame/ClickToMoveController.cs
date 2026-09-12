@@ -37,9 +37,11 @@ public sealed class ClickToMoveController
         SacredCamera camera,
         int viewportWidth,
         int viewportHeight,
+        Func<Vector2, Vector2> outputToViewport,
         WorldCollisionResolver collision,
         WorldElevationSampler elevation,
         CollisionCheatMode collisionMode,
+        Func<Vector2, bool> tryInteractAt,
         float deltaSeconds)
     {
         if (HasManualMovementIntent(input))
@@ -52,26 +54,34 @@ public sealed class ClickToMoveController
         AdvanceRoute(camera);
 
         if (input.TryConsumeLeftClick(out var clickPosition))
-            BeginClick(camera, collision, elevation, clickPosition, viewportWidth, viewportHeight, collisionMode);
+        {
+            var worldTarget = GameActorElevation.ScreenToWorldOnSurface(
+                camera, elevation, outputToViewport(clickPosition), viewportWidth, viewportHeight);
+            if (tryInteractAt(worldTarget))
+            {
+                StopMoving();
+                camera.StopMoving();
+            }
+            else
+            {
+                BeginClick(camera, collision, worldTarget, collisionMode);
+            }
+        }
 
         if (input.IsLeftMouseButtonDown && _singleClickTarget.HasValue)
-            UpdateHeldClick(input, camera, collision, elevation, viewportWidth, viewportHeight, collisionMode, deltaSeconds);
+            UpdateHeldClick(input, camera, collision, elevation, viewportWidth, viewportHeight, outputToViewport, collisionMode, deltaSeconds);
 
         if (input.ConsumeLeftMouseButtonReleased())
-            EndClick(input, camera, collision, elevation, viewportWidth, viewportHeight, collisionMode);
+            EndClick(input, camera, collision, elevation, viewportWidth, viewportHeight, outputToViewport, collisionMode);
     }
 
     private void BeginClick(
         SacredCamera camera,
         WorldCollisionResolver collision,
-        WorldElevationSampler elevation,
-        Vector2 clickPosition,
-        int viewportWidth,
-        int viewportHeight,
+        Vector2 worldTarget,
         CollisionCheatMode collisionMode)
     {
-        _singleClickTarget = GameActorElevation.ScreenToWorldOnSurface(
-            camera, elevation, clickPosition, viewportWidth, viewportHeight);
+        _singleClickTarget = worldTarget;
         _heldSeconds = 0.0f;
         _isHoldClickMovement = false;
         SetRouteTo(camera, collision, _singleClickTarget.Value, collisionMode);
@@ -84,6 +94,7 @@ public sealed class ClickToMoveController
         WorldElevationSampler elevation,
         int viewportWidth,
         int viewportHeight,
+        Func<Vector2, Vector2> outputToViewport,
         CollisionCheatMode collisionMode,
         float deltaSeconds)
     {
@@ -93,7 +104,7 @@ public sealed class ClickToMoveController
 
         _isHoldClickMovement = true;
         var target = GameActorElevation.ScreenToWorldOnSurface(
-            camera, elevation, input.MousePosition, viewportWidth, viewportHeight);
+            camera, elevation, outputToViewport(input.MousePosition), viewportWidth, viewportHeight);
         if (ShouldRetarget(camera, target))
             SetRouteTo(camera, collision, target, collisionMode);
     }
@@ -105,6 +116,7 @@ public sealed class ClickToMoveController
         WorldElevationSampler elevation,
         int viewportWidth,
         int viewportHeight,
+        Func<Vector2, Vector2> outputToViewport,
         CollisionCheatMode collisionMode)
     {
         if (!_singleClickTarget.HasValue)
@@ -122,7 +134,7 @@ public sealed class ClickToMoveController
             else
             {
                 SetRouteTo(camera, collision, GameActorElevation.ScreenToWorldOnSurface(
-                    camera, elevation, input.MousePosition, viewportWidth, viewportHeight), collisionMode);
+                    camera, elevation, outputToViewport(input.MousePosition), viewportWidth, viewportHeight), collisionMode);
             }
         }
 

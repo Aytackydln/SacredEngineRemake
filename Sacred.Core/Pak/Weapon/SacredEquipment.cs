@@ -13,126 +13,153 @@ namespace Sacred.Core.Pak.Weapon;
 public readonly struct SacredEquipmentLayout
 {
     public const int Size = 258;
-    public const int NameOffset = 38;
-    public const int NameLength = 88;
+    public const int NameOffset = 40;
+    public const int NameLength = 64;
 
-    /// <summary>Unresolved two-byte value at the beginning of the record.</summary>
+    /// <summary>Uniform inventory-preview scale; 0x434270 passes this float to scale-matrix helper 0x6539D0.</summary>
     [FieldOffset(0)]
-    [BinaryUnknown]
-    public readonly ushort Short1;
+    public readonly float PreviewScale;
 
     /// <summary>Item-preview rotation around the X axis, in radians.</summary>
-    [FieldOffset(2)]
+    [FieldOffset(4)]
     public readonly float PreviewRotationX;
 
     /// <summary>Item-preview rotation around the Y axis, in radians.</summary>
-    [FieldOffset(6)]
+    [FieldOffset(8)]
     public readonly float PreviewRotationY;
 
     /// <summary>Item-preview rotation around the Z axis, in radians.</summary>
-    [FieldOffset(10)]
+    [FieldOffset(12)]
     public readonly float PreviewRotationZ;
 
+    /// <summary>Native preview translation X, added to matrix +0x30 at 0x43437B.</summary>
+    [FieldOffset(16)]
+    public readonly float PreviewOffsetX;
+
+    /// <summary>sWeaponInfoShared::ty (demo); stored preview translation Y.</summary>
+    [FieldOffset(20)] public readonly float PreviewOffsetY;
+
+    /// <summary>Native preview translation Z, added to matrix +0x38 at 0x434381.</summary>
+    [FieldOffset(24)]
+    public readonly float PreviewOffsetZ;
+
     /// <summary>Inventory-grid width in cells.</summary>
-    [FieldOffset(26)]
+    [FieldOffset(28)]
     public readonly byte Width;
 
     /// <summary>Inventory-grid height in cells.</summary>
-    [FieldOffset(27)]
+    [FieldOffset(29)]
     public readonly byte Height;
 
     /// <summary>Weapon or animation usage code, partly associated with handedness.</summary>
-    [FieldOffset(28)]
+    [FieldOffset(30)]
     public readonly byte UsageIdentifier;
 
-    /// <summary>Equipment type byte observed as zero in the sampled records.</summary>
-    [FieldOffset(37)]
-    public readonly byte TypeIdentifier;
+    /// <summary>Native sWeaponInfoShared event-set selectors; names preserved from the demo.</summary>
+    [FieldOffset(31)] public readonly byte HitSet;
+    [FieldOffset(32)] public readonly byte ParrySet;
+    [FieldOffset(33)] public readonly byte MissSet;
+    [FieldOffset(34)] public readonly byte LolSet;
+    [FieldOffset(35)] public readonly byte SetType;
+
+    /// <summary>Optional base visual item. Native predicates test this ID after the item's own ID;
+    /// 0x425A35 also copies its Items.pak descriptor. Zero means no inherited visual.</summary>
+    [FieldOffset(36)]
+    public readonly uint BaseItemId;
 
     /// <summary>Null-terminated equipment name encoded as ISO-8859-1.</summary>
     [FieldOffset(NameOffset)]
     [BinaryString("Name", NameLength, "ISO-8859-1")]
     private readonly byte _name;
 
+    /// <summary>sWeaponInfoShared::slotDefault[6], immediately after Name[64].
+    /// These are six 32-bit eItemType IDs, not part of the name string.</summary>
+    [FieldOffset(0x68)] public readonly SacredEquipmentDefaultSlots DefaultSlotItems;
+
     /// <summary>Items.pak identifier for the equipment's visual definition.</summary>
-    [FieldOffset(126)]
-    public readonly ushort ItemId;
+    [FieldOffset(128)]
+    public readonly uint ItemId;
+
+    /// <summary>Native <c>sWeaponInfo::Flag</c> word, retaining every authored flag bit.</summary>
+    [FieldOffset(132)]
+    public readonly uint RawFlags;
 
     /// <summary>Character-class availability flags.</summary>
-    [FieldOffset(130)]
+    [FieldOffset(132)]
     public readonly SacredCharacterClassMask CharacterClassMask;
 
     /// <summary>Equipment category.</summary>
-    [FieldOffset(131)]
+    [FieldOffset(133)]
     public readonly SacredEquipmentType EquipmentType;
 
     /// <summary>Packed rarity-tier and class-specific flags.</summary>
-    [FieldOffset(132)]
+    [FieldOffset(134)]
     public readonly byte RarityAndClassFlags;
 
-    /// <summary>Minimum physical damage.</summary>
-    [FieldOffset(154)]
-    public readonly ushort PhysicalDamageMinimum;
+    /// <summary>Remaining high byte of the native sWeaponInfo::Flag word.</summary>
+    [FieldOffset(135), BinaryUnknown] public readonly byte UnknownFlagHighByte;
+    [FieldOffset(136)] public readonly uint Price;
+    /// <summary>Native SlotType[8] bytes.</summary>
+    [FieldOffset(140)] public readonly SacredEquipmentSlotTypes SlotTypes;
+    [FieldOffset(148)] public readonly byte MinimumLevel;
+    [FieldOffset(149)] public readonly byte MinimumStrength;
+    [FieldOffset(150)] public readonly byte MinimumDexterity;
+    [FieldOffset(151)] public readonly byte MinimumCharisma;
+    /// <summary>Native MinWiederstand; original spelling retained in the symbol catalogue.</summary>
+    [FieldOffset(152)] public readonly byte MinimumResistance;
+    [FieldOffset(153)] public readonly byte SpawnLevel;
+    [FieldOffset(154)] public readonly byte MinimumSkill;
+    [FieldOffset(155)] public readonly byte MinimumSkillLevel;
 
-    /// <summary>Minimum fire damage.</summary>
+    /// <summary>Min & max damage values for each damage type.</summary>
     [FieldOffset(156)]
-    public readonly ushort FireDamageMinimum;
+    public readonly SacredEquipmentDamage EquipmentDamage;
 
-    /// <summary>Minimum magic damage.</summary>
-    [FieldOffset(158)]
-    public readonly ushort MagicDamageMinimum;
-
-    /// <summary>Minimum poison damage.</summary>
-    [FieldOffset(160)]
-    public readonly ushort PoisonDamageMinimum;
-
-    /// <summary>Maximum physical damage.</summary>
-    [FieldOffset(162)]
-    public readonly ushort PhysicalDamageMaximum;
-
-    /// <summary>Maximum fire damage.</summary>
-    [FieldOffset(164)]
-    public readonly ushort FireDamageMaximum;
-
-    /// <summary>Maximum magic damage.</summary>
-    [FieldOffset(166)]
-    public readonly ushort MagicDamageMaximum;
-
-    /// <summary>Maximum poison damage.</summary>
-    [FieldOffset(168)]
-    public readonly ushort PoisonDamageMaximum;
+    /// <summary>Native AW, PW, BW values; signed 16-bit fields in sWeaponInfo.</summary>
+    [FieldOffset(172)] public readonly short AttackValue;
+    [FieldOffset(174)] public readonly short ParryValue;
+    [FieldOffset(176)] public readonly short BW;
+    [FieldOffset(178)] public readonly short PhysicalResistance;
+    [FieldOffset(180)] public readonly short FireResistance;
+    [FieldOffset(182)] public readonly short MagicResistance;
+    [FieldOffset(184)] public readonly short PoisonResistance;
+    /// <summary>Native BonusT[8], BonusG[8], BonusP[8]. Meanings of individual bonus codes remain separate research.</summary>
+    [FieldOffset(186)] public readonly SacredEquipmentBonusTypes BonusTypes;
+    [FieldOffset(202)] public readonly SacredEquipmentBonusGroups BonusGroups;
+    [FieldOffset(234)] public readonly SacredEquipmentBonusValues BonusValues;
+    /// <summary>Native minOld[7], legacy requirement bytes; not current minimum requirements.</summary>
+    [FieldOffset(250)] public readonly SacredEquipmentLegacyRequirements LegacyRequirements;
+    [FieldOffset(257)] public readonly byte BlacksmithLevel;
 }
 
 // each entry is 258 bytes, with some fields at fixed offsets
 // debug view with ItemId, Name, Width, Height, TypeIdentifier
 [DebuggerDisplay("{IdemId}: {Name}, Class = {EffectiveCharacterClassMask}, Type = {EquipmentType}, RarityTier = {RarityTier}")]
 public readonly record struct SacredEquipment(
-    ItemsPakEntry Item,
-    ushort Short1, // 2 bytes at offset 0
-    Vector3 PreviewRotation, // candidate item preview rotation: three unaligned floats at offsets 2, 6, and 10 in radians
-    byte Width, // 1 byte at offset 26
-    byte Height, // 1 byte at offset 27
-    byte UsageIdentifier, // 1 byte at offset 28; weapon/animation shape, partly tied to handedness
-    byte TypeIdentifier, // 1 byte at offset 37; observed as 0 in sampled equipment
-    string Name, // decoded after layout cast from the null-terminated 88-byte field at offset 38
-    uint IdemId, // 2 bytes at offset 126, kept as uint for existing dictionary keys
+    ItemsPakEntry Item, // legacy upper half of PreviewScale
+    Vector3 PreviewRotation, // radians at offsets 4, 8, and 12
+    byte Width, // offset 28
+    byte Height, // offset 29
+    byte UsageIdentifier, // legacy high byte of BaseItemId
+    string Name, // null-terminated 64-byte field at offset 40
+    uint IdemId, // 4 bytes at offset 128
     SacredEquipmentClassification Classification,
     SacredEquipmentDamage Damage
 )
 {
+    public float PreviewScale { get; init; }
+    public Vector3 PreviewOffset { get; init; }
+    public uint BaseItemId { get; init; }
+    public SacredEquipmentBonusTypes BonusTypes { get; init; }
+    public SacredEquipmentBonusGroups BonusGroups { get; init; }
+    public SacredEquipmentBonusValues BonusValues { get; init; }
+
     // iso 8859-1 encoding for german text
     private static readonly Encoding SacredEncoding = Encoding.GetEncoding("iso-8859-1");
 
-    public byte CharacterClassMaskCode => Classification.CharacterClassMaskCode;
-    public SacredCharacterClassMask CharacterClassMask => Classification.CharacterClassMask;
     public SacredCharacterClassMask EffectiveCharacterClassMask => Classification.EffectiveCharacterClassMask;
-    public byte EquipmentTypeCode => Classification.EquipmentTypeCode;
     public SacredEquipmentType EquipmentType => Classification.EquipmentType;
-    public byte RarityAndClassFlags => Classification.RarityAndClassFlags;
-    public byte RarityTierCode => Classification.RarityTierCode;
     public SacredEquipmentRarityTier RarityTier => Classification.RarityTier;
-    public byte ClassFlagCode => Classification.ClassFlagCode;
-    public SacredEquipmentLore InferredLore => Classification.InferLore(Height);
     public SacredEquipmentHandedness InferredHandedness => Classification.InferHandedness(UsageIdentifier, Height);
 
     public bool? InferredTwoHanded => InferredHandedness switch
@@ -154,7 +181,7 @@ public readonly record struct SacredEquipment(
         var name = ReadName(bytes);
 
         var itemId = layout.ItemId;
-        var item = items[itemId];
+        var item = items[checked((ushort)itemId)];
         var classification = SacredEquipmentClassification.FromBytes(
             characterClassMaskCode: (byte)layout.CharacterClassMask,
             equipmentTypeCode: (byte)layout.EquipmentType,
@@ -162,7 +189,6 @@ public readonly record struct SacredEquipment(
         );
 
         return new SacredEquipment(Item: item,
-            Short1: layout.Short1,
             PreviewRotation: new Vector3(
                 layout.PreviewRotationX,
                 layout.PreviewRotationY,
@@ -171,16 +197,22 @@ public readonly record struct SacredEquipment(
             Width: layout.Width,
             Height: layout.Height,
             UsageIdentifier: layout.UsageIdentifier,
-            TypeIdentifier: layout.TypeIdentifier,
             Name: name,
             IdemId: itemId,
             Classification: classification,
-            Damage: new SacredEquipmentDamage(
-                Physical: new SacredDamageRange(layout.PhysicalDamageMinimum, layout.PhysicalDamageMaximum),
-                Fire: new SacredDamageRange(layout.FireDamageMinimum, layout.FireDamageMaximum),
-                Magic: new SacredDamageRange(layout.MagicDamageMinimum, layout.MagicDamageMaximum),
-                Poison: new SacredDamageRange(layout.PoisonDamageMinimum, layout.PoisonDamageMaximum))
-        );
+            Damage: layout.EquipmentDamage
+        )
+        {
+            PreviewScale = layout.PreviewScale,
+            PreviewOffset = new Vector3(
+                layout.PreviewOffsetX,
+                layout.PreviewOffsetY,
+                layout.PreviewOffsetZ),
+            BaseItemId = layout.BaseItemId,
+            BonusTypes = layout.BonusTypes,
+            BonusGroups = layout.BonusGroups,
+            BonusValues = layout.BonusValues
+        };
     }
 
     private static string ReadName(ReadOnlySpan<byte> bytes)

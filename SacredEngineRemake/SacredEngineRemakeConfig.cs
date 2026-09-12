@@ -11,6 +11,7 @@ using Sacred.Engine.Graphics;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Scene.InGame;
 using Sacred.Granny.Abstractions;
+using Sacred.Particles;
 
 namespace SacredRemake;
 
@@ -27,12 +28,17 @@ internal static class SacredEngineRemakeConfig
     private const string BorderlessFullscreenKey = "BORDERLESS_FULLSCREEN";
     private const string WindowedWidthKey = "WINDOWED_WIDTH";
     private const string WindowedHeightKey = "WINDOWED_HEIGHT";
+    private const string WindowedXKey = "WINDOWED_X";
+    private const string WindowedYKey = "WINDOWED_Y";
+    private const string WindowedMaximizedKey = "WINDOWED_MAXIMIZED";
     private const string FramePacingKey = "FRAME_PACING";
     private const string LowLatencyKey = "LOW_LATENCY";
     private const string GrannyBackendKey = "GRANNY_BACKEND";
     private const string WorldLightingKey = "WORLD_LIGHTING";
     private const string StairsTilesKey = "STAIRS_TILES";
     private const string BlockedTilesKey = "BLOCKED_TILES";
+    private const string PlayerMovementSpeedKey = "PLAYER_MOVEMENT_SPEED";
+    private const string ParticleQualityKey = "PARTICLE_QUALITY";
     private const string CharacterKey = "CHARACTER";
     private const string LocationXKey = "LOCATION_X";
     private const string LocationYKey = "LOCATION_Y";
@@ -57,6 +63,9 @@ internal static class SacredEngineRemakeConfig
                 BorderlessFullscreen = ReadBoolean(values, BorderlessFullscreenKey, defaultValue: true),
                 WindowedWidth = ReadPositiveInteger(values, WindowedWidthKey, 1600),
                 WindowedHeight = ReadPositiveInteger(values, WindowedHeightKey, 900),
+                WindowedX = ReadInteger(values, WindowedXKey, 100),
+                WindowedY = ReadInteger(values, WindowedYKey, 100),
+                WindowedMaximized = ReadBoolean(values, WindowedMaximizedKey),
                 HdrEnabled = ReadBoolean(values, HdrKey),
                 HdrBrightness = new HdrBrightnessSettings
                 {
@@ -77,6 +86,8 @@ internal static class SacredEngineRemakeConfig
                 WorldLightingMode = ReadEnum(values, WorldLightingKey, WorldLightingMode.TimedDayNightCycle),
                 StairsTilesVisible = ReadBoolean(values, StairsTilesKey),
                 BlockedTilesVisible = ReadBoolean(values, BlockedTilesKey),
+                PlayerMovementSpeedMultiplier = ReadFiniteFloat(values, PlayerMovementSpeedKey, 1.0f),
+                ParticleQuality = ReadEnum(values, ParticleQualityKey, SacredParticleQuality.High),
                 CharacterName = ReadString(values, CharacterKey),
                 LastLocation = location
             };
@@ -136,6 +147,9 @@ internal static class SacredEngineRemakeConfig
             $"{BorderlessFullscreenKey} : {FormatBoolean(state.BorderlessFullscreen)}",
             $"{WindowedWidthKey} : {state.WindowedWidth}",
             $"{WindowedHeightKey} : {state.WindowedHeight}",
+            $"{WindowedXKey} : {state.WindowedX}",
+            $"{WindowedYKey} : {state.WindowedY}",
+            $"{WindowedMaximizedKey} : {FormatBoolean(state.WindowedMaximized)}",
             $"{HdrKey} : {FormatBoolean(state.HdrEnabled)}",
             $"{HdrSceneBrightnessKey} : {FormatFloat(state.HdrBrightness.SceneBrightnessNits)}",
             $"{HdrUiBrightnessKey} : {FormatFloat(state.HdrBrightness.UiBrightnessNits)}",
@@ -148,6 +162,8 @@ internal static class SacredEngineRemakeConfig
             $"{WorldLightingKey} : {state.WorldLightingMode}",
             $"{StairsTilesKey} : {FormatBoolean(state.StairsTilesVisible)}",
             $"{BlockedTilesKey} : {FormatBoolean(state.BlockedTilesVisible)}",
+            $"{PlayerMovementSpeedKey} : {FormatFloat(state.PlayerMovementSpeedMultiplier)}",
+            $"{ParticleQualityKey} : {state.ParticleQuality}",
             $"{CharacterKey} : {SanitizeLineValue(state.CharacterName)}",
             $"{LocationXKey} : {FormatLocationComponent(state.LastLocation?.X)}",
             $"{LocationYKey} : {FormatLocationComponent(state.LastLocation?.Y)}"
@@ -169,6 +185,14 @@ internal static class SacredEngineRemakeConfig
         string key,
         int fallback) =>
         values.TryGetValue(key, out var value) && int.TryParse(value, out var parsed) && parsed > 0
+            ? parsed
+            : fallback;
+
+    private static int ReadInteger(
+        IReadOnlyDictionary<string, string> values,
+        string key,
+        int fallback) =>
+        values.TryGetValue(key, out var value) && int.TryParse(value, out var parsed)
             ? parsed
             : fallback;
 

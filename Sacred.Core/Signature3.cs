@@ -6,17 +6,17 @@ namespace Sacred.Core;
 [InlineArray(3)]
 public struct Signature3 : IEquatable<Signature3>
 {
-    public static readonly Signature3 Item = new('I', 'T', 'M');
-    public static readonly Signature3 Sound = new('S', 'N', 'D');
-    public static readonly Signature3 Weapon = new('W', 'P', 'N');
-    public static readonly Signature3 Texture = new('T', 'E', 'X');
-    public static readonly Signature3 SoundProfile = new('S', 'P', 'F');
+    internal static readonly Signature3 Item = new('I', 'T', 'M');
+    internal static readonly Signature3 Sound = new('S', 'N', 'D');
+    internal static readonly Signature3 Weapon = new('W', 'P', 'N');
+    internal static readonly Signature3 Texture = new('T', 'E', 'X');
+    internal static readonly Signature3 SoundProfile = new('S', 'P', 'F');
 
     private byte _element0;
 
     public string Text => string.Join("", this);
 
-    public Signature3(char a, char b, char c)
+    private Signature3(char a, char b, char c)
     {
         this[0] = checked((byte)a);
         this[1] = checked((byte)b);

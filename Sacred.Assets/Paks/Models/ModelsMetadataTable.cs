@@ -111,7 +111,20 @@ internal sealed class ModelsMetadataTable
         return TryGetMotionName(motionIndex, out name);
     }
 
+    /// <summary>Resolves a native cGrannyModelChunk motions[] slot for any model family.</summary>
+    public bool TryGetMotionName(string modelName, byte motionSlot, out string name)
+    {
+        if (!_modelMotions.TryGetValue(modelName, out var table))
+        {
+            name = string.Empty;
+            return false;
+        }
+
+        return TryGetMotionName(table.MotionIndexes[motionSlot], out name);
+    }
+
     private static ModelMotionTable ReadMotionTable(ReadOnlySpan<byte> record) => new(
+        ReadMotionIndexes(record, 0x70, 256),
         ReadMotionIndexes(record, IdleMotionOffsets),
         ReadMotionIndexes(record, WalkMotionOffsets),
         ReadMotionIndexes(record, RunMotionOffsets),
@@ -132,6 +145,14 @@ internal sealed class ModelsMetadataTable
         return result;
     }
 
+    private static uint[] ReadMotionIndexes(ReadOnlySpan<byte> record, int offset, int count)
+    {
+        var result = new uint[count];
+        for (var index = 0; index < result.Length; index++)
+            result[index] = BinaryPrimitives.ReadUInt32LittleEndian(record.Slice(offset + index * sizeof(uint), sizeof(uint)));
+        return result;
+    }
+
     private static string ReadName(ReadOnlySpan<byte> bytes)
     {
         var end = bytes.IndexOf((byte)0);
@@ -139,6 +160,7 @@ internal sealed class ModelsMetadataTable
     }
 
     private sealed record ModelMotionTable(
+        uint[] MotionIndexes,
         uint[] Idle,
         uint[] Walk,
         uint[] Run,

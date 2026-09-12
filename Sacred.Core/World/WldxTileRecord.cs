@@ -19,7 +19,6 @@ public enum WldxTileFlags : byte
 /// Packed terrain-surface value stored in the high nibble of a WLDX tile's byte 0x1F.
 /// Sacred.exe selects terrain behavior, materials, and footsteps from exact composite values.
 /// </summary>
-[Flags]
 public enum WldxTerrainSurface : byte
 {
     Default = 0x00,
@@ -56,6 +55,18 @@ public readonly record struct WldxTileProperties
     public WldxTileFlags TileFlags => (WldxTileFlags)(_value & TileFlagsMask);
     public WldxTerrainSurface TerrainSurface => (WldxTerrainSurface)(_value & TerrainSurfaceMask);
 
+    /// <summary>Native footstep sound slot selected by the complete terrain code.</summary>
+    public TerrainFootstepKind FootstepKind => TerrainSurface switch
+    {
+        WldxTerrainSurface.Surface10 or WldxTerrainSurface.SurfaceC0 or WldxTerrainSurface.SurfaceF0 => TerrainFootstepKind.Sand,
+        WldxTerrainSurface.Surface20 => TerrainFootstepKind.Snow,
+        WldxTerrainSurface.Surface50 => TerrainFootstepKind.Swamp,
+        WldxTerrainSurface.Surface60 or WldxTerrainSurface.Surface70 or WldxTerrainSurface.LiquidFamilyMarker or WldxTerrainSurface.SurfaceB0 or WldxTerrainSurface.SurfaceD0 => TerrainFootstepKind.Stone,
+        WldxTerrainSurface.LiquidA or WldxTerrainSurface.LiquidB => TerrainFootstepKind.Water,
+        WldxTerrainSurface.SurfaceE0 => TerrainFootstepKind.Wood,
+        _ => TerrainFootstepKind.Grass,
+    };
+
     /// <summary>
     /// Whether the complete low-nibble value is one of Sacred's two movement blockers.
     /// Door composites 0x09 and 0x0A reuse these bits but remain traversable.
@@ -65,9 +76,6 @@ public readonly record struct WldxTileProperties
     public bool IsEntrance => TileFlags.HasFlag(WldxTileFlags.Entrance);
     public bool IsEntranceBoundary => TileFlags is WldxTileFlags.Entrance;
     public bool IsLiquid => TerrainSurface is WldxTerrainSurface.LiquidA or WldxTerrainSurface.LiquidB;
-
-    // Sacred.exe keeps the low nibble when selecting the floor-chain insertion point.
-    public byte FloorInsertionDepth => (byte)TileFlags;
 
     public override string ToString() => $"0x{_value:X2}";
 }
@@ -82,6 +90,8 @@ public readonly record struct WldxTileRecord
     [FieldOffset(0x00)] public readonly uint GroundTileId;
     /// <summary>Head identifier of the linked Static.pak object chain.</summary>
     [FieldOffset(0x04)] public readonly uint StaticChainHeadId;
+    /// <summary>Native cPatchIso.wobj: head of the dynamic world-object chain.</summary>
+    [FieldOffset(0x08)] public readonly uint WorldObjectChainHeadId;
     /// <summary>Head identifier of the linked Floor.pak overlay chain.</summary>
     [FieldOffset(0x0C)] public readonly uint FloorChainHeadId;
     /// <summary>
@@ -116,11 +126,13 @@ public readonly record struct WldxTileRecord
     [FieldOffset(0x1B)] public readonly sbyte ElevationSouthEast;
     /// <summary>
     /// Signed X delta to the authored anchor tile of a multi-tile indoor surface.
-    /// Adding this value to the tile's world X resolves the shared anchor.
+    /// On outdoor tiles with the Indoor flag, adding this to world X resolves
+    /// the parent building anchor used for static-object visibility selection.
     /// </summary>
     [FieldOffset(0x1C)] public readonly sbyte IndoorAnchorDeltaX;
     /// <summary>
-    /// Signed Y delta to the authored anchor tile of a multi-tile indoor surface.
+    /// Signed Y delta to the authored anchor tile of a multi-tile indoor surface;
+    /// paired with 0x1C to resolve an outdoor tile's parent building.
     /// Adding this value to the tile's world Y resolves the shared anchor.
     /// </summary>
     [FieldOffset(0x1D)] public readonly sbyte IndoorAnchorDeltaY;

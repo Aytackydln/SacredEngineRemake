@@ -19,6 +19,9 @@ internal sealed class Dx12ModelPass
 {
     private const float PainterDepthScale = 1.0f / 4096.0f;
     private const float PlayerDepthBias = 0.0005f;
+    // The model shader currently receives a light position. Keep it far enough
+    // away to represent the directional sun without making it camera-relative.
+    private const float DirectionalLightDistance = 1_000_000.0f;
 
     private readonly ID3D12GraphicsCommandList _commandList;
     private readonly Dx12ModelGeometryCache _geometryCache;
@@ -28,6 +31,7 @@ internal sealed class Dx12ModelPass
     private readonly int _fallbackTextureSlot;
     private readonly long _startTimestamp = Stopwatch.GetTimestamp();
     private readonly ModelRootConstantsUpdater _rootConstants = new(ModelShaderLayout.RootParameterCount);
+    private readonly ModelDescriptorTableUpdater _descriptorTables = new(ModelShaderLayout.RootParameterCount);
     private readonly ModelShaderConstantsUpdater _shaderConstants = new();
     private readonly Dx12ModelShadowPass _shadowPass;
 
@@ -40,6 +44,13 @@ internal sealed class Dx12ModelPass
     private ID3D12PipelineState? _transparentParticlePipeline;
     private ID3D12PipelineState? _denseParticlePipeline;
     private ID3D12PipelineState? _itemGlowPipeline;
+    private ID3D12PipelineState? _itemParticleRgbPipeline;
+    private ID3D12PipelineState? _itemParticleArgbPipeline;
+    private ID3D12PipelineState? _itemParticleAlphaMaskPipeline;
+    private ID3D12PipelineState? _itemGlowRgbPipeline;
+    private ID3D12PipelineState? _itemGlowArgbPipeline;
+    private ID3D12PipelineState? _itemGlowAlphaMaskPipeline;
+    private bool _hdrOutput;
 
     public Dx12ModelPass(
         ID3D12GraphicsCommandList commandList,
@@ -64,8 +75,9 @@ internal sealed class Dx12ModelPass
             fallbackTextureSlot);
     }
 
-    public void SetPipeline(Dx12CreatedPipelineGroup pipeline)
+    public void SetPipeline(Dx12CreatedPipelineGroup pipeline, bool hdrOutput)
     {
+        _hdrOutput = hdrOutput;
         _rootSignature = pipeline.RootSignature;
         _shadowPass.SetPipeline(
             pipeline.RootSignature,
@@ -79,6 +91,15 @@ internal sealed class Dx12ModelPass
         _transparentParticlePipeline = pipeline[Dx12PipelineKind.TransparentItemParticle];
         _denseParticlePipeline = pipeline[Dx12PipelineKind.DenseItemParticle];
         _itemGlowPipeline = pipeline[Dx12PipelineKind.ItemGlow];
+        if (hdrOutput)
+        {
+            _itemParticleRgbPipeline = pipeline[Dx12PipelineKind.ItemParticleRgb];
+            _itemParticleArgbPipeline = pipeline[Dx12PipelineKind.ItemParticleArgb];
+            _itemParticleAlphaMaskPipeline = pipeline[Dx12PipelineKind.ItemParticleAlphaMask];
+            _itemGlowRgbPipeline = pipeline[Dx12PipelineKind.ItemGlowRgb];
+            _itemGlowArgbPipeline = pipeline[Dx12PipelineKind.ItemGlowArgb];
+            _itemGlowAlphaMaskPipeline = pipeline[Dx12PipelineKind.ItemGlowAlphaMask];
+        }
     }
 
     public void DisposePipeline()
@@ -100,6 +121,18 @@ internal sealed class Dx12ModelPass
         _denseParticlePipeline = null;
         _itemGlowPipeline?.Dispose();
         _itemGlowPipeline = null;
+        _itemParticleRgbPipeline?.Dispose();
+        _itemParticleRgbPipeline = null;
+        _itemParticleArgbPipeline?.Dispose();
+        _itemParticleArgbPipeline = null;
+        _itemParticleAlphaMaskPipeline?.Dispose();
+        _itemParticleAlphaMaskPipeline = null;
+        _itemGlowRgbPipeline?.Dispose();
+        _itemGlowRgbPipeline = null;
+        _itemGlowArgbPipeline?.Dispose();
+        _itemGlowArgbPipeline = null;
+        _itemGlowAlphaMaskPipeline?.Dispose();
+        _itemGlowAlphaMaskPipeline = null;
         _rootSignature?.Dispose();
         _rootSignature = null;
     }
@@ -125,6 +158,7 @@ internal sealed class Dx12ModelPass
         _commandList.SetPipelineState(_staticPipeline);
         _commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         _rootConstants.Reset();
+        _descriptorTables.Reset();
 
         var sceneConstants = stackalloc float[ModelShaderLayout.SceneConstantsCount];
         WriteLighting(camera, lighting, display, sceneConstants);
@@ -139,6 +173,9 @@ internal sealed class Dx12ModelPass
         var viewProjection = camera.View * camera.Projection;
         foreach (var model in models)
         {
+            if (!ModelFrustumCuller.IsVisible(camera, model))
+                continue;
+
             if (model.Mesh.Vertices.Length == 0 || model.Mesh.Indices.Length == 0)
                 continue;
 
@@ -239,10 +276,10 @@ internal sealed class Dx12ModelPass
                             constants + ModelShaderLayout.TextureFlagsOffset,
                             ModelShaderLayout.TextureFlagsConstantsCount,
                             ModelShaderLayout.TextureFlagsOffset);
-                        _commandList.SetGraphicsRootDescriptorTable(
+                        SetDescriptorTableIfChanged(
                             ModelShaderLayout.ModelTextureRootParameter,
                             SrvGpuHandle(hasTexture ? texture!.SrvSlot : _fallbackTextureSlot));
-                        _commandList.SetGraphicsRootDescriptorTable(
+                        SetDescriptorTableIfChanged(
                             ModelShaderLayout.ModelOverlayTextureRootParameter,
                             SrvGpuHandle(hasOverlay ? overlayTexture!.SrvSlot : _fallbackTextureSlot));
                         _commandList.DrawIndexedInstanced((uint)drawCount, 1, (uint)surface.IndexStart, 0, 0);
@@ -280,14 +317,16 @@ internal sealed class Dx12ModelPass
                 continue;
 
             var shaderKind = ParticleShaderCatalog.ForMode(surface.TextureMode);
-            _commandList.SetPipelineState(shaderKind switch
-            {
-                ParticleShaderKind.ItemGlow => _itemGlowPipeline,
-                ParticleShaderKind.DenseItemParticle => _denseParticlePipeline,
-                ParticleShaderKind.ItemParticle => _transparentParticlePipeline,
-                _ => throw new InvalidOperationException(
-                    $"Particle mode {surface.TextureMode} selected unsupported model shader {shaderKind}.")
-            });
+            _commandList.SetPipelineState(_hdrOutput
+                ? SelectHdrParticlePipeline(shaderKind, texture.ParticleEncoding)
+                : shaderKind switch
+                {
+                    ParticleShaderKind.ItemGlow => _itemGlowPipeline,
+                    ParticleShaderKind.DenseItemParticle => _denseParticlePipeline,
+                    ParticleShaderKind.ItemParticle => _transparentParticlePipeline,
+                    _ => throw new InvalidOperationException(
+                        $"Particle mode {surface.TextureMode} selected unsupported model shader {shaderKind}.")
+                });
 
             _shaderConstants.WriteModelBase(constants, viewProjection, model.Transform, surface.Color);
             _shaderConstants.WriteTextureFlags(
@@ -301,15 +340,31 @@ internal sealed class Dx12ModelPass
                 constants,
                 ModelShaderLayout.ModelConstantsCount,
                 0);
-            _commandList.SetGraphicsRootDescriptorTable(
+            SetDescriptorTableIfChanged(
                 ModelShaderLayout.ModelTextureRootParameter,
                 SrvGpuHandle(texture.SrvSlot));
-            _commandList.SetGraphicsRootDescriptorTable(
+            SetDescriptorTableIfChanged(
                 ModelShaderLayout.ModelOverlayTextureRootParameter,
                 SrvGpuHandle(_fallbackTextureSlot));
             var drawCount = Math.Min(surface.IndexCount, mesh.IndexCount - surface.IndexStart);
             _commandList.DrawIndexedInstanced((uint)drawCount, 1, (uint)surface.IndexStart, 0, 0);
         }
+    }
+
+    private ID3D12PipelineState SelectHdrParticlePipeline(
+        ParticleShaderKind shaderKind,
+        SacredTextureChannelEncoding encoding)
+    {
+        var glowVertex = shaderKind == ParticleShaderKind.ItemGlow;
+        return (glowVertex, encoding) switch
+        {
+            (true, SacredTextureChannelEncoding.AlphaMask) => _itemGlowAlphaMaskPipeline!,
+            (true, SacredTextureChannelEncoding.Argb) => _itemGlowArgbPipeline!,
+            (true, _) => _itemGlowRgbPipeline!,
+            (false, SacredTextureChannelEncoding.AlphaMask) => _itemParticleAlphaMaskPipeline!,
+            (false, SacredTextureChannelEncoding.Argb) => _itemParticleArgbPipeline!,
+            (false, _) => _itemParticleRgbPipeline!
+        };
     }
 
     private unsafe void RecordUntexturedMesh(ModelGpuMesh mesh, float* constants, float modelSceneDepth)
@@ -326,13 +381,16 @@ internal sealed class Dx12ModelPass
             ModelShaderLayout.TextureFlagsConstantsCount,
             ModelShaderLayout.TextureFlagsOffset);
         var fallback = SrvGpuHandle(_fallbackTextureSlot);
-        _commandList.SetGraphicsRootDescriptorTable(ModelShaderLayout.ModelTextureRootParameter, fallback);
-        _commandList.SetGraphicsRootDescriptorTable(ModelShaderLayout.ModelOverlayTextureRootParameter, fallback);
+        SetDescriptorTableIfChanged(ModelShaderLayout.ModelTextureRootParameter, fallback);
+        SetDescriptorTableIfChanged(ModelShaderLayout.ModelOverlayTextureRootParameter, fallback);
         _commandList.DrawIndexedInstanced((uint)mesh.IndexCount, 1, 0, 0, 0);
     }
 
     private unsafe void SetRootConstantsIfChanged(int parameter, float* constants, int count, int offset) =>
         _rootConstants.SetIfChanged(_commandList, parameter, constants, count, offset);
+
+    private void SetDescriptorTableIfChanged(int parameter, GpuDescriptorHandle handle) =>
+        _descriptorTables.SetIfChanged(_commandList, parameter, handle);
 
     private unsafe void WriteLighting(
         SacredCamera camera,
@@ -340,9 +398,16 @@ internal sealed class Dx12ModelPass
         Dx12DisplayProfile display,
         float* target)
     {
+        // Celestial azimuth is authored in the model camera's axes. A point light
+        // placed beside the camera causes an object's normal response to vary as
+        // the player moves, so represent the sun by a stable distant position.
+        var lightDirection = lighting.DirectionToLight.LengthSquared() > float.Epsilon
+            ? Vector3.Normalize(lighting.DirectionToLight)
+            : Vector3.UnitZ;
+        var modelLight = lightDirection * DirectionalLightDistance;
         _shaderConstants.WriteSceneConstants(
             target,
-            lighting.LightPosition,
+            modelLight,
             lighting.SpecularIntensity,
             camera.EyePosition,
             lighting.Shininess,

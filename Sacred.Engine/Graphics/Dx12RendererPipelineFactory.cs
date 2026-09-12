@@ -10,6 +10,9 @@ internal static class Dx12RendererPipelineFactory
     public static Dx12CompiledPipelineGroup CompileScreen(Dx12ShaderSet shaders) =>
         Dx12PipelineFactory.Compile(Dx12PipelineCatalog.CreateScreen(shaders), Dx12ShaderCompiler.CompileShader);
 
+    public static Dx12CompiledPipelineGroup CompileUpscale(Dx12ShaderSet shaders, bool hdrOutput) =>
+        Dx12PipelineFactory.Compile(Dx12PipelineCatalog.CreateUpscale(shaders, hdrOutput), Dx12ShaderCompiler.CompileShader);
+
     public static Dx12CompiledPipelineGroup CompileTerrain(Dx12ShaderSet shaders) =>
         Dx12PipelineFactory.Compile(Dx12PipelineCatalog.CreateTerrain(shaders), Dx12ShaderCompiler.CompileShader);
 

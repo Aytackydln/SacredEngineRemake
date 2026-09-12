@@ -121,6 +121,10 @@ internal static partial class User32
     internal static partial bool ShowWindow(nint hwnd, int nCmdShow);
 
     [LibraryImport(LibraryName)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool IsZoomed(nint hwnd);
+
+    [LibraryImport(LibraryName)]
     internal static partial nint SetFocus(nint hwnd);
 
     [LibraryImport(LibraryName)]
@@ -183,6 +187,10 @@ internal static partial class User32
 
     [LibraryImport(LibraryName)]
     internal static partial int GetSystemMetrics(int index);
+
+    [LibraryImport(LibraryName, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool SetProcessDpiAwarenessContext(nint value);
 
     [LibraryImport(LibraryName, EntryPoint = "LoadCursorW")]
     internal static partial nint LoadCursor(nint instance, nint cursorName);

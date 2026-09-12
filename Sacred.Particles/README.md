@@ -1,9 +1,31 @@
 # Particle catalogue
 
+The world runtime now uses the [native offset, motion and color mappings](../docs/research/particle-definitions/runtime-motion-color.md),
+including fade-indexed RGBA tables, wind, random half-ranges and native atlas/blend selection.
+
+`SacredParticleCatalogue.LoadEmbedded()` loads the generated Sacred Gold FX
+catalogue directly from this assembly. It contains 210 type entries, with complete
+parameters for 14 definitions across low, medium and high quality. Unsupported
+entries retain metadata and diagnostics. Loading requires no `Sacred.exe` or
+instruction decoder at runtime.
+
+[`Sacred.Particles.Reader`](../Sacred.Particles.Reader/README.md) preprocesses the
+original executable into the checked-in `Generated/*.g.cs` sources. Its README
+documents regeneration, verification and the runtime API. The definitions are a
+foundation for implementing the native world simulation and rendering paths.
+
+The [compiled-script/native preset investigation](../docs/research/particle-definitions/README.md)
+supersedes the earlier fixture-based hypotheses for the sampled fire, lava smoke
+and blue glints. `FunkCode.bin` places independent FX objects; `Sacred.exe` chooses
+their native presets and texture names. The catalogue below also describes
+existing renderer approximations and should not be read as a complete native mapping.
+
 `Sacred.Particles` contains renderer-independent effect semantics shared by the
 world and inventory renderers. A decoded texture's channel encoding and the
 authored effect mode select a shader family; the numeric `Texture.pak` type does
 not. In particular, type `4` means zlib-compressed ARGB4444 storage.
+
+## Existing renderer behavior and observations
 
 | Source signal | Observed example | Meaning | Shader family |
 | --- | --- | --- | --- |
@@ -18,8 +40,8 @@ not. In particular, type `4` means zlib-compressed ARGB4444 storage.
 
 | Screenshot coordinate | File chain | Result |
 | --- | --- | --- |
-| `2260,3136` | `Static.pak` 511752 -> Items row 9239 -> `mixed.pak` 671 | The mixed sprite is the fixture beneath the circled jet. No particle-atlas/socket association has yet been found in its mapped fields, so the runtime does not add an object-name special case. |
-| `2288,3131` | Static item `LICHTER_HAENGEND_KLEIN` -> `mixed.pak` 21917 -> `MIX3423.444` | The circled blue emitter, including its glints, is authored in the mixed alpha cutout; there is no MiniObj timing record |
+| `2260,3136` | `Static.pak` 511752 -> Items row 9239 -> `mixed.pak` 671 | The fixture is separate from a script-created `TYPE_FX_FIRE_L` at tile `2260,3137`, with height 26 and the native fire preset. |
+| `2288,3131` | Static item `LICHTER_HAENGEND_KLEIN` -> mixed fixture atlas `MIX3423.444` | The bowl is authored in the mixed sprite. Separate glints come from script-created `TYPE_FX_DWARFMAGIC_BLU` at tile `2292,3132`, using `PARTICLE_SPARK04.TGA`. |
 | `4584,974` | Items 21918/21920/21921 -> `mixed.pak` -> `MIX3423/3424/3425` | The circled blue emitters are the `LICHTER_*` catalogue; class `0x09` alone is not selective because ordinary world sprites share it |
 | `5100,606` | Mixed fixtures plus animated class-8 mini objects and separate class-9 light records | The animated mini objects supply visible candle halos. Texture-free light records are classified separately and intentionally do not become visible halos. |
 

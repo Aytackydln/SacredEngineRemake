@@ -130,6 +130,7 @@ public partial class SacredItemDataTable : UserControl
             _changingGrannyBackend = false;
         }
         _gameDir = await PromptForGameDirectoryAsync(savedSettings.GameDirectory);
+        Console.WriteLine($"ItemViewer game directory selected: {_gameDir}");
         SaveSettings(savedSettings.FilterHasModel);
 
         var gameDirectories = CreateGameDirectories(_gameDir);
@@ -455,7 +456,15 @@ public partial class SacredItemDataTable : UserControl
             if (cancellationToken.IsCancellationRequested)
                 return;
 
-            var effectScene = EquipmentEffectSceneFactory.Create(asset, selectedItem.Damage) ?? EquipmentEffectScene.Empty;
+            var effectScene = EquipmentEffectSceneFactory.Create(
+                asset,
+                selectedItem.Damage,
+                selectedItem.ItemId,
+                selectedItem.BaseItemId,
+                selectedItem.BonusTypes,
+                selectedItem.BonusGroups,
+                selectedItem.EquipmentType,
+                selectedItem.ItemEffectSelector) ?? EquipmentEffectScene.Empty;
 
             _modelViewer.ShowModel(
                 asset,
@@ -536,7 +545,6 @@ public partial class SacredItemDataTable : UserControl
         text.AppendLine($"Granny implementation: {asset.Backend}" +
                         (string.IsNullOrWhiteSpace(asset.BackendDetail) ? string.Empty : $" — {asset.BackendDetail}"));
         text.AppendLine($"File size: {asset.RawBytes.Length:N0} bytes");
-        text.AppendLine($"Damage: physical {FormatRange(item.Damage.Physical)}, fire {FormatRange(item.Damage.Fire)}, magic {FormatRange(item.Damage.Magic)}, poison {FormatRange(item.Damage.Poison)}");
         var effectAnchors = diagnostics.Slices
             .SelectMany(static slice => slice.Bones)
             .Select(static bone => SacredEquipmentEffectAnchor.TryParse(bone.Name, out var anchor) ? anchor : (SacredEquipmentEffectAnchor?)null)
@@ -588,9 +596,6 @@ public partial class SacredItemDataTable : UserControl
 
     private static string FormatVector(Vector3 value) =>
         $"({value.X:0.##}, {value.Y:0.##}, {value.Z:0.##})";
-
-    private static string FormatRange(SacredDamageRange range) =>
-        range.IsPresent ? $"{range.Minimum}-{range.Maximum}" : "0";
 
     private static string[] GetBoneNames(GrnModelDiagnostics? diagnostics) =>
         diagnostics?.Slices

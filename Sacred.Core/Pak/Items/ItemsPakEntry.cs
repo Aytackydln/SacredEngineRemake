@@ -12,17 +12,6 @@ public readonly record struct ItemsPakEntry(
     private static readonly Encoding SacredEncoding = Encoding.GetEncoding("iso-8859-1");
 
     public ushort ItemIndex => EntryInfo.ItemIndex;
-    public uint MiniObjectTextureId => ModelDesc.MiniObjectTextureId;
-    public uint MixedBaseGroupId => ModelDesc.MixedBaseGroupId;
-    public SacredItemGraphicType GraphicType => ModelDesc.GraphicType;
-    public SacredItemGraphicFlags GraphicFlags => ModelDesc.GraphicFlags;
-    public SacredItemCategory Category => ModelDesc.Category;
-    public uint ItemId => ModelDesc.ItemId;
-    public uint SoundProfileId => ModelDesc.SoundProfileId;
-    public uint EffectTextureId => ModelDesc.EffectTextureId;
-    public ushort StaticSpriteFrameCount => ModelDesc.StaticSpriteFrameCount;
-    public byte StaticSpriteFrameDuration10Ms => ModelDesc.StaticSpriteFrameDuration10Ms;
-    public bool AllowsTransparency => ModelDesc.AllowsTransparency;
 
     public static IEnumerable<ItemsPakEntry> ReadMany(
         byte[] pakBytes,

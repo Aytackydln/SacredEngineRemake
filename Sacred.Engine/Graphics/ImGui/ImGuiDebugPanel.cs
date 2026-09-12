@@ -41,6 +41,8 @@ internal sealed class ImGuiDebugPanel(
         DrawToggle(scene.Debug);
         if (scene.Debug.PanelVisible)
             DrawPanel(camera, world, scene, rendererStats, framesPerSecond);
+        if (controls.PlayerPanelVisible)
+            DrawPlayerPanel();
 
         ImGuiWorldDebugRenderer.Draw(
             camera,
@@ -51,9 +53,10 @@ internal sealed class ImGuiDebugPanel(
             worldLights,
             renderWidth,
             renderHeight);
+        ImGuiModelDebugRenderer.Draw(camera, scene, renderWidth, renderHeight);
     }
 
-    private static void DrawToggle(SceneDebugState debug)
+    private void DrawToggle(SceneDebugState debug)
     {
         DearImGui.SetNextWindowPos(new Vector2(12.0f, 70.0f), ImGuiCond.Always);
         DearImGui.SetNextWindowBgAlpha(0.88f);
@@ -67,6 +70,77 @@ internal sealed class ImGuiDebugPanel(
             debug.PanelVisible = !debug.PanelVisible;
             EngineLog.WriteLine($"Debug input: ImGui panel {(debug.PanelVisible ? "opened" : "closed")}");
         }
+        DearImGui.SameLine();
+        if (DearImGui.Button("Player"))
+        {
+            controls.PlayerPanelVisible = !controls.PlayerPanelVisible;
+            EngineLog.WriteLine($"Debug input: player panel {(controls.PlayerPanelVisible ? "opened" : "closed")}");
+        }
+        DearImGui.End();
+    }
+
+    private void DrawPlayerPanel()
+    {
+        var player = controls.Player;
+        if (player is null)
+            return;
+
+        DearImGui.SetNextWindowSize(new Vector2(500.0f, 640.0f), ImGuiCond.FirstUseEver);
+        DearImGui.SetNextWindowPos(new Vector2(590.0f, 120.0f), ImGuiCond.FirstUseEver);
+        var open = controls.PlayerPanelVisible;
+        DearImGui.PushFont(renderer.TitleFont);
+        var drawContents = DearImGui.Begin("Player", ref open);
+        DearImGui.PopFont();
+        controls.PlayerPanelVisible = open;
+        if (!drawContents)
+        {
+            DearImGui.End();
+            return;
+        }
+
+        DearImGui.PushFont(renderer.BodyFont);
+        DearImGui.Text($"Character: {player.CharacterName}");
+        DearImGui.Separator();
+        if (DearImGui.CollapsingHeader("Character presets", ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            foreach (var preset in player.CharacterPresets)
+            {
+                DearImGui.BeginDisabled(preset.EntryId == player.SelectedCharacterEntryId);
+                if (DearImGui.Button($"Load {preset.DisplayName}##character-{preset.EntryId}"))
+                    controls.RequestedPlayerCharacter = preset.EntryId;
+                DearImGui.EndDisabled();
+            }
+        }
+
+        DearImGui.Separator();
+        DearImGui.TextDisabled("Equipment");
+        foreach (var slot in player.EquipmentSlots)
+        {
+            DearImGui.Text($"{slot.SlotName}: {slot.EquipmentName ?? "Empty"}");
+            if (slot.EquipmentName is null)
+                continue;
+
+            DearImGui.SameLine();
+            if (DearImGui.SmallButton($"Remove##equipment-{slot.SlotIndex}"))
+                controls.RequestedPlayerEquipmentRemoval = slot.SlotIndex;
+            DearImGui.SameLine();
+            DearImGui.TextDisabled($"#{slot.EquipmentItemId}");
+        }
+
+        DearImGui.Separator();
+        DearImGui.TextDisabled("Item sets");
+        foreach (var set in player.ItemSets)
+        {
+            var label = $"Equip set {set.SetIndex}##set-{set.SetIndex}";
+            DearImGui.BeginDisabled(set.ResolvedEquipmentCount == 0);
+            if (DearImGui.Button(label))
+                controls.RequestedPlayerItemSet = set.SetIndex;
+            DearImGui.EndDisabled();
+            DearImGui.SameLine();
+            DearImGui.Text($"ID {set.SetIdentifier}  {set.ResolvedEquipmentCount}/{set.ItemCount} items");
+        }
+
+        DearImGui.PopFont();
         DearImGui.End();
     }
 
@@ -105,67 +179,42 @@ internal sealed class ImGuiDebugPanel(
             DrawTileVisualizers(scene.Debug);
         if (DearImGui.CollapsingHeader("Object visualizers", ImGuiTreeNodeFlags.DefaultOpen))
         {
-            Checkbox("World light sources and bounds", scene.Debug.WorldLightBoundsVisible,
-                value => scene.Debug.WorldLightBoundsVisible = value);
-            Checkbox("Static sprite bounds and anchors", scene.Debug.StaticSpriteBoundsVisible,
-                value => scene.Debug.StaticSpriteBoundsVisible = value);
-            DearImGui.Separator();
-            DearImGui.TextDisabled("Static.pak bytes 0x08-0x0B object flags");
-            foreach (var option in WorldDebugFlagCatalog.StaticFlags)
+            if (DearImGui.CollapsingHeader("3D models", ImGuiTreeNodeFlags.DefaultOpen))
             {
-                FlagCheckbox(
-                    option,
-                    scene.Debug.VisibleStaticObjectFlags,
-                    value => scene.Debug.VisibleStaticObjectFlags = value);
+                Checkbox("Show 3D model names and transforms", scene.Debug.ModelNamesVisible,
+                    value => scene.Debug.ModelNamesVisible = value);
+                DearImGui.TextDisabled($"{scene.Models.Count} rendered model(s)");
+                foreach (var model in scene.Models)
+                    DearImGui.TextDisabled($"{model.Name}  V{model.Mesh.Vertices.Length} I{model.Mesh.Indices.Length}");
             }
-            DearImGui.Separator();
-            DearImGui.TextDisabled("Items.pak model descriptor bytes 0x02-0x03 graphic flags");
-            foreach (var option in WorldDebugFlagCatalog.ItemGraphicFlags)
+
+            if (DearImGui.CollapsingHeader("Sprites and lights", ImGuiTreeNodeFlags.DefaultOpen))
             {
-                FlagCheckbox(
-                    option,
-                    scene.Debug.VisibleItemGraphicFlags,
-                    value => scene.Debug.VisibleItemGraphicFlags = value);
+                Checkbox("World light sources and bounds", scene.Debug.WorldLightBoundsVisible,
+                    value => scene.Debug.WorldLightBoundsVisible = value);
+                Checkbox("Static sprite bounds and anchors", scene.Debug.StaticSpriteBoundsVisible,
+                    value => scene.Debug.StaticSpriteBoundsVisible = value);
             }
-            DearImGui.Separator();
-            DearImGui.TextDisabled("Items.pak raw model descriptor byte");
-            var itemByteOffset = scene.Debug.ItemDescriptorByteOffset;
-            if (DearImGui.InputInt("Byte offset", ref itemByteOffset, 1, 16))
+
+            if (DearImGui.CollapsingHeader("Static.pak object flags"))
             {
-                scene.Debug.ItemDescriptorByteOffset = Math.Clamp(
-                    itemByteOffset,
-                    0,
-                    ItemsPakEntryModelDescLayout.SerializedSize - 1);
-                EngineLog.WriteLine(
-                    $"Debug input: Items.pak descriptor byte offset set to 0x{scene.Debug.ItemDescriptorByteOffset:X2}");
+                DearImGui.TextDisabled("Bytes 0x08-0x0B");
+                foreach (var option in WorldDebugFlagCatalog.StaticFlags)
+                    FlagCheckbox(option, scene.Debug.VisibleStaticObjectFlags,
+                        value => scene.Debug.VisibleStaticObjectFlags = value);
             }
-            DearImGui.SameLine();
-            DearImGui.Text($"0x{scene.Debug.ItemDescriptorByteOffset:X2}");
-            Checkbox(
-                "Show byte values",
-                scene.Debug.ItemDescriptorByteValuesVisible,
-                value => scene.Debug.ItemDescriptorByteValuesVisible = value);
-            Checkbox(
-                "Match whole byte",
-                scene.Debug.ItemDescriptorByteMatchEnabled,
-                value => scene.Debug.ItemDescriptorByteMatchEnabled = value);
-            var itemByteMatchInput = (int)scene.Debug.ItemDescriptorByteMatchValue;
-            DearImGui.BeginDisabled(!scene.Debug.ItemDescriptorByteMatchEnabled);
-            if (DearImGui.InputInt("Byte value", ref itemByteMatchInput, 1, 16))
+
+            if (DearImGui.CollapsingHeader("Items.pak descriptor flags"))
             {
-                scene.Debug.ItemDescriptorByteMatchValue = (byte)Math.Clamp(itemByteMatchInput, 0, byte.MaxValue);
-                EngineLog.WriteLine(
-                    $"Debug input: Items.pak descriptor byte match set to 0x{scene.Debug.ItemDescriptorByteMatchValue:X2}");
+                DearImGui.TextDisabled("Model descriptor bytes 0x02-0x03");
+                foreach (var option in WorldDebugFlagCatalog.ItemGraphicFlags)
+                    FlagCheckbox(option, scene.Debug.VisibleItemGraphicFlags,
+                        value => scene.Debug.VisibleItemGraphicFlags = value);
             }
-            DearImGui.SameLine();
-            DearImGui.Text($"0x{scene.Debug.ItemDescriptorByteMatchValue:X2}");
-            DearImGui.EndDisabled();
-            foreach (var option in WorldDebugFlagCatalog.ItemDescriptorByteFlags)
+
+            if (DearImGui.CollapsingHeader("Items.pak raw descriptor byte"))
             {
-                ByteFlagCheckbox(
-                    option,
-                    scene.Debug.VisibleItemDescriptorByteBits,
-                    value => scene.Debug.VisibleItemDescriptorByteBits = value);
+                DrawItemDescriptorByteControls(scene.Debug);
             }
         }
         if (DearImGui.CollapsingHeader("Controls"))
@@ -256,6 +305,35 @@ internal sealed class ImGuiDebugPanel(
             value => debug.GameplayElevationVisible = value);
         Checkbox("Baked brightness (0x14-0x17)", debug.BakedLightingVisible,
             value => debug.BakedLightingVisible = value);
+    }
+
+    private static void DrawItemDescriptorByteControls(SceneDebugState debug)
+    {
+        var itemByteOffset = debug.ItemDescriptorByteOffset;
+        if (DearImGui.InputInt("Byte offset", ref itemByteOffset, 1, 16))
+        {
+            debug.ItemDescriptorByteOffset = Math.Clamp(itemByteOffset, 0, ItemsPakEntryModelDescLayout.SerializedSize - 1);
+            EngineLog.WriteLine($"Debug input: Items.pak descriptor byte offset set to 0x{debug.ItemDescriptorByteOffset:X2}");
+        }
+        DearImGui.SameLine();
+        DearImGui.Text($"0x{debug.ItemDescriptorByteOffset:X2}");
+        Checkbox("Show byte values", debug.ItemDescriptorByteValuesVisible,
+            value => debug.ItemDescriptorByteValuesVisible = value);
+        Checkbox("Match whole byte", debug.ItemDescriptorByteMatchEnabled,
+            value => debug.ItemDescriptorByteMatchEnabled = value);
+        var itemByteMatchInput = (int)debug.ItemDescriptorByteMatchValue;
+        DearImGui.BeginDisabled(!debug.ItemDescriptorByteMatchEnabled);
+        if (DearImGui.InputInt("Byte value", ref itemByteMatchInput, 1, 16))
+        {
+            debug.ItemDescriptorByteMatchValue = (byte)Math.Clamp(itemByteMatchInput, 0, byte.MaxValue);
+            EngineLog.WriteLine($"Debug input: Items.pak descriptor byte match set to 0x{debug.ItemDescriptorByteMatchValue:X2}");
+        }
+        DearImGui.SameLine();
+        DearImGui.Text($"0x{debug.ItemDescriptorByteMatchValue:X2}");
+        DearImGui.EndDisabled();
+        foreach (var option in WorldDebugFlagCatalog.ItemDescriptorByteFlags)
+            ByteFlagCheckbox(option, debug.VisibleItemDescriptorByteBits,
+                value => debug.VisibleItemDescriptorByteBits = value);
     }
 
     private static void DrawControls()

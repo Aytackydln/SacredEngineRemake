@@ -25,6 +25,10 @@ public sealed class IndoorTileGroup(
     public int Height { get; } = height;
     public WldxTileGridKind Kind { get; } = kind;
     public byte SurfaceLevel { get; } = surfaceLevel;
+    /// <summary>
+    /// Building visibility state at Static.pak offset 0x2B: exterior is 1,
+    /// then successive indoor floors are 2, 4, 8, ... .
+    /// </summary>
     public int SurfaceRenderLayer { get; } = 1 << surfaceLevel;
     public WorldPathingLayer Pathing { get; } = pathing;
     public IndoorTilePresenceLayer Presence { get; } = presence;

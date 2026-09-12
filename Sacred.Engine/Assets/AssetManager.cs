@@ -7,6 +7,7 @@ using System.Linq;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
+using Sacred.Assets.GameBin.Sets;
 using Sacred.Assets.Paks.Items;
 using Sacred.Assets.Paks.Mixed;
 using Sacred.Assets.Paks.Models;
@@ -14,6 +15,7 @@ using Sacred.Assets.Paks.Texture;
 using Sacred.Assets.Paks.Tiles;
 using Sacred.Assets.Paks.Weapon;
 using Sacred.Core;
+using Sacred.Core.GameBin.Sets;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Pak.Weapon;
 using Sacred.Engine.Graphics.Sprites;
@@ -40,6 +42,7 @@ public sealed class AssetManager : IDisposable
     private readonly FrozenDictionary<ushort, ItemsPakEntry> _itemsByModelId;
     private readonly FrozenDictionary<uint, ItemsPakEntry[]> _itemsByItemId;
     private readonly FrozenDictionary<ushort, SacredEquipment> _equipmentByModelId;
+    private readonly IReadOnlyList<SacredEquipment>[] _itemSetEquipment;
     private readonly MixedPakArchive _mixedPak;
     private readonly ModelsPakArchive _modelsPak;
     private readonly Dictionary<string, TextureCacheEntry> _textures = new(MaxTextureCacheEntries, StringComparer.OrdinalIgnoreCase);
@@ -53,7 +56,8 @@ public sealed class AssetManager : IDisposable
     private readonly SemaphoreSlim _modelTextureLock = new(1, 1);
 
     private readonly Dictionary<StaticSpriteAssetKey, StaticSpriteAsset?> _staticSprites = new(DefaultMaxCache);
-    private readonly HashSet<StaticSpriteAssetKey> _staticSpriteLoads = new(DefaultMaxCache);
+    private readonly Dictionary<StaticSpriteAssetKey, TaskCompletionSource<StaticSpriteAsset?>> _staticSpriteLoads =
+        new(DefaultMaxCache);
     private readonly SemaphoreSlim _staticSpriteLock = new(1, 1);
     private readonly PrioritizedAssetLoadScheduler _assetLoads = new();
     private readonly WorldSpriteLoadQueue _worldSpriteLoadQueue = new();
@@ -69,7 +73,6 @@ public sealed class AssetManager : IDisposable
 
     private readonly Dictionary<string, GrnAsset> _grnModels = new(DefaultMaxCache, StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Task<GrnAsset>> _grnModelLoads = new(DefaultMaxCache, StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<uint, PlayerCharacterAsset> _playerCharacters = new(DefaultMaxCache);
     private readonly SemaphoreSlim _modelLock = new(1, 1);
 
     private readonly Dictionary<string, PlayerCharacterAnimations?> _playerCharacterAnimations =
@@ -78,6 +81,7 @@ public sealed class AssetManager : IDisposable
     private bool _disposed;
 
     public float PlayableCharacterLightRadius { get; }
+    public IReadOnlyList<SacredSetEntry> ItemSets { get; }
 
     public AssetManager(SacredGameDirectories gameDirectories)
     {
@@ -89,11 +93,13 @@ public sealed class AssetManager : IDisposable
         var items = ItemsPakArchive.Load(gameDirectories.ItemsPakPath).ToArray();
         _itemsByModelId = items.ToFrozenDictionary(static item => item.ItemIndex);
         PlayableCharacterLightRadius = FindLargestAuthoredLightRadius(items);
-        _itemsByItemId = items
-            .GroupBy(static item => item.ItemId)
-            .ToFrozenDictionary(static group => group.Key, static group => group.ToArray());
         _equipmentByModelId = WeaponPakParser.Parse(gameDirectories.WeaponsPakPath, _itemsByModelId)
             .ToFrozenDictionary(static equipment => checked((ushort)equipment.IdemId));
+        _itemsByModelId = items.Select(item => _equipmentByModelId.TryGetValue(item.ItemIndex, out var equipment)
+                ? equipment.Item : item).ToFrozenDictionary(static item => item.ItemIndex);
+        _itemsByItemId = _itemsByModelId.Values
+            .GroupBy(static item => item.ModelDesc.ItemId)
+            .ToFrozenDictionary(static group => group.Key, static group => group.ToArray());
         _mixedPak = MixedPakArchive.Load(Path.Combine(pakDirectory, "mixed.pak"));
         _miniObjectSprites = new MiniObjectSpriteLoader(
             textureId => LoadTextureAsync(textureId, AssetLoadPriority.Visible),
@@ -107,6 +113,10 @@ public sealed class AssetManager : IDisposable
         _modelsPak = ModelsPakArchive.Load(
             Path.Combine(pakDirectory, "models.pak"),
             Path.Combine(pakDirectory, "Models.tmp"));
+        var gameDirectory = Directory.GetParent(pakDirectory)?.FullName
+            ?? throw new InvalidDataException("Cannot infer the game directory from Texture.pak.");
+        ItemSets = SetsBinArchive.Load(gameDirectories.ItemSetsPath ?? Path.Combine(gameDirectory, "bin", "sets.bin"));
+        _itemSetEquipment = ResolveItemSetEquipment(ItemSets);
     }
 
     internal AssetManager(
@@ -114,6 +124,7 @@ public sealed class AssetManager : IDisposable
         TilesPakArchive tilesPak,
         IReadOnlyList<ItemsPakEntry> items,
         IReadOnlyList<SacredEquipment> equipment,
+        IReadOnlyList<SacredSetEntry> itemSets,
         MixedPakArchive mixedPak,
         ModelsPakArchive modelsPak)
     {
@@ -121,6 +132,7 @@ public sealed class AssetManager : IDisposable
         ArgumentNullException.ThrowIfNull(tilesPak);
         ArgumentNullException.ThrowIfNull(items);
         ArgumentNullException.ThrowIfNull(equipment);
+        ArgumentNullException.ThrowIfNull(itemSets);
         ArgumentNullException.ThrowIfNull(mixedPak);
         ArgumentNullException.ThrowIfNull(modelsPak);
 
@@ -128,11 +140,15 @@ public sealed class AssetManager : IDisposable
         _tilesPak = tilesPak;
         _itemsByModelId = items.ToFrozenDictionary(static item => item.ItemIndex);
         PlayableCharacterLightRadius = FindLargestAuthoredLightRadius(items);
-        _itemsByItemId = items
-            .GroupBy(static item => item.ItemId)
-            .ToFrozenDictionary(static group => group.Key, static group => group.ToArray());
-        _equipmentByModelId = equipment
+        ItemSets = itemSets;
+        _equipmentByModelId = SacredEquipmentVisualResolver.Resolve(_itemsByModelId, equipment)
             .ToFrozenDictionary(static item => checked((ushort)item.IdemId));
+        _itemsByModelId = items.Select(item => _equipmentByModelId.TryGetValue(item.ItemIndex, out var entry)
+                ? entry.Item : item).ToFrozenDictionary(static item => item.ItemIndex);
+        _itemsByItemId = _itemsByModelId.Values
+            .GroupBy(static item => item.ModelDesc.ItemId)
+            .ToFrozenDictionary(static group => group.Key, static group => group.ToArray());
+        _itemSetEquipment = ResolveItemSetEquipment(itemSets);
         _mixedPak = mixedPak;
         _miniObjectSprites = new MiniObjectSpriteLoader(
             textureId => LoadTextureAsync(textureId, AssetLoadPriority.Visible),
@@ -148,9 +164,44 @@ public sealed class AssetManager : IDisposable
 
     public int PlayerCharacterCount => TestCharacters.All.Count;
 
+    internal PlayerCharacterLoadout CreatePlayerCharacterLoadout(uint entryId)
+    {
+        var definition = GetPlayerCharacterDefinition(entryId);
+        var actor = new SacredGameActor(definition.CharacterClass);
+        foreach (var (slot, itemId) in definition.Items)
+        {
+            if (!TryResolveEquipment(itemId, out var equipment))
+                continue;
+
+            actor.EquipmentSlots.FirstOrDefault(candidate =>
+                candidate.Type == slot.ToEquipmentSlotType() && candidate.Equipment is null)?.Equip(equipment);
+        }
+
+        return new PlayerCharacterLoadout(entryId, definition, actor);
+    }
+
+    public IReadOnlyList<SacredEquipment> ResolveItemSetEquipment(int setIndex)
+    {
+        if ((uint)setIndex >= (uint)ItemSets.Count)
+            return [];
+
+        return _itemSetEquipment[setIndex];
+    }
+
+    public bool CanEquipItemSet(int setIndex, SacredCharacterClass characterClass)
+    {
+        if ((uint)setIndex >= (uint)ItemSets.Count)
+            return false;
+
+        var equipment = ResolveItemSetEquipment(setIndex);
+        return equipment.Count == ItemSets[setIndex].ItemIds.Count &&
+               equipment.Count > 0 &&
+               equipment.All(item => EquipmentSlotRules.CanEquip(characterClass, item));
+    }
+
     private static float FindLargestAuthoredLightRadius(IEnumerable<ItemsPakEntry> items) =>
         items.Where(static item => item.ModelDesc.IsWorldLightMarker)
-            .Select(static item => (float)item.ModelDesc.ModelExtent)
+            .Select(static item => (float)item.ModelDesc.Radius)
             .DefaultIfEmpty()
             .Max();
 
@@ -364,20 +415,58 @@ public sealed class AssetManager : IDisposable
         return _itemsByModelId.TryGetValue((ushort)typeId, out var item) ? item : null;
     }
 
+    /// <summary>Loads a static world model and resolves its Items.pak texture overrides.</summary>
+    public async Task<WorldModelAsset?> LoadWorldModelAsync(uint typeId, CancellationToken cancellationToken = default)
+    {
+        var item = GetItem(typeId);
+        if (item is not { } value || string.IsNullOrWhiteSpace(value.ModelName))
+            return null;
+
+        // These live world props have a bounded caller queue. Do not route them
+        // through the character/texture scheduler: a queued dependency there can
+        // leave a sector's chest and barrel requests pending indefinitely.
+        var modelTask = _modelsPak.LoadModelAsync(
+            Path.GetFileName(value.ModelName),
+            GrnMeshExtractionMode.PrimarySlice,
+            cancellationToken);
+        // Sequence availability comes from each model's motions[] table. This covers doors,
+        // chests and breakable barrels without assigning behavior from model names or IDs.
+        var interactionAnimationTask = _modelsPak.LoadModelAnimationAsync(
+            Path.GetFileName(value.ModelName), WorldDoorMotion.Open, cancellationToken);
+        var resetAnimationTask = _modelsPak.LoadModelAnimationAsync(
+            Path.GetFileName(value.ModelName), WorldDoorMotion.Close, cancellationToken);
+        await Task.WhenAll(modelTask, interactionAnimationTask, resetAnimationTask).ConfigureAwait(false);
+        var model = await modelTask.ConfigureAwait(false);
+        if (model.Mesh is null)
+            return null;
+
+        return new WorldModelAsset(
+            value,
+            model,
+            CreateModelTextureAliases(model, value),
+            await interactionAnimationTask.ConfigureAwait(false),
+            await resetAnimationTask.ConfigureAwait(false));
+    }
+
     public bool TryGetStaticSpriteOrRequest(uint typeId, out StaticSpriteAsset? sprite)
     {
         sprite = null;
 
-        var item = GetItem(typeId);
-        if (item is null || item.Value.MixedBaseGroupId == 0)
+        var itemNullable = GetItem(typeId);
+        if (itemNullable is null)
             return true;
+        
+        var item = itemNullable.Value;
+        if(item.ModelDesc.MixedBaseGroupId == 0) 
+            return true;
+        
 
-        var groupId = _mixedPak.ResolveGroupId(item.Value.MixedBaseGroupId);
+        var groupId = _mixedPak.ResolveGroupId(item.ModelDesc.MixedBaseGroupId);
         if (groupId is null)
             return true;
 
-        var frameCount = Math.Max(1, (int)item.Value.StaticSpriteFrameCount);
-        var frameDuration10Ms = frameCount > 1 ? item.Value.StaticSpriteFrameDuration10Ms : (byte)0;
+        var frameCount = Math.Max(1, (int)item.ModelDesc.StaticSpriteFrameCount);
+        var frameDuration10Ms = frameCount > 1 ? item.ModelDesc.StaticSpriteFrameDuration10Ms : (byte)0;
         var key = new StaticSpriteAssetKey(groupId.Value, frameCount, frameDuration10Ms);
 
         // Render polling must never queue behind a loader publishing its result.
@@ -389,8 +478,14 @@ public sealed class AssetManager : IDisposable
             if (_staticSprites.TryGetValue(key, out sprite))
                 return true;
 
-            if (_staticSpriteLoads.Add(key))
+            if (!_staticSpriteLoads.ContainsKey(key))
+            {
+                _staticSpriteLoads.Add(
+                    key,
+                    new TaskCompletionSource<StaticSpriteAsset?>(
+                        TaskCreationOptions.RunContinuationsAsynchronously));
                 _worldSpriteLoadQueue.Enqueue(() => LoadAndCacheStaticSpriteAsync(key));
+            }
 
             return false;
         }
@@ -398,6 +493,53 @@ public sealed class AssetManager : IDisposable
         {
             _staticSpriteLock.Release();
         }
+    }
+
+    /// <summary>
+    /// Resolves a mixed static sprite before a sector texture is submitted. The
+    /// caller never holds the sprite-cache lock while awaiting the file load.
+    /// </summary>
+    public async Task<StaticSpriteAsset?> GetStaticSpriteAsync(uint typeId)
+    {
+        var itemNullable = GetItem(typeId);
+        if (itemNullable is null)
+            return null;
+        
+        var item = itemNullable.Value;
+        if(item.ModelDesc.MixedBaseGroupId == 0) 
+            return null;
+
+        var groupId = _mixedPak.ResolveGroupId(item.ModelDesc.MixedBaseGroupId);
+        if (groupId is null)
+            return null;
+
+        var frameCount = Math.Max(1, (int)item.ModelDesc.StaticSpriteFrameCount);
+        var frameDuration10Ms = frameCount > 1 ? item.ModelDesc.StaticSpriteFrameDuration10Ms : (byte)0;
+        var key = new StaticSpriteAssetKey(groupId.Value, frameCount, frameDuration10Ms);
+
+        Task<StaticSpriteAsset?> load;
+        await _staticSpriteLock.WaitAsync();
+        try
+        {
+            if (_staticSprites.TryGetValue(key, out var cached))
+                return cached;
+
+            if (!_staticSpriteLoads.TryGetValue(key, out var completion))
+            {
+                completion = new TaskCompletionSource<StaticSpriteAsset?>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+                _staticSpriteLoads.Add(key, completion);
+                _worldSpriteLoadQueue.Enqueue(() => LoadAndCacheStaticSpriteAsync(key));
+            }
+
+            load = completion.Task;
+        }
+        finally
+        {
+            _staticSpriteLock.Release();
+        }
+
+        return await load;
     }
 
     public bool TryGetMiniObjectSpriteOrRequest(
@@ -421,6 +563,30 @@ public sealed class AssetManager : IDisposable
             out sprite);
     }
 
+    /// <summary>Waits for the static or mini-object source used by a static-world record.</summary>
+    public async Task<StaticSpriteAsset?> GetStaticWorldSpriteAsync(
+        uint typeId,
+        byte sourceX,
+        byte sourceY,
+        byte sourceSize,
+        byte animationFrameDurationTicks,
+        byte animationFrameCount)
+    {
+        var sprite = await GetStaticSpriteAsync(typeId);
+        if (sprite is not null)
+            return sprite;
+
+        var item = GetItem(typeId);
+        return item is null
+            ? null
+            : await _miniObjectSprites.GetAsync(
+                item.Value,
+                sourceX,
+                sourceY,
+                sourceSize,
+                animationFrameDurationTicks,
+                animationFrameCount);
+    }
     public bool TryGetWorldParticleSpriteOrRequest(
         ParticleSpriteReference reference,
         out StaticSpriteAsset? sprite) =>
@@ -573,10 +739,11 @@ public sealed class AssetManager : IDisposable
             try
             {
                 _staticSprites[key] = sprite;
+                if (_staticSpriteLoads.Remove(key, out var completion))
+                    completion.TrySetResult(sprite);
             }
             finally
             {
-                _staticSpriteLoads.Remove(key);
                 _staticSpriteLock.Release();
             }
 
@@ -587,8 +754,9 @@ public sealed class AssetManager : IDisposable
             await _staticSpriteLock.WaitAsync();
             try
             {
-                _staticSpriteLoads.Remove(key);
                 _staticSprites[key] = null;
+                if (_staticSpriteLoads.Remove(key, out var completion))
+                    completion.TrySetResult(null);
             }
             finally
             {
@@ -810,12 +978,18 @@ public sealed class AssetManager : IDisposable
 
     public Task<GrnAsset> LoadGrnModelAsync(string relativePath, CancellationToken cancellationToken = default)
     {
-        return LoadGrnModelAsync(relativePath, GrnMeshExtractionMode.PrimarySlice, cancellationToken);
+        return LoadGrnModelAsync(
+            relativePath,
+            GrnMeshExtractionMode.PrimarySlice,
+            AssetLoadPriority.Critical,
+            cancellationToken);
     }
+
 
     private async Task<GrnAsset> LoadGrnModelAsync(
         string relativePath,
         GrnMeshExtractionMode meshExtractionMode,
+        AssetLoadPriority priority,
         CancellationToken cancellationToken = default)
     {
         var key = Path.GetFileName(relativePath);
@@ -835,7 +1009,7 @@ public sealed class AssetManager : IDisposable
             else
             {
                 loadTask = _assetLoads.Schedule(
-                    AssetLoadPriority.Critical,
+                    priority,
                     () => LoadAndCacheGrnModelAsync(key, cacheKey, meshExtractionMode));
                 _grnModelLoads[cacheKey] = loadTask;
             }
@@ -927,54 +1101,26 @@ public sealed class AssetManager : IDisposable
         }
     }
 
-    public async Task<PlayerCharacterAsset> LoadPlayerCharacterAsync(uint entryId, CancellationToken cancellationToken = default)
-    {
-        await _modelLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            if (_playerCharacters.TryGetValue(entryId, out var cached))
-                return cached;
-        }
-        finally
-        {
-            _modelLock.Release();
-        }
-
-        var asset = await _assetLoads.Schedule(
-                AssetLoadPriority.Critical,
-                () => LoadPlayerCharacterCoreAsync(entryId, cancellationToken))
-            .ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        await _modelLock.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            if (_playerCharacters.TryGetValue(entryId, out var cached))
-                return cached;
-
-            _playerCharacters.Add(entryId, asset);
-            return asset;
-        }
-        finally
-        {
-            _modelLock.Release();
-        }
-    }
+    internal Task<PlayerCharacterAsset> LoadPlayerCharacterAsync(
+        PlayerCharacterLoadout loadout,
+        CancellationToken cancellationToken = default) =>
+        _assetLoads.Schedule(
+            AssetLoadPriority.Critical,
+            () => LoadPlayerCharacterCoreAsync(loadout, cancellationToken));
 
     private async Task<PlayerCharacterAsset> LoadPlayerCharacterCoreAsync(
-        uint entryId,
+        PlayerCharacterLoadout loadout,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var definition = GetPlayerCharacterDefinition(entryId);
+        var definition = loadout.Definition;
         var item = ResolvePlayerCharacterItem(definition.BaseItemId);
-        var attachmentItems = ResolvePlayerCharacterItems(definition.Items);
-        var actor = CreateTestActor(definition, attachmentItems);
+        var attachmentItems = ResolvePlayerCharacterItems(loadout.Actor);
         var modelName = item.ModelName;
 
         var model = await _modelsPak.LoadCharacterBaseModelAsync(
                 modelName,
-                CreateModelAttachmentReferences(attachmentItems, actor),
+                CreateModelAttachmentReferences(attachmentItems),
                 cancellationToken)
             .ConfigureAwait(false);
 
@@ -999,14 +1145,13 @@ public sealed class AssetManager : IDisposable
             model,
             textureAliases,
             equipmentEffects,
-            CharacterWeaponStyleResolver.Resolve(actor));
+            CharacterWeaponStyleResolver.Resolve(loadout.Actor));
     }
 
     public async Task<PlayerCharacterAnimations?> LoadPlayerCharacterAnimationsAsync(
-        uint entryId,
+        PlayerCharacterAsset player,
         CancellationToken cancellationToken = default)
     {
-        var player = await LoadPlayerCharacterAsync(entryId, cancellationToken).ConfigureAwait(false);
         var modelName = player.ModelName;
         var cacheKey = $"{modelName}:{player.WeaponStyle}";
         await _playerAnimationLock.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -1107,8 +1252,6 @@ public sealed class AssetManager : IDisposable
         _modelLock.Wait();
         _grnModels.Clear();
         _grnModelLoads.Clear();
-        _playerCharacters.Clear();
-
         _texturePak.Dispose();
         _modelsPak.Dispose();
     }
@@ -1139,14 +1282,12 @@ public sealed class AssetManager : IDisposable
         return item;
     }
 
-    private PlayerCharacterAttachmentItem[] ResolvePlayerCharacterItems(IReadOnlyDictionary<ItemSlot, uint> itemsBySlot)
+    private PlayerCharacterAttachmentItem[] ResolvePlayerCharacterItems(SacredGameActor actor)
     {
-        var items = new PlayerCharacterAttachmentItem[itemsBySlot.Count];
-        var index = 0;
-        foreach (var (slot, itemId) in itemsBySlot)
-            items[index++] = new PlayerCharacterAttachmentItem(slot, ResolvePlayerCharacterItem(itemId));
-
-        return items;
+        return actor.EquipmentSlots
+            .Where(static slot => slot.Equipment is not null)
+            .Select(static slot => new PlayerCharacterAttachmentItem(slot.Type, slot.Equipment!.Value))
+            .ToArray();
     }
 
     private IReadOnlyDictionary<string, ModelTextureReference> CreatePlayerCharacterTextureAliases(
@@ -1169,6 +1310,18 @@ public sealed class AssetManager : IDisposable
         return aliases.Count == 0 ? EmptyTextureAliases : aliases;
     }
 
+    private IReadOnlyDictionary<string, ModelTextureReference> CreateModelTextureAliases(
+        GrnAsset model,
+        ItemsPakEntry item)
+    {
+        if (model.Mesh is null)
+            return EmptyTextureAliases;
+
+        var aliases = new Dictionary<string, ModelTextureReference>(StringComparer.OrdinalIgnoreCase);
+        AddItemTextureAliases(aliases, model, item);
+        return aliases.Count == 0 ? EmptyTextureAliases : aliases;
+    }
+
     private EquipmentEffectAttachment[] CreateEquipmentEffectAttachments(
         IReadOnlyList<PlayerCharacterAttachmentItem> attachmentItems,
         IReadOnlyList<GrnAsset> attachmentModels)
@@ -1177,88 +1330,44 @@ public sealed class AssetManager : IDisposable
         for (var index = 0; index < attachmentItems.Count; index++)
         {
             var attachmentItem = attachmentItems[index];
-            if (!_equipmentByModelId.TryGetValue(attachmentItem.Item.ItemIndex, out var equipment))
-                continue;
-
             var boundsSize = attachmentModels[index].Diagnostics?.WholeModelBounds is { } bounds
                 ? Vector3.Distance(bounds.Min, bounds.Max)
                 : 40.0f;
             effects.Add(new EquipmentEffectAttachment(
                 index + 1,
                 attachmentItem.Item.ModelName,
-                AttachmentPlacement(attachmentItem.Slot, equipment.EquipmentType).TargetBone,
-                equipment.Damage,
-                boundsSize));
+                AttachmentPlacement(attachmentItem.SlotType, attachmentItem.Equipment.EquipmentType).TargetBone,
+                attachmentItem.Equipment.Damage,
+                boundsSize)
+            {
+                ItemId = attachmentItem.Item.ItemIndex,
+                BaseItemId = attachmentItem.Equipment.BaseItemId,
+                BonusTypes = attachmentItem.Equipment.BonusTypes,
+                BonusGroups = attachmentItem.Equipment.BonusGroups,
+                EquipmentType = attachmentItem.Equipment.EquipmentType,
+                ItemEffectSelector = attachmentItem.Item.ModelDesc.EffectTextureIndex
+            });
         }
 
         return effects.ToArray();
     }
 
-    private SacredGameActor CreateTestActor(
-        TestCharacterDefinition definition,
-        IReadOnlyList<PlayerCharacterAttachmentItem> attachmentItems)
-    {
-        var actor = new SacredGameActor(definition.BaseItemId switch
-        {
-            1 => SacredCharacterClass.Seraphim,
-            2 => SacredCharacterClass.Gladiator,
-            3 => SacredCharacterClass.BattleMage,
-            4 => SacredCharacterClass.DarkElf,
-            6 => SacredCharacterClass.Vampiress,
-            8 => SacredCharacterClass.Dwarf,
-            9 => SacredCharacterClass.Daemon,
-            108 => SacredCharacterClass.WoodElf,
-            _ => throw new ArgumentOutOfRangeException(nameof(definition))
-        });
-
-        foreach (var attachment in attachmentItems)
-        {
-            if (!_equipmentByModelId.TryGetValue(attachment.Item.ItemIndex, out var equipment))
-                continue;
-
-            var slotType = attachment.Slot.ToEquipmentSlotType();
-            actor.EquipmentSlots.FirstOrDefault(slot => slot.Type == slotType && slot.Equipment is null)?.Equip(equipment);
-        }
-
-        return actor;
-    }
-
     private static ModelAttachmentReference[] CreateModelAttachmentReferences(
-        IReadOnlyList<PlayerCharacterAttachmentItem> attachments,
-        SacredGameActor actor) =>
+        IReadOnlyList<PlayerCharacterAttachmentItem> attachments) =>
         attachments.Select(attachment =>
         {
-            var equipped = actor.EquipmentSlots.FirstOrDefault(candidate =>
-                candidate.Type == attachment.Slot.ToEquipmentSlotType() &&
-                candidate.Equipment?.IdemId == attachment.Item.ItemIndex)?.Equipment;
-            var placement = AttachmentPlacement(attachment.Slot, equipped?.EquipmentType);
+            var placement = AttachmentPlacement(attachment.SlotType, attachment.Equipment.EquipmentType);
             return new ModelAttachmentReference(attachment.Item.ModelName, placement.TargetBone, placement.SourceBone);
         }).ToArray();
 
     private static (string? TargetBone, string? SourceBone) AttachmentPlacement(
-        ItemSlot slot,
+        EquipmentSlotType slot,
         SacredEquipmentType? equipmentType) => (slot, equipmentType) switch
     {
-        (ItemSlot.LeftHand, SacredEquipmentType.Shield) => ("Bip01 L Forearm", "Bone_weapon_02"),
-        (ItemSlot.LeftHand, _) => ("Bip01 L Hand", "Bone_weapon_02"),
-        (ItemSlot.RightHand, _) => ("Bip01 R Hand", "Bone_weapon_01"),
+        (EquipmentSlotType.LeftHand, SacredEquipmentType.Shield) => ("Bip01 L Forearm", "Bone_weapon_02"),
+        (EquipmentSlotType.LeftHand, _) => ("Bip01 L Hand", "Bone_weapon_02"),
+        (EquipmentSlotType.RightHand, _) => ("Bip01 R Hand", "Bone_weapon_01"),
         _ => (null, null)
-    };
-
-    private static EquipmentSlotType EquipmentSlotFor(SacredEquipmentType equipmentType) => equipmentType switch
-    {
-        SacredEquipmentType.HeadArmor => EquipmentSlotType.Head,
-        SacredEquipmentType.ChestArmor => EquipmentSlotType.Body,
-        SacredEquipmentType.ArmArmor => EquipmentSlotType.Arms,
-        SacredEquipmentType.Gloves => EquipmentSlotType.Hands,
-        SacredEquipmentType.LegArmor => EquipmentSlotType.Legs,
-        SacredEquipmentType.FootArmor => EquipmentSlotType.Feet,
-        SacredEquipmentType.Belt => EquipmentSlotType.Belt,
-        SacredEquipmentType.Shoulder => EquipmentSlotType.Shoulder,
-        SacredEquipmentType.Wings => EquipmentSlotType.Wings,
-        SacredEquipmentType.Amulet => EquipmentSlotType.Amulet,
-        SacredEquipmentType.Ring => EquipmentSlotType.Ring,
-        _ => EquipmentSlotType.RightHand
     };
 
     private void AddItemTextureAliases(
@@ -1284,8 +1393,8 @@ public sealed class AssetManager : IDisposable
             var reference = ModelTextureResolver.Resolve(
                 _texturePak,
                 item.ModelDesc.TextureId,
-                item.EffectTextureId,
-                item.GraphicFlags,
+                item.ModelDesc.EffectTextureId,
+                item.ModelDesc.GraphicFlags,
                 modelHasEffectTextureSurface,
                 preferItemTexture,
                 surface.TextureName);
@@ -1302,8 +1411,8 @@ public sealed class AssetManager : IDisposable
     private bool ModelHasEffectTextureSurface(GrnAsset model, ItemsPakEntry item)
     {
         if (model.Mesh is null ||
-            item.EffectTextureId == 0 ||
-            !_texturePak.TryGetTextureName(item.EffectTextureId, out var effectTextureName))
+            item.ModelDesc.EffectTextureId == 0 ||
+            !_texturePak.TryGetTextureName(item.ModelDesc.EffectTextureId, out var effectTextureName))
         {
             return false;
         }
@@ -1332,9 +1441,46 @@ public sealed class AssetManager : IDisposable
         int DestRight,
         int DestBottom);
 
+    private bool TryResolveEquipment(uint itemId, out SacredEquipment equipment)
+    {
+        equipment = default;
+        if (_itemsByItemId.TryGetValue(itemId, out var items))
+        {
+            foreach (var item in items)
+            {
+                if (_equipmentByModelId.TryGetValue(item.ItemIndex, out equipment))
+                    return true;
+            }
+        }
+
+        return itemId <= ushort.MaxValue &&
+               _equipmentByModelId.TryGetValue((ushort)itemId, out equipment);
+    }
+
+    private IReadOnlyList<SacredEquipment>[] ResolveItemSetEquipment(IReadOnlyList<SacredSetEntry> sets)
+    {
+        var result = new IReadOnlyList<SacredEquipment>[sets.Count];
+        for (var setIndex = 0; setIndex < sets.Count; setIndex++)
+        {
+            var equipment = new List<SacredEquipment>(sets[setIndex].ItemIds.Count);
+            foreach (var itemId in sets[setIndex].ItemIds)
+            {
+                if (TryResolveEquipment(itemId, out var entry))
+                    equipment.Add(entry);
+            }
+
+            result[setIndex] = equipment;
+        }
+
+        return result;
+    }
+
     private readonly record struct PlayerCharacterAttachmentItem(
-        ItemSlot Slot,
-        ItemsPakEntry Item);
+        EquipmentSlotType SlotType,
+        SacredEquipment Equipment)
+    {
+        public ItemsPakEntry Item => Equipment.Item;
+    }
 
     private readonly record struct StaticSpriteAssetKey(
         uint GroupId,

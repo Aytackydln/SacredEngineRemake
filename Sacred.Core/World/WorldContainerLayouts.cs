@@ -38,6 +38,8 @@ public readonly struct WldxTileGridDescriptorLayout
     [FieldOffset(0x10)] public readonly uint TilesOffset;
     /// <summary>Byte length of the tile array.</summary>
     [FieldOffset(0x14)] public readonly uint TilesSize;
+    /// <summary>Native cHeightLevel.xdata; the second complete chunk descriptor.</summary>
+    [FieldOffset(0x18)] public readonly WorldFileChunkLayout ExtraData;
 
     public bool IsOutdoorOrigin =>
         Kind == WldxTileGridKind.Terrain && Width == 0 && Height == 0 &&

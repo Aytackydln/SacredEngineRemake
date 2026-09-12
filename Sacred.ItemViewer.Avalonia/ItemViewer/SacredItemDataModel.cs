@@ -9,6 +9,7 @@ namespace Sacred.ItemViewer.Avalonia.ItemViewer;
 
 public readonly record struct SacredItemDataModel(
     uint ItemId,
+    uint BaseItemId,
     string ItemName,
     SacredCharacterClassMask CharacterClassMask,
     SacredEquipmentType EquipmentType,
@@ -16,9 +17,12 @@ public readonly record struct SacredItemDataModel(
     string ModelName,
     uint TextureId,
     uint EffectTextureId,
+    byte ItemEffectSelector,
     SacredItemGraphicFlags GraphicFlags,
     SacredItemCategory Category,
     SacredEquipmentDamage Damage,
+    SacredEquipmentBonusTypes BonusTypes,
+    SacredEquipmentBonusGroups BonusGroups,
     byte Width,
     byte Height,
     SacredEquipmentRarityTier Rarity,
@@ -28,10 +32,22 @@ public readonly record struct SacredItemDataModel(
     bool PreviewConfirmedUserRotationIsZero = false
 )
 {
+    // Parsed equipment contains inline arrays, which cannot use the record's generated ValueType.Equals.
+    // Weapon.pak item IDs are the stable identity for rows and their favorite/confirmation variants.
+    public bool Equals(SacredItemDataModel other)
+    {
+        return ItemId == other.ItemId;
+    }
+
+    public override int GetHashCode()
+    {
+        return ItemId.GetHashCode();
+    }
+
     public string FavoriteDisplay => IsFavorite ? "★" : "☆";
 
     public string PreviewConfirmedDisplay => PreviewConfirmed
-        ? (PreviewConfirmedUserRotationIsZero ? "✓" : "X")
+        ? PreviewConfirmedUserRotationIsZero ? "✓" : "X"
         : "";
 
     public string PreviewConfirmationStatus => PreviewConfirmed
@@ -42,16 +58,20 @@ public readonly record struct SacredItemDataModel(
     {
         return new SacredItemDataModel(
             ItemId: equipment.IdemId,
+            BaseItemId: equipment.BaseItemId,
             ItemName: resources.GetString(
                 equipment.IdemId.ToString(CultureInfo.InvariantCulture),
                 equipment.Name),
             CharacterClassMask: equipment.EffectiveCharacterClassMask,
             ModelName: equipment.Item.ModelName,
             TextureId: equipment.Item.ModelDesc.TextureId,
-            EffectTextureId: equipment.Item.EffectTextureId,
-            GraphicFlags: equipment.Item.GraphicFlags,
-            Category: equipment.Item.Category,
+            EffectTextureId: equipment.Item.ModelDesc.EffectTextureId,
+            ItemEffectSelector: equipment.Item.ModelDesc.EffectTextureIndex,
+            GraphicFlags: equipment.Item.ModelDesc.GraphicFlags,
+            Category: equipment.Item.ModelDesc.Category,
             Damage: equipment.Damage,
+            BonusTypes: equipment.BonusTypes,
+            BonusGroups: equipment.BonusGroups,
             EquipmentType: equipment.EquipmentType,
             Rarity: equipment.RarityTier,
             PreviewRotation: equipment.PreviewRotation,

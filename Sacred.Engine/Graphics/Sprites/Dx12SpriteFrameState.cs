@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Numerics;
+using Sacred.Assets.Paks.Texture;
 using Sacred.Core.World.Sector;
 
 namespace Sacred.Engine.Graphics.Sprites;
@@ -76,7 +77,17 @@ internal readonly record struct WorldSpriteBatch(
     Vector2 ShadowAtlasTexelSize,
     int LegacyShadowDrawCallCount,
     int HighlightedStaticInstance,
+    bool HighlightedStaticIsUnlit,
+    IReadOnlyList<StaticSpriteDrawRange>? StaticRanges,
     PlayerOcclusionProbe PlayerOcclusion);
+
+internal readonly record struct StaticSpriteDrawRange(
+    int StartInstance,
+    int InstanceCount,
+    bool IsUnlit,
+    bool RequiresAlphaBlend,
+    bool IsPostModel,
+    SacredTextureChannelEncoding? ParticleEncoding);
 
 internal readonly record struct LiquidSpriteDrawRange(
     SectorCoord Coord,

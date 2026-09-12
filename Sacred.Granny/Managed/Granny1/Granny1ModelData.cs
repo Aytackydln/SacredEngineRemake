@@ -11,7 +11,15 @@ public static partial class Granny1MeshExtractor
         TexturePolygon[] TexturePolygons,
         TexturePolygonBlock[] TexturePolygonBlocks,
         string[] TextureNames,
-        GrannySkeleton? Skeleton);
+        GrannySkeleton? Skeleton)
+    {
+        public BoneAttachment[]? RetargetedAttachments { get; init; }
+    }
+
+    private readonly record struct BoneAttachment(
+        Matrix4x4 RestWorld,
+        string? AnimationBoneName,
+        Vector3 Direction);
 
     private readonly record struct ParsedMeshPart(
         int SourceMeshIndex,
@@ -82,4 +90,3 @@ public static partial class Granny1MeshExtractor
 
     private readonly record struct Bounds(Vector3 Min, Vector3 Max);
 }
-

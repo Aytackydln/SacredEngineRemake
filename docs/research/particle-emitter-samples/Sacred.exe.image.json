@@ -1,0 +1,55 @@
+{
+  "machine": 332,
+  "optional_magic": 267,
+  "preferred_image_base": 4194304,
+  "coff_timestamp_raw": 1160742343,
+  "sections": [
+    {
+      "name": ".text",
+      "rva": 4096,
+      "virtual_size": 4777522,
+      "raw_size": 4780032,
+      "raw_offset": 4096,
+      "flags": 1610612768,
+      "executable": true
+    },
+    {
+      "name": ".rdata",
+      "rva": 4784128,
+      "virtual_size": 354374,
+      "raw_size": 356352,
+      "raw_offset": 4784128,
+      "flags": 1073741888,
+      "executable": false
+    },
+    {
+      "name": ".data",
+      "rva": 5140480,
+      "virtual_size": 16033684,
+      "raw_size": 1298432,
+      "raw_offset": 5140480,
+      "flags": 3221225536,
+      "executable": false
+    },
+    {
+      "name": ".rsrc",
+      "rva": 21176320,
+      "virtual_size": 5478936,
+      "raw_size": 5480448,
+      "raw_offset": 6438912,
+      "flags": 1073741888,
+      "executable": false
+    },
+    {
+      "name": ".bind",
+      "rva": 26656768,
+      "virtual_size": 8192,
+      "raw_size": 8192,
+      "raw_offset": 11919360,
+      "flags": 1073741888,
+      "executable": false
+    }
+  ],
+  "string_lead_count": 103,
+  "scope": "Static analysis of local Sacred.exe. No process memory or runtime call trace was captured."
+}

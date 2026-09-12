@@ -93,11 +93,15 @@ public sealed class SacredCamera
         InputState input,
         float dt,
         WorldCollisionResolver collision,
-        CollisionCheatMode collisionMode = CollisionCheatMode.Walk)
+        CollisionCheatMode collisionMode = CollisionCheatMode.Walk,
+        float movementSpeedMultiplier = 1.0f)
     {
         var previousWorldCenter = WorldCenter;
         var previousZoom = Zoom;
-        var baseSpeed = input.IsWalkModifierDown ? WalkingBaseSpeed : RunningBaseSpeed;
+        movementSpeedMultiplier = float.IsFinite(movementSpeedMultiplier)
+            ? Math.Clamp(movementSpeedMultiplier, 0.25f, 4.0f)
+            : 1.0f;
+        var baseSpeed = (input.IsWalkModifierDown ? WalkingBaseSpeed : RunningBaseSpeed) * movementSpeedMultiplier;
         var delta = MovementDirection(
             input,
             out var joystickMovementScale,
@@ -331,8 +335,11 @@ public sealed class SacredCamera
     {
         _viewportZoom = Zoom * _viewportHeight / _worldViewHeight;
         // Original Sacred style: no map rotation; pre-rendered terrain determines the perspective.
-        var eye = new Vector3(WorldCenter.X, WorldCenter.Y - 650f, 650f);
-        var target = new Vector3(WorldCenter.X, WorldCenter.Y, 0f);
+        // Terrain renders in absolute isometric pixels. Models must use that same
+        // space or every model becomes camera-relative to the player tile grid.
+        var center = IsometricProjection.WorldToModel(WorldCenter);
+        var eye = new Vector3(center.X, center.Y - 650f, 650f);
+        var target = new Vector3(center, 0f);
         EyePosition = eye;
         View = Matrix4x4.CreateLookAt(eye, target, Vector3.UnitZ);
 

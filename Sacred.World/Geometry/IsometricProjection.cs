@@ -21,6 +21,19 @@ public static class IsometricProjection
 
     public static Vector2 WorldToIso(Vector2 world) => WorldToIso(world.X, world.Y);
 
+    /// <summary>
+    /// Converts an absolute tile coordinate into the tilted 3D model camera's world space.
+    /// Its horizontal axis matches terrain pixels; its vertical axis compensates for the
+    /// camera's 45-degree Y/Z view so a model ground anchor lands on the terrain tile.
+    /// </summary>
+    public static Vector2 WorldToModel(float worldX, float worldY)
+    {
+        var isometric = WorldToIso(worldX, worldY);
+        return new Vector2(isometric.X, -isometric.Y * MathF.Sqrt(2.0f));
+    }
+
+    public static Vector2 WorldToModel(Vector2 world) => WorldToModel(world.X, world.Y);
+
     public static Vector2 IsoToWorld(Vector2 iso)
     {
         var difference = iso.X / HalfStepWidth;

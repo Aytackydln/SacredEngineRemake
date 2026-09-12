@@ -207,7 +207,9 @@ internal sealed class Dx12SectorTextureCache : IDisposable
                 composition.StairsDebugSrvSlot,
                 composition.BlockedAreaDebugSrvSlot,
                 composition.TerrainTopologyDebugSrvSlot));
-            EngineLog.WriteLine($"Sector GPU texture loaded: {composition.Coord.X},{composition.Coord.Y}.");
+            EngineLog.WriteLine(
+                $"Sector GPU texture loaded: {composition.Coord.X},{composition.Coord.Y}; " +
+                $"embedded shadow receivers={composition.Composition.EmbeddedSpriteCount}.");
         }
     }
 

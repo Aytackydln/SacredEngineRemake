@@ -18,8 +18,6 @@ public class ExpDragonShield : IExperiment
             .Where(i => i.ModelName == "SHIELD_KITE.GRN")
             .ToList();
 
-        var kiteTexture = sacredGameData.GamePakStore.Textures["SHIELD_KITE02.TGA"];
-
         Console.WriteLine("Dragon Shield Weapons:");
     }
 }

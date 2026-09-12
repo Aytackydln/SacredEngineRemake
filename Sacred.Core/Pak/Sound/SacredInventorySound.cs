@@ -5,6 +5,7 @@ namespace Sacred.Core.Pak.Sound;
 /// <summary>Sound.pak identifiers named by Sacred.exe's embedded sound registry.</summary>
 public enum SacredInventorySound : uint
 {
+    None = 0,
     PutMetal = 7005,
     PutRing = 7007,
     Potion = 7019,
@@ -38,6 +39,10 @@ public static class SacredInventorySoundResolver
             SacredItemCategory.Book => SacredInventorySound.PutQuestBook,
             SacredItemCategory.Helmet => SacredInventorySound.PutHelmet,
             SacredItemCategory.Amulet or SacredItemCategory.Rune => SacredInventorySound.PutAmulet,
-            _ => SacredInventorySound.PutMetal,
+            SacredItemCategory.DwarfCannon or
+                SacredItemCategory.ArmArmor or
+                SacredItemCategory.HorseEquipment or
+                SacredItemCategory.Weapon or SacredItemCategory.Wings  => SacredInventorySound.PutMetal,
+            _ => SacredInventorySound.None,
         };
 }

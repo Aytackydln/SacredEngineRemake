@@ -11,6 +11,7 @@ public sealed class Sector(
     FloorOverlayLayer floorOverlays,
     LiquidSurfaceLayer liquidSurfaces,
     StaticObjectLayer staticObjects,
+    WorldObjectLayer worldObjects,
     StairsCellLayer stairsCells,
     IndoorTileGroupLayer indoorTileGroups,
     WorldPathingLayer pathing,
@@ -29,6 +30,7 @@ public sealed class Sector(
     public FloorOverlayLayer FloorOverlays { get; } = floorOverlays;
     public LiquidSurfaceLayer LiquidSurfaces { get; } = liquidSurfaces;
     public StaticObjectLayer StaticObjects { get; } = staticObjects;
+    public WorldObjectLayer WorldObjects { get; } = worldObjects;
     public StairsCellLayer StairsCells { get; } = stairsCells;
     public IndoorTileGroupLayer IndoorTileGroups { get; } = indoorTileGroups;
     public WorldPathingLayer Pathing { get; } = pathing;

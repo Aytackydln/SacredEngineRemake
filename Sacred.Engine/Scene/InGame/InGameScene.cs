@@ -8,8 +8,11 @@ using Sacred.Core.Pak.Items;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Graphics;
+using Sacred.Engine.Graphics.ImGui;
 using Sacred.Engine.Platform;
+using Sacred.Particles;
 using Sacred.World;
+using Sacred.World.Particles;
 
 namespace Sacred.Engine.Scene.InGame;
 
@@ -17,9 +20,11 @@ internal sealed class InGameScene : IGameScene
 {
     private readonly AssetManager _assets;
     private readonly WorldStreamer _worldStreamer;
+    private readonly WorldParticleSystem _particles;
     private readonly SacredCamera _camera;
     private readonly SceneState _scene = new();
     private readonly PlayerCharacterController _player;
+    private readonly DoorSceneController _doors;
     private readonly WorldLightingController _worldLighting;
     private readonly InGameInputController _inputController;
     private readonly Win32Window _window;
@@ -42,8 +47,10 @@ internal sealed class InGameScene : IGameScene
         _window = window;
         _saveState = saveState;
         _worldStreamer = new WorldStreamer(resources.WorldArchive);
+        _particles = new WorldParticleSystem(resources.WorldArchive.ParticleScript, saveState.ParticleQuality);
         _camera = SacredCamera.CreateDefault(window.ClientWidth, window.ClientHeight);
         _player = new PlayerCharacterController(_assets, _scene, saveState.CharacterName);
+        _doors = new DoorSceneController(_assets, _scene);
         _worldLighting = new WorldLightingController(saveState.WorldLightingMode);
         _scene.Debug.StairsMapVisible = saveState.StairsTilesVisible;
         _scene.Debug.BlockedAreasVisible = saveState.BlockedTilesVisible;
@@ -55,13 +62,15 @@ internal sealed class InGameScene : IGameScene
             new ClickToMoveController(),
             _player,
             new StairsTraversalController(resources.WorldArchive.StairsMap),
+            _doors,
             _worldStreamer,
             _scene,
             _worldLighting,
             requestSwitch,
             updateWindowTitle,
-            () => window.ClientWidth,
-            () => window.ClientHeight,
+            () => renderer.RenderWidth,
+            () => renderer.RenderHeight,
+            renderer.OutputToRender,
             window.SetHandCursor);
         Bootstrap();
     }
@@ -73,16 +82,31 @@ internal sealed class InGameScene : IGameScene
     internal bool StairsTilesVisible => _scene.Debug.StairsMapVisible;
     internal bool BlockedTilesVisible => _scene.Debug.BlockedAreasVisible;
     internal CollisionCheatMode CollisionMode => _inputController.CollisionMode;
+    internal float PlayerMovementSpeedMultiplier => _inputController.PlayerMovementSpeedMultiplier;
     internal WorldLightingMode WorldLightingMode => _worldLighting.Mode;
+    internal SacredParticleQuality ParticleQuality => _particles.Quality;
     internal Vector2 PlayerWorldPosition => _camera.WorldCenter;
     internal bool WorldStreamingSettled => _worldStreamer.VisibleWorld.LoadingSectors == 0;
 
     internal void SetWorldLightingMode(WorldLightingMode mode) => _worldLighting.SetMode(mode);
 
+    internal void SetParticleQuality(SacredParticleQuality quality) => _particles.SetQuality(quality);
+
     internal void SetCollisionMode(CollisionCheatMode mode) => _inputController.SetCollisionMode(mode);
+
+    internal void SetPlayerMovementSpeedMultiplier(float value) =>
+        _inputController.SetPlayerMovementSpeedMultiplier(value);
 
     internal void SetNoClipEnabled(bool enabled) =>
         SetCollisionMode(enabled ? CollisionCheatMode.NoClip : CollisionCheatMode.Walk);
+
+    internal PlayerDebugPanelState CreatePlayerDebugPanelState() => _player.CreateDebugPanelState();
+
+    internal bool RemovePlayerEquipment(int slotIndex) => _player.RemoveEquipment(slotIndex);
+
+    internal bool EquipPlayerItemSet(int setIndex) => _player.EquipItemSet(setIndex);
+
+    internal bool SelectPlayerCharacter(uint entryId) => _player.SelectModel(entryId);
 
     internal Task<TextureAsset> LoadTextureAsync(string textureName, CancellationToken cancellationToken) =>
         _assets.LoadTextureAsync(textureName, cancellationToken);
@@ -138,8 +162,23 @@ internal sealed class InGameScene : IGameScene
                 _player.CycleModel();
                 message = "loading next character";
                 return true;
+            case "character" when uint.TryParse(value, out var characterIndex) && _player.SelectModel(characterIndex):
+                message = $"loading character {characterIndex}";
+                return true;
+            case "zoom" when float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var zoom) && float.IsFinite(zoom):
+                _camera.CenterOnTile(_camera.WorldCenter.X, _camera.WorldCenter.Y, zoom);
+                message = $"camera zoom set to {zoom}";
+                return true;
+            case "animation" when value.Equals("attack", StringComparison.OrdinalIgnoreCase):
+                _player.PlayAttack();
+                message = "playing attack animation";
+                return true;
+            case "particles" when TryParseBoolean(value, out var particlesEnabled):
+                _particles.Enabled = particlesEnabled;
+                message = $"world particles {(particlesEnabled ? "enabled" : "disabled")}";
+                return true;
             default:
-                message = "Unknown in-game option. Use overlays <on|off>, debug-panel <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, collision <walk|fly|noclip>, noclip <on|off>, tessellation <on|off>, item-flags <hex>, or character next.";
+                message = "Unknown in-game option. Use overlays <on|off>, debug-panel <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, collision <walk|fly|noclip>, noclip <on|off>, tessellation <on|off>, particles <on|off>, item-flags <hex>, character <next|index>, zoom <0.25..3>, or animation attack.";
                 return false;
         }
     }
@@ -161,6 +200,8 @@ internal sealed class InGameScene : IGameScene
     public void Update(float deltaSeconds)
     {
         _inputController.Update(deltaSeconds);
+        _doors.Update(_worldStreamer.VisibleWorld, _camera.WorldCenter, deltaSeconds);
+        _particles.Update(deltaSeconds, _worldStreamer.VisibleWorld);
         UpdateRegionDisplayName();
     }
 
@@ -169,13 +210,21 @@ internal sealed class InGameScene : IGameScene
             _camera,
             _worldStreamer.VisibleWorld,
             _scene,
+            _particles.Particles,
+            _particles.Revision,
             context.VerticalSyncEnabled,
             context.FramePacingStatus,
             context.FrameId,
             context.CancellationToken);
 
-    public WorldPreloadRequest CreatePreloadRequest() =>
-        new(_camera, _worldStreamer.VisibleWorld, _scene);
+    public WorldPreloadRequest CreatePreloadRequest()
+    {
+        // The loading scene renders preload frames before this scene receives Update.
+        // Select and request its initial world models here, so doors and containers
+        // do not wait for the player to cross a sector boundary.
+        _doors.Update(_worldStreamer.VisibleWorld, _camera.WorldCenter, 0.0f);
+        return new WorldPreloadRequest(_camera, _worldStreamer.VisibleWorld, _scene);
+    }
 
     /// <summary>Starts sector streaming and the loading-screen-driven GPU upload pipeline.</summary>
     public Task StartWorldPreparation() =>

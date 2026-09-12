@@ -8,7 +8,7 @@ namespace Sacred.ItemViewer.Avalonia.ItemViewer;
 
 internal sealed partial class ItemSelectionSoundPlayer : IDisposable
 {
-    private const float PlaybackVolume = 0.5f;
+    private const float PlaybackVolume = 0.25f;
     private const uint SndAsync = 0x0001;
     private const uint SndNoDefault = 0x0002;
     private const uint SndMemory = 0x0004;

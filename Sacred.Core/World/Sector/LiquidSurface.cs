@@ -13,6 +13,4 @@ public readonly record struct LiquidSurface(
     public WldxTerrainSurface SurfaceType => TileProperties.TerrainSurface;
     // These raw signed values are shared with terrain visual elevation. Sacred.exe negates
     // and scales them when producing the liquid vertex alpha.
-    // Authored floor-overlay insertion depth used when splitting terrain below and above liquid.
-    public byte FloorInsertionDepth => TileProperties.FloorInsertionDepth;
 }

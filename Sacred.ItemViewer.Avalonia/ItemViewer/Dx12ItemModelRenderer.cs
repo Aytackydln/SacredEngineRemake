@@ -7,7 +7,6 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Assets.Paks.Texture;
-using Sacred.Granny;
 using Sacred.Granny.Assets;
 using Sacred.Granny.Meshes;
 using Sacred.Particles;
@@ -80,6 +79,7 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
     private MeshBounds _meshBounds = new(Vector3.Zero, Vector3.Zero, Vector3.Zero, 1.0f);
     private MeshSurface[] _surfaces = [];
     private EquipmentEffectSurface[] _equipmentEffectSurfaces = [];
+    private EquipmentEffectScene? _equipmentEffectScene;
     private string _modelName = string.Empty;
     private Vector3 _previewRotation;
     private ItemPreviewRotationMode _rotationMode;
@@ -108,6 +108,7 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
     private bool _disposed;
     private int _shaderReloadPending;
     private long _lastResizeRequestTimestamp;
+    private long _lastEffectUpdateTimestamp;
 
     public Dx12ItemModelRenderer(nint hwnd)
     {
@@ -139,6 +140,7 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
         _selectedBonePosition = null;
         _surfaces = [];
         _equipmentEffectSurfaces = [];
+        _equipmentEffectScene = null;
         _modelName = string.Empty;
         _itemGridWidth = 1;
         _itemGridHeight = 1;
@@ -168,6 +170,7 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
         _equipmentEffectMesh = null;
         _surfaces = [];
         _equipmentEffectSurfaces = [];
+        _equipmentEffectScene = null;
         _modelName = asset.Name;
         _previewRotation = IsFinite(previewRotation) ? previewRotation : Vector3.Zero;
         _rotationMode = rotationMode;
@@ -193,6 +196,8 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
         _selectedBoneHighlightMesh = CreateSelectedBoneHighlightMesh(_selectedBonePosition);
         if (effectScene.Mesh is { Vertices.Length: > 0, Indices.Length: > 0 } effectMesh)
         {
+            _equipmentEffectScene = effectScene;
+            _lastEffectUpdateTimestamp = Stopwatch.GetTimestamp();
             _equipmentEffectMesh = UploadMesh(effectMesh);
             _equipmentEffectSurfaces = effectScene.Surfaces.ToArray();
         }
@@ -310,6 +315,7 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
             return;
 
         WaitForGpu();
+        AdvanceEquipmentEffects();
         ReloadShadersIfRequested();
         ResizeIfNeeded();
 
@@ -766,6 +772,22 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
         }
     }
 
+    private void AdvanceEquipmentEffects()
+    {
+        if (_equipmentEffectScene is null || _equipmentEffectMesh is null)
+            return;
+
+        var now = Stopwatch.GetTimestamp();
+        var elapsed = _lastEffectUpdateTimestamp == 0
+            ? 0.0f
+            : (float)Stopwatch.GetElapsedTime(_lastEffectUpdateTimestamp, now).TotalSeconds;
+        _lastEffectUpdateTimestamp = now;
+        _equipmentEffectScene.Advance(Math.Clamp(elapsed, 0.0f, 0.1f));
+        UpdateUploadBuffer(
+            _equipmentEffectMesh.VertexBuffer,
+            MemoryMarshal.AsBytes(_equipmentEffectScene.Mesh.Vertices.AsSpan()));
+    }
+
     private unsafe void RecordInventoryUi()
     {
         var mesh = _inventoryUiMesh;
@@ -1131,6 +1153,21 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
         }
 
         return resource;
+    }
+
+    private static unsafe void UpdateUploadBuffer(ID3D12Resource resource, ReadOnlySpan<byte> bytes)
+    {
+        void* mapped;
+        resource.Map(0, null, &mapped).CheckError();
+        try
+        {
+            fixed (byte* source = bytes)
+                Buffer.MemoryCopy(source, mapped, bytes.Length, bytes.Length);
+        }
+        finally
+        {
+            resource.Unmap(0, null);
+        }
     }
 
     private ID3D12Resource CreateCommittedResource(HeapType heapType, ResourceDescription description, ResourceStates initialState)

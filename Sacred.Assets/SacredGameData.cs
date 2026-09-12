@@ -1,6 +1,5 @@
 ﻿using System.Collections.Frozen;
 using Sacred.Assets.Paks.Items;
-using Sacred.Assets.Paks.Texture;
 using Sacred.Assets.Paks.Weapon;
 using Sacred.Core;
 using Sacred.Core.GameRes;
@@ -36,16 +35,12 @@ public class SacredGameData
 
     private static GamePakStore LoadGamePakStore(SacredGameDirectories gameDirectories)
     {
-        var textureInfos = SacredTextureUnpacker.Extract(gameDirectories.TexturesPakPath)
-            .DistinctBy(info => info.ImageInfo.FileName)
-            .ToFrozenDictionary(info => info.ImageInfo.FileName, info => info);
-
         var items = ItemsPakArchive.Load(gameDirectories.ItemsPakPath)
             .ToFrozenDictionary(item => item.EntryInfo.ItemIndex);
         var weapons = WeaponPakParser.Parse(gameDirectories.WeaponsPakPath, items)
             .ToFrozenDictionary(item => item.IdemId);
         
-        var gamePakStore = new GamePakStore(weapons, items, textureInfos);
+        var gamePakStore = new GamePakStore(weapons, items);
         return gamePakStore;
     }
 }

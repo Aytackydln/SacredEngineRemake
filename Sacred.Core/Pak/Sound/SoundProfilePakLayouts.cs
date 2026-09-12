@@ -16,10 +16,10 @@ public struct SoundProfileSoundIds
     private ushort _element0;
 }
 
-[InlineArray(SoundProfilePakEntryLayout.ReservedLength)]
-public struct SoundProfileReservedBytes
+[InlineArray(SoundProfilePakEntryLayout.ParameterCount)]
+public struct SoundProfileParameters
 {
-    private byte _element0;
+    private uint _element0;
 }
 
 /// <summary>Header preceding the sparse descriptor table in sndProfiles.pak.</summary>
@@ -59,7 +59,7 @@ public readonly struct SoundProfilePakEntryLayout
     public const int SerializedSize = 0xB8;
     public const uint DescriptorType = 35;
     public const int NameLength = 0x20;
-    public const int ReservedLength = 0x14;
+    public const int ParameterCount = 4;
     public const int SoundSlotCount = 64;
 
     /// <summary>Null-terminated profile name encoded as ISO-8859-1.</summary>
@@ -67,14 +67,17 @@ public readonly struct SoundProfilePakEntryLayout
     [BinaryString("Name", NameLength, "ISO-8859-1")]
     public readonly SoundProfileNameBytes NameBytes;
 
-    /// <summary>One for a defined profile and zero for an unused profile slot.</summary>
+    /// <summary>Native <c>cObjectSounds::type</c>; zero marks an unused profile slot.</summary>
     [FieldOffset(0x20)]
-    public readonly uint IsDefined;
+    public readonly SacredSoundProfileType Type;
 
-    /// <summary>Reserved profile bytes; zero in every defined Sacred Gold profile.</summary>
+    /// <summary>Native <c>cObjectSounds::flags</c>.</summary>
     [FieldOffset(0x24)]
-    [BinaryUnknown]
-    public readonly SoundProfileReservedBytes Reserved;
+    public readonly SacredSoundProfileFlags Flags;
+
+    /// <summary>Native <c>cObjectSounds::params[4]</c>.</summary>
+    [FieldOffset(0x28)]
+    public readonly SoundProfileParameters Parameters;
 
     /// <summary>
     /// Sound.pak identifiers selected for the profile's 64 authored event/variant slots.
@@ -82,4 +85,7 @@ public readonly struct SoundProfilePakEntryLayout
     /// </summary>
     [FieldOffset(0x38)]
     public readonly SoundProfileSoundIds SoundIds;
+
+    /// <summary>Whether this descriptor contains an authored sound profile.</summary>
+    public bool IsDefined => Type != SacredSoundProfileType.OST_INVALID;
 }

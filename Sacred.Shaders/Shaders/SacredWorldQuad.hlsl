@@ -88,3 +88,47 @@ float4 ps_hdr_screen(vertex_output input) : SV_Target
 
     return float4(SdrTextureToHdr10(tex.rgb, paper_white_nits), tex.a);
 }
+
+// ambient_colour.x selects the presentation filter: 0 point, 1 bilinear, 2 FSR 1-style
+// spatial reconstruction. This pass intentionally has no temporal state or motion vectors.
+float4 sample_point(float2 uv)
+{
+    uint width, height;
+    texture0.GetDimensions(width, height);
+    uint2 pixel = min(uint2(uv * float2(width, height)), uint2(width - 1, height - 1));
+    return texture0.Load(int3(pixel, 0));
+}
+
+float4 sample_fsr1(float2 uv)
+{
+    uint width, height;
+    texture0.GetDimensions(width, height);
+    float2 texel = 1.0f / float2(width, height);
+    float4 center = texture0.Sample(sampler0, uv);
+    float4 cross = texture0.Sample(sampler0, uv + float2(texel.x, 0)) +
+        texture0.Sample(sampler0, uv - float2(texel.x, 0)) +
+        texture0.Sample(sampler0, uv + float2(0, texel.y)) +
+        texture0.Sample(sampler0, uv - float2(0, texel.y));
+    // Lightweight RCAS-style sharpening after bilinear reconstruction. It is spatial-only,
+    // which is the FSR 1 property that lets this pass avoid velocity buffers entirely.
+    return center * 1.35f - cross * 0.0875f;
+}
+
+float4 sample_upscaled(float2 uv)
+{
+    if (ambient_colour.x < 0.5f)
+        return sample_point(uv);
+    if (ambient_colour.x < 1.5f)
+        return texture0.Sample(sampler0, uv);
+    return sample_fsr1(uv);
+}
+
+float4 ps_sdr_upscale(vertex_output input) : SV_Target
+{
+    return sample_upscaled(input.tex_coord);
+}
+
+float4 ps_hdr_upscale(vertex_output input) : SV_Target
+{
+    return sample_upscaled(input.tex_coord);
+}

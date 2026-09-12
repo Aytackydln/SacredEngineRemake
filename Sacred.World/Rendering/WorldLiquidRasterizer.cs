@@ -19,7 +19,7 @@ internal sealed class WorldLiquidRasterizer(TexturePakArchive textures)
         int height,
         float zoom)
     {
-        var (draws, covers) = Build(sectors, centerIso, width, height, zoom);
+        var draws = Build(sectors, centerIso, width, height, zoom);
         await Task.WhenAll(draws.Select(draw => GetTextureAsync(draw.StyleId))).ConfigureAwait(false);
         var rendered = 0;
         foreach (var draw in draws)
@@ -40,10 +40,10 @@ internal sealed class WorldLiquidRasterizer(TexturePakArchive textures)
                 TileHeight * zoom);
             rendered++;
         }
-        return new WorldLiquidRenderResult(draws.Count, rendered, covers);
+        return new WorldLiquidRenderResult(draws.Count, rendered);
     }
 
-    private static (List<LiquidDraw> Draws, List<WorldTerrainCover> Covers) Build(
+    private static List<LiquidDraw> Build(
         IReadOnlyList<Sector> sectors,
         Vector2 centerIso,
         int width,
@@ -51,16 +51,12 @@ internal sealed class WorldLiquidRasterizer(TexturePakArchive textures)
         float zoom)
     {
         var draws = new List<LiquidDraw>();
-        var covers = new List<WorldTerrainCover>();
         foreach (var sector in sectors)
         {
-            var insertionDepths = new byte[Sector.TileCount * Sector.TileCount];
-            Array.Fill(insertionDepths, byte.MaxValue);
             var sectorOriginX = sector.Coord.X * Sector.TileCount;
             var sectorOriginY = sector.Coord.Y * Sector.TileCount;
             foreach (var liquid in sector.LiquidSurfaces.Surfaces)
             {
-                insertionDepths[liquid.LocalY * Sector.TileCount + liquid.LocalX] = liquid.FloorInsertionDepth;
                 var worldX = sectorOriginX + liquid.LocalX;
                 var worldY = sectorOriginY + liquid.LocalY;
                 var iso = IsometricProjection.WorldToIso(worldX, worldY);
@@ -82,41 +78,13 @@ internal sealed class WorldLiquidRasterizer(TexturePakArchive textures)
                     Alpha(liquid.AlphaBottom, multiplier)));
             }
 
-            for (var localY = 0; localY < Sector.TileCount; localY++)
-            for (var localX = 0; localX < Sector.TileCount; localX++)
-            foreach (var floor in sector.FloorOverlays[localX, localY])
-            {
-                if (floor.ChainDepth < insertionDepths[localY * Sector.TileCount + localX])
-                    continue;
-                var worldX = sectorOriginX + localX;
-                var worldY = sectorOriginY + localY;
-                var iso = IsometricProjection.WorldToIso(worldX, worldY);
-                var screenX = width * 0.5f + (iso.X - centerIso.X) * zoom;
-                var screenY = height * 0.5f + (iso.Y - centerIso.Y) * zoom;
-                covers.Add(new WorldTerrainCover(
-                    worldX + worldY,
-                    worldY,
-                    floor.ChainDepth,
-                    screenX,
-                    screenY,
-                    floor.PrimaryTileId,
-                    floor.SecondaryTileId));
-            }
         }
         draws.Sort(static (left, right) =>
         {
             var depth = left.Depth.CompareTo(right.Depth);
             return depth != 0 ? depth : left.WorldY.CompareTo(right.WorldY);
         });
-        covers.Sort(static (left, right) =>
-        {
-            var depth = left.Depth.CompareTo(right.Depth);
-            if (depth != 0)
-                return depth;
-            var worldY = left.WorldY.CompareTo(right.WorldY);
-            return worldY != 0 ? worldY : left.ChainDepth.CompareTo(right.ChainDepth);
-        });
-        return (draws, covers);
+        return draws;
     }
 
     private Task<TextureAsset?> GetTextureAsync(byte styleId)
@@ -186,16 +154,4 @@ internal sealed class WorldLiquidRasterizer(TexturePakArchive textures)
         byte AlphaBottom);
 }
 
-internal readonly record struct WorldTerrainCover(
-    int Depth,
-    int WorldY,
-    int ChainDepth,
-    float ScreenX,
-    float ScreenY,
-    uint PrimaryTileId,
-    uint SecondaryTileId);
-
-internal readonly record struct WorldLiquidRenderResult(
-    int Candidates,
-    int Rendered,
-    IReadOnlyList<WorldTerrainCover> Covers);
+internal readonly record struct WorldLiquidRenderResult(int Candidates, int Rendered);

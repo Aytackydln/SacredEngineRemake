@@ -1,0 +1,143 @@
+{
+  "item_id": 9239,
+  "observation_ids": [
+    "2262_3132_P01",
+    "3501_3630_P01",
+    "3501_3630_P02",
+    "3501_3630_P03"
+  ],
+  "differing_offsets": [
+    0,
+    1,
+    2,
+    12,
+    13,
+    14,
+    15,
+    18,
+    19,
+    20
+  ],
+  "differences": [
+    {
+      "offset": 0,
+      "offset_hex": "0x00",
+      "values": [
+        8,
+        123,
+        68,
+        52
+      ]
+    },
+    {
+      "offset": 1,
+      "offset_hex": "0x01",
+      "values": [
+        207,
+        181,
+        182,
+        183
+      ]
+    },
+    {
+      "offset": 2,
+      "offset_hex": "0x02",
+      "values": [
+        7,
+        12,
+        12,
+        12
+      ]
+    },
+    {
+      "offset": 12,
+      "offset_hex": "0x0C",
+      "values": [
+        177,
+        147,
+        147,
+        147
+      ]
+    },
+    {
+      "offset": 13,
+      "offset_hex": "0x0D",
+      "values": [
+        12,
+        14,
+        14,
+        14
+      ]
+    },
+    {
+      "offset": 14,
+      "offset_hex": "0x0E",
+      "values": [
+        120,
+        184,
+        104,
+        232
+      ]
+    },
+    {
+      "offset": 15,
+      "offset_hex": "0x0F",
+      "values": [
+        91,
+        234,
+        233,
+        228
+      ]
+    },
+    {
+      "offset": 18,
+      "offset_hex": "0x12",
+      "values": [
+        214,
+        198,
+        190,
+        174
+      ]
+    },
+    {
+      "offset": 19,
+      "offset_hex": "0x13",
+      "values": [
+        249,
+        153,
+        155,
+        156
+      ]
+    },
+    {
+      "offset": 20,
+      "offset_hex": "0x14",
+      "values": [
+        1,
+        2,
+        2,
+        2
+      ]
+    }
+  ],
+  "all_other_bytes_identical": true,
+  "differing_field_ranges": {
+    "payload_instance_id": [
+      0,
+      4
+    ],
+    "sector_id": [
+      12,
+      14
+    ],
+    "projected_x": [
+      14,
+      18
+    ],
+    "projected_y": [
+      18,
+      22
+    ]
+  },
+  "interpretation": "Only instance identity, sector and position differ among these four full Static.PAK records. No per-instance particle size/rate/texture difference is visible in the remaining bytes. The screenshot effect difference could involve runtime particle age/state, context, or attribution; this does not prove an item-ID-only dispatch."
+}

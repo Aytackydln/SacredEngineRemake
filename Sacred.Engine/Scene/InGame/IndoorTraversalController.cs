@@ -33,18 +33,20 @@ internal sealed class IndoorTraversalController(WorldStreamer worldStreamer, Ind
         _pendingEntranceGroup = null;
         if (IsInteriorZone(crossedGroup, tile))
         {
-            if (state.ActiveGroup?.Id == crossedGroup.Id)
+            if (state.ActiveGroup is { } active && IsSameBuilding(active, crossedGroup))
                 return false;
 
             state.ActiveGroup = crossedGroup;
-        EngineLog.WriteLine($"Indoor entry: group {crossedGroup.Id} after gate at {tile.X},{tile.Y}");
+            EngineLog.WriteLine($"Indoor entry: group {crossedGroup.Id} after gate at {tile.X},{tile.Y}");
             return true;
         }
 
-        if (state.ActiveGroup?.Id == crossedGroup.Id)
+        // A shared ground-floor doorway also exits an upper-floor group, but
+        // only when leaving the building, not when backing away from the gate.
+        if (state.ActiveGroup is { } activeGroup && IsSameBuilding(activeGroup, crossedGroup))
         {
             state.ActiveGroup = null;
-        EngineLog.WriteLine($"Indoor exit: group {crossedGroup.Id} after gate at {tile.X},{tile.Y}");
+            EngineLog.WriteLine($"Indoor exit: group {activeGroup.Id} through gate group {crossedGroup.Id} at {tile.X},{tile.Y}");
             return true;
         }
 
@@ -57,6 +59,9 @@ internal sealed class IndoorTraversalController(WorldStreamer worldStreamer, Ind
         _lastTile = tile;
         _pendingEntranceGroup = null;
         state.ActiveGroup = FindInteriorGroup(tile, surfaceLevel);
+        EngineLog.WriteLine(state.ActiveGroup is { } group
+            ? $"Indoor surface reset: group {group.Id}, visibility state {group.SurfaceRenderLayer} at {tile.X},{tile.Y}."
+            : $"Indoor surface reset: exterior at {tile.X},{tile.Y}.");
     }
 
     private IndoorTileGroup? FindEntranceGroup(WorldTile tile)
@@ -104,6 +109,12 @@ internal sealed class IndoorTraversalController(WorldStreamer worldStreamer, Ind
         // authored 0x09/0x0A doorway pair, exposed by the packed enum, bounds the crossing.
         return !group.Pathing[localX, localY].IsEntranceBoundary;
     }
+
+    private static bool IsSameBuilding(IndoorTileGroup left, IndoorTileGroup right) =>
+        left.WorldX == right.WorldX &&
+        left.WorldY == right.WorldY &&
+        left.Width == right.Width &&
+        left.Height == right.Height;
 
     private readonly record struct WorldTile(int X, int Y)
     {

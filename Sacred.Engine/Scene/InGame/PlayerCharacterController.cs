@@ -1,13 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Engine.Animation;
 using Sacred.Engine.Assets;
+using Sacred.Engine.Graphics.ImGui;
 using Sacred.Granny.Assets;
 using Sacred.Granny.Meshes;
+using Sacred.Inventory.Actors;
 using Sacred.World;
 using Sacred.World.Geometry;
 
@@ -26,9 +29,11 @@ internal sealed class PlayerCharacterController : IDisposable
     private readonly HashSet<PlayerModelRequest> _requests = [];
 
     private Vector3 _position;
+    private Vector2 _worldCenter;
     private float _movementRotationZ = -MathF.PI * 0.25f;
     private uint _activeModelEntryId;
     private uint _requestedModelEntryId;
+    private PlayerCharacterLoadout _loadout;
     private PlayerCharacterAsset? _activeAsset;
     private CharacterAnimationState? _animation;
     private PlayerModelRequest? _currentRequest;
@@ -48,6 +53,7 @@ internal sealed class PlayerCharacterController : IDisposable
         _scene = scene;
         _activeModelEntryId = TestCharacters.ResolveEntryId(initialCharacterName);
         _requestedModelEntryId = _activeModelEntryId;
+        _loadout = _assets.CreatePlayerCharacterLoadout(_activeModelEntryId);
     }
 
     public string SelectedCharacterName => TestCharacters.GetDisplayName(_requestedModelEntryId);
@@ -62,7 +68,7 @@ internal sealed class PlayerCharacterController : IDisposable
             _position,
             BuildRotation(),
             groundPlaneZ: GroundPlaneZ));
-        RequestModel(_requestedModelEntryId);
+        RequestModel(_loadout);
     }
 
     public void ApplyPendingAssets()
@@ -81,6 +87,7 @@ internal sealed class PlayerCharacterController : IDisposable
         float locomotionAnimationSpeed,
         float deltaSeconds)
     {
+        var cameraWorldMovement = worldCenter - _worldCenter;
         UpdatePosition(worldCenter, terrain);
         if (facingDirection != Vector2.Zero)
         {
@@ -95,12 +102,109 @@ internal sealed class PlayerCharacterController : IDisposable
                     ? CharacterAnimationStateId.Walk
                     : CharacterAnimationStateId.Run
                 : CharacterAnimationStateId.Idle);
-        _animation?.Update(deltaSeconds, locomotionAnimationSpeed);
         if (_scene.Models.Count > 0)
-            _scene.Models[0].SetPose(_position, BuildRotation(), worldCenter, GroundPlaneZ);
+            _scene.Models[0].SetPoseFollowingCamera(
+                _position,
+                BuildRotation(),
+                worldCenter,
+                GroundPlaneZ,
+                cameraWorldMovement);
+        _animation?.Update(deltaSeconds, locomotionAnimationSpeed);
     }
 
     public void PlayAttack() => _animation?.PlayAttack();
+
+    public PlayerDebugPanelState CreateDebugPanelState()
+    {
+        var slots = new PlayerEquipmentSlotState[_loadout.Actor.EquipmentSlots.Count];
+        var occurrences = new Dictionary<EquipmentSlotType, int>();
+        for (var index = 0; index < slots.Length; index++)
+        {
+            var slot = _loadout.Actor.EquipmentSlots[index];
+            occurrences.TryGetValue(slot.Type, out var occurrence);
+            occurrences[slot.Type] = occurrence + 1;
+            var displayName = occurrence == 0 && _loadout.Actor.EquipmentSlots.Count(candidate => candidate.Type == slot.Type) == 1
+                ? slot.Type.ToString()
+                : $"{slot.Type} {occurrence + 1}";
+            slots[index] = new PlayerEquipmentSlotState(
+                index,
+                displayName,
+                slot.Equipment?.Name,
+                slot.Equipment?.IdemId);
+        }
+
+        var itemSets = new PlayerItemSetState[_assets.ItemSets.Count];
+        for (var index = 0; index < itemSets.Length; index++)
+        {
+            var set = _assets.ItemSets[index];
+            if (!_assets.CanEquipItemSet(index, _loadout.Actor.CharacterClass))
+                continue;
+
+            itemSets[index] = new PlayerItemSetState(
+                index,
+                set.SetIdentifier,
+                set.ItemIds.Count,
+                _assets.ResolveItemSetEquipment(index).Count);
+        }
+
+        itemSets = itemSets.Where(static set => set.ResolvedEquipmentCount > 0).ToArray();
+
+        var presets = new PlayerCharacterPresetState[_assets.PlayerCharacterCount];
+        for (var index = 0; index < presets.Length; index++)
+        {
+            var entryId = checked((uint)index + 1);
+            presets[index] = new PlayerCharacterPresetState(entryId, TestCharacters.GetDisplayName(entryId));
+        }
+
+        return new PlayerDebugPanelState(
+            SelectedCharacterName,
+            _requestedModelEntryId,
+            presets,
+            slots,
+            itemSets);
+    }
+
+    public bool RemoveEquipment(int slotIndex)
+    {
+        if ((uint)slotIndex >= (uint)_loadout.Actor.EquipmentSlots.Count ||
+            _loadout.Actor.EquipmentSlots[slotIndex].Equipment is null)
+        {
+            return false;
+        }
+
+        var slot = _loadout.Actor.EquipmentSlots[slotIndex];
+        EngineLog.WriteLine($"Player equipment removed: {slot.Type} {slot.Equipment!.Value.Name}.");
+        slot.Unequip();
+        RequestModel(_loadout);
+        return true;
+    }
+
+    public bool EquipItemSet(int setIndex)
+    {
+        if (!_assets.CanEquipItemSet(setIndex, _loadout.Actor.CharacterClass))
+            return false;
+
+        var equipment = _assets.ResolveItemSetEquipment(setIndex);
+        if (equipment.Count == 0)
+            return false;
+
+        var equipped = _loadout.Actor.EquipSet(equipment);
+        if (equipped == 0)
+            return false;
+
+        EngineLog.WriteLine($"Player item set equipped: set {setIndex} replaced {equipped} equipment slot(s).");
+        RequestModel(_loadout);
+        return true;
+    }
+
+    public bool SelectModel(uint entryId)
+    {
+        if (entryId < 1 || entryId > _assets.PlayerCharacterCount) return false;
+        _loadout = _assets.CreatePlayerCharacterLoadout(entryId);
+        RequestModel(_loadout);
+        EngineLog.WriteLine($"Debug input: selected character {TestCharacters.GetDisplayName(entryId)}");
+        return true;
+    }
 
     public void CycleModel()
     {
@@ -108,8 +212,9 @@ internal sealed class PlayerCharacterController : IDisposable
             ? FirstModelSlotId
             : _requestedModelEntryId + 1;
 
-        RequestModel(next);
-            EngineLog.WriteLine($"Debug input: selected character {TestCharacters.GetDisplayName(next)}");
+        _loadout = _assets.CreatePlayerCharacterLoadout(next);
+        RequestModel(_loadout);
+        EngineLog.WriteLine($"Debug input: selected character {TestCharacters.GetDisplayName(next)}");
     }
 
     public void Dispose()
@@ -131,8 +236,9 @@ internal sealed class PlayerCharacterController : IDisposable
             .GetResult();
     }
 
-    private void RequestModel(uint entryId)
+    private void RequestModel(PlayerCharacterLoadout loadout)
     {
+        var entryId = loadout.EntryId;
         PlayerModelRequest? supersededRequest;
         PlayerModelRequest request;
         lock (_requestGate)
@@ -145,7 +251,7 @@ internal sealed class PlayerCharacterController : IDisposable
             _transitionPending = true;
             Interlocked.Exchange(ref _pendingModel, null);
             Interlocked.Exchange(ref _pendingAnimation, null);
-            request = new PlayerModelRequest(entryId, ++_requestVersion);
+            request = new PlayerModelRequest(entryId, ++_requestVersion, loadout.Snapshot());
             _currentRequest = request;
             _requests.Add(request);
         }
@@ -166,7 +272,7 @@ internal sealed class PlayerCharacterController : IDisposable
             try
             {
                 player = await _assets
-                    .LoadPlayerCharacterAsync(request.EntryId, cancellationToken)
+                    .LoadPlayerCharacterAsync(request.Loadout, cancellationToken)
                     .ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -225,7 +331,7 @@ internal sealed class PlayerCharacterController : IDisposable
         try
         {
             var animations = await _assets
-                .LoadPlayerCharacterAnimationsAsync(request.EntryId, cancellationToken)
+                .LoadPlayerCharacterAnimationsAsync(player, cancellationToken)
                 .ConfigureAwait(false);
             if (animations is null)
                 return;
@@ -344,12 +450,13 @@ internal sealed class PlayerCharacterController : IDisposable
         _scene.Lighting.PlayerLightDiameter = _assets.PlayableCharacterLightRadius > 0.0f
             ? _assets.PlayableCharacterLightRadius * 2.0f
             : item is { } value
-                ? value.ModelDesc.ModelExtent * 2.0f
+                ? value.ModelDesc.Radius * 2.0f
                 : 0.0f;
     }
 
     private void UpdatePosition(Vector2 worldPosition, TerrainElevationSample terrain)
     {
+        _worldCenter = worldPosition;
         _position = new Vector3(
             worldPosition.X + TerrainElevationProjection.HorizontalWorldOffset(
                 terrain.HorizontalOffset),
@@ -375,12 +482,16 @@ internal sealed class PlayerCharacterController : IDisposable
         long RequestVersion,
         CharacterAnimationState Animation);
 
-    private sealed class PlayerModelRequest(uint entryId, long requestVersion)
+    private sealed class PlayerModelRequest(
+        uint entryId,
+        long requestVersion,
+        PlayerCharacterLoadout loadout)
     {
         private int _cancellationDisposed;
 
         public uint EntryId { get; } = entryId;
         public long RequestVersion { get; } = requestVersion;
+        public PlayerCharacterLoadout Loadout { get; } = loadout;
         public CancellationTokenSource Cancellation { get; } = new();
         public TaskCompletionSource Completion { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);

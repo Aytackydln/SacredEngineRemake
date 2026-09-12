@@ -129,6 +129,31 @@ internal sealed class Dx12ScreenPass : IDisposable
         _commandList.DrawInstanced(6, 1, 0, 0);
     }
 
+    public unsafe void RecordUpscale(
+        ID3D12RootSignature rootSignature,
+        ID3D12PipelineState pipelineState,
+        int outputWidth,
+        int outputHeight,
+        float paperWhiteNits,
+        GpuDescriptorHandle sceneColor,
+        RenderScalingMode scalingMode)
+    {
+        _commandList.SetGraphicsRootSignature(rootSignature);
+        _commandList.SetPipelineState(pipelineState);
+        _commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
+        var values = stackalloc float[WorldQuadShaderLayout.RootConstantsCount];
+        _constants.Write(values, new WorldQuadShaderConstants(
+            new Vector4(0, 0, outputWidth, outputHeight), new Vector2(outputWidth, outputHeight),
+            new Vector3((float)scalingMode, 0, 0), false, paperWhiteNits));
+        _commandList.SetGraphicsRoot32BitConstants(
+            WorldQuadShaderLayout.RootConstantsRootParameter,
+            WorldQuadShaderLayout.RootConstantsCount,
+            values,
+            0);
+        _commandList.SetGraphicsRootDescriptorTable(WorldQuadShaderLayout.TextureRootParameter, sceneColor);
+        _commandList.DrawInstanced(6, 1, 0, 0);
+    }
+
     public void Dispose()
     {
         _texture?.Dispose();

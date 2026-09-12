@@ -1,0 +1,2310 @@
+[
+  {
+    "path": "bin/Addon/merc.bin",
+    "byte_length": 1872
+  },
+  {
+    "path": "bin/Addon/NetScriptCamp/DefPos.bin",
+    "byte_length": 196468
+  },
+  {
+    "path": "bin/Addon/NetScriptCamp/FunkCode.bin",
+    "byte_length": 2504248
+  },
+  {
+    "path": "bin/Addon/NetScriptCamp/QuestCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/Addon/NetScriptCamp/QuestPoolCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/Addon/NetScriptCamp/StartCode.bin",
+    "byte_length": 600760
+  },
+  {
+    "path": "bin/Addon/NetScriptCamp/Vectoren.bin",
+    "byte_length": 1500964
+  },
+  {
+    "path": "bin/Addon/NetScript/DefPos.bin",
+    "byte_length": 612188
+  },
+  {
+    "path": "bin/Addon/NetScript/FunkCode.bin",
+    "byte_length": 2774679
+  },
+  {
+    "path": "bin/Addon/NetScript/QuestCode.bin",
+    "byte_length": 15
+  },
+  {
+    "path": "bin/Addon/NetScript/QuestPoolCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/Addon/NetScript/StartCode.bin",
+    "byte_length": 640517
+  },
+  {
+    "path": "bin/Addon/NetScript/Vectoren.bin",
+    "byte_length": 1660120
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_DAEMONIN/DefPos.bin",
+    "byte_length": 496104
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_DAEMONIN/FunkCode.bin",
+    "byte_length": 2504248
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_DAEMONIN/QuestCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_DAEMONIN/QuestPoolCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_DAEMONIN/StartCode.bin",
+    "byte_length": 600760
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_DAEMONIN/Vectoren.bin",
+    "byte_length": 1500964
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_DARKELVE/DefPos.bin",
+    "byte_length": 295348
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_DARKELVE/FunkCode.bin",
+    "byte_length": 2504248
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_DARKELVE/QuestCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_DARKELVE/QuestPoolCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_DARKELVE/StartCode.bin",
+    "byte_length": 600760
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_DARKELVE/Vectoren.bin",
+    "byte_length": 1500964
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_ELVE/DefPos.bin",
+    "byte_length": 344788
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_ELVE/FunkCode.bin",
+    "byte_length": 2504248
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_ELVE/QuestCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_ELVE/QuestPoolCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_ELVE/StartCode.bin",
+    "byte_length": 600760
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_ELVE/Vectoren.bin",
+    "byte_length": 1500964
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_GLADIATOR/DefPos.bin",
+    "byte_length": 196468
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_GLADIATOR/FunkCode.bin",
+    "byte_length": 2504248
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_GLADIATOR/QuestCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_GLADIATOR/QuestPoolCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_GLADIATOR/StartCode.bin",
+    "byte_length": 600760
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_GLADIATOR/Vectoren.bin",
+    "byte_length": 1500964
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_MAGICIAN/DefPos.bin",
+    "byte_length": 1194240
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_MAGICIAN/FunkCode.bin",
+    "byte_length": 2504248
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_MAGICIAN/QuestCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_MAGICIAN/QuestPoolCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_MAGICIAN/StartCode.bin",
+    "byte_length": 600760
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_MAGICIAN/Vectoren.bin",
+    "byte_length": 1500964
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_SERAPHIM/DefPos.bin",
+    "byte_length": 147028
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_SERAPHIM/FunkCode.bin",
+    "byte_length": 2504248
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_SERAPHIM/QuestCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_SERAPHIM/QuestPoolCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_SERAPHIM/StartCode.bin",
+    "byte_length": 600760
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_SERAPHIM/Vectoren.bin",
+    "byte_length": 1500964
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_VAMPIRELADY/DefPos.bin",
+    "byte_length": 1543308
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_VAMPIRELADY/FunkCode.bin",
+    "byte_length": 2504248
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_VAMPIRELADY/QuestCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_VAMPIRELADY/QuestPoolCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_VAMPIRELADY/StartCode.bin",
+    "byte_length": 600760
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_VAMPIRELADY/Vectoren.bin",
+    "byte_length": 1500964
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_ZWERG/DefPos.bin",
+    "byte_length": 845172
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_ZWERG/FunkCode.bin",
+    "byte_length": 2504248
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_ZWERG/QuestCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_ZWERG/QuestPoolCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_ZWERG/StartCode.bin",
+    "byte_length": 600760
+  },
+  {
+    "path": "bin/Addon/TYPE_NPC_ZWERG/Vectoren.bin",
+    "byte_length": 1500964
+  },
+  {
+    "path": "bin/Balance.bin",
+    "byte_length": 24328
+  },
+  {
+    "path": "bin/merc.bin",
+    "byte_length": 1872
+  },
+  {
+    "path": "bin/MultiStart.bin",
+    "byte_length": 768
+  },
+  {
+    "path": "bin/NetScriptCamp/DefPos.bin",
+    "byte_length": 821948
+  },
+  {
+    "path": "bin/NetScriptCamp/FunkCode.bin",
+    "byte_length": 3967103
+  },
+  {
+    "path": "bin/NetScriptCamp/QuestCode.bin",
+    "byte_length": 53
+  },
+  {
+    "path": "bin/NetScriptCamp/QuestPoolCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/NetScriptCamp/StartCode.bin",
+    "byte_length": 578356
+  },
+  {
+    "path": "bin/NetScriptCamp/Vectoren.bin",
+    "byte_length": 2175076
+  },
+  {
+    "path": "bin/NetScript/DefPos.bin",
+    "byte_length": 1333868
+  },
+  {
+    "path": "bin/NetScript/FunkCode.bin",
+    "byte_length": 2774680
+  },
+  {
+    "path": "bin/NetScript/QuestCode.bin",
+    "byte_length": 15
+  },
+  {
+    "path": "bin/NetScript/QuestPoolCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/NetScript/StartCode.bin",
+    "byte_length": 640517
+  },
+  {
+    "path": "bin/NetScript/Vectoren.bin",
+    "byte_length": 1660120
+  },
+  {
+    "path": "bin/Rust.bin",
+    "byte_length": 4392
+  },
+  {
+    "path": "bin/sets.bin",
+    "byte_length": 7396
+  },
+  {
+    "path": "bin/sgf.bin",
+    "byte_length": 3963314
+  },
+  {
+    "path": "bin/sgq.bin",
+    "byte_length": 40
+  },
+  {
+    "path": "bin/sgqp.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/static10_18.bin",
+    "byte_length": 41440
+  },
+  {
+    "path": "bin/treppe.bin",
+    "byte_length": 19952
+  },
+  {
+    "path": "bin/TYPE_NPC_DAEMONIN/DefPos.bin",
+    "byte_length": 601164
+  },
+  {
+    "path": "bin/TYPE_NPC_DAEMONIN/FunkCode.bin",
+    "byte_length": 3962049
+  },
+  {
+    "path": "bin/TYPE_NPC_DAEMONIN/QuestCode.bin",
+    "byte_length": 40
+  },
+  {
+    "path": "bin/TYPE_NPC_DAEMONIN/QuestPoolCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/TYPE_NPC_DAEMONIN/StartCode.bin",
+    "byte_length": 575477
+  },
+  {
+    "path": "bin/TYPE_NPC_DAEMONIN/Vectoren.bin",
+    "byte_length": 2171216
+  },
+  {
+    "path": "bin/TYPE_NPC_DARKELVE/DefPos.bin",
+    "byte_length": 927620
+  },
+  {
+    "path": "bin/TYPE_NPC_DARKELVE/FunkCode.bin",
+    "byte_length": 3961940
+  },
+  {
+    "path": "bin/TYPE_NPC_DARKELVE/QuestCode.bin",
+    "byte_length": 40
+  },
+  {
+    "path": "bin/TYPE_NPC_DARKELVE/QuestPoolCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/TYPE_NPC_DARKELVE/StartCode.bin",
+    "byte_length": 575839
+  },
+  {
+    "path": "bin/TYPE_NPC_DARKELVE/Vectoren.bin",
+    "byte_length": 2171720
+  },
+  {
+    "path": "bin/TYPE_NPC_ELVE/DefPos.bin",
+    "byte_length": 599756
+  },
+  {
+    "path": "bin/TYPE_NPC_ELVE/FunkCode.bin",
+    "byte_length": 3961814
+  },
+  {
+    "path": "bin/TYPE_NPC_ELVE/QuestCode.bin",
+    "byte_length": 40
+  },
+  {
+    "path": "bin/TYPE_NPC_ELVE/QuestPoolCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/TYPE_NPC_ELVE/StartCode.bin",
+    "byte_length": 575827
+  },
+  {
+    "path": "bin/TYPE_NPC_ELVE/Vectoren.bin",
+    "byte_length": 2171804
+  },
+  {
+    "path": "bin/TYPE_NPC_GLADIATOR/DefPos.bin",
+    "byte_length": 604768
+  },
+  {
+    "path": "bin/TYPE_NPC_GLADIATOR/FunkCode.bin",
+    "byte_length": 3967103
+  },
+  {
+    "path": "bin/TYPE_NPC_GLADIATOR/QuestCode.bin",
+    "byte_length": 53
+  },
+  {
+    "path": "bin/TYPE_NPC_GLADIATOR/QuestPoolCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/TYPE_NPC_GLADIATOR/StartCode.bin",
+    "byte_length": 578356
+  },
+  {
+    "path": "bin/TYPE_NPC_GLADIATOR/Vectoren.bin",
+    "byte_length": 2175076
+  },
+  {
+    "path": "bin/TYPE_NPC_MAGICIAN/DefPos.bin",
+    "byte_length": 600640
+  },
+  {
+    "path": "bin/TYPE_NPC_MAGICIAN/FunkCode.bin",
+    "byte_length": 3962453
+  },
+  {
+    "path": "bin/TYPE_NPC_MAGICIAN/QuestCode.bin",
+    "byte_length": 40
+  },
+  {
+    "path": "bin/TYPE_NPC_MAGICIAN/QuestPoolCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/TYPE_NPC_MAGICIAN/StartCode.bin",
+    "byte_length": 575650
+  },
+  {
+    "path": "bin/TYPE_NPC_MAGICIAN/Vectoren.bin",
+    "byte_length": 2172012
+  },
+  {
+    "path": "bin/TYPE_NPC_SERAPHIM/DefPos.bin",
+    "byte_length": 927924
+  },
+  {
+    "path": "bin/TYPE_NPC_SERAPHIM/FunkCode.bin",
+    "byte_length": 3962707
+  },
+  {
+    "path": "bin/TYPE_NPC_SERAPHIM/QuestCode.bin",
+    "byte_length": 40
+  },
+  {
+    "path": "bin/TYPE_NPC_SERAPHIM/QuestPoolCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/TYPE_NPC_SERAPHIM/StartCode.bin",
+    "byte_length": 576005
+  },
+  {
+    "path": "bin/TYPE_NPC_SERAPHIM/Vectoren.bin",
+    "byte_length": 2172600
+  },
+  {
+    "path": "bin/TYPE_NPC_VAMPIRELADY/DefPos.bin",
+    "byte_length": 601592
+  },
+  {
+    "path": "bin/TYPE_NPC_VAMPIRELADY/FunkCode.bin",
+    "byte_length": 3963314
+  },
+  {
+    "path": "bin/TYPE_NPC_VAMPIRELADY/QuestCode.bin",
+    "byte_length": 40
+  },
+  {
+    "path": "bin/TYPE_NPC_VAMPIRELADY/QuestPoolCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/TYPE_NPC_VAMPIRELADY/StartCode.bin",
+    "byte_length": 577275
+  },
+  {
+    "path": "bin/TYPE_NPC_VAMPIRELADY/Vectoren.bin",
+    "byte_length": 2172392
+  },
+  {
+    "path": "bin/TYPE_NPC_ZWERG/DefPos.bin",
+    "byte_length": 928220
+  },
+  {
+    "path": "bin/TYPE_NPC_ZWERG/FunkCode.bin",
+    "byte_length": 3960242
+  },
+  {
+    "path": "bin/TYPE_NPC_ZWERG/QuestCode.bin",
+    "byte_length": 40
+  },
+  {
+    "path": "bin/TYPE_NPC_ZWERG/QuestPoolCode.bin",
+    "byte_length": 1
+  },
+  {
+    "path": "bin/TYPE_NPC_ZWERG/StartCode.bin",
+    "byte_length": 575674
+  },
+  {
+    "path": "bin/TYPE_NPC_ZWERG/Vectoren.bin",
+    "byte_length": 2170964
+  },
+  {
+    "path": "bin/wea.bin",
+    "byte_length": 4648
+  },
+  {
+    "path": "bin/World.bin",
+    "byte_length": 46264
+  },
+  {
+    "path": "bin/World2.bin",
+    "byte_length": 32772
+  },
+  {
+    "path": "bin/wpmod.bin",
+    "byte_length": 147796
+  },
+  {
+    "path": "Capture/shot0000.jpg",
+    "byte_length": 122246
+  },
+  {
+    "path": "Capture/shot0000.tga",
+    "byte_length": 3145746
+  },
+  {
+    "path": "cimgui.dll",
+    "byte_length": 1450496
+  },
+  {
+    "path": "Config.exe",
+    "byte_length": 151552
+  },
+  {
+    "path": "credits.txt",
+    "byte_length": 11489
+  },
+  {
+    "path": "credits2.txt",
+    "byte_length": 11463
+  },
+  {
+    "path": "D3D8.dll",
+    "byte_length": 418304
+  },
+  {
+    "path": "D3D9.dll",
+    "byte_length": 485376
+  },
+  {
+    "path": "D3DImm.dll",
+    "byte_length": 210432
+  },
+  {
+    "path": "DDraw.dll",
+    "byte_length": 258048
+  },
+  {
+    "path": "DEBUG.LOG",
+    "byte_length": 0
+  },
+  {
+    "path": "dgVoodoo.conf",
+    "byte_length": 21941
+  },
+  {
+    "path": "DirectX/Apr2005_d3dx9_25_x64.cab",
+    "byte_length": 1348242
+  },
+  {
+    "path": "DirectX/Apr2005_d3dx9_25_x86.cab",
+    "byte_length": 1079850
+  },
+  {
+    "path": "DirectX/Apr2006_d3dx9_30_x64.cab",
+    "byte_length": 1398718
+  },
+  {
+    "path": "DirectX/Apr2006_d3dx9_30_x86.cab",
+    "byte_length": 1116109
+  },
+  {
+    "path": "DirectX/Apr2006_MDX1_x86.cab",
+    "byte_length": 917318
+  },
+  {
+    "path": "DirectX/Apr2006_MDX1_x86_Archive.cab",
+    "byte_length": 4163518
+  },
+  {
+    "path": "DirectX/Apr2006_XACT_x64.cab",
+    "byte_length": 180021
+  },
+  {
+    "path": "DirectX/Apr2006_XACT_x86.cab",
+    "byte_length": 133991
+  },
+  {
+    "path": "DirectX/Apr2006_xinput_x64.cab",
+    "byte_length": 87989
+  },
+  {
+    "path": "DirectX/Apr2006_xinput_x86.cab",
+    "byte_length": 46898
+  },
+  {
+    "path": "DirectX/Aug2005_d3dx9_27_x64.cab",
+    "byte_length": 1351430
+  },
+  {
+    "path": "DirectX/Aug2005_d3dx9_27_x86.cab",
+    "byte_length": 1078532
+  },
+  {
+    "path": "DirectX/AUG2006_XACT_x64.cab",
+    "byte_length": 183863
+  },
+  {
+    "path": "DirectX/AUG2006_XACT_x86.cab",
+    "byte_length": 138195
+  },
+  {
+    "path": "DirectX/AUG2006_xinput_x64.cab",
+    "byte_length": 88102
+  },
+  {
+    "path": "DirectX/AUG2006_xinput_x86.cab",
+    "byte_length": 47018
+  },
+  {
+    "path": "DirectX/BDA.cab",
+    "byte_length": 703080
+  },
+  {
+    "path": "DirectX/BDANT.cab",
+    "byte_length": 1156363
+  },
+  {
+    "path": "DirectX/BDAXP.cab",
+    "byte_length": 976020
+  },
+  {
+    "path": "DirectX/Dec2005_d3dx9_28_x64.cab",
+    "byte_length": 1358864
+  },
+  {
+    "path": "DirectX/Dec2005_d3dx9_28_x86.cab",
+    "byte_length": 1080344
+  },
+  {
+    "path": "DirectX/DEC2006_d3dx10_00_x64.cab",
+    "byte_length": 213767
+  },
+  {
+    "path": "DirectX/DEC2006_d3dx10_00_x86.cab",
+    "byte_length": 192680
+  },
+  {
+    "path": "DirectX/DEC2006_d3dx9_32_x64.cab",
+    "byte_length": 1572114
+  },
+  {
+    "path": "DirectX/DEC2006_d3dx9_32_x86.cab",
+    "byte_length": 1575336
+  },
+  {
+    "path": "DirectX/DEC2006_XACT_x64.cab",
+    "byte_length": 193435
+  },
+  {
+    "path": "DirectX/DEC2006_XACT_x86.cab",
+    "byte_length": 146559
+  },
+  {
+    "path": "DirectX/DirectX.cab",
+    "byte_length": 15493481
+  },
+  {
+    "path": "DirectX/DSETUP.dll",
+    "byte_length": 74520
+  },
+  {
+    "path": "DirectX/dsetup32.dll",
+    "byte_length": 1670936
+  },
+  {
+    "path": "DirectX/dxdllreg_x86.cab",
+    "byte_length": 41991
+  },
+  {
+    "path": "DirectX/dxnt.cab",
+    "byte_length": 13265040
+  },
+  {
+    "path": "DirectX/dxsetup.exe",
+    "byte_length": 484632
+  },
+  {
+    "path": "DirectX/dxupdate.cab",
+    "byte_length": 82384
+  },
+  {
+    "path": "DirectX/Feb2005_d3dx9_24_x64.cab",
+    "byte_length": 1248387
+  },
+  {
+    "path": "DirectX/Feb2005_d3dx9_24_x86.cab",
+    "byte_length": 1014113
+  },
+  {
+    "path": "DirectX/Feb2006_d3dx9_29_x64.cab",
+    "byte_length": 1363684
+  },
+  {
+    "path": "DirectX/Feb2006_d3dx9_29_x86.cab",
+    "byte_length": 1085608
+  },
+  {
+    "path": "DirectX/Feb2006_XACT_x64.cab",
+    "byte_length": 179247
+  },
+  {
+    "path": "DirectX/Feb2006_XACT_x86.cab",
+    "byte_length": 133297
+  },
+  {
+    "path": "DirectX/Jun2005_d3dx9_26_x64.cab",
+    "byte_length": 1336890
+  },
+  {
+    "path": "DirectX/Jun2005_d3dx9_26_x86.cab",
+    "byte_length": 1065813
+  },
+  {
+    "path": "DirectX/JUN2006_XACT_x64.cab",
+    "byte_length": 181745
+  },
+  {
+    "path": "DirectX/JUN2006_XACT_x86.cab",
+    "byte_length": 134631
+  },
+  {
+    "path": "DirectX/Oct2005_xinput_x64.cab",
+    "byte_length": 86925
+  },
+  {
+    "path": "DirectX/Oct2005_xinput_x86.cab",
+    "byte_length": 46247
+  },
+  {
+    "path": "DirectX/OCT2006_d3dx9_31_x64.cab",
+    "byte_length": 1413862
+  },
+  {
+    "path": "DirectX/OCT2006_d3dx9_31_x86.cab",
+    "byte_length": 1128177
+  },
+  {
+    "path": "DirectX/OCT2006_XACT_x64.cab",
+    "byte_length": 183321
+  },
+  {
+    "path": "DirectX/OCT2006_XACT_x86.cab",
+    "byte_length": 138977
+  },
+  {
+    "path": "DirectX/OCT2006_xinput_x64.cab",
+    "byte_length": 91265
+  },
+  {
+    "path": "DirectX/OCT2006_xinput_x86.cab",
+    "byte_length": 49149
+  },
+  {
+    "path": "Docs/Manual.pdf",
+    "byte_length": 14354844
+  },
+  {
+    "path": "Docs/Map.pdf",
+    "byte_length": 10750351
+  },
+  {
+    "path": "Docs/Quickstart.pdf",
+    "byte_length": 3906017
+  },
+  {
+    "path": "dsound.dll",
+    "byte_length": 633344
+  },
+  {
+    "path": "dsound.log",
+    "byte_length": 2772
+  },
+  {
+    "path": "dxcompiler.dll",
+    "byte_length": 17951808
+  },
+  {
+    "path": "dxil.dll",
+    "byte_length": 1503304
+  },
+  {
+    "path": "ExpLog.LOG",
+    "byte_length": 0
+  },
+  {
+    "path": "font/AntiquaSSK.TTF",
+    "byte_length": 62976
+  },
+  {
+    "path": "font/ANTQS__.TTF",
+    "byte_length": 62976
+  },
+  {
+    "path": "font/CAROLING.TTF",
+    "byte_length": 38780
+  },
+  {
+    "path": "font/CyrillicChancellor.TTF",
+    "byte_length": 74036
+  },
+  {
+    "path": "Gameserver.cfg",
+    "byte_length": 69
+  },
+  {
+    "path": "GameServer.exe",
+    "byte_length": 1900544
+  },
+  {
+    "path": "GLOBAL.TXT",
+    "byte_length": 0
+  },
+  {
+    "path": "granny.dll",
+    "byte_length": 466944
+  },
+  {
+    "path": "iconv.dll",
+    "byte_length": 872448
+  },
+  {
+    "path": "ijl15.dll",
+    "byte_length": 352256
+  },
+  {
+    "path": "installscript.vdf",
+    "byte_length": 983
+  },
+  {
+    "path": "libxml2.dll",
+    "byte_length": 770048
+  },
+  {
+    "path": "license.rtf",
+    "byte_length": 10227
+  },
+  {
+    "path": "movie/act1.wmv",
+    "byte_length": 2603058
+  },
+  {
+    "path": "movie/act2.wmv",
+    "byte_length": 4115072
+  },
+  {
+    "path": "movie/act3.wmv",
+    "byte_length": 6691090
+  },
+  {
+    "path": "movie/act4.wmv",
+    "byte_length": 5739096
+  },
+  {
+    "path": "movie/ascaron.wmv",
+    "byte_length": 1307084
+  },
+  {
+    "path": "movie/Extro.wmv",
+    "byte_length": 33315652
+  },
+  {
+    "path": "movie/extrouw.wmv",
+    "byte_length": 10413223
+  },
+  {
+    "path": "movie/Intro.wmv",
+    "byte_length": 26227832
+  },
+  {
+    "path": "movie/introuw.wmv",
+    "byte_length": 21198368
+  },
+  {
+    "path": "movie/oem.wmv",
+    "byte_length": 1067048
+  },
+  {
+    "path": "mp3/ATMOSPOT_ARENA_INDOOR.mp3",
+    "byte_length": 2007855
+  },
+  {
+    "path": "mp3/ATMOSPOT_ARENA_OUTDOOR.mp3",
+    "byte_length": 2446550
+  },
+  {
+    "path": "mp3/ATMOSPOT_CEMETERY.mp3",
+    "byte_length": 1592622
+  },
+  {
+    "path": "mp3/ATMOSPOT_WATERFALL.mp3",
+    "byte_length": 464955
+  },
+  {
+    "path": "mp3/ATMO_DESERT.mp3",
+    "byte_length": 4605606
+  },
+  {
+    "path": "mp3/ATMO_DESERT_NIGHT.mp3",
+    "byte_length": 3232746
+  },
+  {
+    "path": "mp3/ATMO_DUNGEON.mp3",
+    "byte_length": 2035800
+  },
+  {
+    "path": "mp3/ATMO_DUNGEON_NIGHT.mp3",
+    "byte_length": 2035800
+  },
+  {
+    "path": "mp3/ATMO_HELL.mp3",
+    "byte_length": 2691174
+  },
+  {
+    "path": "mp3/ATMO_ICE.mp3",
+    "byte_length": 1487439
+  },
+  {
+    "path": "mp3/ATMO_ICE_NIGHT.mp3",
+    "byte_length": 4762140
+  },
+  {
+    "path": "mp3/ATMO_KARIBIK.mp3",
+    "byte_length": 1390972
+  },
+  {
+    "path": "mp3/ATMO_PILZWALD.mp3",
+    "byte_length": 2301802
+  },
+  {
+    "path": "mp3/ATMO_VILLAGE_SIEGE_MILITARY.mp3",
+    "byte_length": 1799856
+  },
+  {
+    "path": "mp3/ATMO_VILLAGE_SIEGE_MILITARY_SUMMER.mp3",
+    "byte_length": 2981550
+  },
+  {
+    "path": "mp3/ATMO_VILLAGE_SIEGE_MILITARY_WINTER.mp3",
+    "byte_length": 2979882
+  },
+  {
+    "path": "mp3/ATMO_VULCANO.mp3",
+    "byte_length": 3148767
+  },
+  {
+    "path": "mp3/ATMO_VULCANO_NIGHT.mp3",
+    "byte_length": 1693368
+  },
+  {
+    "path": "mp3/ATMO_WOOD.mp3",
+    "byte_length": 2563299
+  },
+  {
+    "path": "mp3/ATMO_WOOD_NIGHT.mp3",
+    "byte_length": 1799856
+  },
+  {
+    "path": "mp3/Jingle_Air.mp3",
+    "byte_length": 829990
+  },
+  {
+    "path": "mp3/JINGLE_DANGER01.mp3",
+    "byte_length": 230460
+  },
+  {
+    "path": "mp3/JINGLE_DANGER02.mp3",
+    "byte_length": 447560
+  },
+  {
+    "path": "mp3/JINGLE_DANGER03.mp3",
+    "byte_length": 327320
+  },
+  {
+    "path": "mp3/JINGLE_DANGER04.mp3",
+    "byte_length": 213760
+  },
+  {
+    "path": "mp3/JINGLE_DANGER05.mp3",
+    "byte_length": 158650
+  },
+  {
+    "path": "mp3/JINGLE_DANGER06.mp3",
+    "byte_length": 284735
+  },
+  {
+    "path": "mp3/JINGLE_DANGER07.mp3",
+    "byte_length": 340680
+  },
+  {
+    "path": "mp3/JINGLE_DANGER08.mp3",
+    "byte_length": 289745
+  },
+  {
+    "path": "mp3/JINGLE_DANGER09.mp3",
+    "byte_length": 348195
+  },
+  {
+    "path": "mp3/JINGLE_DANGER10.mp3",
+    "byte_length": 172010
+  },
+  {
+    "path": "mp3/JINGLE_DANGER11.mp3",
+    "byte_length": 228790
+  },
+  {
+    "path": "mp3/JINGLE_DANGER12.mp3",
+    "byte_length": 245490
+  },
+  {
+    "path": "mp3/JINGLE_DANGER13.mp3",
+    "byte_length": 285570
+  },
+  {
+    "path": "mp3/JINGLE_DANGER14.mp3",
+    "byte_length": 450065
+  },
+  {
+    "path": "mp3/JINGLE_DANGER15.mp3",
+    "byte_length": 379090
+  },
+  {
+    "path": "mp3/JINGLE_DANGER16.mp3",
+    "byte_length": 273045
+  },
+  {
+    "path": "mp3/Jingle_Earth.mp3",
+    "byte_length": 685535
+  },
+  {
+    "path": "mp3/Jingle_Fanfare01.mp3",
+    "byte_length": 107715
+  },
+  {
+    "path": "mp3/Jingle_Fanfare02.mp3",
+    "byte_length": 121075
+  },
+  {
+    "path": "mp3/Jingle_Fanfare03.mp3",
+    "byte_length": 259685
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_EASY01.mp3",
+    "byte_length": 237140
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_EASY02.MP3",
+    "byte_length": 102705
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_EASY03.MP3",
+    "byte_length": 92685
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_EASY04.MP3",
+    "byte_length": 122745
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_EASY05.MP3",
+    "byte_length": 122745
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_EASY06.mp3",
+    "byte_length": 447560
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_EASY07.mp3",
+    "byte_length": 271375
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_EASY08.mp3",
+    "byte_length": 258015
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_EASY09.mp3",
+    "byte_length": 293085
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_EASY10.mp3",
+    "byte_length": 261355
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_EASY11.mp3",
+    "byte_length": 440880
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_EASY12.mp3",
+    "byte_length": 276385
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_EASY13.mp3",
+    "byte_length": 331495
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_EASY14.mp3",
+    "byte_length": 332800
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_EASY15.mp3",
+    "byte_length": 333824
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_EASY16.mp3",
+    "byte_length": 261355
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_HARD01.mp3",
+    "byte_length": 996155
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_HARD02.mp3",
+    "byte_length": 1390275
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_HARD03.mp3",
+    "byte_length": 1485465
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_HARD04.mp3",
+    "byte_length": 513525
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_HARD05.mp3",
+    "byte_length": 746490
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_HARD06.mp3",
+    "byte_length": 1012020
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_HARD07.mp3",
+    "byte_length": 1137270
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_HARD08.mp3",
+    "byte_length": 732295
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_HARD09.mp3",
+    "byte_length": 835000
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_HARD10.mp3",
+    "byte_length": 922675
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_HARD11.mp3",
+    "byte_length": 908480
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_HARD12.mp3",
+    "byte_length": 835000
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_HARD13.mp3",
+    "byte_length": 585335
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_HARD14.mp3",
+    "byte_length": 746490
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_HARD15.mp3",
+    "byte_length": 1390275
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_HARD16.mp3",
+    "byte_length": 996155
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_NORMAL01.mp3",
+    "byte_length": 322310
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_NORMAL02.MP3",
+    "byte_length": 298930
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_NORMAL03.MP3",
+    "byte_length": 224615
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_NORMAL04.MP3",
+    "byte_length": 356545
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_NORMAL05.mp3",
+    "byte_length": 239645
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_NORMAL06.mp3",
+    "byte_length": 651300
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_NORMAL07.mp3",
+    "byte_length": 664660
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_NORMAL08.mp3",
+    "byte_length": 583665
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_NORMAL09.mp3",
+    "byte_length": 705575
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_NORMAL10.mp3",
+    "byte_length": 367400
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_NORMAL11.mp3",
+    "byte_length": 475115
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_NORMAL12.mp3",
+    "byte_length": 647125
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_NORMAL13.mp3",
+    "byte_length": 495990
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_NORMAL14.mp3",
+    "byte_length": 476785
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_NORMAL15.mp3",
+    "byte_length": 593685
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_NORMAL16.mp3",
+    "byte_length": 564460
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_OVER01.mp3",
+    "byte_length": 457580
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_OVER02.mp3",
+    "byte_length": 476785
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_OVER03.mp3",
+    "byte_length": 556110
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_OVER04.mp3",
+    "byte_length": 793250
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_OVER05.mp3",
+    "byte_length": 793250
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_OVER06.mp3",
+    "byte_length": 635435
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_OVER07.mp3",
+    "byte_length": 635435
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_OVER08.mp3",
+    "byte_length": 635435
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_OVER09.mp3",
+    "byte_length": 256345
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_OVER10.mp3",
+    "byte_length": 346525
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_OVER11.mp3",
+    "byte_length": 273880
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_OVER12.mp3",
+    "byte_length": 556110
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_OVER13.mp3",
+    "byte_length": 556110
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_OVER14.mp3",
+    "byte_length": 398295
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_OVER15.mp3",
+    "byte_length": 398295
+  },
+  {
+    "path": "mp3/JINGLE_FIGHT_OVER16.mp3",
+    "byte_length": 346525
+  },
+  {
+    "path": "mp3/Jingle_fire.mp3",
+    "byte_length": 738140
+  },
+  {
+    "path": "mp3/JINGLE_MAINQUEST_DONE01.mp3",
+    "byte_length": 490145
+  },
+  {
+    "path": "mp3/JINGLE_MAINQUEST_DONE02.mp3",
+    "byte_length": 406645
+  },
+  {
+    "path": "mp3/JINGLE_MAINQUEST_DONE03.mp3",
+    "byte_length": 385770
+  },
+  {
+    "path": "mp3/JINGLE_MAINQUEST_DONE04.mp3",
+    "byte_length": 260520
+  },
+  {
+    "path": "mp3/JINGLE_MAINQUEST_DONE05.mp3",
+    "byte_length": 260520
+  },
+  {
+    "path": "mp3/JINGLE_MAINQUEST_DONE06.mp3",
+    "byte_length": 254675
+  },
+  {
+    "path": "mp3/JINGLE_MAINQUEST_DONE07.mp3",
+    "byte_length": 494320
+  },
+  {
+    "path": "mp3/JINGLE_MAINQUEST_DONE08.mp3",
+    "byte_length": 260520
+  },
+  {
+    "path": "mp3/JINGLE_MAINQUEST_DONE09.mp3",
+    "byte_length": 258850
+  },
+  {
+    "path": "mp3/JINGLE_MAINQUEST_DONE10.mp3",
+    "byte_length": 852535
+  },
+  {
+    "path": "mp3/Jingle_Space.mp3",
+    "byte_length": 685535
+  },
+  {
+    "path": "mp3/Jingle_Water.mp3",
+    "byte_length": 918500
+  },
+  {
+    "path": "mp3/MeetDeMordrey.mp3",
+    "byte_length": 184731
+  },
+  {
+    "path": "mp3/MeetShaddar.mp3",
+    "byte_length": 145533
+  },
+  {
+    "path": "mp3/MeetShareefa.mp3",
+    "byte_length": 116760
+  },
+  {
+    "path": "mp3/MeetValor.mp3",
+    "byte_length": 118011
+  },
+  {
+    "path": "mp3/MeetVilya.mp3",
+    "byte_length": 133023
+  },
+  {
+    "path": "mp3/MENU_ADDON.mp3",
+    "byte_length": 2727868
+  },
+  {
+    "path": "mp3/MUSIC_ARENA01.mp3",
+    "byte_length": 1971435
+  },
+  {
+    "path": "mp3/MUSIC_BEFORE_ENDFIGHT.MP3",
+    "byte_length": 1029555
+  },
+  {
+    "path": "mp3/MUSIC_DEATH.mp3",
+    "byte_length": 569470
+  },
+  {
+    "path": "mp3/MUSIC_DEMON_ENDFIGHT.mp3",
+    "byte_length": 2483290
+  },
+  {
+    "path": "mp3/MUSIC_DESERT01.mp3",
+    "byte_length": 14431305
+  },
+  {
+    "path": "mp3/MUSIC_DRYADEN.mp3",
+    "byte_length": 7138604
+  },
+  {
+    "path": "mp3/MUSIC_DUNGEON01.mp3",
+    "byte_length": 5349845
+  },
+  {
+    "path": "mp3/MUSIC_DUNGEON02.mp3",
+    "byte_length": 4798745
+  },
+  {
+    "path": "mp3/MUSIC_DUNGEON03.mp3",
+    "byte_length": 4797075
+  },
+  {
+    "path": "mp3/MUSIC_DUNGEON04.mp3",
+    "byte_length": 6111365
+  },
+  {
+    "path": "mp3/MUSIC_DUNGEON_KARIBIK.mp3",
+    "byte_length": 5735236
+  },
+  {
+    "path": "mp3/MUSIC_DUNGEON_NUKNUK.mp3",
+    "byte_length": 5964278
+  },
+  {
+    "path": "mp3/MUSIC_DUNGEON_PIRATEN.mp3",
+    "byte_length": 5735236
+  },
+  {
+    "path": "mp3/MUSIC_ENTER_KHORADNUR.MP3",
+    "byte_length": 511855
+  },
+  {
+    "path": "mp3/MUSIC_FIGHT01.mp3",
+    "byte_length": 11262480
+  },
+  {
+    "path": "mp3/MUSIC_FIGHT02.mp3",
+    "byte_length": 3685029
+  },
+  {
+    "path": "mp3/MUSIC_FIGHT03.mp3",
+    "byte_length": 5883410
+  },
+  {
+    "path": "mp3/MUSIC_FIGHT04.mp3",
+    "byte_length": 4918985
+  },
+  {
+    "path": "mp3/MUSIC_FIGHT05.mp3",
+    "byte_length": 8500300
+  },
+  {
+    "path": "mp3/MUSIC_FIGHT06.mp3",
+    "byte_length": 3896945
+  },
+  {
+    "path": "mp3/MUSIC_FIGHT07.mp3",
+    "byte_length": 2937530
+  },
+  {
+    "path": "mp3/MUSIC_FIGHT08.mp3",
+    "byte_length": 5591995
+  },
+  {
+    "path": "mp3/MUSIC_FIGHT09.mp3",
+    "byte_length": 1263927
+  },
+  {
+    "path": "mp3/MUSIC_FIGHT10.mp3",
+    "byte_length": 1799355
+  },
+  {
+    "path": "mp3/MUSIC_FIGHT_GIANTSPIDER.MP3",
+    "byte_length": 1865390
+  },
+  {
+    "path": "mp3/MUSIC_FIGHT_KARIBIK.mp3",
+    "byte_length": 1139775
+  },
+  {
+    "path": "mp3/MUSIC_FIGHT_NUKNUK.mp3",
+    "byte_length": 1155657
+  },
+  {
+    "path": "mp3/MUSIC_HAUPTSTADT.mp3",
+    "byte_length": 5963188
+  },
+  {
+    "path": "mp3/MUSIC_HELL.mp3",
+    "byte_length": 13584164
+  },
+  {
+    "path": "mp3/MUSIC_ICE01.mp3",
+    "byte_length": 7747130
+  },
+  {
+    "path": "mp3/MUSIC_KARIBIK.mp3",
+    "byte_length": 5410064
+  },
+  {
+    "path": "mp3/MUSIC_KARIBIK_NETT.mp3",
+    "byte_length": 5370454
+  },
+  {
+    "path": "mp3/MUSIC_KILLING_DEMORDEY.MP3",
+    "byte_length": 885100
+  },
+  {
+    "path": "mp3/MUSIC_KING_IS_DEAD.MP3",
+    "byte_length": 3417568
+  },
+  {
+    "path": "mp3/MUSIC_LAVA01.mp3",
+    "byte_length": 12479075
+  },
+  {
+    "path": "mp3/MUSIC_MASCARELL.mp3",
+    "byte_length": 12529175
+  },
+  {
+    "path": "mp3/MUSIC_MENU.mp3",
+    "byte_length": 6584810
+  },
+  {
+    "path": "mp3/MUSIC_NUKNUK.mp3",
+    "byte_length": 4806113
+  },
+  {
+    "path": "mp3/MUSIC_PILZWALD.mp3",
+    "byte_length": 10575400
+  },
+  {
+    "path": "mp3/MUSIC_PIRATENPUB.mp3",
+    "byte_length": 3299646
+  },
+  {
+    "path": "mp3/MUSIC_PUB.mp3",
+    "byte_length": 5212070
+  },
+  {
+    "path": "mp3/MUSIC_VILLAGE01.mp3",
+    "byte_length": 10363185
+  },
+  {
+    "path": "mp3/MUSIC_VILLAGE_SIEGE_MILITARY.mp3",
+    "byte_length": 6805250
+  },
+  {
+    "path": "mp3/MUSIC_VILLAGE_SIEGE_UNDEAD.mp3",
+    "byte_length": 11267490
+  },
+  {
+    "path": "mp3/MUSIC_WAYTOHELL.mp3",
+    "byte_length": 20695180
+  },
+  {
+    "path": "mp3/MUSIC_WOOD01.mp3",
+    "byte_length": 15601140
+  },
+  {
+    "path": "mp3/MUSIC_WOOD02.mp3",
+    "byte_length": 7787210
+  },
+  {
+    "path": "mp3/MUSIC_WOOD03.mp3",
+    "byte_length": 5779870
+  },
+  {
+    "path": "mp3/MUSIC_WRONGLEVEL.mp3",
+    "byte_length": 3265685
+  },
+  {
+    "path": "mss32.dll",
+    "byte_length": 374272
+  },
+  {
+    "path": "mssds3d.m3d",
+    "byte_length": 56320
+  },
+  {
+    "path": "mssmp3.asi",
+    "byte_length": 149504
+  },
+  {
+    "path": "MSVCP60.DLL",
+    "byte_length": 401462
+  },
+  {
+    "path": "MSVCRT.DLL",
+    "byte_length": 323072
+  },
+  {
+    "path": "pak/Creature.pak",
+    "byte_length": 41020
+  },
+  {
+    "path": "pak/Items.pak",
+    "byte_length": 4587776
+  },
+  {
+    "path": "pak/Items03.pak",
+    "byte_length": 4587776
+  },
+  {
+    "path": "pak/loadgame.bmp",
+    "byte_length": 2359352
+  },
+  {
+    "path": "pak/loading0.bmp",
+    "byte_length": 2359352
+  },
+  {
+    "path": "pak/loading1.bmp",
+    "byte_length": 1572920
+  },
+  {
+    "path": "pak/LoadingUW00.bmp",
+    "byte_length": 2359350
+  },
+  {
+    "path": "pak/LoadingUW01.bmp",
+    "byte_length": 2359352
+  },
+  {
+    "path": "pak/mixed.pak",
+    "byte_length": 14336144
+  },
+  {
+    "path": "pak/models.pak",
+    "byte_length": 434340164
+  },
+  {
+    "path": "pak/Models.tmp",
+    "byte_length": 2755924
+  },
+  {
+    "path": "pak/models03.pak",
+    "byte_length": 61752
+  },
+  {
+    "path": "pak/MOTIONS.PAK",
+    "byte_length": 678010
+  },
+  {
+    "path": "pak/savegame.bmp",
+    "byte_length": 2359352
+  },
+  {
+    "path": "pak/sndProfiles.pak",
+    "byte_length": 1605888
+  },
+  {
+    "path": "pak/sound.pak",
+    "byte_length": 392442091
+  },
+  {
+    "path": "pak/texture.pak",
+    "byte_length": 860648179
+  },
+  {
+    "path": "pak/Texture.TMP",
+    "byte_length": 2043320
+  },
+  {
+    "path": "pak/texture03.pak",
+    "byte_length": 27361
+  },
+  {
+    "path": "pak/tiles.pak",
+    "byte_length": 6850288
+  },
+  {
+    "path": "pak/Weapon.pak",
+    "byte_length": 1572582
+  },
+  {
+    "path": "PE/1.bmp",
+    "byte_length": 85440
+  },
+  {
+    "path": "PE/10.ico",
+    "byte_length": 296
+  },
+  {
+    "path": "PE/2.bmp",
+    "byte_length": 85440
+  },
+  {
+    "path": "PE/3.bmp",
+    "byte_length": 85442
+  },
+  {
+    "path": "PE/4.bmp",
+    "byte_length": 85442
+  },
+  {
+    "path": "PE/5.bmp",
+    "byte_length": 787486
+  },
+  {
+    "path": "PE/6.bmp",
+    "byte_length": 787006
+  },
+  {
+    "path": "PE/7.bmp",
+    "byte_length": 787026
+  },
+  {
+    "path": "PE/8.ico",
+    "byte_length": 5672
+  },
+  {
+    "path": "PE/9.ico",
+    "byte_length": 2216
+  },
+  {
+    "path": "pHD.dll",
+    "byte_length": 2252858
+  },
+  {
+    "path": "pHD.log",
+    "byte_length": 250
+  },
+  {
+    "path": "pHD_old.dll",
+    "byte_length": 675898
+  },
+  {
+    "path": "pureHD.exe",
+    "byte_length": 9158656
+  },
+  {
+    "path": "readme/drache.jpg",
+    "byte_length": 18915
+  },
+  {
+    "path": "readme/Gold.jpg",
+    "byte_length": 124134
+  },
+  {
+    "path": "readme/Readme.html",
+    "byte_length": 40781
+  },
+  {
+    "path": "Sacred.Assets.pdb",
+    "byte_length": 36992
+  },
+  {
+    "path": "Sacred.Core.pdb",
+    "byte_length": 76244
+  },
+  {
+    "path": "Sacred.Engine.pdb",
+    "byte_length": 184596
+  },
+  {
+    "path": "Sacred.exe",
+    "byte_length": 11927552
+  },
+  {
+    "path": "Sacred.Granny.pdb",
+    "byte_length": 56880
+  },
+  {
+    "path": "Sacred.Inventory.pdb",
+    "byte_length": 20384
+  },
+  {
+    "path": "Sacred.Particles.pdb",
+    "byte_length": 13640
+  },
+  {
+    "path": "Sacred.Shaders.pdb",
+    "byte_length": 26496
+  },
+  {
+    "path": "Sacred.World.pdb",
+    "byte_length": 44992
+  },
+  {
+    "path": "SacredEngineRemake.cfg",
+    "byte_length": 471
+  },
+  {
+    "path": "SacredEngineRemake.dll.config",
+    "byte_length": 30648
+  },
+  {
+    "path": "SacredEngineRemake.exe",
+    "byte_length": 9193472
+  },
+  {
+    "path": "SacredEngineRemake.pdb",
+    "byte_length": 42307584
+  },
+  {
+    "path": "save/GAME00.PAK",
+    "byte_length": 3028222
+  },
+  {
+    "path": "save/GAME01.PAK",
+    "byte_length": 2671297
+  },
+  {
+    "path": "save/GAME02.PAK",
+    "byte_length": 3492779
+  },
+  {
+    "path": "save/GAME03.PAK",
+    "byte_length": 3057443
+  },
+  {
+    "path": "save/GAME04.PAK",
+    "byte_length": 3009776
+  },
+  {
+    "path": "save/GAME05.PAK",
+    "byte_length": 2663641
+  },
+  {
+    "path": "save/GAME06.PAK",
+    "byte_length": 2657956
+  },
+  {
+    "path": "save/GAME07.PAK",
+    "byte_length": 3026223
+  },
+  {
+    "path": "save/GAME08.PAK",
+    "byte_length": 2692151
+  },
+  {
+    "path": "save/GAME09.PAK",
+    "byte_length": 3297614
+  },
+  {
+    "path": "save/GAME10.PAK",
+    "byte_length": 2850060
+  },
+  {
+    "path": "save/GAME11.PAK",
+    "byte_length": 3266572
+  },
+  {
+    "path": "save/GAME12.PAK",
+    "byte_length": 3217776
+  },
+  {
+    "path": "save/GAME13.PAK",
+    "byte_length": 3149075
+  },
+  {
+    "path": "save/GAME14.PAK",
+    "byte_length": 3188648
+  },
+  {
+    "path": "save/GAME15.PAK",
+    "byte_length": 3192287
+  },
+  {
+    "path": "save/GAME16.PAK",
+    "byte_length": 3475509
+  },
+  {
+    "path": "save/GAME17.PAK",
+    "byte_length": 3266516
+  },
+  {
+    "path": "save/GAME18.PAK",
+    "byte_length": 3486790
+  },
+  {
+    "path": "save/GAME19.PAK",
+    "byte_length": 3522920
+  },
+  {
+    "path": "save/GAME20.PAK",
+    "byte_length": 3457512
+  },
+  {
+    "path": "save/GAME21.PAK",
+    "byte_length": 3520531
+  },
+  {
+    "path": "save/GAME22.PAK",
+    "byte_length": 3528900
+  },
+  {
+    "path": "save/GAME23.PAK",
+    "byte_length": 3652765
+  },
+  {
+    "path": "save/GAME24.PAK",
+    "byte_length": 3529162
+  },
+  {
+    "path": "save/GAME25.PAK",
+    "byte_length": 3559747
+  },
+  {
+    "path": "save/GAME26.PAK",
+    "byte_length": 2646838
+  },
+  {
+    "path": "save/GAME27.PAK",
+    "byte_length": 2657837
+  },
+  {
+    "path": "save/GAME28.PAK",
+    "byte_length": 3111147
+  },
+  {
+    "path": "save/GAME29.PAK",
+    "byte_length": 2649961
+  },
+  {
+    "path": "save/GAME30.PAK",
+    "byte_length": 2674055
+  },
+  {
+    "path": "save/GAME31.PAK",
+    "byte_length": 3331308
+  },
+  {
+    "path": "save/GAME32.PAK",
+    "byte_length": 2794423
+  },
+  {
+    "path": "save/GAME33.PAK",
+    "byte_length": 2792102
+  },
+  {
+    "path": "save/GAME34.PAK",
+    "byte_length": 2862133
+  },
+  {
+    "path": "save/GAME35.PAK",
+    "byte_length": 3316254
+  },
+  {
+    "path": "save/GAME36.PAK",
+    "byte_length": 2926634
+  },
+  {
+    "path": "save/GAME37.PAK",
+    "byte_length": 2847425
+  },
+  {
+    "path": "save/GAME38.PAK",
+    "byte_length": 2901023
+  },
+  {
+    "path": "save/GAME39.PAK",
+    "byte_length": 2941080
+  },
+  {
+    "path": "save/GAME40.PAK",
+    "byte_length": 2956055
+  },
+  {
+    "path": "save/GAME41.PAK",
+    "byte_length": 2957972
+  },
+  {
+    "path": "save/GAME42.PAK",
+    "byte_length": 2998450
+  },
+  {
+    "path": "save/GAME43.PAK",
+    "byte_length": 3013807
+  },
+  {
+    "path": "save/GAME44.PAK",
+    "byte_length": 2961919
+  },
+  {
+    "path": "save/GAME45.PAK",
+    "byte_length": 2626190
+  },
+  {
+    "path": "save/GAME46.PAK",
+    "byte_length": 2622642
+  },
+  {
+    "path": "save/GAME47.PAK",
+    "byte_length": 2733588
+  },
+  {
+    "path": "save/GAME48.PAK",
+    "byte_length": 2660255
+  },
+  {
+    "path": "save/GAME49.PAK",
+    "byte_length": 2667964
+  },
+  {
+    "path": "save/GAME50.PAK",
+    "byte_length": 2837872
+  },
+  {
+    "path": "save/GAME51.PAK",
+    "byte_length": 2893095
+  },
+  {
+    "path": "save/GAME52.PAK",
+    "byte_length": 2643987
+  },
+  {
+    "path": "save/GAME53.PAK",
+    "byte_length": 2662063
+  },
+  {
+    "path": "save/GAME54.PAK",
+    "byte_length": 2734373
+  },
+  {
+    "path": "save/GAME55.PAK",
+    "byte_length": 2711661
+  },
+  {
+    "path": "save/GAME56.PAK",
+    "byte_length": 2936826
+  },
+  {
+    "path": "save/GAME57.PAK",
+    "byte_length": 2910091
+  },
+  {
+    "path": "save/GAME58.PAK",
+    "byte_length": 3244794
+  },
+  {
+    "path": "save/GAME59.PAK",
+    "byte_length": 3084495
+  },
+  {
+    "path": "save/GAME60.PAK",
+    "byte_length": 3082178
+  },
+  {
+    "path": "save/GAME61.PAK",
+    "byte_length": 3017462
+  },
+  {
+    "path": "save/GAME62.PAK",
+    "byte_length": 3100868
+  },
+  {
+    "path": "save/GAME63.PAK",
+    "byte_length": 3243753
+  },
+  {
+    "path": "save/GAME64.PAK",
+    "byte_length": 3249232
+  },
+  {
+    "path": "save/GAME65.PAK",
+    "byte_length": 3251080
+  },
+  {
+    "path": "save/GAME66.PAK",
+    "byte_length": 3264571
+  },
+  {
+    "path": "save/GAME67.PAK",
+    "byte_length": 3263190
+  },
+  {
+    "path": "save/GAME68.PAK",
+    "byte_length": 3265130
+  },
+  {
+    "path": "save/GAME69.PAK",
+    "byte_length": 2647270
+  },
+  {
+    "path": "save/GAME70.PAK",
+    "byte_length": 3266079
+  },
+  {
+    "path": "save/GAME71.PAK",
+    "byte_length": 3267570
+  },
+  {
+    "path": "save/GAME72.PAK",
+    "byte_length": 2671078
+  },
+  {
+    "path": "save/GAME73.PAK",
+    "byte_length": 2675042
+  },
+  {
+    "path": "save/GAME74.PAK",
+    "byte_length": 2743318
+  },
+  {
+    "path": "save/GAME75.PAK",
+    "byte_length": 2747505
+  },
+  {
+    "path": "save/GAME76.PAK",
+    "byte_length": 2850276
+  },
+  {
+    "path": "save/Hero00.pax",
+    "byte_length": 21159
+  },
+  {
+    "path": "save/Hero01.pax",
+    "byte_length": 67245
+  },
+  {
+    "path": "save/Hero04.pax",
+    "byte_length": 55347
+  },
+  {
+    "path": "save/Hero05.pax",
+    "byte_length": 72479
+  },
+  {
+    "path": "save/hero06.pax",
+    "byte_length": 22417
+  },
+  {
+    "path": "save/hero07.pax",
+    "byte_length": 23218
+  },
+  {
+    "path": "Screenshots/Remake/20260906-155856988.png",
+    "byte_length": 11416449
+  },
+  {
+    "path": "Screenshots/Remake/20260906-160521799.png",
+    "byte_length": 2138156
+  },
+  {
+    "path": "Screenshots/Remake/20260906-160535488-hdr-indexed-validation.png",
+    "byte_length": 2136006
+  },
+  {
+    "path": "Screenshots/Remake/20260906-160546342.png",
+    "byte_length": 1936376
+  },
+  {
+    "path": "Screenshots/Remake/20260906-160928414.png",
+    "byte_length": 1860617
+  },
+  {
+    "path": "Screenshots/Remake/20260906-160929846.png",
+    "byte_length": 1828417
+  },
+  {
+    "path": "Screenshots/Remake/20260906-162410161-ultrahdr-discord.jpg",
+    "byte_length": 1380029
+  },
+  {
+    "path": "Screenshots/Remake/20260906-162812029-ultrahdr-aot.jpg",
+    "byte_length": 1380033
+  },
+  {
+    "path": "Screenshots/Remake/20260906-164320898-item-dots-baseline.jpg",
+    "byte_length": 342121
+  },
+  {
+    "path": "Screenshots/Remake/20260906-164831897-item-dots-ready.jpg",
+    "byte_length": 1404598
+  },
+  {
+    "path": "Screenshots/Remake/20260906-164948748.jpg",
+    "byte_length": 1409834
+  },
+  {
+    "path": "Screenshots/Remake/20260906-165111684-item-dot-hover.jpg",
+    "byte_length": 1404877
+  },
+  {
+    "path": "Screenshots/Remake/20260907-002648567.jpg",
+    "byte_length": 1849472
+  },
+  {
+    "path": "scripts/us/.cvsignore",
+    "byte_length": 10
+  },
+  {
+    "path": "scripts/us/global.res",
+    "byte_length": 2760574
+  },
+  {
+    "path": "Settings.cfg",
+    "byte_length": 1245
+  },
+  {
+    "path": "STEAM_Settings.cfg",
+    "byte_length": 1087
+  },
+  {
+    "path": "Templates/Hero00.ptx",
+    "byte_length": 18991
+  },
+  {
+    "path": "Templates/Hero01.ptx",
+    "byte_length": 19023
+  },
+  {
+    "path": "Templates/Hero02.ptx",
+    "byte_length": 19019
+  },
+  {
+    "path": "Templates/Hero03.ptx",
+    "byte_length": 19023
+  },
+  {
+    "path": "Templates/Hero04.ptx",
+    "byte_length": 18999
+  },
+  {
+    "path": "Templates/Hero05.ptx",
+    "byte_length": 19132
+  },
+  {
+    "path": "Templates/Hero06.ptx",
+    "byte_length": 19015
+  },
+  {
+    "path": "Templates/Hero07.ptx",
+    "byte_length": 19205
+  },
+  {
+    "path": "Testapp.exe",
+    "byte_length": 11927552
+  },
+  {
+    "path": "tincat2.dll",
+    "byte_length": 335872
+  },
+  {
+    "path": "uhdr.dll",
+    "byte_length": 1223168
+  },
+  {
+    "path": "unicows.dll",
+    "byte_length": 245408
+  },
+  {
+    "path": "wmfdist.exe",
+    "byte_length": 4057200
+  },
+  {
+    "path": "World/Floor.PAK",
+    "byte_length": 187968064
+  },
+  {
+    "path": "World/sectors.keyx",
+    "byte_length": 4646656
+  },
+  {
+    "path": "World/sectors.wldx",
+    "byte_length": 63854322
+  },
+  {
+    "path": "World/Static.PAK",
+    "byte_length": 78889320
+  },
+  {
+    "path": "World/Triggers.PAK",
+    "byte_length": 36556
+  }
+]

@@ -27,6 +27,7 @@ public sealed class ManagedGrnAssetLoader : IGrnAssetLoader
         var extraction = Granny1MeshExtractor.Extract(bytes, meshExtractionMode, modelScale);
         return new GrnAsset(name, bytes, null, extraction.Mesh)
         {
+            Skin = extraction.Skin,
             Diagnostics = extraction.Diagnostics,
             Backend = Kind
         };

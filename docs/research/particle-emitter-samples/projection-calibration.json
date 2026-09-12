@@ -1,0 +1,611 @@
+{
+  "2146_2947": {
+    "scale": 0.625,
+    "translation_xy": [
+      24858.0,
+      -75865.0
+    ],
+    "landmarks": [],
+    "transform": "screen_xy = scale * projected_xy + translation_xy; then add scaled mixed-piece offsets for sprite bounds",
+    "method": "Manual matching of bowl centers; scale 0.625 supported by 120-pixel screen spacing / 192 projected units between repeated dungeon braziers and 180/288 for repeated sconces.",
+    "confidence": "low",
+    "limitations": "Manual feature positions are approximate, typically several pixels; particles/occlusion alter apparent bowl centers. One-landmark scenes cannot independently determine scale. Ruins scene uses a coarse player-centered fallback."
+  },
+  "2262_3132": {
+    "scale": 0.625,
+    "translation_xy": [
+      26933.0,
+      -80360.75
+    ],
+    "landmarks": [
+      {
+        "static_id": 511752,
+        "observed_feature_xy": [
+          623,
+          578
+        ],
+        "feature_offset_from_projected_anchor_xy": [
+          24,
+          8
+        ],
+        "projected_xy": [
+          -42120,
+          129494
+        ],
+        "fitted_translation_xy": [
+          26933.0,
+          -80360.75
+        ],
+        "residual_xy_pixels": [
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "transform": "screen_xy = scale * projected_xy + translation_xy; then add scaled mixed-piece offsets for sprite bounds",
+    "method": "Manual matching of bowl centers; scale 0.625 supported by 120-pixel screen spacing / 192 projected units between repeated dungeon braziers and 180/288 for repeated sconces.",
+    "confidence": "medium",
+    "limitations": "Manual feature positions are approximate, typically several pixels; particles/occlusion alter apparent bowl centers. One-landmark scenes cannot independently determine scale. Ruins scene uses a coarse player-centered fallback."
+  },
+  "2286_3135": {
+    "scale": 0.625,
+    "translation_xy": [
+      26291.875,
+      -80777.125
+    ],
+    "landmarks": [
+      {
+        "static_id": 511701,
+        "observed_feature_xy": [
+          1065,
+          546
+        ],
+        "feature_offset_from_projected_anchor_xy": [
+          47,
+          103
+        ],
+        "projected_xy": [
+          -40410,
+          130014
+        ],
+        "fitted_translation_xy": [
+          26291.875,
+          -80777.125
+        ],
+        "residual_xy_pixels": [
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "transform": "screen_xy = scale * projected_xy + translation_xy; then add scaled mixed-piece offsets for sprite bounds",
+    "method": "Manual matching of bowl centers; scale 0.625 supported by 120-pixel screen spacing / 192 projected units between repeated dungeon braziers and 180/288 for repeated sconces.",
+    "confidence": "medium",
+    "limitations": "Manual feature positions are approximate, typically several pixels; particles/occlusion alter apparent bowl centers. One-landmark scenes cannot independently determine scale. Ruins scene uses a coarse player-centered fallback."
+  },
+  "2551_1689": {
+    "scale": 0.625,
+    "translation_xy": [
+      -25020.375,
+      -63071.375
+    ],
+    "landmarks": [
+      {
+        "static_id": 563188,
+        "observed_feature_xy": [
+          1114,
+          208
+        ],
+        "feature_offset_from_projected_anchor_xy": [
+          32,
+          12
+        ],
+        "projected_xy": [
+          41783,
+          101235
+        ],
+        "fitted_translation_xy": [
+          -25020.375,
+          -63071.375
+        ],
+        "residual_xy_pixels": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "static_id": 563189,
+        "observed_feature_xy": [
+          1294,
+          298
+        ],
+        "feature_offset_from_projected_anchor_xy": [
+          32,
+          12
+        ],
+        "projected_xy": [
+          42071,
+          101379
+        ],
+        "fitted_translation_xy": [
+          -25020.375,
+          -63071.375
+        ],
+        "residual_xy_pixels": [
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "transform": "screen_xy = scale * projected_xy + translation_xy; then add scaled mixed-piece offsets for sprite bounds",
+    "method": "Manual matching of bowl centers; scale 0.625 supported by 120-pixel screen spacing / 192 projected units between repeated dungeon braziers and 180/288 for repeated sconces.",
+    "confidence": "medium_high",
+    "limitations": "Manual feature positions are approximate, typically several pixels; particles/occlusion alter apparent bowl centers. One-landmark scenes cannot independently determine scale. Ruins scene uses a coarse player-centered fallback."
+  },
+  "3191_1152": {
+    "scale": 0.625,
+    "translation_xy": [
+      -60311.375,
+      -64613.375
+    ],
+    "landmarks": [
+      {
+        "static_id": 728489,
+        "observed_feature_xy": [
+          713,
+          151
+        ],
+        "feature_offset_from_projected_anchor_xy": [
+          32,
+          12
+        ],
+        "projected_xy": [
+          97607,
+          103611
+        ],
+        "fitted_translation_xy": [
+          -60311.375,
+          -64613.375
+        ],
+        "residual_xy_pixels": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "static_id": 728499,
+        "observed_feature_xy": [
+          593,
+          211
+        ],
+        "feature_offset_from_projected_anchor_xy": [
+          32,
+          12
+        ],
+        "projected_xy": [
+          97415,
+          103707
+        ],
+        "fitted_translation_xy": [
+          -60311.375,
+          -64613.375
+        ],
+        "residual_xy_pixels": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "static_id": 728502,
+        "observed_feature_xy": [
+          473,
+          271
+        ],
+        "feature_offset_from_projected_anchor_xy": [
+          32,
+          12
+        ],
+        "projected_xy": [
+          97223,
+          103803
+        ],
+        "fitted_translation_xy": [
+          -60311.375,
+          -64613.375
+        ],
+        "residual_xy_pixels": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "static_id": 728532,
+        "observed_feature_xy": [
+          323,
+          346
+        ],
+        "feature_offset_from_projected_anchor_xy": [
+          32,
+          12
+        ],
+        "projected_xy": [
+          96983,
+          103923
+        ],
+        "fitted_translation_xy": [
+          -60311.375,
+          -64613.375
+        ],
+        "residual_xy_pixels": [
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "transform": "screen_xy = scale * projected_xy + translation_xy; then add scaled mixed-piece offsets for sprite bounds",
+    "method": "Manual matching of bowl centers; scale 0.625 supported by 120-pixel screen spacing / 192 projected units between repeated dungeon braziers and 180/288 for repeated sconces.",
+    "confidence": "medium_high",
+    "limitations": "Manual feature positions are approximate, typically several pixels; particles/occlusion alter apparent bowl centers. One-landmark scenes cannot independently determine scale. Ruins scene uses a coarse player-centered fallback."
+  },
+  "3501_3630": {
+    "scale": 0.625,
+    "translation_xy": [
+      4705.0,
+      -106434.75
+    ],
+    "landmarks": [
+      {
+        "static_id": 832891,
+        "observed_feature_xy": [
+          1314,
+          95
+        ],
+        "feature_offset_from_projected_anchor_xy": [
+          24,
+          8
+        ],
+        "projected_xy": [
+          -5448,
+          170438
+        ],
+        "fitted_translation_xy": [
+          4704.0,
+          -106433.75
+        ],
+        "residual_xy_pixels": [
+          -1.0,
+          1.0
+        ]
+      },
+      {
+        "static_id": 833092,
+        "observed_feature_xy": [
+          1105,
+          409
+        ],
+        "feature_offset_from_projected_anchor_xy": [
+          24,
+          8
+        ],
+        "projected_xy": [
+          -5784,
+          170942
+        ],
+        "fitted_translation_xy": [
+          4705.0,
+          -106434.75
+        ],
+        "residual_xy_pixels": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "static_id": 833332,
+        "observed_feature_xy": [
+          385,
+          558
+        ],
+        "feature_offset_from_projected_anchor_xy": [
+          24,
+          8
+        ],
+        "projected_xy": [
+          -6936,
+          171182
+        ],
+        "fitted_translation_xy": [
+          4705.0,
+          -106435.75
+        ],
+        "residual_xy_pixels": [
+          0.0,
+          -1.0
+        ]
+      }
+    ],
+    "transform": "screen_xy = scale * projected_xy + translation_xy; then add scaled mixed-piece offsets for sprite bounds",
+    "method": "Manual matching of bowl centers; scale 0.625 supported by 120-pixel screen spacing / 192 projected units between repeated dungeon braziers and 180/288 for repeated sconces.",
+    "confidence": "medium_high",
+    "limitations": "Manual feature positions are approximate, typically several pixels; particles/occlusion alter apparent bowl centers. One-landmark scenes cannot independently determine scale. Ruins scene uses a coarse player-centered fallback."
+  },
+  "4585_986": {
+    "scale": 0.625,
+    "translation_xy": [
+      -107143.875,
+      -83032.375
+    ],
+    "landmarks": [
+      {
+        "static_id": 979138,
+        "observed_feature_xy": [
+          1425,
+          146
+        ],
+        "feature_offset_from_projected_anchor_xy": [
+          50,
+          53
+        ],
+        "projected_xy": [
+          173657,
+          133034
+        ],
+        "fitted_translation_xy": [
+          -107141.875,
+          -83033.375
+        ],
+        "residual_xy_pixels": [
+          2.0,
+          -1.0
+        ]
+      },
+      {
+        "static_id": 979230,
+        "observed_feature_xy": [
+          373,
+          162
+        ],
+        "feature_offset_from_projected_anchor_xy": [
+          50,
+          53
+        ],
+        "projected_xy": [
+          171977,
+          133058
+        ],
+        "fitted_translation_xy": [
+          -107143.875,
+          -83032.375
+        ],
+        "residual_xy_pixels": [
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "static_id": 979233,
+        "observed_feature_xy": [
+          523,
+          237
+        ],
+        "feature_offset_from_projected_anchor_xy": [
+          50,
+          53
+        ],
+        "projected_xy": [
+          172217,
+          133178
+        ],
+        "fitted_translation_xy": [
+          -107143.875,
+          -83032.375
+        ],
+        "residual_xy_pixels": [
+          0.0,
+          0.0
+        ]
+      }
+    ],
+    "transform": "screen_xy = scale * projected_xy + translation_xy; then add scaled mixed-piece offsets for sprite bounds",
+    "method": "Manual matching of bowl centers; scale 0.625 supported by 120-pixel screen spacing / 192 projected units between repeated dungeon braziers and 180/288 for repeated sconces.",
+    "confidence": "medium_high",
+    "limitations": "Manual feature positions are approximate, typically several pixels; particles/occlusion alter apparent bowl centers. One-landmark scenes cannot independently determine scale. Ruins scene uses a coarse player-centered fallback."
+  },
+  "5083_616": {
+    "scale": 0.625,
+    "translation_xy": [
+      -133156.0,
+      -84957.4375
+    ],
+    "landmarks": [
+      {
+        "static_id": 994786,
+        "observed_feature_xy": [
+          679,
+          57
+        ],
+        "feature_offset_from_projected_anchor_xy": [
+          58,
+          34
+        ],
+        "projected_xy": [
+          214081,
+          135984
+        ],
+        "fitted_translation_xy": [
+          -133157.875,
+          -84954.25
+        ],
+        "residual_xy_pixels": [
+          -1.88,
+          3.19
+        ]
+      },
+      {
+        "static_id": 994987,
+        "observed_feature_xy": [
+          502,
+          145
+        ],
+        "feature_offset_from_projected_anchor_xy": [
+          58,
+          34
+        ],
+        "projected_xy": [
+          213793,
+          136128
+        ],
+        "fitted_translation_xy": [
+          -133154.875,
+          -84956.25
+        ],
+        "residual_xy_pixels": [
+          1.12,
+          1.19
+        ]
+      },
+      {
+        "static_id": 995130,
+        "observed_feature_xy": [
+          323,
+          233
+        ],
+        "feature_offset_from_projected_anchor_xy": [
+          58,
+          34
+        ],
+        "projected_xy": [
+          213505,
+          136272
+        ],
+        "fitted_translation_xy": [
+          -133153.875,
+          -84958.25
+        ],
+        "residual_xy_pixels": [
+          2.12,
+          -0.81
+        ]
+      },
+      {
+        "static_id": 994897,
+        "observed_feature_xy": [
+          1004,
+          267
+        ],
+        "feature_offset_from_projected_anchor_xy": [
+          58,
+          34
+        ],
+        "projected_xy": [
+          214598,
+          136327
+        ],
+        "fitted_translation_xy": [
+          -133156.0,
+          -84958.625
+        ],
+        "residual_xy_pixels": [
+          0.0,
+          -1.19
+        ]
+      },
+      {
+        "static_id": 995258,
+        "observed_feature_xy": [
+          644,
+          447
+        ],
+        "feature_offset_from_projected_anchor_xy": [
+          58,
+          34
+        ],
+        "projected_xy": [
+          214022,
+          136615
+        ],
+        "fitted_translation_xy": [
+          -133156.0,
+          -84958.625
+        ],
+        "residual_xy_pixels": [
+          0.0,
+          -1.19
+        ]
+      },
+      {
+        "static_id": 994901,
+        "observed_feature_xy": [
+          1634,
+          584
+        ],
+        "feature_offset_from_projected_anchor_xy": [
+          58,
+          34
+        ],
+        "projected_xy": [
+          215606,
+          136831
+        ],
+        "fitted_translation_xy": [
+          -133156.0,
+          -84956.625
+        ],
+        "residual_xy_pixels": [
+          0.0,
+          0.81
+        ]
+      },
+      {
+        "static_id": 995272,
+        "observed_feature_xy": [
+          1275,
+          764
+        ],
+        "feature_offset_from_projected_anchor_xy": [
+          58,
+          34
+        ],
+        "projected_xy": [
+          215030,
+          137119
+        ],
+        "fitted_translation_xy": [
+          -133155.0,
+          -84956.625
+        ],
+        "residual_xy_pixels": [
+          1.0,
+          0.81
+        ]
+      },
+      {
+        "static_id": 995355,
+        "observed_feature_xy": [
+          290,
+          758
+        ],
+        "feature_offset_from_projected_anchor_xy": [
+          58,
+          34
+        ],
+        "projected_xy": [
+          213457,
+          137112
+        ],
+        "fitted_translation_xy": [
+          -133156.875,
+          -84958.25
+        ],
+        "residual_xy_pixels": [
+          -0.88,
+          -0.81
+        ]
+      }
+    ],
+    "transform": "screen_xy = scale * projected_xy + translation_xy; then add scaled mixed-piece offsets for sprite bounds",
+    "method": "Manual matching of bowl centers; scale 0.625 supported by 120-pixel screen spacing / 192 projected units between repeated dungeon braziers and 180/288 for repeated sconces.",
+    "confidence": "medium_high",
+    "limitations": "Manual feature positions are approximate, typically several pixels; particles/occlusion alter apparent bowl centers. One-landmark scenes cannot independently determine scale. Ruins scene uses a coarse player-centered fallback."
+  }
+}

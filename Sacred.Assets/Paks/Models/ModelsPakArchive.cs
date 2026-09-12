@@ -3,7 +3,7 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
 using Sacred.Assets.Utils;
-using Sacred.Core.Pak;
+using Sacred.Core.Pak.Models;
 using Sacred.Core.Utils;
 using Sacred.Granny.Abstractions;
 using Sacred.Granny.Animation;
@@ -52,7 +52,7 @@ public sealed class ModelsPakArchive : IDisposable
         var stream = OpenArchiveStream(path);
 
         using var reader = new BinaryReader(stream, Encoding.Latin1, leaveOpen: true);
-        var header = reader.ReadStruct<PakArchiveHeaderLayout>(PakArchiveHeaderLayout.SerializedSize);
+        var header = reader.ReadStruct<ModelsPakHeaderLayout>(ModelsPakHeaderLayout.SerializedSize);
         var count = (int)header.EntryCount;
         var descriptors = ReadDescriptors(stream, count);
 
@@ -114,6 +114,10 @@ public sealed class ModelsPakArchive : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         _assetLoader.Replace(assetLoader);
     }
+
+    /// <summary>Gets the named GRN sequence in an authored cGrannyModelChunk motions[] slot.</summary>
+    public bool TryGetModelMotionName(string modelName, byte motionSlot, out string name) =>
+        _metadata.TryGetMotionName(modelName, motionSlot, out name);
 
     public async Task<GrnAsset> LoadModelAsync(
         string modelName,
@@ -187,6 +191,36 @@ public sealed class ModelsPakArchive : IDisposable
             animationRecord,
             cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
+        return _assetLoader.TryExtractAnimation(
+            animationPayload,
+            motionName,
+            ReadModelPayloadMetadata(metadataPrefix).Scale);
+    }
+
+    /// <summary>Loads an animation from the native per-model motions[] slot.</summary>
+    public async Task<GrnAnimationClip?> LoadModelAnimationAsync(
+        string modelName,
+        byte motionSlot,
+        CancellationToken cancellationToken = default)
+    {
+        var modelRecord = FindRecord(modelName, cancellationToken);
+        var metadataPrefix = await ReadPayloadPrefixAsync(
+            _stream,
+            _streamLock,
+            modelRecord,
+            ModelScaleOffset + ModelScaleSize,
+            cancellationToken).ConfigureAwait(false);
+        if (!_metadata.TryGetMotionName(modelName, motionSlot, out var motionName) ||
+            !_recordsByName.TryGetValue(motionName, out var animationRecord))
+        {
+            return null;
+        }
+
+        var animationPayload = await ReadPayloadAsync(
+            _stream,
+            _streamLock,
+            animationRecord,
+            cancellationToken).ConfigureAwait(false);
         return _assetLoader.TryExtractAnimation(
             animationPayload,
             motionName,

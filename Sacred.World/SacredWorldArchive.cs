@@ -6,6 +6,8 @@ using Sacred.Core.World.Lighting;
 using Sacred.Core.World.Pathing;
 using Sacred.Core.World.Sector;
 using Sacred.Core.World.Stairs;
+using Sacred.World.Objects;
+using Sacred.World.Particles;
 
 namespace Sacred.World;
 
@@ -35,6 +37,8 @@ public sealed class SacredWorldArchive : IDisposable
 
     public SectorCoord StartSector { get; private set; }
     public SacredStairsMap StairsMap { get; }
+    public WorldParticleScriptIndex ParticleScript { get; }
+    public WorldObjectScriptIndex ObjectScript { get; }
 
     public WorldZone GetZone(float worldX, float worldY) =>
         _zoneMap.GetZone(new SectorCoord(
@@ -58,12 +62,16 @@ public sealed class SacredWorldArchive : IDisposable
         FileStream wldxStream,
         FloorPakArchive floorPak,
         StaticPakArchive staticPak,
-        SacredStairsMap stairsMap)
+        SacredStairsMap stairsMap,
+        WorldParticleScriptIndex particleScript,
+        WorldObjectScriptIndex objectScript)
     {
         _floorPak = floorPak;
         _staticPak = staticPak;
         _wldxLoader = new WldxLoader(wldxStream);
         StairsMap = stairsMap;
+        ParticleScript = particleScript;
+        ObjectScript = objectScript;
         LoadKeyx(keyxData);
         StartSector = _sectorIdByGrid.ContainsKey(BellevueSector)
             ? BellevueSector
@@ -75,8 +83,10 @@ public sealed class SacredWorldArchive : IDisposable
         FileStream wldxStream,
         FloorPakArchive floorPak,
         StaticPakArchive staticPak,
-        SacredStairsMap stairsMap) =>
-        new(keyxData, wldxStream, floorPak, staticPak, stairsMap);
+        SacredStairsMap stairsMap,
+        WorldParticleScriptIndex? particleScript = null, WorldObjectScriptIndex? objectScript = null) =>
+        new(keyxData, wldxStream, floorPak, staticPak, stairsMap,
+            particleScript ?? WorldParticleScriptIndex.Empty, objectScript ?? WorldObjectScriptIndex.Empty);
 
     public async Task<Sector?> TryLoadSector(SectorCoord coord)
     {
@@ -107,6 +117,8 @@ public sealed class SacredWorldArchive : IDisposable
             AssociateLoadedIndoorGroups(sector);
             if (payload.IndoorGroups.Count > 0)
                 Console.WriteLine($"Sector loaded: {coord.X},{coord.Y}, indoor groups={payload.IndoorGroups.Count}.");
+            if (sector.WorldObjects.Count > 0)
+                Console.WriteLine($"Sector loaded: {coord.X},{coord.Y}, world objects={sector.WorldObjects.Count}.");
             return sector;
         }
     }
@@ -139,6 +151,7 @@ public sealed class SacredWorldArchive : IDisposable
         var floorOverlays = new FloorOverlayLayer(SectorW, SectorH);
         var liquidSurfaces = new LiquidSurfaceLayer();
         var staticObjects = new StaticObjectLayer();
+        var worldObjects = new WorldObjectLayer();
         var stairsCells = new StairsCellLayer();
         var indoorTileGroups = new IndoorTileGroupLayer();
         var pathing = new WorldPathingLayer(SectorW, SectorH);
@@ -146,6 +159,7 @@ public sealed class SacredWorldArchive : IDisposable
         var elevation = new TerrainElevationLayer(SectorW, SectorH);
         var bakedLight = new TerrainBakedLightLayer(SectorW, SectorH);
         var staticTileVisits = new List<StaticTileVisit>();
+        var worldObjectTileVisits = new List<StaticTileVisit>();
         for (var y = 0; y < SectorH; y++)
         for (var x = 0; x < SectorW; x++)
         {
@@ -172,7 +186,24 @@ public sealed class SacredWorldArchive : IDisposable
                 {
                     var worldX = coord.X * SectorW + x;
                     var worldY = coord.Y * SectorH + y;
-                    staticTileVisits.Add(new StaticTileVisit(worldX + worldY, worldY, worldX, tile.StaticChainHeadId));
+                    staticTileVisits.Add(new StaticTileVisit(worldX + worldY, worldY, worldX, tile.StaticChainHeadId)
+                    {
+                        IndoorAnchor = tile.PathFlags.HasFlag(WorldPathFlags.Indoor)
+                            ? (worldX + tile.IndoorAnchorDeltaX, worldY + tile.IndoorAnchorDeltaY)
+                            : null
+                    });
+                }
+
+                if (tile.WorldObjectChainHeadId != 0)
+                {
+                    var worldX = coord.X * SectorW + x;
+                    var worldY = coord.Y * SectorH + y;
+                    worldObjectTileVisits.Add(new StaticTileVisit(worldX + worldY, worldY, worldX, tile.WorldObjectChainHeadId)
+                    {
+                        IndoorAnchor = tile.PathFlags.HasFlag(WorldPathFlags.Indoor)
+                            ? (worldX + tile.IndoorAnchorDeltaX, worldY + tile.IndoorAnchorDeltaY)
+                            : null
+                    });
                 }
 
                 LoadFloorOverlayChain(floorOverlays, x, y, tile.FloorChainHeadId);
@@ -180,6 +211,8 @@ public sealed class SacredWorldArchive : IDisposable
         }
 
         LoadStaticObjectChains(staticObjects, staticTileVisits);
+        LoadStaticObjectChains(worldObjects, worldObjectTileVisits);
+        LoadScriptWorldObjects(worldObjects, coord);
         LoadStairsCells(stairsCells, coord);
         return new Sector(
             coord,
@@ -188,6 +221,7 @@ public sealed class SacredWorldArchive : IDisposable
             floorOverlays,
             liquidSurfaces,
             staticObjects,
+            worldObjects,
             stairsCells,
             indoorTileGroups,
             pathing,
@@ -196,6 +230,16 @@ public sealed class SacredWorldArchive : IDisposable
             bakedLight);
     }
 
+    private void LoadScriptWorldObjects(WorldObjectLayer worldObjects, SectorCoord coord)
+    {
+        foreach (var placement in ObjectScript.GetPlacements(coord))
+        {
+            worldObjects.Add(new StaticWorldObject(
+                0x80000000u | placement.ScriptOffset, placement.TypeId, StaticObjectFlags.None, 0,
+                0, 0, 0, 1, (byte)Math.Clamp(placement.WorldZ, 0, byte.MaxValue),
+                0, 0, 0, 0, 0, 0, placement.WorldY, placement.WorldX, 0, worldObjects.Count));
+        }
+    }
     private void LoadIndoorTileGroups(
         IndoorTileGroupLayer layer,
         SectorCoord ownerCoord,
@@ -295,6 +339,19 @@ public sealed class SacredWorldArchive : IDisposable
 
     private void LoadStaticObjectChains(StaticObjectLayer staticObjects, List<StaticTileVisit> staticTileVisits)
     {
+        LoadObjectChains(staticObjects.Add, () => staticObjects.Count, staticTileVisits);
+    }
+
+    private void LoadStaticObjectChains(WorldObjectLayer worldObjects, List<StaticTileVisit> staticTileVisits)
+    {
+        LoadObjectChains(worldObjects.Add, () => worldObjects.Count, staticTileVisits);
+    }
+
+    private void LoadObjectChains(
+        Action<StaticWorldObject> addObject,
+        Func<int> getInsertionOrder,
+        List<StaticTileVisit> staticTileVisits)
+    {
         staticTileVisits.Sort(static (left, right) =>
         {
             var depth = left.Depth.CompareTo(right.Depth);
@@ -323,7 +380,7 @@ public sealed class SacredWorldArchive : IDisposable
                 if (!reached.Add(staticId))
                     break;
 
-                staticObjects.Add(new StaticWorldObject(
+                addObject(new StaticWorldObject(
                     staticId,
                     record.Value.TypeId,
                     record.Value.Flags,
@@ -331,7 +388,8 @@ public sealed class SacredWorldArchive : IDisposable
                     record.Value.ProjectedX,
                     record.Value.ProjectedY,
                     record.Value.NextStaticId,
-                    record.Value.SurfaceRenderLayer,
+                    record.Value.SurfaceVisibilityState,
+                    record.Value.HeightLevelId,
                     record.Value.SpriteParam2E,
                     record.Value.SpriteParam2F,
                     record.Value.OrientationOrFrame,
@@ -341,7 +399,7 @@ public sealed class SacredWorldArchive : IDisposable
                     visit.WorldY,
                     visit.WorldX,
                     depth,
-                    staticObjects.Count));
+                    getInsertionOrder()) { IndoorAnchor = visit.IndoorAnchor });
 
                 staticId = record.Value.NextStaticId;
                 depth++;
@@ -467,7 +525,10 @@ public sealed class SacredWorldArchive : IDisposable
         return new SectorCoord(3200, 2600);
     }
 
-    private readonly record struct StaticTileVisit(int Depth, int WorldY, int WorldX, uint StaticHeadId);
+    private readonly record struct StaticTileVisit(int Depth, int WorldY, int WorldX, uint StaticHeadId)
+    {
+        public (int X, int Y)? IndoorAnchor { get; init; }
+    }
 
     public void Dispose()
     {

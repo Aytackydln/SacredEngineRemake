@@ -1,0 +1,32 @@
+{
+  "git_head": "7bcfb6f3e248372bffd0a4a0fed8bf2a92e1db6b",
+  "reader_files": [
+    {
+      "path": "H:\\Rider\\SacredItemSimulator\\Sacred.Core\\Pak\\Items\\ItemsPakEntryModelDescLayout.cs",
+      "size_bytes": 5974,
+      "sha256": "85ce922b9de0e87210c4169c305b3094f25fd4b17085be32cfdf2be0348c904d"
+    },
+    {
+      "path": "H:\\Rider\\SacredItemSimulator\\Sacred.Core\\World\\StaticObjectRecord.cs",
+      "size_bytes": 6402,
+      "sha256": "aca693b764e5450988ed69c771b029fb4c2aa8ad34cff7330a31296aa3fb696c"
+    },
+    {
+      "path": "H:\\Rider\\SacredItemSimulator\\Sacred.Assets\\Paks\\Items\\ItemsPakArchive.cs",
+      "size_bytes": 1150,
+      "sha256": "d1e77872b2c9260265c0fcc1a76a017972485d31e96f790da5980ba6e5083c2f"
+    },
+    {
+      "path": "H:\\Rider\\SacredItemSimulator\\Sacred.World\\Rendering\\WorldStaticSpriteProvider.cs",
+      "size_bytes": 10022,
+      "sha256": "fb6a2b7ed3cc4c3f59eb1413da0fc0ddde1dd6bd4c6c40d40179dd558f7ce71f"
+    },
+    {
+      "path": "H:\\Rider\\SacredItemSimulator\\Sacred.World\\Particles\\WorldParticleMapper.cs",
+      "size_bytes": 4668,
+      "sha256": "a76290d0478b877c792528a51647725568e830bd40adef6c70d6efa42c16fd70"
+    }
+  ],
+  "caution": "Workspace already contained uncommitted changes, including particle/descriptor code. This dataset records the reader file hashes used and does not treat all existing comments/heuristics as independently proven Sacred.exe behavior.",
+  "screenshot_game_build": "Unknown. Images are provided as Sacred game captures; PPOS/FPS are visible, but do not prove the exact executable, expansion, mod or renderer used. Local files are from a Sacred Gold installation; confirm compatibility in future runtime investigations."
+}

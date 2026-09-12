@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Sacred.Assets.Paks.Texture;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Graphics.Frames;
 using Sacred.Engine.Rendering;
@@ -25,7 +26,13 @@ internal sealed class Dx12SpritePass : IDisposable
     private ID3D12PipelineState? _staticShadowPipeline;
     private ID3D12PipelineState? _staticPipeline;
     private ID3D12PipelineState? _transparentStaticPipeline;
+    private ID3D12PipelineState? _unlitStaticPipeline;
+    private ID3D12PipelineState? _transparentUnlitStaticPipeline;
     private ID3D12PipelineState? _liquidPipeline;
+    private ID3D12PipelineState? _transparentParticleRgbPipeline;
+    private ID3D12PipelineState? _transparentParticleArgbPipeline;
+    private ID3D12PipelineState? _transparentParticleAlphaMaskPipeline;
+    private bool _hdrOutput;
 
     public Dx12SpritePass(
         ID3D12Device device,
@@ -68,13 +75,22 @@ internal sealed class Dx12SpritePass : IDisposable
     public int StaticShadowDrawCallCount => _shadowPass.DrawCallCount;
     public int LegacyShadowDrawCallCount => _instances.LegacyShadowDrawCallCount;
 
-    public void SetPipeline(Dx12CreatedPipelineGroup pipeline)
+    public void SetPipeline(Dx12CreatedPipelineGroup pipeline, bool hdrOutput)
     {
+        _hdrOutput = hdrOutput;
         _rootSignature = pipeline.RootSignature;
         _staticShadowPipeline = pipeline[Dx12PipelineKind.StaticSpriteShadow];
         _staticPipeline = pipeline[Dx12PipelineKind.StaticSprite];
         _transparentStaticPipeline = pipeline[Dx12PipelineKind.TransparentStaticSprite];
+        _unlitStaticPipeline = pipeline[Dx12PipelineKind.UnlitStaticSprite];
+        _transparentUnlitStaticPipeline = pipeline[Dx12PipelineKind.TransparentUnlitStaticSprite];
         _liquidPipeline = pipeline[Dx12PipelineKind.LiquidSprite];
+        if (hdrOutput)
+        {
+            _transparentParticleRgbPipeline = pipeline[Dx12PipelineKind.TransparentUnlitParticleRgb];
+            _transparentParticleArgbPipeline = pipeline[Dx12PipelineKind.TransparentUnlitParticleArgb];
+            _transparentParticleAlphaMaskPipeline = pipeline[Dx12PipelineKind.TransparentUnlitParticleAlphaMask];
+        }
         _batchRecorder.SetRootSignature(_rootSignature);
         _shadowPass.SetPipeline(_rootSignature, _staticShadowPipeline);
     }
@@ -89,8 +105,18 @@ internal sealed class Dx12SpritePass : IDisposable
         _staticPipeline = null;
         _transparentStaticPipeline?.Dispose();
         _transparentStaticPipeline = null;
+        _unlitStaticPipeline?.Dispose();
+        _unlitStaticPipeline = null;
+        _transparentUnlitStaticPipeline?.Dispose();
+        _transparentUnlitStaticPipeline = null;
         _liquidPipeline?.Dispose();
         _liquidPipeline = null;
+        _transparentParticleRgbPipeline?.Dispose();
+        _transparentParticleRgbPipeline = null;
+        _transparentParticleArgbPipeline?.Dispose();
+        _transparentParticleArgbPipeline = null;
+        _transparentParticleAlphaMaskPipeline?.Dispose();
+        _transparentParticleAlphaMaskPipeline = null;
         _rootSignature?.Dispose();
         _rootSignature = null;
     }
@@ -135,7 +161,7 @@ internal sealed class Dx12SpritePass : IDisposable
         _batchRecorder.Record(
             batch.HighlightedStaticInstance,
             batch.HighlightedStaticInstance >= 0 ? 1 : 0,
-            _staticPipeline,
+            batch.HighlightedStaticIsUnlit ? _unlitStaticPipeline : _staticPipeline,
             Vector3.One,
             highlightNits,
             highlightNits,
@@ -174,14 +200,12 @@ internal sealed class Dx12SpritePass : IDisposable
         Dx12FrameContext frame,
         int renderWidth,
         int renderHeight) =>
-        _batchRecorder.Record(
-            batch.OpaqueStaticStartInstance,
-            batch.OpaqueStaticInstanceCount,
-            _staticPipeline,
+        RecordStaticRanges(
+            batch,
+            false,
             ambientColour,
             paperWhiteNits,
             unlitWhiteNits,
-            batch.PlayerOcclusion,
             frame,
             renderWidth,
             renderHeight);
@@ -194,17 +218,60 @@ internal sealed class Dx12SpritePass : IDisposable
         Dx12FrameContext frame,
         int renderWidth,
         int renderHeight) =>
-        _batchRecorder.Record(
-            batch.TransparentStaticStartInstance,
-            batch.TransparentStaticInstanceCount,
-            _transparentStaticPipeline,
+        RecordStaticRanges(
+            batch,
+            true,
             ambientColour,
             paperWhiteNits,
             unlitWhiteNits,
-            batch.PlayerOcclusion,
             frame,
             renderWidth,
             renderHeight);
+
+    private void RecordStaticRanges(
+        WorldSpriteBatch batch,
+        bool postModel,
+        Vector3 ambientColour,
+        float paperWhiteNits,
+        float unlitWhiteNits,
+        Dx12FrameContext frame,
+        int renderWidth,
+        int renderHeight)
+    {
+        if (batch.StaticRanges is null)
+            return;
+
+        foreach (var range in batch.StaticRanges)
+        {
+            if (range.IsPostModel != postModel)
+                continue;
+            var pipeline = _hdrOutput && range.ParticleEncoding is { } encoding
+                ? encoding switch
+                {
+                    SacredTextureChannelEncoding.AlphaMask => _transparentParticleAlphaMaskPipeline,
+                    SacredTextureChannelEncoding.Argb => _transparentParticleArgbPipeline,
+                    _ => _transparentParticleRgbPipeline
+                }
+                : (range.IsUnlit, range.RequiresAlphaBlend) switch
+                {
+                    (true, true) => _transparentUnlitStaticPipeline,
+                    (true, false) => _unlitStaticPipeline,
+                    (false, true) => _transparentStaticPipeline,
+                    _ => _staticPipeline
+                };
+            _batchRecorder.Record(
+                range.StartInstance,
+                range.InstanceCount,
+                pipeline,
+                ambientColour,
+                paperWhiteNits,
+                unlitWhiteNits,
+                batch.PlayerOcclusion,
+                frame,
+                renderWidth,
+                renderHeight);
+        }
+    }
 
     public void RecordStaticShadows(
         WorldSpriteBatch batch,

@@ -10,12 +10,13 @@ public readonly record struct MixedPakGroupLayout
 
     /// <summary>Number of sprite-piece records following this header.</summary>
     [FieldOffset(0x00)] public readonly uint PieceCount;
-    /// <summary>Horizontal origin, in pixels, from the composed sprite's left edge to its world placement point.</summary>
-    [FieldOffset(0x04)] public readonly ushort AnchorX;
-    /// <summary>Vertical origin, in pixels, from the composed sprite's top edge to its world placement point.</summary>
-    [FieldOffset(0x06)] public readonly ushort AnchorY;
-    /// <summary>Unresolved value at byte offset 0x08.</summary>
-    [FieldOffset(0x08)] public readonly uint Unknown08;
-    /// <summary>Unresolved value at byte offset 0x0C.</summary>
-    [FieldOffset(0x0C)] public readonly uint Unknown0C;
+    /// <summary>Native x: horizontal placement origin in pixels.</summary>
+    [FieldOffset(0x04)] public readonly short AnchorX;
+    /// <summary>Native y: vertical placement origin in pixels.</summary>
+    [FieldOffset(0x06)] public readonly short AnchorY;
+    /// <summary>Native sx; its rendering interpretation is not established.</summary>
+    [FieldOffset(0x08)] public readonly short ExtentX;
+    /// <summary>Native sy; its rendering interpretation is not established.</summary>
+    [FieldOffset(0x0A)] public readonly short ExtentY;
+    [FieldOffset(0x0C)] public readonly uint Reserved;
 }

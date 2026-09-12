@@ -37,6 +37,26 @@ public sealed class EquipmentEffectScene
     public Mesh Mesh { get; }
     public static EquipmentEffectScene Empty { get; } = new(null!, [], [], [], []);
     public IReadOnlyList<EquipmentEffectSurface> Surfaces { get; }
+    internal IReadOnlyList<NativeModelEffectSimulation> NativeEffects { get; init; } = [];
+
+    public void ResetNativeEffects()
+    {
+        foreach (var effect in NativeEffects) effect.Reset();
+    }
+
+    /// <summary>Advances effects on a standalone model that has no character skeleton pose.</summary>
+    public void Advance(float deltaSeconds)
+    {
+        foreach (var effect in NativeEffects)
+            effect.Update(Mesh, null, deltaSeconds);
+    }
+
+    public void RebaseNativeEffects(Matrix4x4 previousWorld, Matrix4x4 currentWorld)
+    {
+        if (!Matrix4x4.Invert(currentWorld, out var inverse)) return;
+        var change = previousWorld * inverse;
+        foreach (var effect in NativeEffects) effect.Rebase(change);
+    }
 
     public IReadOnlyList<string> TextureNames => Surfaces
         .Select(static surface => surface.TextureName)
@@ -46,6 +66,8 @@ public sealed class EquipmentEffectScene
     /// <summary>Updates bound effects and emits a new fire/poison particle at each particle's next lifetime.</summary>
     public void ApplyPose(GrnAnimatedMesh animatedMesh, float deltaSeconds = 0.0f)
     {
+        foreach (var effect in NativeEffects)
+            effect.Update(Mesh, animatedMesh, deltaSeconds);
         _particleElapsedSeconds += Math.Max(0.0f, deltaSeconds);
         var changed = false;
         for (var index = 0; index < _bindPositions.Length; index++)
@@ -91,7 +113,7 @@ public sealed class EquipmentEffectSurface(
     public int IndexStart { get; } = indexStart;
     public int IndexCount { get; private set; } = indexCount;
     public string TextureName { get; } = textureName;
-    public Vector4 Color { get; } = color;
+    public Vector4 Color { get; internal set; } = color;
     public ParticleTextureMode TextureMode { get; } = textureMode;
     public float Phase { get; } = phase;
     public Vector3 MotionVector { get; } = motionVector;

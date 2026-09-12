@@ -1,0 +1,364 @@
+{
+  "dataset_schema_version": 1,
+  "units": {
+    "screen": "Original clean-image pixels; x right, y down; origin top left.",
+    "rectangles": "xywh = [left,top,width,height], half-open right/bottom. Manual envelopes are approximate.",
+    "source_texture": "Decoded asset pixels; independent of screenshot scale and particle quad size.",
+    "filename_coordinates": "Player PPOS/world tile coordinates shown in diagnostic overlay, not exact emitter coordinates.",
+    "projected": "Static.PAK signed projected graphic-anchor coordinates. Inverse: x=ProjectedX/96+ProjectedY/48; y=ProjectedY/48-ProjectedX/96.",
+    "null": "Unknown/not recovered, not zero or disabled."
+  },
+  "labels": {
+    "user_marked_emitter": "Positive visual supervision from user underline; mechanism unproven.",
+    "visual_negative_control": "Selected ordinary fixture with no visibly attached separate emission in this still.",
+    "context": "Unmarked possible effects, runtime actors, UI or occlusion; not training negatives.",
+    "unreviewed_context": "Nearby archive row, possibly hidden/off-screen/inactive. No emitter label inferred."
+  },
+  "joins": [
+    "observations.fixture_match.static_id -> Static.pak.record_id WITH scene_id",
+    "Static.pak.item_id -> Items.pak.record_id",
+    "Items.pak.known.resolved_mixed_group_id -> mixed.pak.record_id",
+    "mixed.pak.group.pieces[].atlas_name identifies fixture atlas, not emitted particle texture",
+    "Texture.pak.candidates.name -> decoded_png; descriptor IDs are accompanied by archive paths",
+    "world-occurrences.item_id -> Items.pak.record_id; these whole-world rows are not emission observations"
+  ],
+  "items": {
+    "record_size": 128,
+    "byte_order": "little-endian for multi-byte integers",
+    "layout_source": "Sacred.Core/Pak/Items/ItemsPakEntryModelDescLayout.cs",
+    "fields": [
+      {
+        "offset": 0,
+        "offset_hex": "0x00",
+        "size": 2,
+        "name": "GraphicType",
+        "interpretation": "Raw representation bits; not a universal particle selector."
+      },
+      {
+        "offset": 2,
+        "offset_hex": "0x02",
+        "size": 2,
+        "name": "GraphicFlags",
+        "interpretation": "Separate from GraphicType; existing mapped bits include static shadow 0x0001 and light/halo 0x0002."
+      },
+      {
+        "offset": 4,
+        "offset_hex": "0x04",
+        "size": 4,
+        "name": "MiniObjectTextureId",
+        "interpretation": "Texture descriptor ID when the mini-object union is applicable."
+      },
+      {
+        "offset": 8,
+        "offset_hex": "0x08",
+        "size": 4,
+        "name": "TextureId",
+        "interpretation": "General model texture field; an incidental numeric lookup is not an emitter association."
+      },
+      {
+        "offset": 16,
+        "offset_hex": "0x10",
+        "size": 4,
+        "name": "MixedBaseGroupId",
+        "interpretation": "Resolve through mixed.pak to composed fixture sprite pieces."
+      },
+      {
+        "offset": 32,
+        "offset_hex": "0x20",
+        "size": 4,
+        "name": "ItemId",
+        "interpretation": "Repeated item ID."
+      },
+      {
+        "offset": 36,
+        "offset_hex": "0x24",
+        "size": 4,
+        "name": "SoundProfileId",
+        "interpretation": "Existing sndProfiles.pak profile mapping."
+      },
+      {
+        "offset": 44,
+        "offset_hex": "0x2C",
+        "size": 2,
+        "name": "StaticSpriteFrameCount",
+        "interpretation": "Fixture sprite animation field; not particle birth count."
+      },
+      {
+        "offset": 46,
+        "offset_hex": "0x2E",
+        "size": 1,
+        "name": "Category",
+        "interpretation": "Gameplay/UI family."
+      },
+      {
+        "offset": 48,
+        "offset_hex": "0x30",
+        "size": 1,
+        "name": "StaticSpriteFrameDuration10Ms",
+        "interpretation": "Existing static sprite timing mapping; not emission rate."
+      },
+      {
+        "offset": 49,
+        "offset_hex": "0x31",
+        "size": 1,
+        "name": "DescriptorFlags",
+        "interpretation": "Descriptor state flags."
+      },
+      {
+        "offset": 50,
+        "offset_hex": "0x32",
+        "size": 2,
+        "name": "ModelExtent",
+        "interpretation": "Context-dependent authored extent; not established as particle size for these fixtures."
+      },
+      {
+        "offset": 55,
+        "offset_hex": "0x37",
+        "size": 32,
+        "name": "ModelNameBytes",
+        "interpretation": "NUL-terminated ISO-8859-1 resource name."
+      },
+      {
+        "offset": 91,
+        "offset_hex": "0x5B",
+        "size": 2,
+        "name": "StaticShadowAtlasCellIndex",
+        "interpretation": "Existing shadow union mapping."
+      },
+      {
+        "offset": 93,
+        "offset_hex": "0x5D",
+        "size": 2,
+        "name": "StaticShadowAnchorX",
+        "interpretation": "Signed existing shadow anchor field."
+      },
+      {
+        "offset": 95,
+        "offset_hex": "0x5F",
+        "size": 2,
+        "name": "StaticShadowAnchorY",
+        "interpretation": "Signed existing shadow anchor field."
+      },
+      {
+        "offset": 99,
+        "offset_hex": "0x63",
+        "size": 1,
+        "name": "StaticShadowProjection",
+        "interpretation": "Existing shadow projection selector."
+      },
+      {
+        "offset": 100,
+        "offset_hex": "0x64",
+        "size": 2,
+        "name": "StaticShadowContactExtent",
+        "interpretation": "Existing contact footprint field."
+      },
+      {
+        "offset": 102,
+        "offset_hex": "0x66",
+        "size": 4,
+        "name": "EffectTextureId",
+        "interpretation": "Existing attached-model-effect union field. Do not assume it means particle texture for a mixed world sprite."
+      }
+    ],
+    "unmapped_byte_offsets": [
+      12,
+      13,
+      14,
+      15,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      40,
+      41,
+      42,
+      43,
+      47,
+      52,
+      53,
+      54,
+      87,
+      88,
+      89,
+      90,
+      97,
+      98,
+      106,
+      107,
+      108,
+      109,
+      110,
+      111,
+      112,
+      113,
+      114,
+      115,
+      116,
+      117,
+      118,
+      119,
+      120,
+      121,
+      122,
+      123,
+      124,
+      125,
+      126,
+      127
+    ],
+    "provenance": "Existing repository layout mappings at the hashed reader version. No new byte semantics were inferred by this conversion."
+  },
+  "static": {
+    "record_size": 64,
+    "byte_order": "little-endian for multi-byte integers",
+    "layout_source": "Sacred.Core/World/StaticObjectRecord.cs",
+    "fields": [
+      {
+        "offset": 0,
+        "offset_hex": "0x00",
+        "size": 4,
+        "name": "PayloadInstanceId",
+        "interpretation": "Identity stored in record; exported record_id is the PAK table index."
+      },
+      {
+        "offset": 4,
+        "offset_hex": "0x04",
+        "size": 4,
+        "name": "TypeId",
+        "interpretation": "Join to Items.pak record_id."
+      },
+      {
+        "offset": 8,
+        "offset_hex": "0x08",
+        "size": 4,
+        "name": "Flags",
+        "interpretation": "Raw placement/render flags."
+      },
+      {
+        "offset": 12,
+        "offset_hex": "0x0C",
+        "size": 2,
+        "name": "SectorId",
+        "interpretation": "Authored sector identifier."
+      },
+      {
+        "offset": 14,
+        "offset_hex": "0x0E",
+        "size": 4,
+        "name": "ProjectedX",
+        "interpretation": "Signed projected graphic anchor X."
+      },
+      {
+        "offset": 18,
+        "offset_hex": "0x12",
+        "size": 4,
+        "name": "ProjectedY",
+        "interpretation": "Signed projected graphic anchor Y."
+      },
+      {
+        "offset": 31,
+        "offset_hex": "0x1F",
+        "size": 4,
+        "name": "NextStaticId",
+        "interpretation": "Tile linked-list successor."
+      },
+      {
+        "offset": 43,
+        "offset_hex": "0x2B",
+        "size": 2,
+        "name": "SurfaceRenderLayer",
+        "interpretation": "Signed authored layer."
+      },
+      {
+        "offset": 46,
+        "offset_hex": "0x2E",
+        "size": 1,
+        "name": "SpriteParam2E",
+        "interpretation": "Context-dependent atlas columns or source X in the existing mini-object decoder."
+      },
+      {
+        "offset": 47,
+        "offset_hex": "0x2F",
+        "size": 1,
+        "name": "SpriteParam2F",
+        "interpretation": "Context-dependent atlas rows or source Y in the existing mini-object decoder."
+      },
+      {
+        "offset": 48,
+        "offset_hex": "0x30",
+        "size": 1,
+        "name": "OrientationOrFrame",
+        "interpretation": "Context-dependent source square size/orientation/frame byte."
+      },
+      {
+        "offset": 49,
+        "offset_hex": "0x31",
+        "size": 1,
+        "name": "AnimationFrameDurationTicks",
+        "interpretation": "Existing mini-object animation duration in 50 Hz ticks when applicable."
+      },
+      {
+        "offset": 50,
+        "offset_hex": "0x32",
+        "size": 1,
+        "name": "AnimationFrameCount",
+        "interpretation": "Existing mini-object animation frame count when applicable."
+      },
+      {
+        "offset": 51,
+        "offset_hex": "0x33",
+        "size": 1,
+        "name": "ElevationTier",
+        "interpretation": "Raw authored elevation tier; exported explicitly from the record."
+      }
+    ],
+    "unmapped_byte_offsets": [
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      45,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63
+    ],
+    "provenance": "Existing repository layout mappings at the hashed reader version. No new byte semantics were inferred by this conversion."
+  },
+  "binary_cautions": [
+    "Do not reinterpret unknown bytes, repeated CD bytes, or union fields without code/data evidence.",
+    "Items offset 0x2E and Static offset 0x2E have different meanings.",
+    "Existing heuristic particle/halo code and old scratch notes are context, not independently verified game behavior.",
+    "Runtime particle parameters remain null; all raw fixture bytes are retained for future work."
+  ]
+}

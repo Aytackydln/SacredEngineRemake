@@ -63,9 +63,15 @@ internal static class Dx12SectorCompositionPipeline
         premultipliedBlend.RenderTarget[0].SourceBlendAlpha = Blend.One;
         premultipliedBlend.RenderTarget[0].DestinationBlendAlpha = Blend.InverseSourceAlpha;
         description.BlendState = premultipliedBlend;
+        var coverPipeline = device.CreateGraphicsPipelineState(description);
+
+        description.VertexShader = Dx12ShaderCompiler.CompileShader(Dx12ShaderCatalog.SectorSpriteComposeVertexShader);
+        description.PixelShader = Dx12ShaderCompiler.CompileShader(Dx12ShaderCatalog.SectorSpriteComposePixelShader);
+        description.BlendState = straightAlphaBlend;
         return new Dx12SectorCompositionPipelines(
             rootSignature,
             basePipeline,
+            coverPipeline,
             device.CreateGraphicsPipelineState(description));
     }
 }
@@ -73,7 +79,8 @@ internal static class Dx12SectorCompositionPipeline
 internal sealed record Dx12SectorCompositionPipelines(
     ID3D12RootSignature RootSignature,
     ID3D12PipelineState Base,
-    ID3D12PipelineState Cover);
+    ID3D12PipelineState Cover,
+    ID3D12PipelineState Sprite);
 
 [StructLayout(LayoutKind.Sequential)]
 internal readonly struct GpuTerrainTileInstance
@@ -125,4 +132,21 @@ internal readonly struct GpuTerrainTileInstance
     public readonly float VisualElevationNorthWest;
     public readonly float VisualElevationNorthEast;
     public readonly float VisualElevationSouthEast;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal readonly struct GpuSectorSpriteInstance
+{
+    public GpuSectorSpriteInstance(TerrainEmbeddedSprite sprite)
+    {
+        DestinationX = sprite.ScreenX;
+        DestinationY = sprite.ScreenY;
+        Width = sprite.Sprite.Width;
+        Height = sprite.Sprite.Height;
+    }
+
+    public readonly float DestinationX;
+    public readonly float DestinationY;
+    public readonly float Width;
+    public readonly float Height;
 }

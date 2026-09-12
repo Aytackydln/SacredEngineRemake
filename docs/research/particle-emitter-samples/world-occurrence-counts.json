@@ -1,0 +1,60 @@
+{
+  "total": 1461,
+  "by_item": [
+    {
+      "item_id": 9212,
+      "model_name": "Candle 6",
+      "count": 272
+    },
+    {
+      "item_id": 9239,
+      "model_name": "Coalpot 1",
+      "count": 214
+    },
+    {
+      "item_id": 9320,
+      "model_name": "DUN_light_1",
+      "count": 268
+    },
+    {
+      "item_id": 15497,
+      "model_name": "BasaltRissBig01",
+      "count": 63
+    },
+    {
+      "item_id": 15498,
+      "model_name": "BasaltRissBig02",
+      "count": 85
+    },
+    {
+      "item_id": 15501,
+      "model_name": "BasaltRissMed02",
+      "count": 99
+    },
+    {
+      "item_id": 15503,
+      "model_name": "BasaltRissMed04",
+      "count": 129
+    },
+    {
+      "item_id": 21917,
+      "model_name": "LICHTER_HAENGEND_KLEIN",
+      "count": 10
+    },
+    {
+      "item_id": 21918,
+      "model_name": "LICHTER_HAENGEND_MITTEL",
+      "count": 130
+    },
+    {
+      "item_id": 21920,
+      "model_name": "LICHTER_KLEIN",
+      "count": 183
+    },
+    {
+      "item_id": 21921,
+      "model_name": "LICHTER_MITTEL",
+      "count": 8
+    }
+  ]
+}

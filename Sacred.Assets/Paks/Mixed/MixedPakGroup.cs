@@ -2,6 +2,6 @@ namespace Sacred.Assets.Paks.Mixed;
 
 /// <summary>A composed Mixed.pak sprite and its authored world-placement point.</summary>
 public sealed record MixedPakGroup(
-    ushort PlacementX,
-    ushort PlacementY,
+    short PlacementX,
+    short PlacementY,
     IReadOnlyList<MixedCutoutRecord> Pieces);

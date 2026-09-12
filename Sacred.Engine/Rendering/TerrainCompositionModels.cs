@@ -23,6 +23,12 @@ public readonly record struct TerrainCompositionTile(
     TerrainTileSource? Secondary,
     TerrainTileSurface Surface);
 
+/// <summary>A static shadow receiver rasterized once into its sector's terrain quad.</summary>
+public readonly record struct TerrainEmbeddedSprite(
+    StaticSpriteAsset Sprite,
+    float ScreenX,
+    float ScreenY);
+
 public sealed class TerrainSectorComposition
 {
     private TerrainCompositionTile[] _baseTiles;
@@ -30,6 +36,7 @@ public sealed class TerrainSectorComposition
     private TerrainCompositionTile[] _stairsDebugTiles;
     private TerrainCompositionTile[] _blockedAreaDebugTiles;
     private TerrainCompositionTile[] _terrainTopologyDebugTiles;
+    private TerrainEmbeddedSprite[] _embeddedSprites;
 
     public TerrainSectorComposition(
         SectorCoord coord,
@@ -60,7 +67,8 @@ public sealed class TerrainSectorComposition
         int groundMissingTiles,
         int floorCandidateTiles,
         int floorDrawnTiles,
-        int floorMissingTiles)
+        int floorMissingTiles,
+        TerrainEmbeddedSprite[] embeddedSprites)
     {
         Coord = coord;
         IsoX = isoX;
@@ -83,6 +91,8 @@ public sealed class TerrainSectorComposition
         BlockedAreaDebugHeight = blockedAreaDebugHeight;
         HasBlockedAreaDebugData = blockedAreaDebugTiles.Length > 0;
         _terrainTopologyDebugTiles = terrainTopologyDebugTiles;
+        _embeddedSprites = embeddedSprites;
+        EmbeddedSpriteCount = embeddedSprites.Length;
         TerrainTopologyDebugOffsetX = terrainTopologyDebugOffsetX;
         TerrainTopologyDebugOffsetY = terrainTopologyDebugOffsetY;
         TerrainTopologyDebugWidth = terrainTopologyDebugWidth;
@@ -126,6 +136,8 @@ public sealed class TerrainSectorComposition
     public int FloorCandidateTiles { get; }
     public int FloorDrawnTiles { get; }
     public int FloorMissingTiles { get; }
+    public IReadOnlyList<TerrainEmbeddedSprite> EmbeddedSprites => _embeddedSprites;
+    public int EmbeddedSpriteCount { get; }
 
     internal void ReleaseSourceTiles()
     {
@@ -134,5 +146,6 @@ public sealed class TerrainSectorComposition
         Interlocked.Exchange(ref _stairsDebugTiles, []);
         Interlocked.Exchange(ref _blockedAreaDebugTiles, []);
         Interlocked.Exchange(ref _terrainTopologyDebugTiles, []);
+        Interlocked.Exchange(ref _embeddedSprites, []);
     }
 }

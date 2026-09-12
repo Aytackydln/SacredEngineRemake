@@ -19,7 +19,7 @@ internal static class TestCharacters
 
     // Equipment item ids. Keeping names here makes these intentional test fixtures, not engine rules.
     private const uint DaemonHelm = 1222, DarkElfBreastplate = 1251, SeraphimHelm = 1840;
-    private const uint SeraphimGodsShield = 4017, BattleMageCowl = 3219, SeraphimWings = 4006;
+    private const uint SeraphimGodsShield = 4017, BattleMageCowl = 3219, SeraphimWings = 4010;
 
     private const uint SeraphimHair = 4007,
         SeraphimArms = 4082,
@@ -31,7 +31,7 @@ internal static class TestCharacters
 
     private const uint BattleMageTurban = 1315, BattleMagePad = 1424;
 
-    private const uint SeraphimSword = 1851,
+    private const uint SeraphimSword = 3073,
         ElvenBow = 1747,
         VampireSword = 1771,
         BattleMageStaff = 1877,
@@ -99,16 +99,24 @@ internal static class TestCharacters
 
     public static IReadOnlyList<TestCharacterDefinition> All { get; } =
     [
-        new(Seraphim, "Seraphim", SeraphimItems),
-        new(Gladiator, "Gladiator", GladiatorItems),
-        new(WoodElf, "Wood Elf", WoodElfItems),
-        new(DarkElf, "Dark Elf", DarkElfItems),
-        new(BattleMage, "Battle Mage", BattleMageITems),
-        new(BattleMage, "Battle Mage 2", BattleMageITems2),
-        new(Vampiress, "Vampiress D", VampiressDItems),
-        new(Vampiress, "Vampiress N", VampiressNItems),
-        new(Dwarf, "Dwarf", DwarfItems),
-        new(Daemon, "Daemon", DaemonItems),
+        new(Seraphim, SacredCharacterClass.Seraphim, "Seraphim", SeraphimItems),
+        new(Gladiator, SacredCharacterClass.Gladiator, "Gladiator", GladiatorItems),
+        new(WoodElf, SacredCharacterClass.WoodElf, "Wood Elf", WoodElfItems),
+        new(DarkElf, SacredCharacterClass.DarkElf, "Dark Elf", DarkElfItems),
+        new(BattleMage, SacredCharacterClass.BattleMage, "Battle Mage", BattleMageITems),
+        new(BattleMage, SacredCharacterClass.BattleMage, "Battle Mage 2", BattleMageITems2),
+        new(Vampiress, SacredCharacterClass.Vampiress, "Vampiress D", VampiressDItems),
+        new(Vampiress, SacredCharacterClass.Vampiress, "Vampiress N", VampiressNItems),
+        new(Dwarf, SacredCharacterClass.Dwarf, "Dwarf", DwarfItems),
+        new(Daemon, SacredCharacterClass.Daemon, "Daemon", DaemonItems),
+        new(Seraphim, SacredCharacterClass.Seraphim, "Seraphim beam", new Dictionary<ItemSlot, uint>(SeraphimItems) { [ItemSlot.RightHand] = 3072 }),
+        new(Daemon, SacredCharacterClass.Daemon, "Daemon small torch", new Dictionary<ItemSlot, uint>(DaemonItems) { [ItemSlot.RightHand] = 5632 }),
+        new(Seraphim, SacredCharacterClass.Seraphim, "Seraphim inherited effects", new Dictionary<ItemSlot, uint>(SeraphimItems)
+            { [ItemSlot.RightHand] = 2304, [ItemSlot.Wings] = 2176 }),
+        new(Vampiress, SacredCharacterClass.Vampiress, "Vampiress inherited worms", new Dictionary<ItemSlot, uint>(VampiressDItems)
+            { [ItemSlot.RightHand] = 7219 }),
+        new(Seraphim, SacredCharacterClass.Seraphim, "Seraphim Belwen wings", new Dictionary<ItemSlot, uint>(SeraphimItems)
+            { [ItemSlot.RightHand] = 3112 }),
     ];
 
     public static uint ResolveEntryId(string? displayName)
@@ -136,5 +144,6 @@ internal static class TestCharacters
 
 internal readonly record struct TestCharacterDefinition(
     uint BaseItemId,
+    SacredCharacterClass CharacterClass,
     string DisplayName,
     IReadOnlyDictionary<ItemSlot, uint> Items);

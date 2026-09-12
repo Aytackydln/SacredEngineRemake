@@ -2,7 +2,8 @@ namespace Sacred.Core.Pak.Weapon;
 
 /// <summary>
 /// Describes the reserved GRN bone-name conventions used by Sacred's equipped-item effects.
-/// The bone position is supplied by the model; Weapon.pak damage ranges activate elemental emitters.
+/// Bone positions come from the model. Native executable predicates select innate
+/// model effects; elemental affixes use a separate dispatch path.
 /// </summary>
 public readonly record struct SacredEquipmentEffectAnchor(
     string BoneName,
@@ -13,8 +14,11 @@ public readonly record struct SacredEquipmentEffectAnchor(
     {
         if (TryParseIndexedName(boneName, "weapon_fx", SacredEquipmentEffectAnchorKind.ElementalEmitter, out anchor) ||
             TryParseIndexedName(boneName, "weapon_gl", SacredEquipmentEffectAnchorKind.Glow, out anchor) ||
+            TryParseIndexedName(boneName, "weapon_gm", SacredEquipmentEffectAnchorKind.ModelEffect, out anchor) ||
             TryParseIndexedName(boneName, "stdfx_bone", SacredEquipmentEffectAnchorKind.StandardEffect, out anchor) ||
-            TryParseIndexedName(boneName, "fx_streak", SacredEquipmentEffectAnchorKind.Streak, out anchor))
+            TryParseIndexedName(boneName, "fx_streak", SacredEquipmentEffectAnchorKind.Streak, out anchor) ||
+            TryParseIndexedName(boneName, "sera03_fx", SacredEquipmentEffectAnchorKind.ItemEffectBillboard,
+                out anchor, minimumIndex: 0))
         {
             return true;
         }
@@ -27,13 +31,14 @@ public readonly record struct SacredEquipmentEffectAnchor(
         string? boneName,
         string prefix,
         SacredEquipmentEffectAnchorKind kind,
-        out SacredEquipmentEffectAnchor anchor)
+        out SacredEquipmentEffectAnchor anchor,
+        int minimumIndex = 1)
     {
         anchor = default;
         if (string.IsNullOrWhiteSpace(boneName) ||
             !boneName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
             !int.TryParse(boneName.AsSpan(prefix.Length), out var index) ||
-            index <= 0)
+            index < minimumIndex)
         {
             return false;
         }
@@ -47,6 +52,8 @@ public enum SacredEquipmentEffectAnchorKind
 {
     ElementalEmitter,
     Glow,
+    ModelEffect,
     StandardEffect,
-    Streak
+    Streak,
+    ItemEffectBillboard
 }

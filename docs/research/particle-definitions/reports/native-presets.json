@@ -1,0 +1,2868 @@
+{
+  "text_sha256": "ee60108ce8147721717df1632c47b89c2b445a0255922219fa14a5980feadf37",
+  "image_base": "0x400000",
+  "quality_setting": 2,
+  "world_units_per_tile": 53.66563034057617,
+  "method": "Original x86 initializer on a zeroed object with an explicitly empty particle vector at +0x68/+0x6C. Only bytes actually written are decoded. No original constructor or simulation/render loop is executed; null means unwritten. Incomplete results must not be treated as recovered presets.",
+  "effects": [
+    {
+      "factory_address": "0x5a0ccf",
+      "dispatch_address": "0x4890f6",
+      "preset": 1,
+      "instructions": [
+        "004890f6 push       0x2c0",
+        "004890fb push       ebx",
+        "004890fc push       ebx",
+        "004890fd push       1",
+        "004890ff sub        esp, 0xc",
+        "00489102 mov        ecx, esp"
+      ],
+      "type_id": 771,
+      "type_name": "TYPE_FX_HS_SMOKE_S",
+      "count_in_unique_scripts": 132,
+      "family": "cParticleSystem_smoke",
+      "constructor_address": "0x76e200",
+      "initializer_address": "0x76e980",
+      "texture_lookups": [
+        {
+          "name": "PARTICLE_SMOKE03.TGA",
+          "pointer": "0xa13d40",
+          "push_address": "0x76e235"
+        },
+        {
+          "name": "PARTICLE_FIRE03.TGA",
+          "pointer": "0xa13e04",
+          "push_address": "0x76e259"
+        },
+        {
+          "name": "PARTICLE_WATER01.TGA",
+          "pointer": "0xa13dec",
+          "push_address": "0x76e270"
+        },
+        {
+          "name": "PARTICLE_MULTI02.TGA",
+          "pointer": "0xa13dd4",
+          "push_address": "0x76e287"
+        }
+      ],
+      "draw_selection": {
+        "texture_name": "PARTICLE_SMOKE03.TGA",
+        "draw_address": "0x76e625",
+        "texture_handle_offset": "0x2e40",
+        "raw_renderer_flags": 326
+      },
+      "initializer_result": {
+        "status": "complete",
+        "error": null,
+        "uninitialized_object_reads": [],
+        "slots": [
+          {
+            "index": 0,
+            "motion_raw_hex": "00000000000096c3000020410000000000000000000000000000000000000000",
+            "emission_raw_hex": "000048c2000000000000c04000000040db0f4940db0f4940000000000000404000000000000000000000803f9a99993e9a99993e9a99993e00000000000000000000000000000040000000400000004000000000000000000ad7233d0000000004000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": -300.0,
+              "size_change_rate": 10.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": -50.0,
+              "gravity_random_width": 0.0,
+              "size": 6.0,
+              "size_random_width": 2.0,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 3.0,
+              "velocity": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "velocity_random_width": [
+                0.30000001192092896,
+                0.30000001192092896,
+                0.30000001192092896
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                2.0,
+                2.0,
+                2.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.03999999910593033,
+              "burst_count": 0,
+              "variant_selection": 4,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 1,
+            "motion_raw_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+            "emission_raw_hex": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": 0.0,
+              "size_change_rate": 0.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": 0.0,
+              "gravity_random_width": 0.0,
+              "size": 0.0,
+              "size_random_width": 0.0,
+              "rotation": 0.0,
+              "rotation_random_width": 0.0,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 0.0,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.0,
+              "burst_count": 0,
+              "variant_selection": 0,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 2,
+            "motion_raw_hex": null,
+            "emission_raw_hex": null,
+            "motion": {
+              "gravity_change_rate": null,
+              "fade_change_rate": null,
+              "size_change_rate": null,
+              "additional_angular_velocity": null,
+              "gravity_direction": null,
+              "inward_acceleration": null
+            },
+            "emission": {
+              "gravity": null,
+              "gravity_random_width": null,
+              "size": null,
+              "size_random_width": null,
+              "rotation": null,
+              "rotation_random_width": null,
+              "angular_velocity": null,
+              "angular_velocity_random_width": null,
+              "velocity": null,
+              "velocity_random_width": null,
+              "position_offset": null,
+              "position_random_width": null,
+              "packed_color": null,
+              "unknown_color_parameter": null,
+              "emission_interval": null,
+              "burst_count": null,
+              "variant_selection": null,
+              "unknown61": null,
+              "unknown62": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "factory_address": "0x5a0ccf",
+      "dispatch_address": "0x489164",
+      "preset": 2,
+      "instructions": [
+        "00489164 push       0x2c0",
+        "00489169 push       ebx",
+        "0048916a push       ebx",
+        "0048916b push       2",
+        "0048916d sub        esp, 0xc",
+        "00489170 mov        ecx, esp"
+      ],
+      "type_id": 810,
+      "type_name": "TYPE_FX_HS_SMOKE_M",
+      "count_in_unique_scripts": 44,
+      "family": "cParticleSystem_smoke",
+      "constructor_address": "0x76e200",
+      "initializer_address": "0x76e980",
+      "texture_lookups": [
+        {
+          "name": "PARTICLE_SMOKE03.TGA",
+          "pointer": "0xa13d40",
+          "push_address": "0x76e235"
+        },
+        {
+          "name": "PARTICLE_FIRE03.TGA",
+          "pointer": "0xa13e04",
+          "push_address": "0x76e259"
+        },
+        {
+          "name": "PARTICLE_WATER01.TGA",
+          "pointer": "0xa13dec",
+          "push_address": "0x76e270"
+        },
+        {
+          "name": "PARTICLE_MULTI02.TGA",
+          "pointer": "0xa13dd4",
+          "push_address": "0x76e287"
+        }
+      ],
+      "draw_selection": {
+        "texture_name": "PARTICLE_SMOKE03.TGA",
+        "draw_address": "0x76e625",
+        "texture_handle_offset": "0x2e40",
+        "raw_renderer_flags": 326
+      },
+      "initializer_result": {
+        "status": "complete",
+        "error": null,
+        "uninitialized_object_reads": [],
+        "slots": [
+          {
+            "index": 0,
+            "motion_raw_hex": "000000000000f0c2000020410000000000000000000000000000000000000000",
+            "emission_raw_hex": "0000c03f000000000000a04000000040db0f4940db0f4940000000000000404000000000000000000000b8410000004000000040000000400000000000000000000000000000004000000040000000400000000000000000cdcccc3d0000000004000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": -120.0,
+              "size_change_rate": 10.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": 1.5,
+              "gravity_random_width": 0.0,
+              "size": 5.0,
+              "size_random_width": 2.0,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 3.0,
+              "velocity": [
+                0.0,
+                0.0,
+                23.0
+              ],
+              "velocity_random_width": [
+                2.0,
+                2.0,
+                2.0
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                2.0,
+                2.0,
+                2.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.10000000149011612,
+              "burst_count": 0,
+              "variant_selection": 4,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 1,
+            "motion_raw_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+            "emission_raw_hex": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": 0.0,
+              "size_change_rate": 0.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": 0.0,
+              "gravity_random_width": 0.0,
+              "size": 0.0,
+              "size_random_width": 0.0,
+              "rotation": 0.0,
+              "rotation_random_width": 0.0,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 0.0,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.0,
+              "burst_count": 0,
+              "variant_selection": 0,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 2,
+            "motion_raw_hex": null,
+            "emission_raw_hex": null,
+            "motion": {
+              "gravity_change_rate": null,
+              "fade_change_rate": null,
+              "size_change_rate": null,
+              "additional_angular_velocity": null,
+              "gravity_direction": null,
+              "inward_acceleration": null
+            },
+            "emission": {
+              "gravity": null,
+              "gravity_random_width": null,
+              "size": null,
+              "size_random_width": null,
+              "rotation": null,
+              "rotation_random_width": null,
+              "angular_velocity": null,
+              "angular_velocity_random_width": null,
+              "velocity": null,
+              "velocity_random_width": null,
+              "position_offset": null,
+              "position_random_width": null,
+              "packed_color": null,
+              "unknown_color_parameter": null,
+              "emission_interval": null,
+              "burst_count": null,
+              "variant_selection": null,
+              "unknown61": null,
+              "unknown62": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "factory_address": "0x5a0ccf",
+      "dispatch_address": "0x4891d2",
+      "preset": 3,
+      "instructions": [
+        "004891d2 push       0x2c0",
+        "004891d7 push       ebx",
+        "004891d8 push       ebx",
+        "004891d9 push       3",
+        "004891db sub        esp, 0xc",
+        "004891de mov        ecx, esp"
+      ],
+      "type_id": 811,
+      "type_name": "TYPE_FX_HS_SMOKE_L",
+      "count_in_unique_scripts": 286,
+      "family": "cParticleSystem_smoke",
+      "constructor_address": "0x76e200",
+      "initializer_address": "0x76e980",
+      "texture_lookups": [
+        {
+          "name": "PARTICLE_SMOKE03.TGA",
+          "pointer": "0xa13d40",
+          "push_address": "0x76e235"
+        },
+        {
+          "name": "PARTICLE_FIRE03.TGA",
+          "pointer": "0xa13e04",
+          "push_address": "0x76e259"
+        },
+        {
+          "name": "PARTICLE_WATER01.TGA",
+          "pointer": "0xa13dec",
+          "push_address": "0x76e270"
+        },
+        {
+          "name": "PARTICLE_MULTI02.TGA",
+          "pointer": "0xa13dd4",
+          "push_address": "0x76e287"
+        }
+      ],
+      "draw_selection": {
+        "texture_name": "PARTICLE_SMOKE03.TGA",
+        "draw_address": "0x76e625",
+        "texture_handle_offset": "0x2e40",
+        "raw_renderer_flags": 326
+      },
+      "initializer_result": {
+        "status": "complete",
+        "error": null,
+        "uninitialized_object_reads": [],
+        "slots": [
+          {
+            "index": 0,
+            "motion_raw_hex": "00000000000096c2000000410000000000000000000000000000000000000000",
+            "emission_raw_hex": "00000040000000000000a04000000040db0f4940db0f4940000000000000404000000000000000000000f0410000004000000040000000400000000000000000000000000000004000000040000000400000000000000000cdcccc3d0000000004000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": -75.0,
+              "size_change_rate": 8.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": 2.0,
+              "gravity_random_width": 0.0,
+              "size": 5.0,
+              "size_random_width": 2.0,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 3.0,
+              "velocity": [
+                0.0,
+                0.0,
+                30.0
+              ],
+              "velocity_random_width": [
+                2.0,
+                2.0,
+                2.0
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                2.0,
+                2.0,
+                2.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.10000000149011612,
+              "burst_count": 0,
+              "variant_selection": 4,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 1,
+            "motion_raw_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+            "emission_raw_hex": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": 0.0,
+              "size_change_rate": 0.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": 0.0,
+              "gravity_random_width": 0.0,
+              "size": 0.0,
+              "size_random_width": 0.0,
+              "rotation": 0.0,
+              "rotation_random_width": 0.0,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 0.0,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.0,
+              "burst_count": 0,
+              "variant_selection": 0,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 2,
+            "motion_raw_hex": null,
+            "emission_raw_hex": null,
+            "motion": {
+              "gravity_change_rate": null,
+              "fade_change_rate": null,
+              "size_change_rate": null,
+              "additional_angular_velocity": null,
+              "gravity_direction": null,
+              "inward_acceleration": null
+            },
+            "emission": {
+              "gravity": null,
+              "gravity_random_width": null,
+              "size": null,
+              "size_random_width": null,
+              "rotation": null,
+              "rotation_random_width": null,
+              "angular_velocity": null,
+              "angular_velocity_random_width": null,
+              "velocity": null,
+              "velocity_random_width": null,
+              "position_offset": null,
+              "position_random_width": null,
+              "packed_color": null,
+              "unknown_color_parameter": null,
+              "emission_interval": null,
+              "burst_count": null,
+              "variant_selection": null,
+              "unknown61": null,
+              "unknown62": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "factory_address": "0x5a0ccf",
+      "dispatch_address": "0x489240",
+      "preset": 4,
+      "instructions": [
+        "00489240 push       0x2c0",
+        "00489245 push       ebx",
+        "00489246 push       ebx",
+        "00489247 push       4",
+        "00489249 sub        esp, 0xc",
+        "0048924c mov        ecx, esp"
+      ],
+      "type_id": 812,
+      "type_name": "TYPE_FX_FI_SMOKE_S",
+      "count_in_unique_scripts": 8250,
+      "family": "cParticleSystem_smoke",
+      "constructor_address": "0x76e200",
+      "initializer_address": "0x76e980",
+      "texture_lookups": [
+        {
+          "name": "PARTICLE_SMOKE03.TGA",
+          "pointer": "0xa13d40",
+          "push_address": "0x76e235"
+        },
+        {
+          "name": "PARTICLE_FIRE03.TGA",
+          "pointer": "0xa13e04",
+          "push_address": "0x76e259"
+        },
+        {
+          "name": "PARTICLE_WATER01.TGA",
+          "pointer": "0xa13dec",
+          "push_address": "0x76e270"
+        },
+        {
+          "name": "PARTICLE_MULTI02.TGA",
+          "pointer": "0xa13dd4",
+          "push_address": "0x76e287"
+        }
+      ],
+      "draw_selection": {
+        "texture_name": "PARTICLE_FIRE03.TGA",
+        "draw_address": "0x76e66f",
+        "texture_handle_offset": "0x2e3c",
+        "raw_renderer_flags": 12
+      },
+      "initializer_result": {
+        "status": "complete",
+        "error": null,
+        "uninitialized_object_reads": [],
+        "slots": [
+          {
+            "index": 0,
+            "motion_raw_hex": "00000000000048c3000070410000000000000000000000000000000000000000",
+            "emission_raw_hex": "00000cc2000008420000003fcdcc4c3edb0f4940db0f49400000000000000000000000000000000000000000cdcc4c3ecdcc4c3ecdcc4c3e00000000000000000000000000008040000000000000000000000000000000000ad7a33c0000000000000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": -200.0,
+              "size_change_rate": 15.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": -35.0,
+              "gravity_random_width": 34.0,
+              "size": 0.5,
+              "size_random_width": 0.20000000298023224,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 0.0,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                0.20000000298023224,
+                0.20000000298023224,
+                0.20000000298023224
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                4.0,
+                0.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.019999999552965164,
+              "burst_count": 0,
+              "variant_selection": 0,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 1,
+            "motion_raw_hex": "00000000000034c3000020410000000000000000000000000000000000000000",
+            "emission_raw_hex": "00000cc20000a0400000803f0000003fdb0f4940db0f4940000000000000003f0000000000000000000000009a99993e9a99993e9a99993e00000000000000000000000000008040000000000000000000000000000000000ad7a33c0000000000000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": -180.0,
+              "size_change_rate": 10.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": -35.0,
+              "gravity_random_width": 5.0,
+              "size": 1.0,
+              "size_random_width": 0.5,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 0.5,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                0.30000001192092896,
+                0.30000001192092896,
+                0.30000001192092896
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                4.0,
+                0.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.019999999552965164,
+              "burst_count": 0,
+              "variant_selection": 0,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 2,
+            "motion_raw_hex": null,
+            "emission_raw_hex": null,
+            "motion": {
+              "gravity_change_rate": null,
+              "fade_change_rate": null,
+              "size_change_rate": null,
+              "additional_angular_velocity": null,
+              "gravity_direction": null,
+              "inward_acceleration": null
+            },
+            "emission": {
+              "gravity": null,
+              "gravity_random_width": null,
+              "size": null,
+              "size_random_width": null,
+              "rotation": null,
+              "rotation_random_width": null,
+              "angular_velocity": null,
+              "angular_velocity_random_width": null,
+              "velocity": null,
+              "velocity_random_width": null,
+              "position_offset": null,
+              "position_random_width": null,
+              "packed_color": null,
+              "unknown_color_parameter": null,
+              "emission_interval": null,
+              "burst_count": null,
+              "variant_selection": null,
+              "unknown61": null,
+              "unknown62": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "factory_address": "0x5a0ccf",
+      "dispatch_address": "0x4892ae",
+      "preset": 5,
+      "instructions": [
+        "004892ae push       0x2c0",
+        "004892b3 push       ebx",
+        "004892b4 push       ebx",
+        "004892b5 push       5",
+        "004892b7 sub        esp, 0xc",
+        "004892ba mov        ecx, esp"
+      ],
+      "type_id": 813,
+      "type_name": "TYPE_FX_FI_SMOKE_M",
+      "count_in_unique_scripts": 2013,
+      "family": "cParticleSystem_smoke",
+      "constructor_address": "0x76e200",
+      "initializer_address": "0x76e980",
+      "texture_lookups": [
+        {
+          "name": "PARTICLE_SMOKE03.TGA",
+          "pointer": "0xa13d40",
+          "push_address": "0x76e235"
+        },
+        {
+          "name": "PARTICLE_FIRE03.TGA",
+          "pointer": "0xa13e04",
+          "push_address": "0x76e259"
+        },
+        {
+          "name": "PARTICLE_WATER01.TGA",
+          "pointer": "0xa13dec",
+          "push_address": "0x76e270"
+        },
+        {
+          "name": "PARTICLE_MULTI02.TGA",
+          "pointer": "0xa13dd4",
+          "push_address": "0x76e287"
+        }
+      ],
+      "draw_selection": {
+        "texture_name": "PARTICLE_FIRE03.TGA",
+        "draw_address": "0x76e66f",
+        "texture_handle_offset": "0x2e3c",
+        "raw_renderer_flags": 12
+      },
+      "initializer_result": {
+        "status": "complete",
+        "error": null,
+        "uninitialized_object_reads": [],
+        "slots": [
+          {
+            "index": 0,
+            "motion_raw_hex": "00000000000016c300008c410000000000000000000000000000000000000000",
+            "emission_raw_hex": "00000cc2000008420000403f3333b33edb0f4940db0f494000000000000000000000000000000000000000003333b33e3333b33e3333b33e00000000000000000000000000001041000000000000000000000000000000000ad7a33c0000000000000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": -150.0,
+              "size_change_rate": 17.5,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": -35.0,
+              "gravity_random_width": 34.0,
+              "size": 0.75,
+              "size_random_width": 0.3499999940395355,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 0.0,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                0.3499999940395355,
+                0.3499999940395355,
+                0.3499999940395355
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                9.0,
+                0.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.019999999552965164,
+              "burst_count": 0,
+              "variant_selection": 0,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 1,
+            "motion_raw_hex": "00000000000002c3000020410000000000000000000000000000000000000000",
+            "emission_raw_hex": "00000cc20000a040000000400000403fdb0f4940db0f4940000000000000803f000000000000000000000000cdcccc3ecdcccc3ecdcccc3e00000000000000000000000000001041000000000000000000000000000000000ad7a33c0000000000000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": -130.0,
+              "size_change_rate": 10.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": -35.0,
+              "gravity_random_width": 5.0,
+              "size": 2.0,
+              "size_random_width": 0.75,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 1.0,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                0.4000000059604645,
+                0.4000000059604645,
+                0.4000000059604645
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                9.0,
+                0.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.019999999552965164,
+              "burst_count": 0,
+              "variant_selection": 0,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 2,
+            "motion_raw_hex": null,
+            "emission_raw_hex": null,
+            "motion": {
+              "gravity_change_rate": null,
+              "fade_change_rate": null,
+              "size_change_rate": null,
+              "additional_angular_velocity": null,
+              "gravity_direction": null,
+              "inward_acceleration": null
+            },
+            "emission": {
+              "gravity": null,
+              "gravity_random_width": null,
+              "size": null,
+              "size_random_width": null,
+              "rotation": null,
+              "rotation_random_width": null,
+              "angular_velocity": null,
+              "angular_velocity_random_width": null,
+              "velocity": null,
+              "velocity_random_width": null,
+              "position_offset": null,
+              "position_random_width": null,
+              "packed_color": null,
+              "unknown_color_parameter": null,
+              "emission_interval": null,
+              "burst_count": null,
+              "variant_selection": null,
+              "unknown61": null,
+              "unknown62": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "factory_address": "0x5a17df",
+      "dispatch_address": "0x4898b2",
+      "preset": 1,
+      "instructions": [
+        "004898b2 push       0x2c0",
+        "004898b7 push       ebx",
+        "004898b8 push       ebx",
+        "004898b9 push       1",
+        "004898bb sub        esp, 0xc",
+        "004898be mov        ecx, esp"
+      ],
+      "type_id": 832,
+      "type_name": "TYPE_FX_DWARFMAGIC_YEL",
+      "count_in_unique_scripts": 2035,
+      "family": "cParticleSystem_dwarfmagic",
+      "constructor_address": "0x78a2d0",
+      "initializer_address": "0x78a5d0",
+      "texture_lookups": [
+        {
+          "name": "PARTICLE_SPARK04.TGA",
+          "pointer": "0x8e7c10",
+          "push_address": "0x78a305"
+        }
+      ],
+      "draw_selection": {
+        "texture_name": "PARTICLE_SPARK04.TGA",
+        "draw_address": "0x78a3b0",
+        "raw_renderer_flags": 29
+      },
+      "initializer_result": {
+        "status": "complete",
+        "error": null,
+        "uninitialized_object_reads": [],
+        "slots": [
+          {
+            "index": 0,
+            "motion_raw_hex": "000020c100002fc30000c03f6666064000000000000000000000000000000000",
+            "emission_raw_hex": "0000f0c1000000000000803f0000003fdb0f4940db0f4940000000000000000000000000000000000000000000000000000000000000000000000000000000000000c8420000a0400000a0400000a0400000000000000000cdcc4c3e0000000000000000",
+            "motion": {
+              "gravity_change_rate": -10.0,
+              "fade_change_rate": -175.0,
+              "size_change_rate": 1.5,
+              "additional_angular_velocity": 2.0999999046325684,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": -30.0,
+              "gravity_random_width": 0.0,
+              "size": 1.0,
+              "size_random_width": 0.5,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 0.0,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                100.0
+              ],
+              "position_random_width": [
+                5.0,
+                5.0,
+                5.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.20000000298023224,
+              "burst_count": 0,
+              "variant_selection": 0,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "factory_address": "0x5a17df",
+      "dispatch_address": "0x489920",
+      "preset": 2,
+      "instructions": [
+        "00489920 push       0x2c0",
+        "00489925 push       ebx",
+        "00489926 push       ebx",
+        "00489927 push       2",
+        "00489929 sub        esp, 0xc",
+        "0048992c mov        ecx, esp"
+      ],
+      "type_id": 833,
+      "type_name": "TYPE_FX_DWARFMAGIC_BLU",
+      "count_in_unique_scripts": 7865,
+      "family": "cParticleSystem_dwarfmagic",
+      "constructor_address": "0x78a2d0",
+      "initializer_address": "0x78a5d0",
+      "texture_lookups": [
+        {
+          "name": "PARTICLE_SPARK04.TGA",
+          "pointer": "0x8e7c10",
+          "push_address": "0x78a305"
+        }
+      ],
+      "draw_selection": {
+        "texture_name": "PARTICLE_SPARK04.TGA",
+        "draw_address": "0x78a3b0",
+        "raw_renderer_flags": 29
+      },
+      "initializer_result": {
+        "status": "complete",
+        "error": null,
+        "uninitialized_object_reads": [],
+        "slots": [
+          {
+            "index": 0,
+            "motion_raw_hex": "000040c1000016c3000020406666064000000000000000000000000000000000",
+            "emission_raw_hex": "000020c200000000000000400000803fdb0f4940db0f4940000000000000000000000000000000000000000000000000000000000000000000000000000000000000c8420000704100007041000070410000000000000000cdcc4c3e0000000000000000",
+            "motion": {
+              "gravity_change_rate": -12.0,
+              "fade_change_rate": -150.0,
+              "size_change_rate": 2.5,
+              "additional_angular_velocity": 2.0999999046325684,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": -40.0,
+              "gravity_random_width": 0.0,
+              "size": 2.0,
+              "size_random_width": 1.0,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 0.0,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                100.0
+              ],
+              "position_random_width": [
+                15.0,
+                15.0,
+                15.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.20000000298023224,
+              "burst_count": 0,
+              "variant_selection": 0,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          }
+        ]
+      }
+    },
+    {
+      "factory_address": "0x5a0ccf",
+      "dispatch_address": "0x48931c",
+      "preset": 6,
+      "instructions": [
+        "0048931c push       0x2c0",
+        "00489321 push       ebx",
+        "00489322 push       ebx",
+        "00489323 push       6",
+        "00489325 sub        esp, 0xc",
+        "00489328 mov        ecx, esp"
+      ],
+      "type_id": 876,
+      "type_name": "TYPE_FX_FI_SMOKE_L",
+      "count_in_unique_scripts": 726,
+      "family": "cParticleSystem_smoke",
+      "constructor_address": "0x76e200",
+      "initializer_address": "0x76e980",
+      "texture_lookups": [
+        {
+          "name": "PARTICLE_SMOKE03.TGA",
+          "pointer": "0xa13d40",
+          "push_address": "0x76e235"
+        },
+        {
+          "name": "PARTICLE_FIRE03.TGA",
+          "pointer": "0xa13e04",
+          "push_address": "0x76e259"
+        },
+        {
+          "name": "PARTICLE_WATER01.TGA",
+          "pointer": "0xa13dec",
+          "push_address": "0x76e270"
+        },
+        {
+          "name": "PARTICLE_MULTI02.TGA",
+          "pointer": "0xa13dd4",
+          "push_address": "0x76e287"
+        }
+      ],
+      "draw_selection": {
+        "texture_name": "PARTICLE_FIRE03.TGA",
+        "draw_address": "0x76e66f",
+        "texture_handle_offset": "0x2e3c",
+        "raw_renderer_flags": 12
+      },
+      "initializer_result": {
+        "status": "complete",
+        "error": null,
+        "uninitialized_object_reads": [],
+        "slots": [
+          {
+            "index": 0,
+            "motion_raw_hex": "000000000000c8c20000a0410000000000000000000000000000000000000000",
+            "emission_raw_hex": "00000cc2000008420000803f0000003fdb0f4940db0f494000000000000000000000000000000000000000000000003f0000003f0000003f00000000000000000000000000001041000000000000000000000000000000000ad7a33c0000000000000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": -100.0,
+              "size_change_rate": 20.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": -35.0,
+              "gravity_random_width": 34.0,
+              "size": 1.0,
+              "size_random_width": 0.5,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 0.0,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                0.5,
+                0.5,
+                0.5
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                9.0,
+                0.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.019999999552965164,
+              "burst_count": 0,
+              "variant_selection": 0,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 1,
+            "motion_raw_hex": "000000000000a0c2000020410000000000000000000000000000000000000000",
+            "emission_raw_hex": "00000cc20000a040000040400000803fdb0f4940db0f494000000000000000400000000000000000000000000000003f0000003f0000003f00000000000000000000000000001041000000000000000000000000000000000ad7a33c0000000000000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": -80.0,
+              "size_change_rate": 10.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": -35.0,
+              "gravity_random_width": 5.0,
+              "size": 3.0,
+              "size_random_width": 1.0,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 2.0,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                0.5,
+                0.5,
+                0.5
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                9.0,
+                0.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.019999999552965164,
+              "burst_count": 0,
+              "variant_selection": 0,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 2,
+            "motion_raw_hex": null,
+            "emission_raw_hex": null,
+            "motion": {
+              "gravity_change_rate": null,
+              "fade_change_rate": null,
+              "size_change_rate": null,
+              "additional_angular_velocity": null,
+              "gravity_direction": null,
+              "inward_acceleration": null
+            },
+            "emission": {
+              "gravity": null,
+              "gravity_random_width": null,
+              "size": null,
+              "size_random_width": null,
+              "rotation": null,
+              "rotation_random_width": null,
+              "angular_velocity": null,
+              "angular_velocity_random_width": null,
+              "velocity": null,
+              "velocity_random_width": null,
+              "position_offset": null,
+              "position_random_width": null,
+              "packed_color": null,
+              "unknown_color_parameter": null,
+              "emission_interval": null,
+              "burst_count": null,
+              "variant_selection": null,
+              "unknown61": null,
+              "unknown62": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "factory_address": "0x5a0ccf",
+      "dispatch_address": "0x48938a",
+      "preset": 7,
+      "instructions": [
+        "0048938a push       0x2c0",
+        "0048938f push       ebx",
+        "00489390 push       ebx",
+        "00489391 push       7",
+        "00489393 sub        esp, 0xc",
+        "00489396 mov        ecx, esp"
+      ],
+      "type_id": 879,
+      "type_name": "TYPE_FX_GEYSIR",
+      "count_in_unique_scripts": 3212,
+      "family": "cParticleSystem_smoke",
+      "constructor_address": "0x76e200",
+      "initializer_address": "0x76e980",
+      "texture_lookups": [
+        {
+          "name": "PARTICLE_SMOKE03.TGA",
+          "pointer": "0xa13d40",
+          "push_address": "0x76e235"
+        },
+        {
+          "name": "PARTICLE_FIRE03.TGA",
+          "pointer": "0xa13e04",
+          "push_address": "0x76e259"
+        },
+        {
+          "name": "PARTICLE_WATER01.TGA",
+          "pointer": "0xa13dec",
+          "push_address": "0x76e270"
+        },
+        {
+          "name": "PARTICLE_MULTI02.TGA",
+          "pointer": "0xa13dd4",
+          "push_address": "0x76e287"
+        }
+      ],
+      "draw_selection": {
+        "texture_name": "PARTICLE_WATER01.TGA",
+        "draw_address": "0x76e6b6",
+        "texture_handle_offset": "0x2e44",
+        "raw_renderer_flags": 70
+      },
+      "initializer_result": {
+        "status": "incomplete",
+        "error": "UcError: Invalid memory fetch (UC_ERR_FETCH_UNMAPPED)",
+        "uninitialized_object_reads": [],
+        "slots": [
+          {
+            "index": 0,
+            "motion_raw_hex": "000000000000afc3000070410000000000000000000000000000000000000000",
+            "emission_raw_hex": "0000c842000000000000a0400000803fdb0f4940db0f4940000000000000000000000000000000000000204200000000000000000000a0400000000000000000000000000000803f0000803f0000803f0000000000000000cdcccc3d0000000000000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": -350.0,
+              "size_change_rate": 15.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": 100.0,
+              "gravity_random_width": 0.0,
+              "size": 5.0,
+              "size_random_width": 1.0,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 0.0,
+              "velocity": [
+                0.0,
+                0.0,
+                40.0
+              ],
+              "velocity_random_width": [
+                0.0,
+                0.0,
+                5.0
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                1.0,
+                1.0,
+                1.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.10000000149011612,
+              "burst_count": 0,
+              "variant_selection": 0,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 1,
+            "motion_raw_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+            "emission_raw_hex": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": 0.0,
+              "size_change_rate": 0.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": 0.0,
+              "gravity_random_width": 0.0,
+              "size": 0.0,
+              "size_random_width": 0.0,
+              "rotation": 0.0,
+              "rotation_random_width": 0.0,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 0.0,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.0,
+              "burst_count": 0,
+              "variant_selection": 0,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 2,
+            "motion_raw_hex": null,
+            "emission_raw_hex": null,
+            "motion": {
+              "gravity_change_rate": null,
+              "fade_change_rate": null,
+              "size_change_rate": null,
+              "additional_angular_velocity": null,
+              "gravity_direction": null,
+              "inward_acceleration": null
+            },
+            "emission": {
+              "gravity": null,
+              "gravity_random_width": null,
+              "size": null,
+              "size_random_width": null,
+              "rotation": null,
+              "rotation_random_width": null,
+              "angular_velocity": null,
+              "angular_velocity_random_width": null,
+              "velocity": null,
+              "velocity_random_width": null,
+              "position_offset": null,
+              "position_random_width": null,
+              "packed_color": null,
+              "unknown_color_parameter": null,
+              "emission_interval": null,
+              "burst_count": null,
+              "variant_selection": null,
+              "unknown61": null,
+              "unknown62": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "factory_address": "0x5a0ccf",
+      "dispatch_address": "0x489466",
+      "preset": 9,
+      "instructions": [
+        "00489466 push       0x2c0",
+        "0048946b push       ebx",
+        "0048946c push       ebx",
+        "0048946d push       9",
+        "0048946f sub        esp, 0xc",
+        "00489472 mov        ecx, esp"
+      ],
+      "type_id": 881,
+      "type_name": "TYPE_FX_LV_SMOKE_L",
+      "count_in_unique_scripts": 1837,
+      "family": "cParticleSystem_smoke",
+      "constructor_address": "0x76e200",
+      "initializer_address": "0x76e980",
+      "texture_lookups": [
+        {
+          "name": "PARTICLE_SMOKE03.TGA",
+          "pointer": "0xa13d40",
+          "push_address": "0x76e235"
+        },
+        {
+          "name": "PARTICLE_FIRE03.TGA",
+          "pointer": "0xa13e04",
+          "push_address": "0x76e259"
+        },
+        {
+          "name": "PARTICLE_WATER01.TGA",
+          "pointer": "0xa13dec",
+          "push_address": "0x76e270"
+        },
+        {
+          "name": "PARTICLE_MULTI02.TGA",
+          "pointer": "0xa13dd4",
+          "push_address": "0x76e287"
+        }
+      ],
+      "draw_selection": {
+        "texture_name": "PARTICLE_SMOKE03.TGA",
+        "draw_address": "0x76e6fd",
+        "texture_handle_offset": "0x2e40",
+        "raw_renderer_flags": 268
+      },
+      "initializer_result": {
+        "status": "complete",
+        "error": null,
+        "uninitialized_object_reads": [],
+        "slots": [
+          {
+            "index": 0,
+            "motion_raw_hex": "00000000000016c3000060410000000000000000000000000000000000000000",
+            "emission_raw_hex": "00000cc20000a0400000c03f0000803fdb0f4940db0f494000000000000000400000000000000000000000000000003f0000003f0000003f0000000000000000000000000000a041000000000000000000000000000000008fc2f53c0000000004000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": -150.0,
+              "size_change_rate": 14.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": -35.0,
+              "gravity_random_width": 5.0,
+              "size": 1.5,
+              "size_random_width": 1.0,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 2.0,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                0.5,
+                0.5,
+                0.5
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                20.0,
+                0.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.029999999329447746,
+              "burst_count": 0,
+              "variant_selection": 4,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 1,
+            "motion_raw_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+            "emission_raw_hex": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": 0.0,
+              "size_change_rate": 0.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": 0.0,
+              "gravity_random_width": 0.0,
+              "size": 0.0,
+              "size_random_width": 0.0,
+              "rotation": 0.0,
+              "rotation_random_width": 0.0,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 0.0,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.0,
+              "burst_count": 0,
+              "variant_selection": 0,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 2,
+            "motion_raw_hex": null,
+            "emission_raw_hex": null,
+            "motion": {
+              "gravity_change_rate": null,
+              "fade_change_rate": null,
+              "size_change_rate": null,
+              "additional_angular_velocity": null,
+              "gravity_direction": null,
+              "inward_acceleration": null
+            },
+            "emission": {
+              "gravity": null,
+              "gravity_random_width": null,
+              "size": null,
+              "size_random_width": null,
+              "rotation": null,
+              "rotation_random_width": null,
+              "angular_velocity": null,
+              "angular_velocity_random_width": null,
+              "velocity": null,
+              "velocity_random_width": null,
+              "position_offset": null,
+              "position_random_width": null,
+              "packed_color": null,
+              "unknown_color_parameter": null,
+              "emission_interval": null,
+              "burst_count": null,
+              "variant_selection": null,
+              "unknown61": null,
+              "unknown62": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "factory_address": "0x5a0ccf",
+      "dispatch_address": "0x4893f8",
+      "preset": 8,
+      "instructions": [
+        "004893f8 push       0x2c0",
+        "004893fd push       ebx",
+        "004893fe push       ebx",
+        "004893ff push       8",
+        "00489401 sub        esp, 0xc",
+        "00489404 mov        ecx, esp"
+      ],
+      "type_id": 882,
+      "type_name": "TYPE_FX_LV_SMOKE_M",
+      "count_in_unique_scripts": 2728,
+      "family": "cParticleSystem_smoke",
+      "constructor_address": "0x76e200",
+      "initializer_address": "0x76e980",
+      "texture_lookups": [
+        {
+          "name": "PARTICLE_SMOKE03.TGA",
+          "pointer": "0xa13d40",
+          "push_address": "0x76e235"
+        },
+        {
+          "name": "PARTICLE_FIRE03.TGA",
+          "pointer": "0xa13e04",
+          "push_address": "0x76e259"
+        },
+        {
+          "name": "PARTICLE_WATER01.TGA",
+          "pointer": "0xa13dec",
+          "push_address": "0x76e270"
+        },
+        {
+          "name": "PARTICLE_MULTI02.TGA",
+          "pointer": "0xa13dd4",
+          "push_address": "0x76e287"
+        }
+      ],
+      "draw_selection": {
+        "texture_name": "PARTICLE_SMOKE03.TGA",
+        "draw_address": "0x76e6fd",
+        "texture_handle_offset": "0x2e40",
+        "raw_renderer_flags": 268
+      },
+      "initializer_result": {
+        "status": "complete",
+        "error": null,
+        "uninitialized_object_reads": [],
+        "slots": [
+          {
+            "index": 0,
+            "motion_raw_hex": "00000000000048c3000040410000000000000000000000000000000000000000",
+            "emission_raw_hex": "00000cc20000a0400000803f0000403fdb0f4940db0f4940000000000000803f000000000000000000000000cdcccc3ecdcccc3ecdcccc3e0000000000000000000000000000a040000000000000000000000000000000008fc2f53c0000000004000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": -200.0,
+              "size_change_rate": 12.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": -35.0,
+              "gravity_random_width": 5.0,
+              "size": 1.0,
+              "size_random_width": 0.75,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 1.0,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                0.4000000059604645,
+                0.4000000059604645,
+                0.4000000059604645
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                5.0,
+                0.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.029999999329447746,
+              "burst_count": 0,
+              "variant_selection": 4,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 1,
+            "motion_raw_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+            "emission_raw_hex": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": 0.0,
+              "size_change_rate": 0.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": 0.0,
+              "gravity_random_width": 0.0,
+              "size": 0.0,
+              "size_random_width": 0.0,
+              "rotation": 0.0,
+              "rotation_random_width": 0.0,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 0.0,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.0,
+              "burst_count": 0,
+              "variant_selection": 0,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 2,
+            "motion_raw_hex": null,
+            "emission_raw_hex": null,
+            "motion": {
+              "gravity_change_rate": null,
+              "fade_change_rate": null,
+              "size_change_rate": null,
+              "additional_angular_velocity": null,
+              "gravity_direction": null,
+              "inward_acceleration": null
+            },
+            "emission": {
+              "gravity": null,
+              "gravity_random_width": null,
+              "size": null,
+              "size_random_width": null,
+              "rotation": null,
+              "rotation_random_width": null,
+              "angular_velocity": null,
+              "angular_velocity_random_width": null,
+              "velocity": null,
+              "velocity_random_width": null,
+              "position_offset": null,
+              "position_random_width": null,
+              "packed_color": null,
+              "unknown_color_parameter": null,
+              "emission_interval": null,
+              "burst_count": null,
+              "variant_selection": null,
+              "unknown61": null,
+              "unknown62": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "factory_address": "0x5a0ccf",
+      "dispatch_address": "0x4895b0",
+      "preset": 12,
+      "instructions": [
+        "004895b0 push       0x2c0",
+        "004895b5 push       ebx",
+        "004895b6 push       ebx",
+        "004895b7 push       0xc",
+        "004895b9 sub        esp, 0xc",
+        "004895bc mov        ecx, esp"
+      ],
+      "type_id": 884,
+      "type_name": "TYPE_FX_FIRE_L",
+      "count_in_unique_scripts": 462,
+      "family": "cParticleSystem_smoke",
+      "constructor_address": "0x76e200",
+      "initializer_address": "0x76e980",
+      "texture_lookups": [
+        {
+          "name": "PARTICLE_SMOKE03.TGA",
+          "pointer": "0xa13d40",
+          "push_address": "0x76e235"
+        },
+        {
+          "name": "PARTICLE_FIRE03.TGA",
+          "pointer": "0xa13e04",
+          "push_address": "0x76e259"
+        },
+        {
+          "name": "PARTICLE_WATER01.TGA",
+          "pointer": "0xa13dec",
+          "push_address": "0x76e270"
+        },
+        {
+          "name": "PARTICLE_MULTI02.TGA",
+          "pointer": "0xa13dd4",
+          "push_address": "0x76e287"
+        }
+      ],
+      "draw_selection": {
+        "texture_name": "PARTICLE_FIRE03.TGA",
+        "draw_address": "0x76e66f",
+        "texture_handle_offset": "0x2e3c",
+        "raw_renderer_flags": 12
+      },
+      "initializer_result": {
+        "status": "complete",
+        "error": null,
+        "uninitialized_object_reads": [],
+        "slots": [
+          {
+            "index": 0,
+            "motion_raw_hex": "000000000000c8c2000040410000000000000000000000000000000000000000",
+            "emission_raw_hex": "00000cc2000008420000803f0000003fdb0f4940db0f494000000000000000000000000000000000000000000000003f0000003f0000003f00000000000000000000000000001041000000000000000000000000000000000ad7a33c0000000000000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": -100.0,
+              "size_change_rate": 12.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": -35.0,
+              "gravity_random_width": 34.0,
+              "size": 1.0,
+              "size_random_width": 0.5,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 0.0,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                0.5,
+                0.5,
+                0.5
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                9.0,
+                0.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.019999999552965164,
+              "burst_count": 0,
+              "variant_selection": 0,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 1,
+            "motion_raw_hex": "000000000000c8c2000040410000000000000000000000000000000000000000",
+            "emission_raw_hex": "00000cc20000a040000040400000803fdb0f4940db0f494000000000000000400000000000000000000000000000003f0000003f0000003f00000000000000000000000000001041000000000000000000000000000000000ad7a33c0000000000000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": -100.0,
+              "size_change_rate": 12.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": -35.0,
+              "gravity_random_width": 5.0,
+              "size": 3.0,
+              "size_random_width": 1.0,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 2.0,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                0.5,
+                0.5,
+                0.5
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                9.0,
+                0.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.019999999552965164,
+              "burst_count": 0,
+              "variant_selection": 0,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 2,
+            "motion_raw_hex": null,
+            "emission_raw_hex": null,
+            "motion": {
+              "gravity_change_rate": null,
+              "fade_change_rate": null,
+              "size_change_rate": null,
+              "additional_angular_velocity": null,
+              "gravity_direction": null,
+              "inward_acceleration": null
+            },
+            "emission": {
+              "gravity": null,
+              "gravity_random_width": null,
+              "size": null,
+              "size_random_width": null,
+              "rotation": null,
+              "rotation_random_width": null,
+              "angular_velocity": null,
+              "angular_velocity_random_width": null,
+              "velocity": null,
+              "velocity_random_width": null,
+              "position_offset": null,
+              "position_random_width": null,
+              "packed_color": null,
+              "unknown_color_parameter": null,
+              "emission_interval": null,
+              "burst_count": null,
+              "variant_selection": null,
+              "unknown61": null,
+              "unknown62": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "factory_address": "0x5a0ccf",
+      "dispatch_address": "0x489542",
+      "preset": 11,
+      "instructions": [
+        "00489542 push       0x2c0",
+        "00489547 push       ebx",
+        "00489548 push       ebx",
+        "00489549 push       0xb",
+        "0048954b sub        esp, 0xc",
+        "0048954e mov        ecx, esp"
+      ],
+      "type_id": 885,
+      "type_name": "TYPE_FX_FIRE_M",
+      "count_in_unique_scripts": 4125,
+      "family": "cParticleSystem_smoke",
+      "constructor_address": "0x76e200",
+      "initializer_address": "0x76e980",
+      "texture_lookups": [
+        {
+          "name": "PARTICLE_SMOKE03.TGA",
+          "pointer": "0xa13d40",
+          "push_address": "0x76e235"
+        },
+        {
+          "name": "PARTICLE_FIRE03.TGA",
+          "pointer": "0xa13e04",
+          "push_address": "0x76e259"
+        },
+        {
+          "name": "PARTICLE_WATER01.TGA",
+          "pointer": "0xa13dec",
+          "push_address": "0x76e270"
+        },
+        {
+          "name": "PARTICLE_MULTI02.TGA",
+          "pointer": "0xa13dd4",
+          "push_address": "0x76e287"
+        }
+      ],
+      "draw_selection": {
+        "texture_name": "PARTICLE_FIRE03.TGA",
+        "draw_address": "0x76e66f",
+        "texture_handle_offset": "0x2e3c",
+        "raw_renderer_flags": 12
+      },
+      "initializer_result": {
+        "status": "complete",
+        "error": null,
+        "uninitialized_object_reads": [],
+        "slots": [
+          {
+            "index": 0,
+            "motion_raw_hex": "00000000000020c3000020410000000000000000000000000000000000000000",
+            "emission_raw_hex": "00000cc2000008420000403f3333b33edb0f4940db0f494000000000000000000000000000000000000000003333b33e3333b33e3333b33e0000000000000000000000000000e040000000000000000000000000000000000ad7a33c0000000000000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": -160.0,
+              "size_change_rate": 10.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": -35.0,
+              "gravity_random_width": 34.0,
+              "size": 0.75,
+              "size_random_width": 0.3499999940395355,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 0.0,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                0.3499999940395355,
+                0.3499999940395355,
+                0.3499999940395355
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                7.0,
+                0.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.019999999552965164,
+              "burst_count": 0,
+              "variant_selection": 0,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 1,
+            "motion_raw_hex": "00000000000016c3000020410000000000000000000000000000000000000000",
+            "emission_raw_hex": "00000cc20000a040000000400000403fdb0f4940db0f4940000000000000803f000000000000000000000000cdcccc3ecdcccc3ecdcccc3e0000000000000000000000000000e040000000000000000000000000000000000ad7a33c0000000000000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": -150.0,
+              "size_change_rate": 10.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": -35.0,
+              "gravity_random_width": 5.0,
+              "size": 2.0,
+              "size_random_width": 0.75,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 1.0,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                0.4000000059604645,
+                0.4000000059604645,
+                0.4000000059604645
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                7.0,
+                0.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.019999999552965164,
+              "burst_count": 0,
+              "variant_selection": 0,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 2,
+            "motion_raw_hex": null,
+            "emission_raw_hex": null,
+            "motion": {
+              "gravity_change_rate": null,
+              "fade_change_rate": null,
+              "size_change_rate": null,
+              "additional_angular_velocity": null,
+              "gravity_direction": null,
+              "inward_acceleration": null
+            },
+            "emission": {
+              "gravity": null,
+              "gravity_random_width": null,
+              "size": null,
+              "size_random_width": null,
+              "rotation": null,
+              "rotation_random_width": null,
+              "angular_velocity": null,
+              "angular_velocity_random_width": null,
+              "velocity": null,
+              "velocity_random_width": null,
+              "position_offset": null,
+              "position_random_width": null,
+              "packed_color": null,
+              "unknown_color_parameter": null,
+              "emission_interval": null,
+              "burst_count": null,
+              "variant_selection": null,
+              "unknown61": null,
+              "unknown62": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "factory_address": "0x5a0ccf",
+      "dispatch_address": "0x4894d4",
+      "preset": 10,
+      "instructions": [
+        "004894d4 push       0x2c0",
+        "004894d9 push       ebx",
+        "004894da push       ebx",
+        "004894db push       0xa",
+        "004894dd sub        esp, 0xc",
+        "004894e0 mov        ecx, esp"
+      ],
+      "type_id": 886,
+      "type_name": "TYPE_FX_FIRE_S",
+      "count_in_unique_scripts": 15983,
+      "family": "cParticleSystem_smoke",
+      "constructor_address": "0x76e200",
+      "initializer_address": "0x76e980",
+      "texture_lookups": [
+        {
+          "name": "PARTICLE_SMOKE03.TGA",
+          "pointer": "0xa13d40",
+          "push_address": "0x76e235"
+        },
+        {
+          "name": "PARTICLE_FIRE03.TGA",
+          "pointer": "0xa13e04",
+          "push_address": "0x76e259"
+        },
+        {
+          "name": "PARTICLE_WATER01.TGA",
+          "pointer": "0xa13dec",
+          "push_address": "0x76e270"
+        },
+        {
+          "name": "PARTICLE_MULTI02.TGA",
+          "pointer": "0xa13dd4",
+          "push_address": "0x76e287"
+        }
+      ],
+      "draw_selection": {
+        "texture_name": "PARTICLE_FIRE03.TGA",
+        "draw_address": "0x76e66f",
+        "texture_handle_offset": "0x2e3c",
+        "raw_renderer_flags": 12
+      },
+      "initializer_result": {
+        "status": "complete",
+        "error": null,
+        "uninitialized_object_reads": [],
+        "slots": [
+          {
+            "index": 0,
+            "motion_raw_hex": "00000000000048c3000000410000000000000000000000000000000000000000",
+            "emission_raw_hex": "00000cc2000008420000003fcdcc4c3edb0f4940db0f49400000000000000000000000000000000000000000cdcc4c3ecdcc4c3ecdcc4c3e000000000000000000000000000060400000803f0000000000000000000000000ad7a33c0000000000000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": -200.0,
+              "size_change_rate": 8.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": -35.0,
+              "gravity_random_width": 34.0,
+              "size": 0.5,
+              "size_random_width": 0.20000000298023224,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 0.0,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                0.20000000298023224,
+                0.20000000298023224,
+                0.20000000298023224
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                3.5,
+                1.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.019999999552965164,
+              "burst_count": 0,
+              "variant_selection": 0,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 1,
+            "motion_raw_hex": "00000000000048c3000020410000000000000000000000000000000000000000",
+            "emission_raw_hex": "00000cc20000a0400000803f0000003fdb0f4940db0f4940000000000000003f0000000000000000000000009a99993e9a99993e9a99993e000000000000000000000000000060400000803f0000000000000000000000000ad7a33c0000000000000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": -200.0,
+              "size_change_rate": 10.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": -35.0,
+              "gravity_random_width": 5.0,
+              "size": 1.0,
+              "size_random_width": 0.5,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 0.5,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                0.30000001192092896,
+                0.30000001192092896,
+                0.30000001192092896
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                3.5,
+                1.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.019999999552965164,
+              "burst_count": 0,
+              "variant_selection": 0,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 2,
+            "motion_raw_hex": null,
+            "emission_raw_hex": null,
+            "motion": {
+              "gravity_change_rate": null,
+              "fade_change_rate": null,
+              "size_change_rate": null,
+              "additional_angular_velocity": null,
+              "gravity_direction": null,
+              "inward_acceleration": null
+            },
+            "emission": {
+              "gravity": null,
+              "gravity_random_width": null,
+              "size": null,
+              "size_random_width": null,
+              "rotation": null,
+              "rotation_random_width": null,
+              "angular_velocity": null,
+              "angular_velocity_random_width": null,
+              "velocity": null,
+              "velocity_random_width": null,
+              "position_offset": null,
+              "position_random_width": null,
+              "packed_color": null,
+              "unknown_color_parameter": null,
+              "emission_interval": null,
+              "burst_count": null,
+              "variant_selection": null,
+              "unknown61": null,
+              "unknown62": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "factory_address": "0x5a0ccf",
+      "dispatch_address": "0x489c4c",
+      "preset": 13,
+      "instructions": [
+        "00489c4c push       0x2c0",
+        "00489c51 push       ebx",
+        "00489c52 push       ebx",
+        "00489c53 push       0xd",
+        "00489c55 sub        esp, 0xc",
+        "00489c58 mov        ecx, esp"
+      ],
+      "type_id": 904,
+      "type_name": "TYPE_FX_FIRE_MAGIC",
+      "count_in_unique_scripts": 385,
+      "family": "cParticleSystem_smoke",
+      "constructor_address": "0x76e200",
+      "initializer_address": "0x76e980",
+      "texture_lookups": [
+        {
+          "name": "PARTICLE_SMOKE03.TGA",
+          "pointer": "0xa13d40",
+          "push_address": "0x76e235"
+        },
+        {
+          "name": "PARTICLE_FIRE03.TGA",
+          "pointer": "0xa13e04",
+          "push_address": "0x76e259"
+        },
+        {
+          "name": "PARTICLE_WATER01.TGA",
+          "pointer": "0xa13dec",
+          "push_address": "0x76e270"
+        },
+        {
+          "name": "PARTICLE_MULTI02.TGA",
+          "pointer": "0xa13dd4",
+          "push_address": "0x76e287"
+        }
+      ],
+      "draw_selection": {
+        "texture_name": "PARTICLE_MULTI02.TGA",
+        "draw_address": "0x76e744",
+        "texture_handle_offset": "0x2e48",
+        "raw_renderer_flags": 285
+      },
+      "initializer_result": {
+        "status": "complete",
+        "error": null,
+        "uninitialized_object_reads": [],
+        "slots": [
+          {
+            "index": 0,
+            "motion_raw_hex": "00000000000034c3000030410000000000000000000000000000000000000000",
+            "emission_raw_hex": "00000cc20000a0400000a04000000000db0f4940db0f4940000000000000c03f00000000000000000000000000008040000080400000000000000000000000000000000000000000000000000000000000000000000000008716d93c00000000ff000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": -180.0,
+              "size_change_rate": 11.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": -35.0,
+              "gravity_random_width": 5.0,
+              "size": 5.0,
+              "size_random_width": 0.0,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 1.5,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                4.0,
+                4.0,
+                0.0
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "position_random_width": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.026499999687075615,
+              "burst_count": 0,
+              "variant_selection": 255,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 1,
+            "motion_raw_hex": "00000000000080c30000803f0000000000000000000000000000000000000000",
+            "emission_raw_hex": "00008cc2000000000000a04000000000db0f4940db0f4940000000000000000000000000000000000000000000008040000080400000000000000000000000000000a0410000000000000000000000000000000000000000a60a863d00000000ff000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": -256.0,
+              "size_change_rate": 1.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": -70.0,
+              "gravity_random_width": 0.0,
+              "size": 5.0,
+              "size_random_width": 0.0,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 0.0,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                4.0,
+                4.0,
+                0.0
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                20.0
+              ],
+              "position_random_width": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.06544999778270721,
+              "burst_count": 0,
+              "variant_selection": 255,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          },
+          {
+            "index": 2,
+            "motion_raw_hex": "00000000000040c4000000000000000000000000000000000000000000000000",
+            "emission_raw_hex": "0000000000000000000000410000003fdb0f4940db0f4940000000000000000000000000000000000000000000000040000000400000004000000000000000000000a0410000000000000000000000000000000000000000b806b63c00000000ff000000",
+            "motion": {
+              "gravity_change_rate": 0.0,
+              "fade_change_rate": -768.0,
+              "size_change_rate": 0.0,
+              "additional_angular_velocity": 0.0,
+              "gravity_direction": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "inward_acceleration": 0.0
+            },
+            "emission": {
+              "gravity": 0.0,
+              "gravity_random_width": 0.0,
+              "size": 8.0,
+              "size_random_width": 0.5,
+              "rotation": 3.1415927410125732,
+              "rotation_random_width": 3.1415927410125732,
+              "angular_velocity": 0.0,
+              "angular_velocity_random_width": 0.0,
+              "velocity": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "velocity_random_width": [
+                2.0,
+                2.0,
+                2.0
+              ],
+              "position_offset": [
+                0.0,
+                0.0,
+                20.0
+              ],
+              "position_random_width": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "packed_color": 0,
+              "unknown_color_parameter": 0,
+              "emission_interval": 0.022220000624656677,
+              "burst_count": 0,
+              "variant_selection": 255,
+              "unknown61": 0,
+              "unknown62": 0
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "other_effect_types_not_emulated": [
+    {
+      "type_id": 768,
+      "type_name": "TYPE_FX_ELEMENTSTONE07",
+      "count_in_unique_scripts": 32
+    },
+    {
+      "type_id": 790,
+      "type_name": "TYPE_FX_FIRE_CIRCLE",
+      "count_in_unique_scripts": 11
+    },
+    {
+      "type_id": 802,
+      "type_name": "TYPE_FX_STARGATE",
+      "count_in_unique_scripts": 510
+    },
+    {
+      "type_id": 827,
+      "type_name": "TYPE_FX_ELEMENTSTONE01",
+      "count_in_unique_scripts": 11
+    },
+    {
+      "type_id": 828,
+      "type_name": "TYPE_FX_ELEMENTSTONE02",
+      "count_in_unique_scripts": 11
+    },
+    {
+      "type_id": 830,
+      "type_name": "TYPE_FX_ELEMENTSTONE04",
+      "count_in_unique_scripts": 22
+    },
+    {
+      "type_id": 841,
+      "type_name": "TYPE_FX_ELEMENTSTONE05",
+      "count_in_unique_scripts": 11
+    },
+    {
+      "type_id": 853,
+      "type_name": "TYPE_FX_BUBBLEPRISON",
+      "count_in_unique_scripts": 24
+    },
+    {
+      "type_id": 854,
+      "type_name": "TYPE_FX_MAGICPRISON",
+      "count_in_unique_scripts": 338
+    },
+    {
+      "type_id": 878,
+      "type_name": "TYPE_FX_SMALLFIRE",
+      "count_in_unique_scripts": 11
+    },
+    {
+      "type_id": 891,
+      "type_name": "TYPE_FX_TRAP02_PARENT",
+      "count_in_unique_scripts": 11
+    },
+    {
+      "type_id": 894,
+      "type_name": "TYPE_FX_TRAP03_PARENT",
+      "count_in_unique_scripts": 11
+    },
+    {
+      "type_id": 911,
+      "type_name": "TYPE_FX_FORGE_AIRELEM",
+      "count_in_unique_scripts": 16
+    },
+    {
+      "type_id": 912,
+      "type_name": "TYPE_FX_FORGE_EARTHELEM",
+      "count_in_unique_scripts": 16
+    },
+    {
+      "type_id": 913,
+      "type_name": "TYPE_FX_FORGE_WATERELEM",
+      "count_in_unique_scripts": 16
+    },
+    {
+      "type_id": 914,
+      "type_name": "TYPE_FX_FORGE_FIREELEM",
+      "count_in_unique_scripts": 16
+    },
+    {
+      "type_id": 915,
+      "type_name": "TYPE_FX_FORGE_LOSTELEM",
+      "count_in_unique_scripts": 16
+    },
+    {
+      "type_id": 917,
+      "type_name": "TYPE_FX_BIG_DEMON_ILLUSION",
+      "count_in_unique_scripts": 10
+    },
+    {
+      "type_id": 920,
+      "type_name": "TYPE_FX_SHADDAR_PENTA",
+      "count_in_unique_scripts": 11
+    },
+    {
+      "type_id": 921,
+      "type_name": "TYPE_FX_SHADDAR_SLAVE",
+      "count_in_unique_scripts": 104
+    },
+    {
+      "type_id": 939,
+      "type_name": "TYPE_FX_ELEMENTSTONE06",
+      "count_in_unique_scripts": 8
+    }
+  ]
+}

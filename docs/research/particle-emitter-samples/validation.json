@@ -1,0 +1,27 @@
+{
+  "status": "passed",
+  "unique_observation_ids": 88,
+  "source_image_sha256_verified": 16,
+  "positive_archive_joins_verified": 35,
+  "item_record_lengths_verified": 907,
+  "static_record_lengths_verified": 4230,
+  "candidate_texture_dimensions_verified": 276,
+  "jsonl_row_counts": {
+    "emitters.compact.jsonl": 35,
+    "fixture-sprites.jsonl": 11,
+    "Floor.pak.context.jsonl": 13504,
+    "Items.pak.byte-comparison.jsonl": 128,
+    "Items.pak.jsonl": 907,
+    "mixed.pak.jsonl": 877,
+    "observations.jsonl": 88,
+    "Sacred.exe.particle-string-leads.jsonl": 103,
+    "Sacred.exe.type-names.jsonl": 5629,
+    "sectors.wldx.context.jsonl": 18657,
+    "Static.pak.jsonl": 4230,
+    "Texture.pak.candidates.jsonl": 276,
+    "tiles.pak.jsonl": 3848,
+    "world-occurrences.jsonl": 1461
+  },
+  "crop_pixels": "See crop-verification.json: every saved crop pixel compared against original clean PNG.",
+  "validation_limits": "These checks establish artifact integrity and internal joins, not the truth of provisional image matches or particle-parameter hypotheses."
+}

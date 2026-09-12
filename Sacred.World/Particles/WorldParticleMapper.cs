@@ -56,13 +56,6 @@ public static class WorldParticleMapper
             return true;
         }
 
-        if (!descriptor.UsesStaticMiniObject ||
-            sourceSize == 0 ||
-            MiniObjectAtlasSize % sourceSize != 0)
-        {
-            return false;
-        }
-
         reference = new MiniObjectTextureReference(
             descriptor.MiniObjectTextureId,
             sourceXOrAtlasColumns,
@@ -91,7 +84,7 @@ public static class WorldParticleMapper
             return false;
 
         reference = new AnimatedSpriteHaloReference(
-            item.ModelDesc.ModelExtent,
+            item.ModelDesc.Radius,
             LocalLightHaloMask);
         return true;
     }
@@ -108,7 +101,7 @@ public static class WorldParticleMapper
         if (!item.ModelDesc.IsWorldLightMarker)
             return false;
 
-        reference = new WorldLightMarkerReference(item.ModelDesc.ModelExtent);
+        reference = new WorldLightMarkerReference(item.ModelDesc.Radius);
         return true;
     }
 
@@ -125,7 +118,7 @@ public static class WorldParticleMapper
             return false;
 
         reference = new MixedLightEmitterReference(
-            item.MixedBaseGroupId,
+            item.ModelDesc.MixedBaseGroupId,
             ParticleShaderKind.StaticAlphaSprite);
         return true;
     }

@@ -129,30 +129,6 @@ public readonly record struct SacredEquipmentClassification(
         );
     }
 
-    /// <summary>
-    /// Infers the displayed equipment family. The type code alone is ambiguous for gloves:
-    /// weapon gloves occupy two inventory rows, while armor gloves occupy one.
-    /// </summary>
-    public SacredEquipmentLore InferLore(byte inventoryHeight)
-    {
-        return EquipmentType switch
-        {
-            SacredEquipmentType.Sword or SacredEquipmentType.TwoHandedSword => SacredEquipmentLore.Sword,
-            SacredEquipmentType.TwoHandedAxe or SacredEquipmentType.OneHandedAxeOrMace => SacredEquipmentLore.Axe,
-            SacredEquipmentType.Bow or SacredEquipmentType.Crossbow => SacredEquipmentLore.Bow,
-            SacredEquipmentType.Blade => SacredEquipmentLore.Blade,
-            SacredEquipmentType.Ring or SacredEquipmentType.Amulet => SacredEquipmentLore.Jewelry,
-            SacredEquipmentType.LongHandled21 or SacredEquipmentType.BattleStaff or SacredEquipmentType.MageStaff
-                or SacredEquipmentType.Briddle => SacredEquipmentLore.LongHandled,
-            SacredEquipmentType.ChestArmor or SacredEquipmentType.HeadArmor or SacredEquipmentType.ArmArmor
-                or SacredEquipmentType.LegArmor or SacredEquipmentType.Belt or SacredEquipmentType.FootArmor or SacredEquipmentType.Shoulder
-                or SacredEquipmentType.Misc => SacredEquipmentLore.Armor,
-            SacredEquipmentType.Gloves when IsUnarmedGloveWeapon(inventoryHeight) => SacredEquipmentLore.Unarmed,
-            SacredEquipmentType.Gloves => SacredEquipmentLore.Armor,
-            _ => SacredEquipmentLore.Unknown
-        };
-    }
-
     public SacredEquipmentHandedness InferHandedness(byte usageIdentifier, byte inventoryHeight)
     {
         if (IsUnarmedGloveWeapon(inventoryHeight))

@@ -140,7 +140,8 @@ public static partial class Granny1MeshExtractor
 
         return slice with
         {
-            Parts = parts
+            Parts = parts,
+            RetargetedAttachments = RetargetAttachments(sourceSkeleton, targetSkeleton)
         };
     }
 
@@ -269,4 +270,3 @@ public static partial class Granny1MeshExtractor
     private static bool IsRightSideBoneName(string name) =>
         name.Contains(" R ", StringComparison.Ordinal);
 }
-

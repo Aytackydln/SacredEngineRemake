@@ -1,0 +1,47 @@
+[
+  {
+    "path": "E:\\SteamLibrary\\steamapps\\common\\Sacred Gold\\Sacred.exe",
+    "size_bytes": 11927552,
+    "sha256": "4df6659352282a0e57bdf69d2ac33396200fd0b54670d327cb9822ffdc4891cd"
+  },
+  {
+    "path": "E:\\SteamLibrary\\steamapps\\common\\Sacred Gold\\pak\\Items.pak",
+    "size_bytes": 4587776,
+    "sha256": "1a73fffb280267ff9ca8424d9ac698195a0cfa433c744c663fe18873d9026cbe"
+  },
+  {
+    "path": "E:\\SteamLibrary\\steamapps\\common\\Sacred Gold\\pak\\mixed.pak",
+    "size_bytes": 14336144,
+    "sha256": "b17dbe92020d446a3c81930b6e01703fda9a0a02d93b49f0142e69d185f6a904"
+  },
+  {
+    "path": "E:\\SteamLibrary\\steamapps\\common\\Sacred Gold\\pak\\tiles.pak",
+    "size_bytes": 6850288,
+    "sha256": "ed4cf23b9599cbf9618f513c5999ed8c478ce4c0485a377651dcf0f0e36880ad"
+  },
+  {
+    "path": "E:\\SteamLibrary\\steamapps\\common\\Sacred Gold\\World\\Static.PAK",
+    "size_bytes": 78889320,
+    "sha256": "a9257b756a7e75a882352e48851a9ca1b8f79d68041bedb5463673cfed3fdedc"
+  },
+  {
+    "path": "E:\\SteamLibrary\\steamapps\\common\\Sacred Gold\\World\\Floor.PAK",
+    "size_bytes": 187968064,
+    "sha256": "7b0fabcbf3810b5a2bb3374ceb0ec40731a360e298af57170d5f416ec3e21744"
+  },
+  {
+    "path": "E:\\SteamLibrary\\steamapps\\common\\Sacred Gold\\World\\sectors.wldx",
+    "size_bytes": 63854322,
+    "sha256": "ae5d8790f992f384bb2e38bfddbdf810be9b45ab745bfb0dac919c4c095cffb4"
+  },
+  {
+    "path": "E:\\SteamLibrary\\steamapps\\common\\Sacred Gold\\pak\\texture.pak",
+    "size_bytes": 860648179,
+    "sha256": "a4f1664c16b7ea387c5e816e15002cde704b675b12339e905e8deb3a2ee3abac"
+  },
+  {
+    "path": "E:\\SteamLibrary\\steamapps\\common\\Sacred Gold\\pak\\texture03.pak",
+    "size_bytes": 27361,
+    "sha256": "f2d2ac9d55451b67fd65179067ce22aa948fbd77352ecca0d3849634c46a0ef1"
+  }
+]

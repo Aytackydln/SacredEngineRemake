@@ -12,7 +12,6 @@ namespace Sacred.Engine.Rendering;
 
 internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
 {
-    private const int ExteriorActiveLayer = 1;
     private const float ObjectShiftX = 47.8f;
     private const float ObjectShiftY = -0.3f;
     private const float AuthoredLightOpacity = 0.48f;
@@ -50,9 +49,14 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
         var requestsPending = false;
         foreach (var sector in sectors)
         {
-            candidateObjects += sector.StaticObjects.Count;
-            foreach (var staticObject in sector.StaticObjects.Objects)
+            candidateObjects += sector.StaticObjects.Count + sector.WorldObjects.Count;
+            for (var layerIndex = 0; layerIndex < 2; layerIndex++)
             {
+                var objects = layerIndex == 0
+                    ? sector.StaticObjects.Objects
+                    : sector.WorldObjects.Objects;
+                foreach (var staticObject in objects)
+                {
                 if (staticObject.IsExcludedFromNormalRender)
                 {
                     continue;
@@ -72,7 +76,10 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                                              staticObject.MiniObjectFrameCount,
                                              out miniObjectReference) &&
                                          miniObjectReference.FrameCount > 1;
-                if (!TryResolveVisibleSurface(staticObject, activeIndoorGroup, out var isIndoorSurface))
+                if (!TerrainStaticSurfaceVisibility.TryResolve(
+                        staticObject,
+                        activeIndoorGroup,
+                        out var isIndoorSurface))
                     continue;
 
                 if (item is { } haloItem &&
@@ -196,8 +203,12 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                     false,
                     isMixedLightEmitter,
                     false,
-                    item is { AllowsTransparency: true },
+                    item?.ModelDesc is { AllowsTransparency: true },
                     staticShadow,
+                    // Static world art is rendered after liquid. Baking it into
+                    // the sector texture changes that authored order and lets
+                    // water or lava cover bridges, rocks, and similar scenery.
+                    false,
                     renderWidth,
                     renderHeight,
                     spriteIsoX,
@@ -211,13 +222,18 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                     staticObject.TileWorldY,
                     staticObject.TileWorldX,
                     staticObject.ChainDepth,
-                    staticObject.InsertionOrder));
+                    staticObject.InsertionOrder,
+                    1.0f)
+                {
+                    IsAnimatedMiniObject = isAnimatedMiniObject
+                });
                 if (isAnimatedMiniObject)
                     animatedSpriteCount++;
                 if (isMixedLightEmitter)
                     mixedLightEmitterCount++;
-                if (item is { AllowsTransparency: true })
+                if (item?.ModelDesc is { AllowsTransparency: true })
                     transparencyCandidateCount++;
+                }
             }
         }
 
@@ -281,37 +297,13 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
         EngineLog.WriteLine(summary);
     }
 
-    private static bool TryResolveVisibleSurface(
-        StaticWorldObject staticObject,
-        IndoorTileGroup? activeIndoorGroup,
-        out bool isIndoorSurface)
-    {
-        isIndoorSurface = false;
-        if (activeIndoorGroup is null)
-            return staticObject.SurfaceRenderLayer <= ExteriorActiveLayer;
-
-        var belongsToActiveSection = activeIndoorGroup.ContainsWorldTile(
-            staticObject.TileWorldX,
-            staticObject.TileWorldY);
-        if (staticObject.SurfaceRenderLayer > ExteriorActiveLayer)
-        {
-            isIndoorSurface = belongsToActiveSection &&
-                              staticObject.SurfaceRenderLayer == activeIndoorGroup.SurfaceRenderLayer;
-            return isIndoorSurface;
-        }
-
-        return !belongsToActiveSection ||
-               staticObject.SurfaceRenderLayer != ExteriorActiveLayer ||
-               !staticObject.UsesAlternateSurface;
-    }
-
     private static int CompareSprites(TerrainStaticSprite left, TerrainStaticSprite right)
     {
-        // Authored player fades and fractional-alpha source textures use a late pass so
-        // player geometry is available beneath their alpha composition.
-        var transparency = left.RequiresTransparentPass.CompareTo(right.RequiresTransparentPass);
-        if (transparency != 0)
-            return transparency;
+        // Only player-aware art belongs after models. Source-alpha scenery such as
+        // a lamp flame must retain its file-authored order relative to the lamp.
+        var postModel = left.RequiresPostModelPass.CompareTo(right.RequiresPostModelPass);
+        if (postModel != 0)
+            return postModel;
         var queue = left.QueueIndex.CompareTo(right.QueueIndex);
         if (queue != 0)
             return queue;
@@ -331,8 +323,8 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
     private int EngineQueueIndex(StaticWorldObject staticObject)
     {
         var item = assets.GetItem(staticObject.TypeId);
-        var graphicFlags = item?.GraphicFlags ?? SacredItemGraphicFlags.None;
-        var category = item?.Category ?? SacredItemCategory.Unspecified;
+        var graphicFlags = item?.ModelDesc.GraphicFlags ?? SacredItemGraphicFlags.None;
+        var category = item?.ModelDesc.Category ?? SacredItemCategory.Unspecified;
         if (category == SacredItemCategory.Effect)
         {
             if (graphicFlags.HasFlag(SacredItemGraphicFlags.FrontLayer))

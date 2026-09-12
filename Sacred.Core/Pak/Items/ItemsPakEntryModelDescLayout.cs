@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Sacred.Core.Binary;
 
@@ -10,7 +11,27 @@ public struct ItemsPakEntryModelNameBytes
     private byte _element0;
 }
 
-/// <summary>Known fixed fields in one 128-byte Items.pak model-description record.</summary>
+[InlineArray(3)]
+public struct ItemsPakEntryDimensions
+{
+    private byte _element0;
+}
+
+[InlineArray(2)]
+public struct ItemsPakEntryBookEntries
+{
+    private byte _element0;
+}
+
+[InlineArray(10)]
+public struct ItemsPakEntryReservedBytes
+{
+    private byte _element0;
+}
+
+/// <summary>
+/// Known fixed fields in one 128-byte Items.pak model-description record. Symbol: cObjectShared
+/// </summary>
 [StructLayout(LayoutKind.Explicit, Pack = 1, Size = Size)]
 public readonly struct ItemsPakEntryModelDescLayout
 {
@@ -19,13 +40,16 @@ public readonly struct ItemsPakEntryModelDescLayout
     internal const int ModelNameLength = 32;
     private const int ModelNameOffset = 55;
 
+    /// <summary>Native <c>cObjectShared.flags</c> word, split into the two views below.</summary>
+    [FieldOffset(0)]
+    public readonly uint RawGraphicFlags;
+
     /// <summary>Raw graphic representation used by Sacred.exe.</summary>
     [FieldOffset(0)]
     public readonly SacredItemGraphicType GraphicType;
 
     /// <summary>
-    /// Rendering flags stored separately from <see cref="GraphicType"/>. Sacred.exe
-    /// tests low bit 0x0001 here when building static-shadow render-list entries.
+    /// Rendering flags stored separately from <see cref="GraphicType"/>.
     /// </summary>
     [FieldOffset(2)]
     public readonly SacredItemGraphicFlags GraphicFlags;
@@ -41,13 +65,33 @@ public readonly struct ItemsPakEntryModelDescLayout
     [FieldOffset(8)]
     public readonly uint TextureId;
 
+    /// <summary>Packed ARGB color (<c>cObjectShared::argb</c> in native metadata).</summary>
+    [FieldOffset(12)]
+    public readonly uint PackedColor;
+
     /// <summary>Base group identifier for an assembled Mixed.pak sprite.</summary>
     [FieldOffset(16)]
     public readonly uint MixedBaseGroupId;
 
-    /// <summary>Item identifier repeated within the model description.</summary>
+    /// <summary>Authored blocking radius (<c>cObjectShared::blockRadius</c>).</summary>
+    [FieldOffset(20)]
+    public readonly uint BlockRadius;
+
+    /// <summary>Index into the loaded Weapon.pak table; synthesized again by the native loader.</summary>
+    [FieldOffset(24)]
+    public readonly ushort WeaponEntry;
+
+    /// <summary>Index into the loaded creature table.</summary>
+    [FieldOffset(26)]
+    public readonly ushort CreatureEntry;
+
+    /// <summary>Book text resource identifier.</summary>
+    [FieldOffset(28)]
+    public readonly uint BookTextId;
+
+    /// <summary>Object resource identifier (<c>cObjectShared::resourceid</c>).</summary>
     [FieldOffset(32)]
-    public readonly uint ItemId;
+    public readonly uint ResourceId;
 
     /// <summary>
     /// sndProfiles.pak profile identifier. Sacred.exe uses this profile for authored object and
@@ -55,6 +99,14 @@ public readonly struct ItemsPakEntryModelDescLayout
     /// </summary>
     [FieldOffset(36)]
     public readonly uint SoundProfileId;
+
+    /// <summary>Horizontal model or sprite anchor.</summary>
+    [FieldOffset(40)]
+    public readonly short AnchorX;
+
+    /// <summary>Vertical model or sprite anchor.</summary>
+    [FieldOffset(42)]
+    public readonly short AnchorY;
 
     /// <summary>Number of frames used by a static-world sprite animation.</summary>
     [FieldOffset(44)]
@@ -64,13 +116,17 @@ public readonly struct ItemsPakEntryModelDescLayout
     [FieldOffset(46)]
     public readonly SacredItemCategory Category;
 
+    /// <summary>Authored descriptor layer (<c>cObjectShared::layer</c>).</summary>
+    [FieldOffset(47)]
+    public readonly byte Layer;
+
     /// <summary>Static-sprite frame duration in 10-millisecond units.</summary>
     [FieldOffset(48)]
     public readonly byte StaticSpriteFrameDuration10Ms;
 
-    /// <summary>Descriptor-state flags; separate from the animation duration byte.</summary>
+    //TODO find out this
     [FieldOffset(49)]
-    public readonly SacredItemDescriptorFlags DescriptorFlags;
+    public readonly byte GfxFileId;
 
     /// <summary>
     /// Authored spatial extent. For animated light mini-objects this is the
@@ -78,62 +134,113 @@ public readonly struct ItemsPakEntryModelDescLayout
     /// the radial reach, so renderers using full quad size must double it.
     /// </summary>
     [FieldOffset(50)]
-    public readonly ushort ModelExtent;
+    public readonly ushort Radius;
+
+    /// <summary>Three packed model extents named <c>lwh3d</c> by the native type.</summary>
+    [FieldOffset(52)]
+    public readonly ItemsPakEntryDimensions Dimensions3D;
 
     /// <summary>Null-terminated model resource name encoded as ISO-8859-1.</summary>
     [FieldOffset(ModelNameOffset)]
     [BinaryString("ModelName", ModelNameLength, "ISO-8859-1")]
     public readonly ItemsPakEntryModelNameBytes ModelNameBytes;
 
+    /// <summary>Authored 3D angle in degrees (<c>cObjectShared::angle3D</c>). Its gameplay use is unresolved.</summary>
+    [FieldOffset(87)]
+    public readonly float Angle3D;
+
     /// <summary>
     /// Cell index in the 16x16 <c>SHADOW_TREE00.TGA</c> static-shadow atlas.
     /// </summary>
-    [FieldOffset(0x5B)]
+    [FieldOffset(91)]
     public readonly ushort StaticShadowAtlasCellIndex;
 
     /// <summary>Half-pixel horizontal coordinate of the shadow's ground anchor.</summary>
-    [FieldOffset(0x5D)]
+    [FieldOffset(93)]
     public readonly short StaticShadowAnchorX;
 
     /// <summary>Half-pixel vertical coordinate of the shadow's ground anchor.</summary>
-    [FieldOffset(0x5F)]
+    [FieldOffset(95)]
     public readonly short StaticShadowAnchorY;
 
+    /// <summary>Two compact book-entry selectors.</summary>
+    [FieldOffset(97)]
+    public readonly ItemsPakEntryBookEntries BookEntries;
+
     /// <summary>Selects the contact or directionally projected shadow quad.</summary>
-    [FieldOffset(0x63)]
+    [FieldOffset(99)]
     public readonly SacredItemStaticShadowProjection StaticShadowProjection;
 
     /// <summary>
     /// Authored extent of the shadow's ground-contact footprint. This is not a
     /// directional shadow length; projected shadows derive that from object height.
     /// </summary>
-    [FieldOffset(0x64)]
+    [FieldOffset(100)]
     public readonly ushort StaticShadowContactExtent;
 
     /// <summary>
-    /// Texture identifier used by an attached model effect. This field is part
-    /// of the descriptor's model/static-sprite union and overlaps static-shadow data.
+    /// Texture identifier used by an attached model effect.
     /// </summary>
     [FieldOffset(102)]
     public readonly uint EffectTextureId;
 
+    /// <summary>Upgrade-item category.</summary>
+    [FieldOffset(106)]
+    public readonly ushort UpgradeItemType;
+
+    /// <summary>Upgrade behavior flags.</summary>
+    [FieldOffset(108)]
+    public readonly ushort UpgradeFlags;
+
+    /// <summary>
+    /// Compact model-effect selector returned by Sacred.exe 0x426520. Selector 9
+    /// enables white <c>PARTICLE_GLOW03.TGA</c> billboards at <c>sera03_fx0..3</c>.
+    /// </summary>
+    [FieldOffset(110)]
+    public readonly byte EffectTextureIndex;
+
+    /// <summary>Gore rendering category.</summary>
+    [FieldOffset(111)]
+    public readonly byte GoreType;
+
+    /// <summary>3D model resource identifier.</summary>
+    [FieldOffset(112)]
+    public readonly uint ModelId;
+
+    /// <summary>Object switch behavior.</summary>
+    [FieldOffset(116)]
+    public readonly ushort SwitchType;
+
+    [FieldOffset(118)]
+    public readonly ItemsPakEntryReservedBytes Reserved;
+
+    /// <summary>Compatibility name used by item loading code.</summary>
+    public uint ItemId => ResourceId;
+
     public bool IsLightEmitting => GraphicFlags.HasFlag(SacredItemGraphicFlags.LightEmitting);
     public bool CastsStaticShadow => GraphicFlags.HasFlag(SacredItemGraphicFlags.CastsStaticShadow);
 
-    private SacredItemGraphicType Representation => GraphicType & SacredItemGraphicType.RepresentationMask;
+    public bool UsesAnimatedMiniObject => GraphicType.HasFlag(SacredItemGraphicType.MiniObject);
 
-    public bool UsesAnimatedMiniObject => Representation == SacredItemGraphicType.AnimatedMiniObject;
-    public bool UsesStaticMiniObject => Representation == SacredItemGraphicType.StaticMiniObject;
-    public bool IsPresent => DescriptorFlags.HasFlag(SacredItemDescriptorFlags.Present);
     public bool AllowsTransparency => GraphicType.HasFlag(SacredItemGraphicType.AllowsTransparency);
 
-    public bool UsesMiniObjectTexture => UsesAnimatedMiniObject || UsesStaticMiniObject;
+    public bool UsesMiniObjectTexture => GraphicType.HasFlag(SacredItemGraphicType.MiniObject);
 
     public bool EmitsAnimatedSpriteHalo => UsesMiniObjectTexture && IsLightEmitting;
 
-    public bool IsWorldLightMarker => Representation.HasFlag(SacredItemGraphicType.LightMarker) && IsLightEmitting;
+    public bool IsWorldLightMarker => GraphicType.HasFlag(SacredItemGraphicType.LightMarker) && IsLightEmitting;
 
-    public bool MayContainMixedSpriteEmission => Representation.HasFlag(SacredItemGraphicType.AnimatedMiniObject) && MixedBaseGroupId != 0 && IsPresent;
+    public bool MayContainMixedSpriteEmission => GraphicType.HasFlag(SacredItemGraphicType.MiniObject) && MixedBaseGroupId != 0;
+
+    /// <summary>Copies a base visual while preserving the derived item's identity, as in
+    /// Sacred.exe 0x425A60..0x425A92. The original archive record remains unchanged.</summary>
+    public ItemsPakEntryModelDescLayout WithItemId(uint itemId)
+    {
+        var copy = this;
+        var bytes = MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref copy, 1));
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.Slice(32, 4), itemId);
+        return copy;
+    }
 
     /// <summary>Returns one byte from the unmodified 0x80-byte game-file record.</summary>
     public byte GetRawByte(int offset)

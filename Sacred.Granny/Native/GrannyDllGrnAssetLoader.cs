@@ -42,6 +42,7 @@ public sealed class GrannyDllGrnAssetLoader : IGrnAssetLoader
         var mesh = GrannyDllMeshBuilder.Build(nativeData, managedExtraction.Mesh, modelScale);
         return new GrnAsset(name, bytes, null, mesh)
         {
+            Skin = managedExtraction.Skin,
             Diagnostics = managedExtraction.Diagnostics,
             Backend = Kind,
             BackendDetail =

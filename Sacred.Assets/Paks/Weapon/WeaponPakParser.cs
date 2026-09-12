@@ -17,10 +17,12 @@ public static class WeaponPakParser
         var header = br.ReadStruct<WeaponPakHeaderLayout>(WeaponPakHeaderLayout.SerializedSize);
         header.ValidateSignature();
 
-        for (ushort i = 0; i < header.EntryCount; i++)
-        {
-            var weapon = SacredEquipment.FromBytes(br, items);
-            yield return weapon;
-        }
+        if (header.EntryCount > (fs.Length - fs.Position) / SacredEquipmentLayout.Size)
+            throw new InvalidDataException("Weapon.pak equipment table is outside the file bounds.");
+
+        var equipment = new List<SacredEquipment>(checked((int)header.EntryCount));
+        for (uint i = 0; i < header.EntryCount; i++)
+            equipment.Add(SacredEquipment.FromBytes(br, items));
+        return SacredEquipmentVisualResolver.Resolve(items, equipment);
     }
 }

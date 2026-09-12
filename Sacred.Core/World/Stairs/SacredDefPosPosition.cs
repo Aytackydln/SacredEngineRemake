@@ -24,6 +24,9 @@ public readonly struct SacredDefPosPositionLayout
     /// <summary>Serialized size of one named-position record.</summary>
     public const int SerializedSize = 100;
 
+    /// <summary>Native DefStru.type (eDefTypes).</summary>
+    [FieldOffset(0x00)] public readonly WorldDefinitionKind Kind;
+
     /// <summary>Null-terminated position name encoded as ISO-8859-1.</summary>
     [FieldOffset(0x04)]
     [BinaryString("Name", 64, "ISO-8859-1")]
@@ -35,6 +38,17 @@ public readonly struct SacredDefPosPositionLayout
     [FieldOffset(0x48)] public readonly int Y;
     /// <summary>World Z coordinate or authored elevation value.</summary>
     [FieldOffset(0x4C)] public readonly int Z;
+
+    /// <summary>Native DefStru.p[3]; meaning depends on the definition kind.</summary>
+    [FieldOffset(0x50)] public readonly int Parameter3;
+    /// <summary>Native DefStru.p[4]; meaning depends on the definition kind.</summary>
+    [FieldOffset(0x54)] public readonly int Parameter4;
+    /// <summary>Native DefStru.p[5]; meaning depends on the definition kind.</summary>
+    [FieldOffset(0x58)] public readonly int Parameter5;
+    /// <summary>Native DefStru.p[6]; meaning depends on the definition kind.</summary>
+    [FieldOffset(0x5C)] public readonly int Parameter6;
+    /// <summary>Native DefStru.p[7]; meaning depends on the definition kind.</summary>
+    [FieldOffset(0x60)] public readonly int Parameter7;
 }
 
 /// <summary>A named world position from the first table in NetScript/DefPos.bin.</summary>
@@ -48,9 +62,6 @@ public readonly record struct SacredDefPosPosition(
     private const int RecordSize = SacredDefPosPositionLayout.SerializedSize;
     private const int NameOffset = 4;
     private const int NameLength = 64;
-    private const int XOffset = 68;
-    private const int YOffset = 72;
-    private const int ZOffset = 76;
 
     public static IReadOnlyList<SacredDefPosPosition> ReadMany(ReadOnlySpan<byte> data)
     {
@@ -58,24 +69,34 @@ public readonly record struct SacredDefPosPosition(
             throw new InvalidDataException("DefPos.bin is too small to contain its position count.");
 
         var count = BinaryPrimitives.ReadUInt32LittleEndian(data);
-        var tableLength = checked(HeaderSize + (long)count * RecordSize);
+        var headerSize = HeaderSize;
+        if (count == SacredDefPosVersionedHeaderLayout.FormatMarker)
+        {
+            headerSize = SacredDefPosVersionedHeaderLayout.SerializedSize;
+            if (data.Length < headerSize)
+                throw new InvalidDataException("DefPos.bin ends inside its versioned header.");
+            count = BinaryPrimitives.ReadUInt32LittleEndian(data[sizeof(uint)..]);
+        }
+
+        var tableLength = checked(headerSize + (long)count * RecordSize);
         if (tableLength > data.Length)
             throw new InvalidDataException("DefPos.bin ends inside its named-position table.");
 
-        var positions = new SacredDefPosPosition[count];
-        for (var index = 0; index < positions.Length; index++)
+        var positions = new List<SacredDefPosPosition>((int)count);
+        for (var index = 0; index < count; index++)
         {
-            var record = data.Slice(HeaderSize + index * RecordSize, RecordSize);
+            var record = data.Slice(headerSize + index * RecordSize, RecordSize);
+            var layout = MemoryMarshal.Read<SacredDefPosPositionLayout>(record);
+            if (layout.Kind != WorldDefinitionKind.Position)
+                continue;
             var nameBytes = record.Slice(NameOffset, NameLength);
             var terminator = nameBytes.IndexOf((byte)0);
             if (terminator >= 0)
                 nameBytes = nameBytes[..terminator];
 
-            positions[index] = new SacredDefPosPosition(
+            positions.Add(new SacredDefPosPosition(
                 Encoding.Latin1.GetString(nameBytes),
-                BinaryPrimitives.ReadInt32LittleEndian(record.Slice(XOffset)),
-                BinaryPrimitives.ReadInt32LittleEndian(record.Slice(YOffset)),
-                BinaryPrimitives.ReadInt32LittleEndian(record.Slice(ZOffset)));
+                layout.X, layout.Y, layout.Z));
         }
 
         return positions;

@@ -240,18 +240,22 @@ internal sealed class Dx12ModelTextureCache : IDisposable
         {
             var asset = await _assets.LoadModelTextureAsync(texture.Name).ConfigureAwait(false);
             var hasTranslucentPixels = HasTranslucentPixels(asset.Rgba8);
+            var particleEncoding = SacredTextureChannelAnalyzer.Analyze(asset.Rgba8);
             texture.Stage = ModelTextureStage.ReadyForGpu;
             _completedLoads.Enqueue(new CompletedTextureLoad(
                 texture,
                 asset,
                 srvSlot,
                 hasTranslucentPixels,
+                particleEncoding,
                 null));
         }
         catch (Exception exception)
         {
+            EngineLog.WriteLine($"Model texture failed: {texture.Name}: {exception.Message}");
             texture.Stage = ModelTextureStage.Failed;
-            _completedLoads.Enqueue(new CompletedTextureLoad(texture, null, srvSlot, false, exception));
+            _completedLoads.Enqueue(new CompletedTextureLoad(
+                texture, null, srvSlot, false, SacredTextureChannelEncoding.Rgb, exception));
         }
     }
 
@@ -294,6 +298,7 @@ internal sealed class Dx12ModelTextureCache : IDisposable
                 texture.SrvSlot = completed.SrvSlot;
                 texture.Resource = resource;
                 texture.HasTranslucentPixels = completed.HasTranslucentPixels;
+                texture.ParticleEncoding = completed.ParticleEncoding;
                 _assets.ReleaseModelTexture(texture.Name, asset);
             }
             catch
@@ -325,6 +330,7 @@ internal sealed class Dx12ModelTextureCache : IDisposable
         TextureAsset? Asset,
         int SrvSlot,
         bool HasTranslucentPixels,
+        SacredTextureChannelEncoding ParticleEncoding,
         Exception? Error);
 
     internal enum ModelTextureStage
@@ -346,6 +352,7 @@ internal sealed class Dx12ModelTextureCache : IDisposable
         public bool Pending { get; set; }
         public bool Failed { get; set; }
         public bool HasTranslucentPixels { get; set; }
+        public SacredTextureChannelEncoding ParticleEncoding { get; set; } = SacredTextureChannelEncoding.Rgb;
         public ModelTextureStage Stage
         {
             get => (ModelTextureStage)Volatile.Read(ref _stage);

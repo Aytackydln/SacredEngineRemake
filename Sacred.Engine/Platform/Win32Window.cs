@@ -13,7 +13,6 @@ public sealed class Win32Window : IDisposable
     private const int VerticalRefreshCapsIndex = 116;
     private const int XButton1 = 1;
     private const int XButton2 = 2;
-    private const uint WindowStyleVisible = 0x10000000;
     private const uint WindowStyleOverlappedWindow = 0x00CF0000;
     private const uint WindowStylePopup = 0x80000000;
     private const int WindowStyleIndex = -16;
@@ -24,6 +23,7 @@ public sealed class Win32Window : IDisposable
     private const int ArrowCursorId = 32512;
     private const int HandCursorId = 32649;
     private const int HitTestClient = 1;
+    private const int ShowWindowMaximized = 3;
 
     private readonly WndProc _wndProc;
     private readonly string _className;
@@ -34,6 +34,8 @@ public sealed class Win32Window : IDisposable
     private int _windowedY = 100;
     private int _windowedWidth;
     private int _windowedHeight;
+    private bool _windowedMaximized;
+    private bool _changingWindowMode;
     private bool _quitRequested;
     private bool _disposed;
 
@@ -58,6 +60,45 @@ public sealed class Win32Window : IDisposable
             return _windowedHeight;
         }
     }
+    public int WindowedX
+    {
+        get
+        {
+            RememberCurrentWindowedBounds();
+            return _windowedX;
+        }
+    }
+    public int WindowedY
+    {
+        get
+        {
+            RememberCurrentWindowedBounds();
+            return _windowedY;
+        }
+    }
+    public bool WindowedMaximized
+    {
+        get
+        {
+            RememberCurrentWindowedBounds();
+            return _windowedMaximized;
+        }
+    }
+
+    public WindowedBounds CaptureWindowedBounds()
+    {
+        RememberCurrentWindowedBounds();
+        var bounds = new WindowedBounds(
+            _windowedX,
+            _windowedY,
+            _windowedWidth,
+            _windowedHeight,
+            _windowedMaximized);
+        EngineLog.WriteLine(
+            $"Captured windowed bounds: {bounds.Width}x{bounds.Height} at {bounds.X},{bounds.Y}" +
+            $"{(bounds.Maximized ? " maximized" : string.Empty)}.");
+        return bounds;
+    }
     public uint DisplayRefreshRateHz { get; }
     public int ClientWidth
     {
@@ -79,10 +120,19 @@ public sealed class Win32Window : IDisposable
 
     public InputState Input { get; } = new();
 
-    public Win32Window(string title, int width, int height, bool borderlessFullscreen = false)
+    public Win32Window(
+        string title,
+        int width,
+        int height,
+        bool borderlessFullscreen = false,
+        int windowedX = 100,
+        int windowedY = 100,
+        bool windowedMaximized = false)
     {
         if (width <= 0 || height <= 0)
             throw new ArgumentOutOfRangeException(nameof(width), "Window dimensions must be positive.");
+
+        WindowedBoundsPersistence.EnablePerMonitorDpiAwareness();
 
         _className = "SacredRemakeWindow" + Environment.ProcessId;
         _wndProc = WindowProc;
@@ -113,9 +163,16 @@ public sealed class Win32Window : IDisposable
         IsBorderlessFullscreen = borderlessFullscreen;
         _windowedWidth = width;
         _windowedHeight = height;
-        var windowStyle = WindowStyleVisible | (borderlessFullscreen ? WindowStylePopup : WindowStyleOverlappedWindow);
-        var windowX = borderlessFullscreen ? 0 : 100;
-        var windowY = borderlessFullscreen ? 0 : 100;
+        _windowedX = windowedX;
+        _windowedY = windowedY;
+        _windowedMaximized = windowedMaximized;
+        ApplyWindowedBounds(WindowedBoundsPersistence.ConstrainToVirtualDesktop(CurrentWindowedBounds));
+        EngineLog.WriteLine(
+            $"Restoring windowed bounds: {_windowedWidth}x{_windowedHeight} at {_windowedX},{_windowedY}" +
+            $"{(_windowedMaximized ? " maximized" : string.Empty)}.");
+        var windowStyle = borderlessFullscreen ? WindowStylePopup : WindowStyleOverlappedWindow;
+        var windowX = borderlessFullscreen ? 0 : _windowedX;
+        var windowY = borderlessFullscreen ? 0 : _windowedY;
         Width = borderlessFullscreen ? Math.Max(1, User32.GetSystemMetrics(ScreenWidthMetric)) : width;
         Height = borderlessFullscreen ? Math.Max(1, User32.GetSystemMetrics(ScreenHeightMetric)) : height;
 
@@ -126,7 +183,7 @@ public sealed class Win32Window : IDisposable
         }
 
         DisplayRefreshRateHz = QueryDisplayRefreshRate();
-        User32.ShowWindow(Hwnd, 5);
+        User32.ShowWindow(Hwnd, !borderlessFullscreen && _windowedMaximized ? ShowWindowMaximized : 5);
         SetTitle("SacredEngineRemake");
     }
 
@@ -147,26 +204,36 @@ public sealed class Win32Window : IDisposable
         if (enabled)
             RememberWindowedBounds();
 
-        var style = WindowStyleVisible | (enabled ? WindowStylePopup : WindowStyleOverlappedWindow);
-        User32.SetWindowLongPtr(Hwnd, WindowStyleIndex, unchecked((nint)style));
-
-        var x = enabled ? 0 : _windowedX;
-        var y = enabled ? 0 : _windowedY;
-        var width = enabled ? Math.Max(1, User32.GetSystemMetrics(ScreenWidthMetric)) : _windowedWidth;
-        var height = enabled ? Math.Max(1, User32.GetSystemMetrics(ScreenHeightMetric)) : _windowedHeight;
-        if (!User32.SetWindowPos(
-                Hwnd,
-                0,
-                x,
-                y,
-                width,
-                height,
-                SetWindowPosNoZOrder | SetWindowPosFrameChanged | SetWindowPosNoOwnerZOrder))
+        _changingWindowMode = true;
+        try
         {
-            throw new Win32Exception(Marshal.GetLastPInvokeError(), "Could not change window mode.");
-        }
+            var style = enabled ? WindowStylePopup : WindowStyleOverlappedWindow;
+            User32.SetWindowLongPtr(Hwnd, WindowStyleIndex, unchecked((nint)style));
 
-        IsBorderlessFullscreen = enabled;
+            var x = enabled ? 0 : _windowedX;
+            var y = enabled ? 0 : _windowedY;
+            var width = enabled ? Math.Max(1, User32.GetSystemMetrics(ScreenWidthMetric)) : _windowedWidth;
+            var height = enabled ? Math.Max(1, User32.GetSystemMetrics(ScreenHeightMetric)) : _windowedHeight;
+            if (!User32.SetWindowPos(
+                    Hwnd,
+                    0,
+                    x,
+                    y,
+                    width,
+                    height,
+                    SetWindowPosNoZOrder | SetWindowPosFrameChanged | SetWindowPosNoOwnerZOrder))
+            {
+                throw new Win32Exception(Marshal.GetLastPInvokeError(), "Could not change window mode.");
+            }
+
+            IsBorderlessFullscreen = enabled;
+            if (!enabled && _windowedMaximized)
+                User32.ShowWindow(Hwnd, ShowWindowMaximized);
+        }
+        finally
+        {
+            _changingWindowMode = false;
+        }
         EngineLog.WriteLine($"Window mode: {(enabled ? "borderless fullscreen" : $"windowed {_windowedWidth}x{_windowedHeight}")}");
     }
 
@@ -204,6 +271,14 @@ public sealed class Win32Window : IDisposable
     {
         switch (msg)
         {
+            case 0x0003: // WM_MOVE
+            case 0x0005: // WM_SIZE
+            case 0x0047: // WM_WINDOWPOSCHANGED
+                RememberCurrentWindowedBounds();
+                break;
+            case 0x0010: // WM_CLOSE
+                RememberCurrentWindowedBounds();
+                break;
             case 0x0020 when GetUnsignedLowWord(lParam) == HitTestClient: // WM_SETCURSOR
                 User32.SetCursor(_requestedCursor);
                 return 1;
@@ -284,18 +359,27 @@ public sealed class Win32Window : IDisposable
 
     private void RememberWindowedBounds()
     {
-        if (!User32.GetWindowRect(Hwnd, out var rect))
-            return;
+        if (WindowedBoundsPersistence.TryCapture(Hwnd, out var bounds))
+            ApplyWindowedBounds(bounds);
+        else
+            _windowedMaximized = User32.IsZoomed(Hwnd);
+    }
 
-        _windowedX = rect.Left;
-        _windowedY = rect.Top;
-        _windowedWidth = Math.Max(1, rect.Right - rect.Left);
-        _windowedHeight = Math.Max(1, rect.Bottom - rect.Top);
+    private WindowedBounds CurrentWindowedBounds =>
+        new(_windowedX, _windowedY, _windowedWidth, _windowedHeight, _windowedMaximized);
+
+    private void ApplyWindowedBounds(WindowedBounds bounds)
+    {
+        _windowedX = bounds.X;
+        _windowedY = bounds.Y;
+        _windowedWidth = bounds.Width;
+        _windowedHeight = bounds.Height;
+        _windowedMaximized = bounds.Maximized;
     }
 
     private void RememberCurrentWindowedBounds()
     {
-        if (!IsBorderlessFullscreen)
+        if (!IsBorderlessFullscreen && !_changingWindowMode)
             RememberWindowedBounds();
     }
 

@@ -15,10 +15,27 @@ public enum WorldLightingMode
 /// <summary>Applies deterministic lighting profiles, including the world-quad ambient level.</summary>
 public sealed class WorldLightingController
 {
+    private static readonly Vector3 DayAmbientColor = new(0.76f, 0.84f, 1.0f);
+    private static readonly Vector3 NightAmbientColor = new(0.43f, 0.6f, 1.0f);
+    private static readonly float NightAmbientIntensity = 0.48f;
+    private static readonly float DayAmbientIntensity = 0.54f;
+    
+    private static readonly Vector3 DayLightColor = new(1.0f, 0.93f, 0.82f);
+    private static readonly Vector3 NightLightColor = new(0.46f, 0.60f, 1f);
+
+    private static readonly float DayDiffuseIntensity = 0.62f;
+    private static readonly float NightDiffuseIntensity = 0.38f;
+
+    private static readonly float DaySpecularIntensity = 0.16f;
+    private static readonly float NightSpecularIntensity = 0.0f;
+
+    private static readonly Vector3 DayWorldSurfaceAmbientColour = Vector3.One;
+    private static readonly Vector3 NightWorldSurfaceAmbientColour = new(0.48f, 0.49f, 0.52f);
+
     private const float DayDurationSeconds = 15.0f;
     private const float NightDurationSeconds = 10.0f;
     private const float TransitionDurationSeconds = 5.0f;
-    private const float IndoorContactShadowOpacity = 0.5f;
+    private const float IndoorContactShadowOpacity = 0.65f;
 
     private const float CycleDurationSeconds =
         DayDurationSeconds + NightDurationSeconds + TransitionDurationSeconds * 2.0f;
@@ -52,10 +69,6 @@ public sealed class WorldLightingController
         Mode = mode;
         ResetClock();
     }
-
-    /// <returns><see langword="true"/> when a timed cycle enters a new lighting phase.</returns>
-    public bool Update(float elapsedSeconds, SceneLighting lighting, Vector3 focusPosition) =>
-        Update(elapsedSeconds, lighting, focusPosition, WorldZone.Outdoors);
 
     /// <returns><see langword="true"/> when the visible lighting description changes.</returns>
     public bool Update(
@@ -171,19 +184,16 @@ public sealed class WorldLightingController
     private static void ApplyProfile(float nightBlend, SceneLighting lighting)
     {
         var blend = Math.Clamp(nightBlend, 0.0f, 1.0f);
-        lighting.LightColor = Vector3.Lerp(new Vector3(1.0f, 0.93f, 0.82f), new Vector3(0.43f, 0.56f, 0.90f), blend);
-        lighting.AmbientColor = Vector3.Lerp(new Vector3(0.76f, 0.84f, 1.0f), new Vector3(0.24f, 0.33f, 0.56f), blend);
-        lighting.AmbientIntensity = Lerp(0.34f, 0.18f, blend);
-        lighting.DiffuseIntensity = Lerp(0.82f, 0.12f, blend);
+        lighting.LightColor = Vector3.Lerp(DayLightColor, NightLightColor, blend);
+        lighting.AmbientColor = Vector3.Lerp(DayAmbientColor, NightAmbientColor, blend);
+        lighting.AmbientIntensity = Lerp(DayAmbientIntensity, NightAmbientIntensity, blend);
+        lighting.DiffuseIntensity = Lerp(DayDiffuseIntensity, NightDiffuseIntensity, blend);
         // Moonlight keeps a cool diffuse response, but never contributes a specular lobe.
-        lighting.SpecularIntensity = Lerp(0.16f, 0.0f, blend);
+        lighting.SpecularIntensity = Lerp(DaySpecularIntensity, NightSpecularIntensity, blend);
         // The reference captures retain roughly half of the daytime surface value
         // away from local lights, with only a slight cool bias. Keep that filter
         // shared by terrain and world sprites before local lights are accumulated.
-        lighting.WorldSurfaceAmbientColour = Vector3.Lerp(
-            Vector3.One,
-            new Vector3(0.48f, 0.49f, 0.52f),
-            blend);
+        lighting.WorldSurfaceAmbientColour = Vector3.Lerp(DayWorldSurfaceAmbientColour, NightWorldSurfaceAmbientColour, blend);
         lighting.NightBlend = blend;
     }
 

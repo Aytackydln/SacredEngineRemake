@@ -6,6 +6,7 @@ using Sacred.Assets.Paks.Texture;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
+using Sacred.World.Particles;
 
 namespace Sacred.Engine.Rendering;
 
@@ -16,12 +17,14 @@ public sealed class TerrainRenderer : IDisposable
     private readonly SectorCompositionBuilder _sectorCompositionBuilder;
     private readonly TerrainLiquidSpriteBuilder _liquidSpriteBuilder;
     private readonly TerrainStaticSpriteBuilder _staticSpriteBuilder;
+    private readonly TerrainParticleSpriteBuilder _particleSpriteBuilder;
     private readonly PrioritizedAssetLoadScheduler _sectorBuildScheduler =
         new("Sacred sector builder");
     private readonly Dictionary<SectorCoord, TerrainSectorComposition> _sectorCache = new();
     private readonly Dictionary<SectorCoord, Task<TerrainSectorComposition>> _sectorBuildTasks = new();
     private readonly List<TerrainSectorComposition> _visibleSectorImages = new(9);
     private readonly List<Sector> _candidateSectors = new(9);
+    private readonly List<TerrainStaticSprite> _visibleWorldSprites = new(1536);
     private readonly HashSet<SectorCoord> _neededSectorCoords = new();
     private readonly List<SectorCoord> _sectorCoordsToRemove = new(9);
     private readonly List<SectorCoord> _completedSectorBuilds = new(9);
@@ -29,18 +32,22 @@ public sealed class TerrainRenderer : IDisposable
     private IndoorTileGroup? _activeIndoorGroup;
     private bool _worldChangedThisFrame;
     private bool _indoorChangedThisFrame;
+    private ulong _preparedParticleRevision = ulong.MaxValue;
 
     public TerrainRenderStats LastStats { get; private set; }
     public ulong WorldSpriteRevision { get; private set; }
     public IReadOnlyList<TerrainWorldLight> VisibleWorldLights { get; private set; } = [];
     public bool HasPendingSpriteAssetRequests =>
-        _staticSpriteBuilder.HasPendingAssetRequests || _liquidSpriteBuilder.HasPendingAssetRequests;
+        _staticSpriteBuilder.HasPendingAssetRequests ||
+        _liquidSpriteBuilder.HasPendingAssetRequests ||
+        _particleSpriteBuilder.HasPendingAssetRequests;
 
     public TerrainRenderer(AssetManager assets)
     {
         _sectorCompositionBuilder = new SectorCompositionBuilder(assets);
         _liquidSpriteBuilder = new TerrainLiquidSpriteBuilder(assets);
         _staticSpriteBuilder = new TerrainStaticSpriteBuilder(assets);
+        _particleSpriteBuilder = new TerrainParticleSpriteBuilder(assets);
     }
 
     public IReadOnlyList<TerrainSectorComposition> PrepareVisibleWorld(
@@ -118,25 +125,47 @@ public sealed class TerrainRenderer : IDisposable
         return _visibleSectorImages;
     }
 
-    public IReadOnlyList<TerrainStaticSprite> PrepareVisibleStaticSprites()
+    public IReadOnlyList<TerrainStaticSprite> PrepareVisibleStaticSprites(
+        IReadOnlyList<WorldParticle>? particles = null,
+        ulong particleRevision = 0)
     {
         var preparation = _staticSpriteBuilder.Prepare(
             _candidateSectors,
             _worldChangedThisFrame || _indoorChangedThisFrame,
             _activeIndoorGroup,
             true);
-        if (!preparation.Changed)
-            return preparation.Sprites;
+        particles ??= Array.Empty<WorldParticle>();
+        var particlesChanged = _preparedParticleRevision != particleRevision ||
+                               _particleSpriteBuilder.HasPendingAssetRequests;
+        if (!preparation.Changed && !particlesChanged)
+            return _visibleWorldSprites;
 
-        VisibleWorldLights = preparation.Lights;
+        if (particlesChanged)
+        {
+            _particleSpriteBuilder.Prepare(particles);
+            _preparedParticleRevision = particleRevision;
+        }
+
+        _visibleWorldSprites.Clear();
+        _visibleWorldSprites.AddRange(preparation.Sprites);
+        _visibleWorldSprites.AddRange(_particleSpriteBuilder.Sprites);
+
+        if (preparation.Changed)
+        {
+            VisibleWorldLights = preparation.Lights;
+            LastStats = LastStats with
+            {
+                StaticCandidateObjects = preparation.CandidateObjects,
+                StaticMissingObjects = preparation.MissingObjects
+            };
+        }
+
         WorldSpriteRevision++;
         LastStats = LastStats with
         {
-            StaticCandidateObjects = preparation.CandidateObjects,
-            StaticDrawnObjects = preparation.Sprites.Count,
-            StaticMissingObjects = preparation.MissingObjects
+            StaticDrawnObjects = _visibleWorldSprites.Count
         };
-        return preparation.Sprites;
+        return _visibleWorldSprites;
     }
 
     public IReadOnlyList<TerrainLiquidSprite> PrepareVisibleLiquidSprites()
@@ -242,6 +271,7 @@ public readonly record struct TerrainStaticSprite(
     bool TransposeTexture,
     bool AllowsPlayerOcclusionFade,
     TerrainStaticShadow? Shadow,
+    bool IsEmbeddedInTerrain,
     float RenderWidth,
     float RenderHeight,
     float IsoX,
@@ -255,10 +285,26 @@ public readonly record struct TerrainStaticSprite(
     int TileWorldY,
     int TileWorldX,
     int ChainDepth,
-    int InsertionOrder)
+    int InsertionOrder,
+    float Opacity)
 {
-    /// <summary>Fractional source alpha and authored player fading both need alpha composition after models.</summary>
-    public bool RequiresTransparentPass => AllowsPlayerOcclusionFade || Sprite.HasTranslucentPixels;
+    public uint ParticleColor { get; init; } = uint.MaxValue;
+    public int ParticleAtlasCell { get; init; }
+    public float ParticleRotation { get; init; }
+    public uint ParticleBlendFlags { get; init; }
+    /// <summary>Marks a file-authored mini-object animation such as a fixture flame.</summary>
+    public bool IsAnimatedMiniObject { get; init; }
+    /// <summary>Sprites with fractional alpha must use alpha composition.</summary>
+    public bool RequiresAlphaBlend =>
+        IsParticleSprite || AllowsPlayerOcclusionFade || Sprite.HasTranslucentPixels;
+
+    /// <summary>
+    /// Animated mini-object details retain their painter order with the static fixture.
+    /// Other fractional-alpha props stay in the late foreground pass, as authored for signs and foliage.
+    /// </summary>
+    public bool RequiresPostModelPass =>
+        IsParticleSprite || AllowsPlayerOcclusionFade ||
+        (Sprite.HasTranslucentPixels && !IsAnimatedMiniObject);
 }
 
 public readonly record struct TerrainStaticShadow(

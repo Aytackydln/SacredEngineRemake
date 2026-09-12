@@ -10,6 +10,7 @@ using Sacred.Shaders;
 using Vortice.Direct3D;
 using Vortice.Direct3D12;
 using Vortice.DXGI;
+using Vortice.Mathematics;
 using static Vortice.Direct3D12.D3D12;
 using static Vortice.DXGI.DXGI;
 
@@ -40,6 +41,7 @@ internal sealed class Dx12DeviceContext : IDisposable
     private ID3D12GraphicsCommandList _commandList = null!;
     private ID3D12Fence _fence = null!;
     private ID3D12Resource? _depthBuffer;
+    private ID3D12Resource? _sceneColor;
     private Dx12FrameContext[] _frames = null!;
     private Dx12FrameContext? _currentFrame;
 
@@ -50,6 +52,10 @@ internal sealed class Dx12DeviceContext : IDisposable
     private int _renderHeight;
     private int _pendingRenderWidth;
     private int _pendingRenderHeight;
+    private int _sceneWidth;
+    private int _sceneHeight;
+    private int _renderResolutionPercentage = 100;
+    private int _requestedRenderResolutionPercentage = 100;
     private ulong _fenceValue;
     private Dx12SwapChainMode _requestedSwapChainMode;
     private SwapChainFlags _swapChainFlags;
@@ -73,6 +79,7 @@ internal sealed class Dx12DeviceContext : IDisposable
         CreateSwapChain();
         CreateDescriptorHeaps(srvDescriptorCount);
         CreateBackBuffers();
+        CreateSceneColor();
         CreateDepthBuffer();
         CreateCommands();
     }
@@ -82,8 +89,11 @@ internal sealed class Dx12DeviceContext : IDisposable
     public ID3D12DescriptorHeap SrvHeap => _srvHeap;
     public ID3D12DescriptorHeap[] ShaderVisibleDescriptorHeaps => _shaderVisibleDescriptorHeaps;
     public int SrvDescriptorSize => _srvDescriptorSize;
-    public int RenderWidth => _renderWidth;
-    public int RenderHeight => _renderHeight;
+    public int RenderWidth => _sceneWidth;
+    public int RenderHeight => _sceneHeight;
+    public int OutputWidth => _renderWidth;
+    public int OutputHeight => _renderHeight;
+    public int RenderResolutionPercentage => _renderResolutionPercentage;
     public bool VariableRefreshRateSupported => _allowTearing;
     public bool IsHdrEnabled => _swapChain is Dx12HdrSwapChain;
     public Format BackBufferFormat => _swapChain.BackBufferFormat;
@@ -96,11 +106,21 @@ internal sealed class Dx12DeviceContext : IDisposable
     public void SetHdrBrightnessSettings(HdrBrightnessSettings settings) =>
         _hdrBrightnessSettings = settings.Normalized();
 
+    public void SetRenderResolutionPercentage(int percentage) =>
+        _requestedRenderResolutionPercentage = Math.Clamp(percentage, 25, 200);
+
     public Dx12FrameContext CurrentFrame =>
         _currentFrame ?? throw new InvalidOperationException("No Direct3D frame is being recorded.");
 
     public ID3D12Resource CurrentBackBuffer => _backBuffers[_swapChain.CurrentBackBufferIndex];
     public CpuDescriptorHandle CurrentRenderTarget => RtvHandle((int)_swapChain.CurrentBackBufferIndex);
+    public bool UsesRenderScaling => _sceneColor is not null;
+    public ID3D12Resource SceneColor => _sceneColor ?? CurrentBackBuffer;
+    public CpuDescriptorHandle SceneRenderTarget => _sceneColor is null ? CurrentRenderTarget : RtvHandle(FrameCount);
+    public ResourceStates SceneColorInitialState => _sceneColor is null ? ResourceStates.Present : ResourceStates.PixelShaderResource;
+    public ResourceStates SceneColorFinalState => _sceneColor is null ? ResourceStates.Present : ResourceStates.PixelShaderResource;
+    public CpuDescriptorHandle SceneColorSrvCpuHandle => SrvCpuHandle(Dx12DescriptorLayout.SceneColor);
+    public GpuDescriptorHandle SceneColorSrvGpuHandle => SrvGpuHandle(Dx12DescriptorLayout.SceneColor);
     public CpuDescriptorHandle DepthStencil => _dsvHeap.GetCPUDescriptorHandleForHeapStart();
 
     public CpuDescriptorHandle SrvCpuHandle(int index) =>
@@ -115,6 +135,7 @@ internal sealed class Dx12DeviceContext : IDisposable
             throw new InvalidOperationException("The previous Direct3D frame was not submitted.");
 
         ResizeIfNeeded(releaseRetiredResources);
+        RecreateSceneColorIfNeeded(releaseRetiredResources);
         _swapChain.WaitForPresentSlot(cancellationToken);
 
         var frame = _frames[_swapChain.CurrentBackBufferIndex];
@@ -192,6 +213,7 @@ internal sealed class Dx12DeviceContext : IDisposable
     public void RecreateSwapChain(Dx12SwapChainMode requestedMode)
     {
         DisposeBackBuffers();
+        DisposeSceneColor();
         _depthBuffer?.Dispose();
         _depthBuffer = null;
         _swapChain.Dispose();
@@ -199,6 +221,7 @@ internal sealed class Dx12DeviceContext : IDisposable
         _requestedSwapChainMode = requestedMode;
         CreateSwapChain();
         CreateBackBuffers();
+        CreateSceneColor();
         CreateDepthBuffer();
     }
 
@@ -206,6 +229,7 @@ internal sealed class Dx12DeviceContext : IDisposable
     {
         _depthBuffer?.Dispose();
         _depthBuffer = null;
+        DisposeSceneColor();
         DisposeBackBuffers();
         _fence.Dispose();
         _commandList.Dispose();
@@ -262,7 +286,7 @@ internal sealed class Dx12DeviceContext : IDisposable
 
     private void CreateDescriptorHeaps(int srvDescriptorCount)
     {
-        _rtvHeap = CreateDescriptorHeap(DescriptorHeapType.RenderTargetView, FrameCount, DescriptorHeapFlags.None);
+        _rtvHeap = CreateDescriptorHeap(DescriptorHeapType.RenderTargetView, FrameCount + 1, DescriptorHeapFlags.None);
         _dsvHeap = CreateDescriptorHeap(DescriptorHeapType.DepthStencilView, 1, DescriptorHeapFlags.None);
         _srvHeap = CreateDescriptorHeap(
             DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView,
@@ -289,8 +313,8 @@ internal sealed class Dx12DeviceContext : IDisposable
         var description = new ResourceDescription(
             ResourceDimension.Texture2D,
             0,
-            (ulong)Math.Max(1, _renderWidth),
-            (uint)Math.Max(1, _renderHeight),
+            (ulong)Math.Max(1, _sceneWidth),
+            (uint)Math.Max(1, _sceneHeight),
             1,
             1,
             DepthBufferFormat,
@@ -326,6 +350,45 @@ internal sealed class Dx12DeviceContext : IDisposable
             throw new InvalidOperationException("Failed to create D3D12 fence event.");
     }
 
+    private void CreateSceneColor()
+    {
+        _sceneWidth = CalculateSceneDimension(_renderWidth);
+        _sceneHeight = CalculateSceneDimension(_renderHeight);
+        if (_renderResolutionPercentage == 100)
+            return;
+
+        var description = new ResourceDescription(ResourceDimension.Texture2D, 0, (ulong)_sceneWidth,
+            (uint)_sceneHeight, 1, 1, BackBufferFormat, 1, 0, TextureLayout.Unknown,
+            ResourceFlags.AllowRenderTarget);
+        var clear = new ClearValue(BackBufferFormat, new Color4(0, 0, 0, 1));
+        _sceneColor = _device.CreateCommittedResource(new HeapProperties(HeapType.Default, 0, 0), HeapFlags.None,
+            description, ResourceStates.PixelShaderResource, clear);
+        _device.CreateRenderTargetView(_sceneColor, null, SceneRenderTarget);
+        _device.CreateShaderResourceView(_sceneColor, null, SceneColorSrvCpuHandle);
+    }
+
+    private void DisposeSceneColor()
+    {
+        _sceneColor?.Dispose();
+        _sceneColor = null;
+    }
+
+    private void RecreateSceneColorIfNeeded(Action<Dx12FrameContext> releaseRetiredResources)
+    {
+        if (_requestedRenderResolutionPercentage == _renderResolutionPercentage)
+            return;
+        WaitForGpu(releaseRetiredResources);
+        _depthBuffer?.Dispose();
+        _depthBuffer = null;
+        DisposeSceneColor();
+        _renderResolutionPercentage = _requestedRenderResolutionPercentage;
+        CreateSceneColor();
+        CreateDepthBuffer();
+    }
+
+    private int CalculateSceneDimension(int outputDimension) =>
+        Math.Max(1, (int)MathF.Round(outputDimension * _renderResolutionPercentage / 100.0f));
+
     private void ResizeIfNeeded(Action<Dx12FrameContext> releaseRetiredResources)
     {
         var width = _window.ClientWidth;
@@ -350,12 +413,14 @@ internal sealed class Dx12DeviceContext : IDisposable
 
         WaitForGpu(releaseRetiredResources);
         DisposeBackBuffers();
+        DisposeSceneColor();
         _swapChain.ResizeBuffers(FrameCount, _pendingRenderWidth, _pendingRenderHeight, _swapChainFlags);
         _renderWidth = _pendingRenderWidth;
         _renderHeight = _pendingRenderHeight;
         _pendingRenderWidth = 0;
         _pendingRenderHeight = 0;
         CreateBackBuffers();
+        CreateSceneColor();
         CreateDepthBuffer();
     }
 

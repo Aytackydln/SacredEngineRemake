@@ -1,0 +1,902 @@
+[
+  {
+    "scene_id": "2146_2947",
+    "player_ppos_xy": [
+      2146,
+      2947
+    ],
+    "ppos_z_displayed": 0,
+    "dimensions": [
+      1660,
+      787
+    ],
+    "source_image": "images/2146 2947.png",
+    "scene_description": "Outdoor ruined stone complex, blue/black scorched ground, broken arches, rubble, dead trees, shrubs and living trees.",
+    "projection": {
+      "scale": 0.625,
+      "translation_xy": [
+        24858.0,
+        -75865.0
+      ],
+      "landmarks": [],
+      "transform": "screen_xy = scale * projected_xy + translation_xy; then add scaled mixed-piece offsets for sprite bounds",
+      "method": "Manual matching of bowl centers; scale 0.625 supported by 120-pixel screen spacing / 192 projected units between repeated dungeon braziers and 180/288 for repeated sconces.",
+      "confidence": "low",
+      "limitations": "Manual feature positions are approximate, typically several pixels; particles/occlusion alter apparent bowl centers. One-landmark scenes cannot independently determine scale. Ruins scene uses a coarse player-centered fallback."
+    },
+    "positive_observation_ids": [
+      "2146_2947_P01",
+      "2146_2947_P02",
+      "2146_2947_P03",
+      "2146_2947_P04",
+      "2146_2947_P05",
+      "2146_2947_P06",
+      "2146_2947_P07",
+      "2146_2947_P08"
+    ],
+    "negative_control_count": 3,
+    "context_region_count": 5,
+    "global_image_regions": [
+      {
+        "kind": "diagnostic_text",
+        "description": "Top-left FPS and PPOS; FPS is display frame rate, not particle emission rate."
+      },
+      {
+        "kind": "hud",
+        "description": "Portrait/status at top right and quickbar at bottom where present; excluded from world-object labels."
+      },
+      {
+        "kind": "archive_context",
+        "description": "Full nearby static records, terrain cells and floors are provided separately. Occlusion, interior layer selection and viewport edges mean these are candidate records, not exhaustive pixel segmentations."
+      }
+    ]
+  },
+  {
+    "scene_id": "2262_3132",
+    "player_ppos_xy": [
+      2262,
+      3132
+    ],
+    "ppos_z_displayed": 0,
+    "dimensions": [
+      1328,
+      762
+    ],
+    "source_image": "images/2262 3132.png",
+    "scene_description": "Village crossroads beside a round tower, wooden building, trees, benches, rune stones, pond and work table.",
+    "projection": {
+      "scale": 0.625,
+      "translation_xy": [
+        26933.0,
+        -80360.75
+      ],
+      "landmarks": [
+        {
+          "static_id": 511752,
+          "observed_feature_xy": [
+            623,
+            578
+          ],
+          "feature_offset_from_projected_anchor_xy": [
+            24,
+            8
+          ],
+          "projected_xy": [
+            -42120,
+            129494
+          ],
+          "fitted_translation_xy": [
+            26933.0,
+            -80360.75
+          ],
+          "residual_xy_pixels": [
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "transform": "screen_xy = scale * projected_xy + translation_xy; then add scaled mixed-piece offsets for sprite bounds",
+      "method": "Manual matching of bowl centers; scale 0.625 supported by 120-pixel screen spacing / 192 projected units between repeated dungeon braziers and 180/288 for repeated sconces.",
+      "confidence": "medium",
+      "limitations": "Manual feature positions are approximate, typically several pixels; particles/occlusion alter apparent bowl centers. One-landmark scenes cannot independently determine scale. Ruins scene uses a coarse player-centered fallback."
+    },
+    "positive_observation_ids": [
+      "2262_3132_P01"
+    ],
+    "negative_control_count": 3,
+    "context_region_count": 3,
+    "global_image_regions": [
+      {
+        "kind": "diagnostic_text",
+        "description": "Top-left FPS and PPOS; FPS is display frame rate, not particle emission rate."
+      },
+      {
+        "kind": "hud",
+        "description": "Portrait/status at top right and quickbar at bottom where present; excluded from world-object labels."
+      },
+      {
+        "kind": "archive_context",
+        "description": "Full nearby static records, terrain cells and floors are provided separately. Occlusion, interior layer selection and viewport edges mean these are candidate records, not exhaustive pixel segmentations."
+      }
+    ]
+  },
+  {
+    "scene_id": "2286_3135",
+    "player_ppos_xy": [
+      2286,
+      3135
+    ],
+    "ppos_z_displayed": 0,
+    "dimensions": [
+      1691,
+      862
+    ],
+    "source_image": "images/2286 3135.png",
+    "scene_description": "Village garden with timber house, flowerbeds, trees, fences and pond around a gnarled tree.",
+    "projection": {
+      "scale": 0.625,
+      "translation_xy": [
+        26291.875,
+        -80777.125
+      ],
+      "landmarks": [
+        {
+          "static_id": 511701,
+          "observed_feature_xy": [
+            1065,
+            546
+          ],
+          "feature_offset_from_projected_anchor_xy": [
+            47,
+            103
+          ],
+          "projected_xy": [
+            -40410,
+            130014
+          ],
+          "fitted_translation_xy": [
+            26291.875,
+            -80777.125
+          ],
+          "residual_xy_pixels": [
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "transform": "screen_xy = scale * projected_xy + translation_xy; then add scaled mixed-piece offsets for sprite bounds",
+      "method": "Manual matching of bowl centers; scale 0.625 supported by 120-pixel screen spacing / 192 projected units between repeated dungeon braziers and 180/288 for repeated sconces.",
+      "confidence": "medium",
+      "limitations": "Manual feature positions are approximate, typically several pixels; particles/occlusion alter apparent bowl centers. One-landmark scenes cannot independently determine scale. Ruins scene uses a coarse player-centered fallback."
+    },
+    "positive_observation_ids": [
+      "2286_3135_P01"
+    ],
+    "negative_control_count": 3,
+    "context_region_count": 3,
+    "global_image_regions": [
+      {
+        "kind": "diagnostic_text",
+        "description": "Top-left FPS and PPOS; FPS is display frame rate, not particle emission rate."
+      },
+      {
+        "kind": "hud",
+        "description": "Portrait/status at top right and quickbar at bottom where present; excluded from world-object labels."
+      },
+      {
+        "kind": "archive_context",
+        "description": "Full nearby static records, terrain cells and floors are provided separately. Occlusion, interior layer selection and viewport edges mean these are candidate records, not exhaustive pixel segmentations."
+      }
+    ]
+  },
+  {
+    "scene_id": "2551_1689",
+    "player_ppos_xy": [
+      2551,
+      1689
+    ],
+    "ppos_z_displayed": 0,
+    "dimensions": [
+      1683,
+      856
+    ],
+    "source_image": "images/2551 1689.png",
+    "scene_description": "Dark rocky sanctuary/cave-like open enclosure with large statue, columns, tiled platform, doorway and two braziers.",
+    "projection": {
+      "scale": 0.625,
+      "translation_xy": [
+        -25020.375,
+        -63071.375
+      ],
+      "landmarks": [
+        {
+          "static_id": 563188,
+          "observed_feature_xy": [
+            1114,
+            208
+          ],
+          "feature_offset_from_projected_anchor_xy": [
+            32,
+            12
+          ],
+          "projected_xy": [
+            41783,
+            101235
+          ],
+          "fitted_translation_xy": [
+            -25020.375,
+            -63071.375
+          ],
+          "residual_xy_pixels": [
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "static_id": 563189,
+          "observed_feature_xy": [
+            1294,
+            298
+          ],
+          "feature_offset_from_projected_anchor_xy": [
+            32,
+            12
+          ],
+          "projected_xy": [
+            42071,
+            101379
+          ],
+          "fitted_translation_xy": [
+            -25020.375,
+            -63071.375
+          ],
+          "residual_xy_pixels": [
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "transform": "screen_xy = scale * projected_xy + translation_xy; then add scaled mixed-piece offsets for sprite bounds",
+      "method": "Manual matching of bowl centers; scale 0.625 supported by 120-pixel screen spacing / 192 projected units between repeated dungeon braziers and 180/288 for repeated sconces.",
+      "confidence": "medium_high",
+      "limitations": "Manual feature positions are approximate, typically several pixels; particles/occlusion alter apparent bowl centers. One-landmark scenes cannot independently determine scale. Ruins scene uses a coarse player-centered fallback."
+    },
+    "positive_observation_ids": [
+      "2551_1689_P01",
+      "2551_1689_P02"
+    ],
+    "negative_control_count": 3,
+    "context_region_count": 3,
+    "global_image_regions": [
+      {
+        "kind": "diagnostic_text",
+        "description": "Top-left FPS and PPOS; FPS is display frame rate, not particle emission rate."
+      },
+      {
+        "kind": "hud",
+        "description": "Portrait/status at top right and quickbar at bottom where present; excluded from world-object labels."
+      },
+      {
+        "kind": "archive_context",
+        "description": "Full nearby static records, terrain cells and floors are provided separately. Occlusion, interior layer selection and viewport edges mean these are candidate records, not exhaustive pixel segmentations."
+      }
+    ]
+  },
+  {
+    "scene_id": "3191_1152",
+    "player_ppos_xy": [
+      3191,
+      1152
+    ],
+    "ppos_z_displayed": 0,
+    "dimensions": [
+      1678,
+      857
+    ],
+    "source_image": "images/3191 1152.png",
+    "scene_description": "Ruined stone sanctuary with aligned braziers, arched doorways, banners, many columns and broken statues.",
+    "projection": {
+      "scale": 0.625,
+      "translation_xy": [
+        -60311.375,
+        -64613.375
+      ],
+      "landmarks": [
+        {
+          "static_id": 728489,
+          "observed_feature_xy": [
+            713,
+            151
+          ],
+          "feature_offset_from_projected_anchor_xy": [
+            32,
+            12
+          ],
+          "projected_xy": [
+            97607,
+            103611
+          ],
+          "fitted_translation_xy": [
+            -60311.375,
+            -64613.375
+          ],
+          "residual_xy_pixels": [
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "static_id": 728499,
+          "observed_feature_xy": [
+            593,
+            211
+          ],
+          "feature_offset_from_projected_anchor_xy": [
+            32,
+            12
+          ],
+          "projected_xy": [
+            97415,
+            103707
+          ],
+          "fitted_translation_xy": [
+            -60311.375,
+            -64613.375
+          ],
+          "residual_xy_pixels": [
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "static_id": 728502,
+          "observed_feature_xy": [
+            473,
+            271
+          ],
+          "feature_offset_from_projected_anchor_xy": [
+            32,
+            12
+          ],
+          "projected_xy": [
+            97223,
+            103803
+          ],
+          "fitted_translation_xy": [
+            -60311.375,
+            -64613.375
+          ],
+          "residual_xy_pixels": [
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "static_id": 728532,
+          "observed_feature_xy": [
+            323,
+            346
+          ],
+          "feature_offset_from_projected_anchor_xy": [
+            32,
+            12
+          ],
+          "projected_xy": [
+            96983,
+            103923
+          ],
+          "fitted_translation_xy": [
+            -60311.375,
+            -64613.375
+          ],
+          "residual_xy_pixels": [
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "transform": "screen_xy = scale * projected_xy + translation_xy; then add scaled mixed-piece offsets for sprite bounds",
+      "method": "Manual matching of bowl centers; scale 0.625 supported by 120-pixel screen spacing / 192 projected units between repeated dungeon braziers and 180/288 for repeated sconces.",
+      "confidence": "medium_high",
+      "limitations": "Manual feature positions are approximate, typically several pixels; particles/occlusion alter apparent bowl centers. One-landmark scenes cannot independently determine scale. Ruins scene uses a coarse player-centered fallback."
+    },
+    "positive_observation_ids": [
+      "3191_1152_P01",
+      "3191_1152_P02",
+      "3191_1152_P03",
+      "3191_1152_P04"
+    ],
+    "negative_control_count": 3,
+    "context_region_count": 3,
+    "global_image_regions": [
+      {
+        "kind": "diagnostic_text",
+        "description": "Top-left FPS and PPOS; FPS is display frame rate, not particle emission rate."
+      },
+      {
+        "kind": "hud",
+        "description": "Portrait/status at top right and quickbar at bottom where present; excluded from world-object labels."
+      },
+      {
+        "kind": "archive_context",
+        "description": "Full nearby static records, terrain cells and floors are provided separately. Occlusion, interior layer selection and viewport edges mean these are candidate records, not exhaustive pixel segmentations."
+      }
+    ]
+  },
+  {
+    "scene_id": "3501_3630",
+    "player_ppos_xy": [
+      3501,
+      3630
+    ],
+    "ppos_z_displayed": 0,
+    "dimensions": [
+      1685,
+      885
+    ],
+    "source_image": "images/3501 3630.png",
+    "scene_description": "Desert settlement with flat-roof houses, market stalls, forge, cacti, fences, barrels, tables, palms and water.",
+    "projection": {
+      "scale": 0.625,
+      "translation_xy": [
+        4705.0,
+        -106434.75
+      ],
+      "landmarks": [
+        {
+          "static_id": 832891,
+          "observed_feature_xy": [
+            1314,
+            95
+          ],
+          "feature_offset_from_projected_anchor_xy": [
+            24,
+            8
+          ],
+          "projected_xy": [
+            -5448,
+            170438
+          ],
+          "fitted_translation_xy": [
+            4704.0,
+            -106433.75
+          ],
+          "residual_xy_pixels": [
+            -1.0,
+            1.0
+          ]
+        },
+        {
+          "static_id": 833092,
+          "observed_feature_xy": [
+            1105,
+            409
+          ],
+          "feature_offset_from_projected_anchor_xy": [
+            24,
+            8
+          ],
+          "projected_xy": [
+            -5784,
+            170942
+          ],
+          "fitted_translation_xy": [
+            4705.0,
+            -106434.75
+          ],
+          "residual_xy_pixels": [
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "static_id": 833332,
+          "observed_feature_xy": [
+            385,
+            558
+          ],
+          "feature_offset_from_projected_anchor_xy": [
+            24,
+            8
+          ],
+          "projected_xy": [
+            -6936,
+            171182
+          ],
+          "fitted_translation_xy": [
+            4705.0,
+            -106435.75
+          ],
+          "residual_xy_pixels": [
+            0.0,
+            -1.0
+          ]
+        }
+      ],
+      "transform": "screen_xy = scale * projected_xy + translation_xy; then add scaled mixed-piece offsets for sprite bounds",
+      "method": "Manual matching of bowl centers; scale 0.625 supported by 120-pixel screen spacing / 192 projected units between repeated dungeon braziers and 180/288 for repeated sconces.",
+      "confidence": "medium_high",
+      "limitations": "Manual feature positions are approximate, typically several pixels; particles/occlusion alter apparent bowl centers. One-landmark scenes cannot independently determine scale. Ruins scene uses a coarse player-centered fallback."
+    },
+    "positive_observation_ids": [
+      "3501_3630_P01",
+      "3501_3630_P02",
+      "3501_3630_P03"
+    ],
+    "negative_control_count": 3,
+    "context_region_count": 3,
+    "global_image_regions": [
+      {
+        "kind": "diagnostic_text",
+        "description": "Top-left FPS and PPOS; FPS is display frame rate, not particle emission rate."
+      },
+      {
+        "kind": "hud",
+        "description": "Portrait/status at top right and quickbar at bottom where present; excluded from world-object labels."
+      },
+      {
+        "kind": "archive_context",
+        "description": "Full nearby static records, terrain cells and floors are provided separately. Occlusion, interior layer selection and viewport edges mean these are candidate records, not exhaustive pixel segmentations."
+      }
+    ]
+  },
+  {
+    "scene_id": "4585_986",
+    "player_ppos_xy": [
+      4585,
+      986
+    ],
+    "ppos_z_displayed": 0,
+    "dimensions": [
+      1680,
+      865
+    ],
+    "source_image": "images/4585 986.png",
+    "scene_description": "Dungeon hall with stone walls, black voids, statues, doors, blue magical fixtures and active combat.",
+    "projection": {
+      "scale": 0.625,
+      "translation_xy": [
+        -107143.875,
+        -83032.375
+      ],
+      "landmarks": [
+        {
+          "static_id": 979138,
+          "observed_feature_xy": [
+            1425,
+            146
+          ],
+          "feature_offset_from_projected_anchor_xy": [
+            50,
+            53
+          ],
+          "projected_xy": [
+            173657,
+            133034
+          ],
+          "fitted_translation_xy": [
+            -107141.875,
+            -83033.375
+          ],
+          "residual_xy_pixels": [
+            2.0,
+            -1.0
+          ]
+        },
+        {
+          "static_id": 979230,
+          "observed_feature_xy": [
+            373,
+            162
+          ],
+          "feature_offset_from_projected_anchor_xy": [
+            50,
+            53
+          ],
+          "projected_xy": [
+            171977,
+            133058
+          ],
+          "fitted_translation_xy": [
+            -107143.875,
+            -83032.375
+          ],
+          "residual_xy_pixels": [
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "static_id": 979233,
+          "observed_feature_xy": [
+            523,
+            237
+          ],
+          "feature_offset_from_projected_anchor_xy": [
+            50,
+            53
+          ],
+          "projected_xy": [
+            172217,
+            133178
+          ],
+          "fitted_translation_xy": [
+            -107143.875,
+            -83032.375
+          ],
+          "residual_xy_pixels": [
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "transform": "screen_xy = scale * projected_xy + translation_xy; then add scaled mixed-piece offsets for sprite bounds",
+      "method": "Manual matching of bowl centers; scale 0.625 supported by 120-pixel screen spacing / 192 projected units between repeated dungeon braziers and 180/288 for repeated sconces.",
+      "confidence": "medium_high",
+      "limitations": "Manual feature positions are approximate, typically several pixels; particles/occlusion alter apparent bowl centers. One-landmark scenes cannot independently determine scale. Ruins scene uses a coarse player-centered fallback."
+    },
+    "positive_observation_ids": [
+      "4585_986_P01",
+      "4585_986_P02",
+      "4585_986_P03",
+      "4585_986_P04",
+      "4585_986_P05",
+      "4585_986_P06",
+      "4585_986_P07",
+      "4585_986_P08"
+    ],
+    "negative_control_count": 3,
+    "context_region_count": 3,
+    "global_image_regions": [
+      {
+        "kind": "diagnostic_text",
+        "description": "Top-left FPS and PPOS; FPS is display frame rate, not particle emission rate."
+      },
+      {
+        "kind": "hud",
+        "description": "Portrait/status at top right and quickbar at bottom where present; excluded from world-object labels."
+      },
+      {
+        "kind": "archive_context",
+        "description": "Full nearby static records, terrain cells and floors are provided separately. Occlusion, interior layer selection and viewport edges mean these are candidate records, not exhaustive pixel segmentations."
+      }
+    ]
+  },
+  {
+    "scene_id": "5083_616",
+    "player_ppos_xy": [
+      5083,
+      616
+    ],
+    "ppos_z_displayed": 0,
+    "dimensions": [
+      1695,
+      882
+    ],
+    "source_image": "images/5083 616.png",
+    "scene_description": "Large interior dining hall with tables, benches, pillars, banners, chandeliers, red carpets and central dark enclosure with orange pit.",
+    "projection": {
+      "scale": 0.625,
+      "translation_xy": [
+        -133156.0,
+        -84957.4375
+      ],
+      "landmarks": [
+        {
+          "static_id": 994786,
+          "observed_feature_xy": [
+            679,
+            57
+          ],
+          "feature_offset_from_projected_anchor_xy": [
+            58,
+            34
+          ],
+          "projected_xy": [
+            214081,
+            135984
+          ],
+          "fitted_translation_xy": [
+            -133157.875,
+            -84954.25
+          ],
+          "residual_xy_pixels": [
+            -1.88,
+            3.19
+          ]
+        },
+        {
+          "static_id": 994987,
+          "observed_feature_xy": [
+            502,
+            145
+          ],
+          "feature_offset_from_projected_anchor_xy": [
+            58,
+            34
+          ],
+          "projected_xy": [
+            213793,
+            136128
+          ],
+          "fitted_translation_xy": [
+            -133154.875,
+            -84956.25
+          ],
+          "residual_xy_pixels": [
+            1.12,
+            1.19
+          ]
+        },
+        {
+          "static_id": 995130,
+          "observed_feature_xy": [
+            323,
+            233
+          ],
+          "feature_offset_from_projected_anchor_xy": [
+            58,
+            34
+          ],
+          "projected_xy": [
+            213505,
+            136272
+          ],
+          "fitted_translation_xy": [
+            -133153.875,
+            -84958.25
+          ],
+          "residual_xy_pixels": [
+            2.12,
+            -0.81
+          ]
+        },
+        {
+          "static_id": 994897,
+          "observed_feature_xy": [
+            1004,
+            267
+          ],
+          "feature_offset_from_projected_anchor_xy": [
+            58,
+            34
+          ],
+          "projected_xy": [
+            214598,
+            136327
+          ],
+          "fitted_translation_xy": [
+            -133156.0,
+            -84958.625
+          ],
+          "residual_xy_pixels": [
+            0.0,
+            -1.19
+          ]
+        },
+        {
+          "static_id": 995258,
+          "observed_feature_xy": [
+            644,
+            447
+          ],
+          "feature_offset_from_projected_anchor_xy": [
+            58,
+            34
+          ],
+          "projected_xy": [
+            214022,
+            136615
+          ],
+          "fitted_translation_xy": [
+            -133156.0,
+            -84958.625
+          ],
+          "residual_xy_pixels": [
+            0.0,
+            -1.19
+          ]
+        },
+        {
+          "static_id": 994901,
+          "observed_feature_xy": [
+            1634,
+            584
+          ],
+          "feature_offset_from_projected_anchor_xy": [
+            58,
+            34
+          ],
+          "projected_xy": [
+            215606,
+            136831
+          ],
+          "fitted_translation_xy": [
+            -133156.0,
+            -84956.625
+          ],
+          "residual_xy_pixels": [
+            0.0,
+            0.81
+          ]
+        },
+        {
+          "static_id": 995272,
+          "observed_feature_xy": [
+            1275,
+            764
+          ],
+          "feature_offset_from_projected_anchor_xy": [
+            58,
+            34
+          ],
+          "projected_xy": [
+            215030,
+            137119
+          ],
+          "fitted_translation_xy": [
+            -133155.0,
+            -84956.625
+          ],
+          "residual_xy_pixels": [
+            1.0,
+            0.81
+          ]
+        },
+        {
+          "static_id": 995355,
+          "observed_feature_xy": [
+            290,
+            758
+          ],
+          "feature_offset_from_projected_anchor_xy": [
+            58,
+            34
+          ],
+          "projected_xy": [
+            213457,
+            137112
+          ],
+          "fitted_translation_xy": [
+            -133156.875,
+            -84958.25
+          ],
+          "residual_xy_pixels": [
+            -0.88,
+            -0.81
+          ]
+        }
+      ],
+      "transform": "screen_xy = scale * projected_xy + translation_xy; then add scaled mixed-piece offsets for sprite bounds",
+      "method": "Manual matching of bowl centers; scale 0.625 supported by 120-pixel screen spacing / 192 projected units between repeated dungeon braziers and 180/288 for repeated sconces.",
+      "confidence": "medium_high",
+      "limitations": "Manual feature positions are approximate, typically several pixels; particles/occlusion alter apparent bowl centers. One-landmark scenes cannot independently determine scale. Ruins scene uses a coarse player-centered fallback."
+    },
+    "positive_observation_ids": [
+      "5083_616_P01",
+      "5083_616_P02",
+      "5083_616_P03",
+      "5083_616_P04",
+      "5083_616_P05",
+      "5083_616_P06",
+      "5083_616_P07",
+      "5083_616_P08"
+    ],
+    "negative_control_count": 3,
+    "context_region_count": 6,
+    "global_image_regions": [
+      {
+        "kind": "diagnostic_text",
+        "description": "Top-left FPS and PPOS; FPS is display frame rate, not particle emission rate."
+      },
+      {
+        "kind": "hud",
+        "description": "Portrait/status at top right and quickbar at bottom where present; excluded from world-object labels."
+      },
+      {
+        "kind": "archive_context",
+        "description": "Full nearby static records, terrain cells and floors are provided separately. Occlusion, interior layer selection and viewport edges mean these are candidate records, not exhaustive pixel segmentations."
+      }
+    ]
+  }
+]

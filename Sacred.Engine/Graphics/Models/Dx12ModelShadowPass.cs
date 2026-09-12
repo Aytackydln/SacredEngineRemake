@@ -21,6 +21,7 @@ internal sealed class Dx12ModelShadowPass
     private readonly int _descriptorSize;
     private readonly int _fallbackTextureSlot;
     private readonly ModelRootConstantsUpdater _rootConstants = new(ModelShaderLayout.RootParameterCount);
+    private readonly ModelDescriptorTableUpdater _descriptorTables = new(ModelShaderLayout.RootParameterCount);
     private readonly ModelShaderConstantsUpdater _shaderConstants = new();
 
     private ID3D12RootSignature? _rootSignature;
@@ -93,8 +94,10 @@ internal sealed class Dx12ModelShadowPass
             lighting.DirectionToSun,
             lighting.ShadowOpacity);
         _rootConstants.Reset();
+        _descriptorTables.Reset();
         foreach (var model in models)
-            RecordModel(model, shadowParameters, viewProjection, frameIndex);
+            if (ModelFrustumCuller.MayCastVisibleShadow(camera, model))
+                RecordModel(model, shadowParameters, viewProjection, frameIndex);
     }
 
     private unsafe void RecordGroundShadows(
@@ -109,15 +112,19 @@ internal sealed class Dx12ModelShadowPass
         _commandList.SetPipelineState(_groundPipeline);
         _commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         _rootConstants.Reset();
+        _descriptorTables.Reset();
         var viewProjection = camera.View * camera.Projection;
         var constants = stackalloc float[ModelShaderLayout.ModelConstantsCount];
         foreach (var model in models)
         {
+            if (!ModelFrustumCuller.MayCastVisibleShadow(camera, model))
+                continue;
+
             var radius = model.GroundShadowRadius * model.Scale;
             var world = Matrix4x4.CreateScale(radius, radius, 1.0f) *
                         Matrix4x4.CreateTranslation(
-                            model.Position.X,
-                            model.Position.Y,
+                            model.RenderPosition.X,
+                            model.RenderPosition.Y,
                             model.GroundPlaneZ);
             _shaderConstants.WriteModelBase(
                 constants,
@@ -162,7 +169,7 @@ internal sealed class Dx12ModelShadowPass
         {
             WriteMaterial(constants, hasTexture: false, model.GroundPlaneZ);
             SetConstants(constants);
-            _commandList.SetGraphicsRootDescriptorTable(
+            SetDescriptorTableIfChanged(
                 ModelShaderLayout.ModelTextureRootParameter,
                 SrvGpuHandle(_fallbackTextureSlot));
             _commandList.DrawIndexedInstanced((uint)mesh.IndexCount, 1, 0, 0, 0);
@@ -179,7 +186,7 @@ internal sealed class Dx12ModelShadowPass
             var hasTexture = texture is { Resource: not null, SrvSlot: >= 0 };
             WriteMaterial(constants, hasTexture, model.GroundPlaneZ);
             SetConstants(constants);
-            _commandList.SetGraphicsRootDescriptorTable(
+            SetDescriptorTableIfChanged(
                 ModelShaderLayout.ModelTextureRootParameter,
                 SrvGpuHandle(hasTexture ? texture!.SrvSlot : _fallbackTextureSlot));
             var drawCount = Math.Min(surface.IndexCount, mesh.IndexCount - surface.IndexStart);
@@ -202,6 +209,9 @@ internal sealed class Dx12ModelShadowPass
             constants,
             ModelShaderLayout.ModelConstantsCount,
             0);
+
+    private void SetDescriptorTableIfChanged(int parameter, GpuDescriptorHandle handle) =>
+        _descriptorTables.SetIfChanged(_commandList, parameter, handle);
 
     private GpuDescriptorHandle SrvGpuHandle(int index) => _srvHeapStart + index * _descriptorSize;
 }

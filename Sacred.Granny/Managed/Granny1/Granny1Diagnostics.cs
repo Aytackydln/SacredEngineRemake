@@ -54,13 +54,20 @@ public static partial class Granny1MeshExtractor
                         bone.Name,
                         bone.ParentIndex,
                         ProjectPosition(
-                            bone.RestWorld.Translation,
+                            (slice.RetargetedAttachments?[boneIndex].RestWorld ?? bone.RestWorld).Translation,
                             bounds.Min,
                             center,
                             verticalAxis,
                             horizontalAxis0,
                             horizontalAxis1,
-                            scale))).ToArray() ?? [],
+                            scale))
+                    {
+                        AnimationBoneName = slice.RetargetedAttachments?[boneIndex].AnimationBoneName ?? bone.Name,
+                        Direction = ProjectDirection(
+                            slice.RetargetedAttachments?[boneIndex].Direction ??
+                            Vector3.TransformNormal(Vector3.UnitX, RestRotationWorld(slice.Skeleton, boneIndex)),
+                            verticalAxis, horizontalAxis0, horizontalAxis1)
+                    }).ToArray() ?? [],
                 slice.Skeleton?.BoneTieBones.Length ?? 0,
                 CreateSurfaceTriangles(
                     slice.Parts,
@@ -124,6 +131,9 @@ public static partial class Granny1MeshExtractor
         return triangles.ToArray();
     }
 
+    private static Vector3 ProjectDirection(Vector3 source, int verticalAxis, int horizontalAxis0, int horizontalAxis1) =>
+        new(Axis(source, horizontalAxis0), Axis(source, horizontalAxis1), Axis(source, verticalAxis));
+
     private static Vector3 ProjectPosition(
         Vector3 source,
         Vector3 min,
@@ -137,4 +147,3 @@ public static partial class Granny1MeshExtractor
             (Axis(source, horizontalAxis1) - Axis(center, horizontalAxis1)) * scale,
             (Axis(source, verticalAxis) - Axis(min, verticalAxis)) * scale);
 }
-

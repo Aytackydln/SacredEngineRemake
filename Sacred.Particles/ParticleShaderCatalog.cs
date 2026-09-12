@@ -7,13 +7,16 @@ public static class ParticleShaderCatalog
     {
         ParticleTextureMode.Luminance or
         ParticleTextureMode.Atlas4X4 or
-        ParticleTextureMode.WeaponGlowFlare => ParticleShaderKind.ItemGlow,
+        ParticleTextureMode.WeaponGlowFlare or
+        ParticleTextureMode.NativeLensFlare => ParticleShaderKind.ItemGlow,
 
         ParticleTextureMode.MagicOrb or
         ParticleTextureMode.FirePop or
         ParticleTextureMode.PoisonStatic => ParticleShaderKind.DenseItemParticle,
 
         ParticleTextureMode.Alpha or
+        ParticleTextureMode.NativeModel or
+        ParticleTextureMode.NativeModelColored or
         ParticleTextureMode.BouncyAlpha => ParticleShaderKind.ItemParticle,
 
         _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown particle texture mode.")

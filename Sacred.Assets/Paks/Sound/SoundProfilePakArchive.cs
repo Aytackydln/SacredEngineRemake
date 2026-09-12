@@ -58,7 +58,7 @@ public sealed class SoundProfilePakArchive
 
             stream.Position = descriptor.Offset;
             var layout = reader.ReadStruct<SoundProfilePakEntryLayout>(SoundProfilePakEntryLayout.SerializedSize);
-            if (layout.IsDefined == 0)
+            if (!layout.IsDefined)
                 continue;
 
             var nameBytes = layout.NameBytes;

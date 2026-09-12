@@ -18,12 +18,6 @@ namespace Sacred.Engine.Graphics.Sprites;
 /// <summary>Builds compact frame-local GPU streams for sprites and their atlas-backed shadows.</summary>
 internal sealed class Dx12SpriteInstanceBuilder
 {
-    private const uint LiquidSpriteFlag = 0x01;
-    private const uint TransposeTextureFlag = 0x02;
-    private const uint MixedLightEmitterFlag = 0x20000000;
-    private const uint ParticleSpriteFlag = 0x40000000;
-    private const uint UnlitSpriteFlag = 0x80000000;
-    private const uint PlayerOcclusionFadeFlag = 0x10000000;
     private const uint DirectionalShadowFlag = 0x00000100;
     private const uint IndoorSurfaceShadowFlag = 0x00000200;
     private const float PainterDepthScale = 1.0f / 4096.0f;
@@ -174,7 +168,11 @@ internal sealed class Dx12SpriteInstanceBuilder
                 1.0f,
                 textureSlot,
                 (uint)sprite.Animation.FrameCount,
-                LiquidSpriteFlag | ((uint)sprite.TextureVariant << 1),
+                sprite.TextureVariant,
+                0,
+                0,
+                0,
+                0,
                 sprite.AnimationPeriodSeconds,
                 sprite.AlphaLeft / 255.0f,
                 sprite.AlphaTop / 255.0f,
@@ -193,8 +191,14 @@ internal sealed class Dx12SpriteInstanceBuilder
         }
 
         var staticStartInstance = instanceCount;
-        var transparentStaticStartInstance = -1;
         var highlightedStaticInstance = -1;
+        var highlightedStaticIsUnlit = false;
+        var staticRanges = new List<StaticSpriteDrawRange>();
+        var staticRangeStart = -1;
+        var staticRangeIsUnlit = false;
+        var staticRangeRequiresAlphaBlend = false;
+        var staticRangeIsPostModel = false;
+        SacredTextureChannelEncoding? staticRangeParticleEncoding = null;
         var shadowInstanceCount = 0;
         var legacyShadowDrawCallCount = 0;
         var previousLegacyInstanceCastsShadow = false;
@@ -206,19 +210,24 @@ internal sealed class Dx12SpriteInstanceBuilder
         for (var index = 0; index < staticSprites.Count; index++)
         {
             var sprite = staticSprites[index];
-            if (!_textureCache.TryGetStaticSlot(sprite.Sprite, out var textureSlot))
+            var textureSlot = 0u;
+            if (!sprite.IsEmbeddedInTerrain &&
+                !_textureCache.TryGetStaticSlot(sprite.Sprite, out textureSlot))
+            {
                 continue;
+            }
 
             var drawPosition = screenTransform.ToScreen(sprite.IsoX, sprite.IsoY);
             var drawWidth = screenTransform.Scale(sprite.RenderWidth);
             var drawHeight = screenTransform.Scale(sprite.RenderHeight);
-            var spriteVisible = IntersectsViewport(
-                drawPosition.X,
-                drawPosition.Y,
-                drawWidth,
-                drawHeight,
-                renderWidth,
-                renderHeight);
+            var spriteVisible = !sprite.IsEmbeddedInTerrain &&
+                                IntersectsViewport(
+                                    drawPosition.X,
+                                    drawPosition.Y,
+                                    drawWidth,
+                                    drawHeight,
+                                    renderWidth,
+                                    renderHeight);
 
             var hasShadow = false;
             var shadowVisible = false;
@@ -282,10 +291,42 @@ internal sealed class Dx12SpriteInstanceBuilder
 
             if (spriteVisible)
             {
-                if (sprite.RequiresTransparentPass && transparentStaticStartInstance < 0)
-                    transparentStaticStartInstance = instanceCount;
+                var requiresAlphaBlend = sprite.RequiresAlphaBlend;
+                var isPostModel = sprite.RequiresPostModelPass;
+                SacredTextureChannelEncoding? particleEncoding = sprite.IsParticleSprite
+                    ? sprite.Sprite.ChannelEncoding
+                    : null;
+                if (staticRangeStart < 0)
+                {
+                    staticRangeStart = instanceCount;
+                    staticRangeIsUnlit = sprite.IsUnlit;
+                    staticRangeRequiresAlphaBlend = requiresAlphaBlend;
+                    staticRangeIsPostModel = isPostModel;
+                    staticRangeParticleEncoding = particleEncoding;
+                }
+                else if (staticRangeIsUnlit != sprite.IsUnlit ||
+                         staticRangeRequiresAlphaBlend != requiresAlphaBlend ||
+                         staticRangeIsPostModel != isPostModel ||
+                         staticRangeParticleEncoding != particleEncoding)
+                {
+                    staticRanges.Add(new StaticSpriteDrawRange(
+                        staticRangeStart,
+                        instanceCount - staticRangeStart,
+                        staticRangeIsUnlit,
+                        staticRangeRequiresAlphaBlend,
+                        staticRangeIsPostModel,
+                        staticRangeParticleEncoding));
+                    staticRangeStart = instanceCount;
+                    staticRangeIsUnlit = sprite.IsUnlit;
+                    staticRangeRequiresAlphaBlend = requiresAlphaBlend;
+                    staticRangeIsPostModel = isPostModel;
+                    staticRangeParticleEncoding = particleEncoding;
+                }
                 if (sprite.StaticObjectId == highlightedStaticObjectId)
+                {
                     highlightedStaticInstance = instanceCount;
+                    highlightedStaticIsUnlit = sprite.IsUnlit;
+                }
                 instances[instanceCount++] = new StaticSpriteInstance(
                     drawPosition.X,
                     drawPosition.Y,
@@ -294,18 +335,18 @@ internal sealed class Dx12SpriteInstanceBuilder
                     CalculateSceneDepth(camera, sprite),
                     textureSlot,
                     (uint)sprite.Sprite.FrameCount,
-                    (sprite.IsUnlit ? UnlitSpriteFlag : 0) |
-                    (sprite.IsParticleSprite ? ParticleSpriteFlag : 0) |
-                    (sprite.IsMixedLightEmitter ? MixedLightEmitterFlag : 0) |
-                    (sprite.AllowsPlayerOcclusionFade ? PlayerOcclusionFadeFlag : 0) |
-                    (sprite.TransposeTexture ? TransposeTextureFlag : 0),
+                    (uint)sprite.ParticleAtlasCell,
+                    sprite.TransposeTexture ? 1u : 0u,
+                    sprite.IsMixedLightEmitter ? 1u : 0u,
+                    sprite.IsParticleSprite ? 1u | sprite.ParticleBlendFlags : 0u,
+                    sprite.AllowsPlayerOcclusionFade ? 1u : 0u,
                     sprite.Sprite.AnimationPeriodSeconds,
-                    1.0f,
-                    1.0f,
-                    1.0f,
-                    1.0f,
+                    sprite.IsParticleSprite ? ((sprite.ParticleColor >> 16) & 255) / 255.0f : sprite.Opacity,
+                    sprite.IsParticleSprite ? ((sprite.ParticleColor >> 8) & 255) / 255.0f : sprite.Opacity,
+                    sprite.IsParticleSprite ? (sprite.ParticleColor & 255) / 255.0f : sprite.Opacity,
+                    sprite.Opacity,
                     (uint)sprite.Sprite.AtlasColumns,
-                    (uint)sprite.Sprite.AtlasRows);
+                    (uint)sprite.Sprite.AtlasRows) { ParticleRotation = sprite.ParticleRotation };
             }
 
             if (shadowVisible)
@@ -324,18 +365,29 @@ internal sealed class Dx12SpriteInstanceBuilder
             }
         }
 
-        if (transparentStaticStartInstance < 0)
-            transparentStaticStartInstance = instanceCount;
+        if (staticRangeStart >= 0)
+        {
+            staticRanges.Add(new StaticSpriteDrawRange(
+                staticRangeStart,
+                instanceCount - staticRangeStart,
+                staticRangeIsUnlit,
+                staticRangeRequiresAlphaBlend,
+                staticRangeIsPostModel,
+                staticRangeParticleEncoding));
+        }
+
         var batch = new WorldSpriteBatch(
             staticStartInstance,
-            transparentStaticStartInstance - staticStartInstance,
-            transparentStaticStartInstance,
-            instanceCount - transparentStaticStartInstance,
+            instanceCount - staticStartInstance,
+            instanceCount,
+            0,
             shadowInstanceCount,
             shadowTextureSlot,
             shadowAtlasTexelSize,
             legacyShadowDrawCallCount,
             highlightedStaticInstance,
+            highlightedStaticIsUnlit,
+            staticRanges,
             playerOcclusion);
         state.Remember(
             spriteRevision,

@@ -4,7 +4,7 @@
 
 ## How coverage is calculated
 
-Field coverage is the percentage of serialized fields whose purpose has a meaningful name. Byte coverage is the percentage of bytes covered by those fields. Fields marked `BinaryUnknown`, fields named `Unknown…`, and gaps between fields remain unknown. Overlapping serialized fields are rejected by the analyzer. Fixed-width strings use `BinaryString` metadata so the report treats the whole encoded range as one field.
+Byte coverage is the percentage of bytes covered by those fields. Overlapping serialized fields are rejected by the analyzer. Fixed-width strings use `BinaryString` metadata so the report treats the whole encoded range as one field.
 
 Percentages describe the fixed-size structures represented in `Sacred.Core`; repetitions are not weighted by one particular game installation. Variable-size image, sound, Granny, compressed, and string payloads are excluded where their internal byte layout is not a fixed `StructLayout` type.
 
@@ -12,20 +12,21 @@ Percentages describe the fixed-size structures represented in `Sacred.Core`; rep
 
 | Metric | Coverage |
 |---|---:|
-| Catalogued game-file patterns | 37 |
-| Patterns with layout classes | 17 |
-| Patterns missing layout classes | 20 |
-| Unique `StructLayout` types | 34 |
-| Analyzed fields | 181/189 (95.8%) |
-| Analyzed fixed-layout bytes | 1333/6680 (20.0%) |
-| Matching files found in the scanned installation | 39 |
+| Catalogued game-file patterns | 38 |
+| Patterns with layout classes | 21 |
+| Patterns missing layout classes | 17 |
+| Unique `StructLayout` types | 65 |
+| Analyzed fields | 492/521 (94.4%) |
+| Analyzed fixed-layout bytes | 14228/37109 (38.3%) |
+| Matching files found in the scanned installation | 80 |
 
 ## Analyzed game files
 
 | Game file | Installed files checked | Layout sections | Section byte coverage |
 |---|---:|---|---|
-| `pak/Items*.pak` | `pak/Items.pak` (4.4 MiB), `pak/Items03.pak` (4.4 MiB) | Header → Entry descriptors → Model descriptions | **Header:** 8/258 (3.1%)<br>**Entry descriptors:** 4/12 (33.3%)<br>**Model descriptions:** 67/128 (52.3%) |
-| `pak/Weapon.pak` | `pak/Weapon.pak` (1.5 MiB) | Header → Equipment records | **Header:** 5/258 (1.9%)<br>**Equipment records:** 125/258 (48.4%) |
+| `Sacred.exe` | 0 | Symbolic type records → Decoded loader header | **Symbolic type records:** 68/68 (100.0%)<br>**Decoded loader header:** 20/884 (2.3%) |
+| `pak/Items*.pak` | `pak/Items.pak` (4.4 MiB), `pak/Items03.pak` (4.4 MiB) | Header → Entry descriptors → Model descriptions | **Header:** 8/258 (3.1%)<br>**Entry descriptors:** 4/12 (33.3%)<br>**Model descriptions:** 118/128 (92.2%) |
+| `pak/Weapon.pak` | `pak/Weapon.pak` (1.5 MiB) | Header → Equipment records | **Header:** 8/256 (3.1%)<br>**Equipment records:** 257/258 (99.6%) |
 | `pak/texture*.pak` | `pak/texture.pak` (820.8 MiB), `pak/texture03.pak` (26.7 KiB) | Header → Entry descriptors → Texture headers | **Header:** 4/256 (1.6%)<br>**Entry descriptors:** 12/12 (100.0%)<br>**Texture headers:** 41/80 (51.3%) |
 | `pak/mixed.pak` | `pak/mixed.pak` (13.7 MiB) | Header → Entry descriptors → Group headers → Sprite pieces | **Header:** 4/256 (1.6%)<br>**Entry descriptors:** 12/12 (100.0%)<br>**Group headers:** 8/16 (50.0%)<br>**Sprite pieces:** 60/64 (93.8%) |
 | `pak/models*.pak` | `pak/models.pak` (414.2 MiB), `pak/models03.pak` (60.3 KiB) | Header → Entry descriptors → Known payload metadata | **Header:** 4/256 (1.6%)<br>**Entry descriptors:** 12/12 (100.0%)<br>**Known payload metadata:** 80/1148 (7.0%) |
@@ -34,15 +35,25 @@ Percentages describe the fixed-size structures represented in `Sacred.Core`; rep
 | `pak/sndProfiles.pak` | `pak/sndProfiles.pak` (1.5 MiB) | Header → Entry descriptors → Sound profiles | **Header:** 8/256 (3.1%)<br>**Entry descriptors:** 12/12 (100.0%)<br>**Sound profiles:** 164/184 (89.1%) |
 | `pak/sound.pak` | `pak/sound.pak` (374.3 MiB) | Header → Entry descriptors | **Header:** 8/256 (3.1%)<br>**Entry descriptors:** 12/12 (100.0%) |
 | `World/Floor.pak` | `World/Floor.PAK` (179.3 MiB) | Header → Entry descriptors → Floor records | **Header:** 4/256 (1.6%)<br>**Entry descriptors:** 12/12 (100.0%)<br>**Floor records:** 8/16 (50.0%) |
-| `World/Static.pak` | `World/Static.PAK` (75.2 MiB) | Header → Entry descriptors → Static records | **Header:** 4/256 (1.6%)<br>**Entry descriptors:** 12/12 (100.0%)<br>**Static records:** 34/64 (53.1%) |
+| `World/Static.pak` | `World/Static.PAK` (75.2 MiB) | Header → Entry descriptors → Static records | **Header:** 4/256 (1.6%)<br>**Entry descriptors:** 12/12 (100.0%)<br>**Static records:** 55/64 (85.9%) |
 | `World/sectors.keyx` | `World/sectors.keyx` (4.4 MiB) | Header → Sector records | **Header:** 4/256 (1.6%)<br>**Sector records:** 31/768 (4.0%) |
-| `World/sectors.wldx` | `World/sectors.wldx` (60.9 MiB) | Outdoor and indoor tiles → Post-tile header → Indoor-grid descriptors | **Outdoor and indoor tiles:** 22/32 (68.8%)<br>**Post-tile header:** 0/36 (0.0%)<br>**Indoor-grid descriptors:** 24/36 (66.7%) |
+| `World/sectors.wldx` | `World/sectors.wldx` (60.9 MiB) | Outdoor and indoor tiles → Tile-grid descriptors | **Outdoor and indoor tiles:** 28/32 (87.5%)<br>**Tile-grid descriptors:** 24/36 (66.7%) |
 | `bin/sets.bin` | `bin/sets.bin` (7.2 KiB) | Header → Set records | **Header:** 4/4 (100.0%)<br>**Set records:** 48/112 (42.9%) |
 | `bin/treppe.bin` | `bin/treppe.bin` (19.5 KiB) | Cell associations | **Cell associations:** 8/8 (100.0%) |
 | `bin/**/DefPos.bin` | 20 files; `bin/Addon/NetScript/DefPos.bin` (597.8 KiB), `bin/Addon/NetScriptCamp/DefPos.bin` (191.9 KiB), `bin/Addon/TYPE_NPC_DAEMONIN/DefPos.bin` (484.5 KiB), … | First-table header → Named positions | **First-table header:** 4/4 (100.0%)<br>**Named positions:** 76/100 (76.0%) |
 | `scripts/*/global.res` | `scripts/us/global.res` (2.6 MiB) | Header → String index | **Header:** 4/4 (100.0%)<br>**String index:** 12/16 (75.0%) |
+| `bin/sgf.bin` | `bin/sgf.bin` (3.8 MiB) | Instruction prefix → Literal type operand → Literal position operand → Height operand | **Instruction prefix:** 4/4 (100.0%)<br>**Literal type operand:** 5/5 (100.0%)<br>**Literal position operand:** 13/13 (100.0%)<br>**Height operand:** 3/5 (60.0%) |
+| `bin/**/FunkCode.bin` | 20 files; `bin/Addon/NetScript/FunkCode.bin` (2.6 MiB), `bin/Addon/NetScriptCamp/FunkCode.bin` (2.4 MiB), `bin/Addon/TYPE_NPC_DAEMONIN/FunkCode.bin` (2.4 MiB), … | Instruction prefix → Literal type operand → Literal position operand → Height operand | **Instruction prefix:** 4/4 (100.0%)<br>**Literal type operand:** 5/5 (100.0%)<br>**Literal position operand:** 13/13 (100.0%)<br>**Height operand:** 3/5 (60.0%) |
+| `bin/**/StartCode.bin` | 20 files; `bin/Addon/NetScript/StartCode.bin` (625.5 KiB), `bin/Addon/NetScriptCamp/StartCode.bin` (586.7 KiB), `bin/Addon/TYPE_NPC_DAEMONIN/StartCode.bin` (586.7 KiB), … | Instruction prefix → Literal type operand → Literal position operand → Height operand | **Instruction prefix:** 4/4 (100.0%)<br>**Literal type operand:** 5/5 (100.0%)<br>**Literal position operand:** 13/13 (100.0%)<br>**Height operand:** 3/5 (60.0%) |
 
 ## File structures
+
+### `Sacred.exe`
+
+Native type catalogue and encoded game code.
+
+- Symbolic type records: [`SacredExecutableTypeNameLayout`](#sacredexecutabletypenamelayout) — 5,624 records in the verified Gold build, 0x44 bytes. VA 0x8EC328, stride 0x44; each row stores its own type ID followed by a 64-byte name.
+- Decoded loader header: [`SacredExecutableCodeHeaderLayout`](#sacredexecutablecodeheaderlayout) — once after rolling-XOR decoding, 0x374 bytes. VA 0x1D6D380 in the verified Gold build. Native instruction bytes and standard PE structures are outside these fixed layouts.
 
 ### `pak/Items*.pak`
 
@@ -56,7 +67,7 @@ Item visuals and model references.
 
 Equipment definitions and damage ranges.
 
-- Header: [`WeaponPakHeaderLayout`](#weaponpakheaderlayout) — once, 0x102 bytes
+- Header: [`WeaponPakHeaderLayout`](#weaponpakheaderlayout) — once, 0x100 bytes
 - Equipment records: [`SacredEquipmentLayout`](#sacredequipmentlayout) — EntryCount times, 0x102 bytes
 
 ### `pak/texture*.pak`
@@ -143,8 +154,7 @@ Sector index and WLDX payload locations.
 Compressed world-sector payloads.
 
 - Outdoor and indoor tiles: [`WldxTileRecord`](#wldxtilerecord) — once per tile in a decompressed sector, 0x20 bytes
-- Post-tile header: [`WldxPostTileHeaderLayout`](#wldxposttileheaderlayout) — once per decompressed sector, 0x24 bytes
-- Indoor-grid descriptors: [`WldxIndoorGroupDescriptorLayout`](#wldxindoorgroupdescriptorlayout) — zero or more per sector, 0x24 bytes. The outer zlib stream and variable tile-array counts are excluded from fixed-layout coverage.
+- Tile-grid descriptors: [`WldxTileGridDescriptorLayout`](#wldxtilegriddescriptorlayout) — one outdoor-origin descriptor followed by zero or more indoor descriptors per sector, 0x24 bytes. The outer zlib stream and variable tile-array counts are excluded from fixed-layout coverage.
 
 ### `bin/sets.bin`
 
@@ -173,7 +183,419 @@ Localized resource strings.
 - Header: [`GameResourceHeaderLayout`](#gameresourceheaderlayout) — once, 0x4 bytes
 - String index: [`GameResourceIndexLayout`](#gameresourceindexlayout) — StringCount times, 0x10 bytes. Variable-length UTF-16 string data is referenced by the index and excluded from fixed-layout coverage.
 
+### `bin/sgf.bin`
+
+Selected compiled function-script cache.
+
+- Instruction prefix: [`SacredScriptCommandHeaderLayout`](#sacredscriptcommandheaderlayout) — once per variable-length command, 0x4 bytes
+- Literal type operand: [`SacredScriptTypeArgumentLayout`](#sacredscripttypeargumentlayout) — for tag 0x02, 0x5 bytes
+- Literal position operand: [`SacredScriptPositionArgumentLayout`](#sacredscriptpositionargumentlayout) — for literal tags 0x04 / 0x20, 0xD bytes. Tag 0x04 with first coordinate -2 is symbolic and has a different layout. Strings and other operands remain variable-length/unmapped.
+- Height operand: [`SacredScriptHeightArgumentLayout`](#sacredscriptheightargumentlayout) — for tag 0x7E, 0x5 bytes
+
+### `bin/**/FunkCode.bin`
+
+Compiled function scripts, including independent effect placements.
+
+- Instruction prefix: [`SacredScriptCommandHeaderLayout`](#sacredscriptcommandheaderlayout) — once per variable-length command, 0x4 bytes
+- Literal type operand: [`SacredScriptTypeArgumentLayout`](#sacredscripttypeargumentlayout) — for tag 0x02, 0x5 bytes
+- Literal position operand: [`SacredScriptPositionArgumentLayout`](#sacredscriptpositionargumentlayout) — for literal tags 0x04 / 0x20, 0xD bytes. Tag 0x04 with first coordinate -2 is symbolic and has a different layout. Strings and other operands remain variable-length/unmapped.
+- Height operand: [`SacredScriptHeightArgumentLayout`](#sacredscriptheightargumentlayout) — for tag 0x7E, 0x5 bytes
+
+### `bin/**/StartCode.bin`
+
+Compiled start scripts.
+
+- Instruction prefix: [`SacredScriptCommandHeaderLayout`](#sacredscriptcommandheaderlayout) — once per variable-length command, 0x4 bytes
+- Literal type operand: [`SacredScriptTypeArgumentLayout`](#sacredscripttypeargumentlayout) — for tag 0x02, 0x5 bytes
+- Literal position operand: [`SacredScriptPositionArgumentLayout`](#sacredscriptpositionargumentlayout) — for literal tags 0x04 / 0x20, 0xD bytes. Tag 0x04 with first coordinate -2 is symbolic and has a different layout. Strings and other operands remain variable-length/unmapped.
+- Height operand: [`SacredScriptHeightArgumentLayout`](#sacredscriptheightargumentlayout) — for tag 0x7E, 0x5 bytes
+
 ## Layouts by namespace
+
+### `Sacred.Core.Executable`
+
+#### `SacredExecutableCodeHeaderLayout`
+
+Recovered fields in this Sacred Gold executable's 0x374-byte decoded loader header. Header words after +0 are XORed with the preceding encoded word. These offsets are specific to the verified executable loader, not a general PE format.
+
+Size: **0x374** bytes. Fields: **5/6 (83.3%)**. Bytes: **20/884 (2.3%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 4 | `uint32` | `HeaderXorSeed` | Known | No XML documentation yet. |
+| 0x18 | 4 | `uint32` | `UnknownFlags` | Unknown | No XML documentation yet. |
+| 0x2C | 4 | `uint32` | `OriginalEntryPointAddress` | Known | No XML documentation yet. |
+| 0x30 | 4 | `uint32` | `CodeAddress` | Known | No XML documentation yet. |
+| 0x34 | 4 | `uint32` | `CodeByteLength` | Known | No XML documentation yet. |
+| 0x38 | 4 | `uint32` | `CodeXorSeed` | Known | Initial key for code decoding. Later code words use the previous encoded word. |
+
+Unknown byte ranges: `0x4–0x2B` (40 bytes), `0x3C–0x373` (824 bytes)
+
+#### `SacredExecutableTypeNameLayout`
+
+Native symbolic type catalogue row: ID first, then a 64-byte name. Sacred.exe 0x43CEC4 returns the ID from table + index * 0x44. The table index is NOT the type ID; identifiers have gaps.
+
+Size: **0x44** bytes. Fields: **2/2 (100.0%)**. Bytes: **68/68 (100.0%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 4 | `uint32` | `TypeId` | Known | No XML documentation yet. |
+| 0x4 | 64 | `string[64] (ISO-8859-1, NUL-terminated)` | `Name` | Known | No XML documentation yet. |
+
+Unknown byte ranges: none
+
+### `Sacred.Core.Executable.Layouts`
+
+#### `SacredExecutableAnimalSpawnLayout`
+
+Native executable layout. Version-specific: verify before applying names to Gold.
+
+Size: **0x8** bytes. Fields: **2/2 (100.0%)**. Bytes: **8/8 (100.0%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 4 | `uint32` | `type` | Known | No XML documentation yet. |
+| 0x4 | 4 | `uint32` | `quote` | Known | No XML documentation yet. |
+
+Unknown byte ranges: none
+
+#### `SacredExecutableFileChunkLayout`
+
+Native executable layout. Version-specific: verify before applying names to Gold.
+
+Size: **0xC** bytes. Fields: **3/3 (100.0%)**. Bytes: **12/12 (100.0%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 4 | `uint32` | `type` | Known | No XML documentation yet. |
+| 0x4 | 4 | `uint32` | `pos` | Known | No XML documentation yet. |
+| 0x8 | 4 | `uint32` | `size` | Known | No XML documentation yet. |
+
+Unknown byte ranges: none
+
+#### `SacredExecutableItemDescriptorLayout`
+
+Native executable layout. Version-specific: verify before applying names to Gold.
+
+Size: **0x80** bytes. Fields: **35/36 (97.2%)**. Bytes: **118/128 (92.2%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 4 | `uint32` | `flags` | Known | No XML documentation yet. |
+| 0x4 | 4 | `uint32` | `textureID` | Known | No XML documentation yet. |
+| 0x8 | 4 | `uint32` | `texture3D` | Known | No XML documentation yet. |
+| 0xC | 4 | `uint32` | `argb` | Known | No XML documentation yet. |
+| 0x10 | 4 | `uint32` | `pakGfxID` | Known | No XML documentation yet. |
+| 0x14 | 4 | `uint32` | `blockRadius` | Known | No XML documentation yet. |
+| 0x18 | 2 | `uint16` | `weaponEntry` | Known | No XML documentation yet. |
+| 0x1A | 2 | `uint16` | `creatureEntry` | Known | No XML documentation yet. |
+| 0x1C | 4 | `uint32` | `bookText` | Known | No XML documentation yet. |
+| 0x20 | 4 | `uint32` | `resourceid` | Known | No XML documentation yet. |
+| 0x24 | 4 | `uint32` | `soundpf` | Known | No XML documentation yet. |
+| 0x28 | 2 | `int16` | `anchorX` | Known | No XML documentation yet. |
+| 0x2A | 2 | `int16` | `anchorY` | Known | No XML documentation yet. |
+| 0x2C | 2 | `uint16` | `aniNum` | Known | No XML documentation yet. |
+| 0x2E | 1 | `byte` | `family` | Known | No XML documentation yet. |
+| 0x2F | 1 | `byte` | `layer` | Known | No XML documentation yet. |
+| 0x30 | 1 | `byte` | `aniMsFrame` | Known | No XML documentation yet. |
+| 0x31 | 1 | `byte` | `gfxFileID` | Known | No XML documentation yet. |
+| 0x32 | 2 | `uint16` | `radius` | Known | No XML documentation yet. |
+| 0x34 | 3 | `byte[3]` | `lwh3d` | Known | No XML documentation yet. |
+| 0x37 | 32 | `byte[32]` | `sname` | Known | No XML documentation yet. |
+| 0x57 | 4 | `float32` | `angle3D` | Known | No XML documentation yet. |
+| 0x5B | 2 | `uint16` | `shadowSub` | Known | No XML documentation yet. |
+| 0x5D | 2 | `int16` | `shadowOffsetX` | Known | No XML documentation yet. |
+| 0x5F | 2 | `int16` | `shadowOffsetY` | Known | No XML documentation yet. |
+| 0x61 | 2 | `byte[2]` | `bookEntry` | Known | No XML documentation yet. |
+| 0x63 | 1 | `byte` | `shadowScheerung` | Known | No XML documentation yet. |
+| 0x64 | 2 | `uint16` | `shadowSize` | Known | No XML documentation yet. |
+| 0x66 | 4 | `uint32` | `textureFX` | Known | No XML documentation yet. |
+| 0x6A | 2 | `uint16` | `upgradeItemType` | Known | No XML documentation yet. |
+| 0x6C | 2 | `uint16` | `upgradeFlags` | Known | No XML documentation yet. |
+| 0x6E | 1 | `byte` | `textureFX_ID` | Known | No XML documentation yet. |
+| 0x6F | 1 | `byte` | `goreType` | Known | No XML documentation yet. |
+| 0x70 | 4 | `uint32` | `modelID` | Known | No XML documentation yet. |
+| 0x74 | 2 | `uint16` | `SwitchType` | Known | No XML documentation yet. |
+| 0x76 | 10 | `byte[10]` | `reserved4` | Unknown | No XML documentation yet. |
+
+Unknown byte ranges: `0x76–0x7F` (10 bytes)
+
+#### `SacredExecutableMixedGroupLayout`
+
+Native executable layout. Version-specific: verify before applying names to Gold.
+
+Size: **0x10** bytes. Fields: **5/6 (83.3%)**. Bytes: **12/16 (75.0%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 4 | `uint32` | `numTextures` | Known | No XML documentation yet. |
+| 0x4 | 2 | `int16` | `x` | Known | No XML documentation yet. |
+| 0x6 | 2 | `int16` | `y` | Known | No XML documentation yet. |
+| 0x8 | 2 | `int16` | `sx` | Known | No XML documentation yet. |
+| 0xA | 2 | `int16` | `sy` | Known | No XML documentation yet. |
+| 0xC | 4 | `uint32[1]` | `reserved` | Unknown | No XML documentation yet. |
+
+Unknown byte ranges: `0xC–0xF` (4 bytes)
+
+#### `SacredExecutableMonsterSpawnLayout`
+
+Native executable layout. Version-specific: verify before applying names to Gold.
+
+Size: **0x8** bytes. Fields: **2/2 (100.0%)**. Bytes: **8/8 (100.0%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 4 | `uint32` | `type` | Known | No XML documentation yet. |
+| 0x4 | 4 | `uint32` | `quote` | Known | No XML documentation yet. |
+
+Unknown byte ranges: none
+
+#### `SacredExecutableSectorChunkExLayout`
+
+Native executable layout. Version-specific: verify before applying names to Gold.
+
+Size: **0x300** bytes. Fields: **15/16 (93.8%)**. Bytes: **695/768 (90.5%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 32 | `byte[32]` | `sectorName` | Known | No XML documentation yet. |
+| 0x20 | 4 | `uint32` | `clientID` | Known | No XML documentation yet. |
+| 0x24 | 4 | `uint32` | `serverID` | Known | No XML documentation yet. |
+| 0x28 | 4 | `uint32` | `serverRevisionID` | Known | No XML documentation yet. |
+| 0x2C | 16 | `uint16[8]` | `surround` | Known | No XML documentation yet. |
+| 0x3C | 4 | `int32` | `von_x` | Known | No XML documentation yet. |
+| 0x40 | 4 | `int32` | `von_y` | Known | No XML documentation yet. |
+| 0x44 | 4 | `int32` | `bis_x` | Known | No XML documentation yet. |
+| 0x48 | 4 | `int32` | `bis_y` | Known | No XML documentation yet. |
+| 0x4C | 384 | `SacredExecutableFileChunkLayout[32]` | `lvlChunks` | Known | No XML documentation yet. |
+| 0x1CC | 4 | `uint32` | `flags` | Known | No XML documentation yet. |
+| 0x1D0 | 8 | `uint32[2]` | `surround2` | Known | No XML documentation yet. |
+| 0x1D8 | 1 | `byte` | `natureType` | Known | No XML documentation yet. |
+| 0x1D9 | 16 | `SacredExecutableSystemTimeLayout` | `timeOfLastMod` | Known | No XML documentation yet. |
+| 0x1E9 | 256 | `SacredExecutableSectorEnvironmentLayout` | `environment` | Known | No XML documentation yet. |
+| 0x2E9 | 23 | `byte[23]` | `pad` | Unknown | No XML documentation yet. |
+
+Unknown byte ranges: `0x283–0x296` (20 bytes), `0x2C1–0x2D7` (23 bytes), `0x2E2–0x2FF` (30 bytes)
+
+#### `SacredExecutableSectorChunkLayout`
+
+Native executable layout. Version-specific: verify before applying names to Gold.
+
+Size: **0x200** bytes. Fields: **14/15 (93.3%)**. Bytes: **489/512 (95.5%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 32 | `byte[32]` | `sectorName` | Known | No XML documentation yet. |
+| 0x20 | 4 | `uint32` | `clientID` | Known | No XML documentation yet. |
+| 0x24 | 4 | `uint32` | `serverID` | Known | No XML documentation yet. |
+| 0x28 | 4 | `uint32` | `serverRevisionID` | Known | No XML documentation yet. |
+| 0x2C | 16 | `uint16[8]` | `surround` | Known | No XML documentation yet. |
+| 0x3C | 4 | `int32` | `von_x` | Known | No XML documentation yet. |
+| 0x40 | 4 | `int32` | `von_y` | Known | No XML documentation yet. |
+| 0x44 | 4 | `int32` | `bis_x` | Known | No XML documentation yet. |
+| 0x48 | 4 | `int32` | `bis_y` | Known | No XML documentation yet. |
+| 0x4C | 384 | `SacredExecutableFileChunkLayout[32]` | `lvlChunks` | Known | No XML documentation yet. |
+| 0x1CC | 4 | `uint32` | `flags` | Known | No XML documentation yet. |
+| 0x1D0 | 8 | `uint32[2]` | `surround2` | Known | No XML documentation yet. |
+| 0x1D8 | 1 | `byte` | `natureType` | Known | No XML documentation yet. |
+| 0x1D9 | 16 | `SacredExecutableSystemTimeLayout` | `timeOfLastMod` | Known | No XML documentation yet. |
+| 0x1E9 | 23 | `byte[23]` | `pad` | Unknown | No XML documentation yet. |
+
+Unknown byte ranges: `0x1E9–0x1FF` (23 bytes)
+
+#### `SacredExecutableSectorEnvironmentLayout`
+
+Native executable layout. Version-specific: verify before applying names to Gold.
+
+Size: **0x100** bytes. Fields: **18/21 (85.7%)**. Bytes: **206/256 (80.5%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 4 | `uint32` | `flags` | Known | No XML documentation yet. |
+| 0x4 | 1 | `byte` | `environmentValid` | Known | No XML documentation yet. |
+| 0x5 | 112 | `SacredExecutableSectorWeatherLayout[4]` | `environment` | Known | No XML documentation yet. |
+| 0x75 | 1 | `byte` | `animalsValid` | Known | No XML documentation yet. |
+| 0x76 | 32 | `SacredExecutableAnimalSpawnLayout[4]` | `animals` | Known | No XML documentation yet. |
+| 0x96 | 2 | `uint16` | `animalMinNum` | Known | No XML documentation yet. |
+| 0x98 | 2 | `uint16` | `animalMaxNum` | Known | No XML documentation yet. |
+| 0x9A | 20 | `byte[20]` | `unused1` | Unknown | No XML documentation yet. |
+| 0xAE | 1 | `byte` | `monsterValid` | Known | No XML documentation yet. |
+| 0xAF | 32 | `SacredExecutableMonsterSpawnLayout[4]` | `monster` | Known | No XML documentation yet. |
+| 0xCF | 2 | `uint16` | `monsterMinNum` | Known | No XML documentation yet. |
+| 0xD1 | 2 | `uint16` | `monsterMaxNum` | Known | No XML documentation yet. |
+| 0xD3 | 2 | `uint16` | `monsterMinLevel` | Known | No XML documentation yet. |
+| 0xD5 | 2 | `uint16` | `monsterMaxLevel` | Known | No XML documentation yet. |
+| 0xD7 | 1 | `byte` | `region01` | Known | No XML documentation yet. |
+| 0xD8 | 23 | `byte[23]` | `unused` | Unknown | No XML documentation yet. |
+| 0xEF | 4 | `uint32` | `musicID` | Known | No XML documentation yet. |
+| 0xF3 | 4 | `uint32` | `osSoundProfile` | Known | No XML documentation yet. |
+| 0xF7 | 1 | `byte` | `waterTypeA` | Known | No XML documentation yet. |
+| 0xF8 | 1 | `byte` | `waterTypeB` | Known | No XML documentation yet. |
+| 0xF9 | 7 | `byte[7]` | `reserved` | Unknown | No XML documentation yet. |
+
+Unknown byte ranges: `0x9A–0xAD` (20 bytes), `0xD8–0xEE` (23 bytes), `0xF9–0xFF` (7 bytes)
+
+#### `SacredExecutableSectorWeatherLayout`
+
+Native executable layout. Version-specific: verify before applying names to Gold.
+
+Size: **0x1C** bytes. Fields: **5/5 (100.0%)**. Bytes: **28/28 (100.0%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 2 | `uint16` | `type` | Known | No XML documentation yet. |
+| 0x2 | 8 | `uint32[2]` | `time` | Known | No XML documentation yet. |
+| 0xA | 8 | `uint32[2]` | `duration` | Known | No XML documentation yet. |
+| 0x12 | 2 | `byte[2]` | `intensity` | Known | No XML documentation yet. |
+| 0x14 | 8 | `uint32[2]` | `params` | Known | No XML documentation yet. |
+
+Unknown byte ranges: none
+
+#### `SacredExecutableStaticObjectLayout`
+
+Native executable layout. Version-specific: verify before applying names to Gold.
+
+Size: **0x40** bytes. Fields: **21/23 (91.3%)**. Bytes: **55/64 (85.9%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 4 | `uint32` | `self` | Known | No XML documentation yet. |
+| 0x4 | 4 | `uint32` | `type` | Known | No XML documentation yet. |
+| 0x8 | 4 | `uint32` | `flags` | Known | No XML documentation yet. |
+| 0xC | 11 | `SacredExecutableWorldPositionLayout` | `wpos` | Known | No XML documentation yet. |
+| 0x17 | 4 | `int32` | `q` | Known | Native union: signed quality (low 16 bits), quantity or content (32 bits). |
+| 0x1B | 4 | `uint32` | `container` | Known | No XML documentation yet. |
+| 0x1F | 4 | `uint32` | `next_item` | Known | No XML documentation yet. |
+| 0x23 | 2 | `int16` | `anchorOffX` | Known | No XML documentation yet. |
+| 0x25 | 2 | `int16` | `anchorOffY` | Known | No XML documentation yet. |
+| 0x27 | 4 | `uint32` | `trigger` | Known | No XML documentation yet. |
+| 0x2B | 2 | `uint16` | `triggerState` | Known | No XML documentation yet. |
+| 0x2D | 1 | `byte` | `heightLevelID` | Known | No XML documentation yet. |
+| 0x2E | 1 | `byte` | `miniObjU` | Known | No XML documentation yet. |
+| 0x2F | 1 | `byte` | `miniObjV` | Known | No XML documentation yet. |
+| 0x30 | 1 | `byte` | `miniObjS` | Known | No XML documentation yet. |
+| 0x31 | 1 | `byte` | `miniTime` | Known | No XML documentation yet. |
+| 0x32 | 1 | `byte` | `miniFrames` | Known | No XML documentation yet. |
+| 0x33 | 1 | `byte` | `layer` | Known | No XML documentation yet. |
+| 0x34 | 1 | `byte` | `triggerInit` | Known | No XML documentation yet. |
+| 0x35 | 1 | `byte` | `fxVisibleStates` | Known | No XML documentation yet. |
+| 0x36 | 1 | `byte` | `reserved1` | Unknown | No XML documentation yet. |
+| 0x37 | 1 | `byte` | `brightness` | Known | No XML documentation yet. |
+| 0x38 | 8 | `byte[8]` | `reserved` | Unknown | No XML documentation yet. |
+
+Unknown byte ranges: `0x36`, `0x38–0x3F` (8 bytes)
+
+#### `SacredExecutableSystemTimeLayout`
+
+Native executable layout. Version-specific: verify before applying names to Gold.
+
+Size: **0x10** bytes. Fields: **8/8 (100.0%)**. Bytes: **16/16 (100.0%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 2 | `uint16` | `wYear` | Known | No XML documentation yet. |
+| 0x2 | 2 | `uint16` | `wMonth` | Known | No XML documentation yet. |
+| 0x4 | 2 | `uint16` | `wDayOfWeek` | Known | No XML documentation yet. |
+| 0x6 | 2 | `uint16` | `wDay` | Known | No XML documentation yet. |
+| 0x8 | 2 | `uint16` | `wHour` | Known | No XML documentation yet. |
+| 0xA | 2 | `uint16` | `wMinute` | Known | No XML documentation yet. |
+| 0xC | 2 | `uint16` | `wSecond` | Known | No XML documentation yet. |
+| 0xE | 2 | `uint16` | `wMilliseconds` | Known | No XML documentation yet. |
+
+Unknown byte ranges: none
+
+#### `SacredExecutableTextureSubLayout`
+
+Native executable layout. Version-specific: verify before applying names to Gold.
+
+Size: **0x20** bytes. Fields: **9/10 (90.0%)**. Bytes: **28/32 (87.5%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 4 | `uint32` | `texture` | Known | No XML documentation yet. |
+| 0x4 | 2 | `uint16` | `sizeX` | Known | No XML documentation yet. |
+| 0x6 | 2 | `uint16` | `sizeY` | Known | No XML documentation yet. |
+| 0x8 | 2 | `int16` | `x` | Known | No XML documentation yet. |
+| 0xA | 2 | `int16` | `y` | Known | No XML documentation yet. |
+| 0xC | 4 | `uint32` | `reserved` | Unknown | No XML documentation yet. |
+| 0x10 | 4 | `float32` | `u` | Known | No XML documentation yet. |
+| 0x14 | 4 | `float32` | `v` | Known | No XML documentation yet. |
+| 0x18 | 4 | `float32` | `tu` | Known | No XML documentation yet. |
+| 0x1C | 4 | `float32` | `tv` | Known | No XML documentation yet. |
+
+Unknown byte ranges: `0xC–0xF` (4 bytes)
+
+#### `SacredExecutableWorldPositionLayout`
+
+Native executable layout. Version-specific: verify before applying names to Gold.
+
+Size: **0xB** bytes. Fields: **4/4 (100.0%)**. Bytes: **11/11 (100.0%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 2 | `uint16` | `map` | Known | No XML documentation yet. |
+| 0x2 | 4 | `int32` | `x` | Known | No XML documentation yet. |
+| 0x6 | 4 | `int32` | `y` | Known | No XML documentation yet. |
+| 0xA | 1 | `byte` | `z` | Known | No XML documentation yet. |
+
+Unknown byte ranges: none
+
+### `Sacred.Core.GameBin.Scripts`
+
+#### `SacredScriptCommandHeaderLayout`
+
+Instruction prefix in FunkCode.bin, StartCode.bin and the sgf.bin cache. Sacred.exe 0x45F220 reads this prefix, then ByteLength - 4 operand bytes.
+
+Size: **0x4** bytes. Fields: **2/2 (100.0%)**. Bytes: **4/4 (100.0%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 2 | `uint16` | `Opcode` | Known | No XML documentation yet. |
+| 0x2 | 2 | `uint16` | `ByteLength` | Known | Total instruction length, INCLUDING this four-byte prefix. |
+
+Unknown byte ranges: none
+
+#### `SacredScriptHeightArgumentLayout`
+
+Five-byte height operand. At 0x473A86 Sacred.exe SIGN EXTENDS a 16-bit value but advances over four payload bytes. This is not an Int32 height.
+
+Size: **0x5** bytes. Fields: **2/3 (66.7%)**. Bytes: **3/5 (60.0%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 1 | `SacredScriptArgumentKind (byte)` | `Kind` | Known | No XML documentation yet. |
+| 0x1 | 2 | `int16` | `HeightOffset` | Known | No XML documentation yet. |
+| 0x3 | 2 | `uint16` | `Unknown03` | Unknown | No XML documentation yet. |
+
+Unknown byte ranges: `0x3–0x4` (2 bytes)
+
+#### `SacredScriptPositionArgumentLayout`
+
+Literal position operand (0x04 or 0x20). Tag 0x04 with X == -2 uses a different, symbolic encoding and MUST NOT be read using this layout. Native decoders: 0x474065, 0x474181, 0x474703.
+
+Size: **0xD** bytes. Fields: **4/4 (100.0%)**. Bytes: **13/13 (100.0%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 1 | `SacredScriptArgumentKind (byte)` | `Kind` | Known | No XML documentation yet. |
+| 0x1 | 4 | `int32` | `X` | Known | No XML documentation yet. |
+| 0x5 | 4 | `int32` | `Y` | Known | No XML documentation yet. |
+| 0x9 | 4 | `int32` | `Z` | Known | Third coordinate passed separately from the 0x7E height offset. Retained as Z until its surface/elevation semantics are fully recovered. |
+
+Unknown byte ranges: none
+
+#### `SacredScriptTypeArgumentLayout`
+
+Tag 0x02 and its type identifier. Native decoder: 0x473A27. This is the stored ID from the executable's symbolic type catalogue, not its row index. Sacred.Particles uses it directly as the embedded particle catalogue key.
+
+Size: **0x5** bytes. Fields: **2/2 (100.0%)**. Bytes: **5/5 (100.0%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 1 | `SacredScriptArgumentKind (byte)` | `Kind` | Known | No XML documentation yet. |
+| 0x1 | 4 | `uint32` | `TypeId` | Known | No XML documentation yet. |
+
+Unknown byte ranges: none
 
 ### `Sacred.Core.GameBin.Sets`
 
@@ -287,25 +709,49 @@ Unknown byte ranges: `0x0–0x1` (2 bytes), `0x6–0xB` (6 bytes)
 
 Known fixed fields in one 128-byte Items.pak model-description record.
 
-Size: **0x80** bytes. Fields: **13/13 (100.0%)**. Bytes: **67/128 (52.3%)**.
+Size: **0x80** bytes. Fields: **36/37 (97.3%)**. Bytes: **118/128 (92.2%)**.
 
 | Offset | Bytes | Serialized type | Field | Status | Documentation |
 |---:|---:|---|---|---|---|
-| 0x0 | 4 | `SacredItemGraphicFlags (uint32)` | `GraphicFlags` | Known | Packed graphic type and rendering flags. The low nibble is a ; the remaining bits are values. |
+| 0x0 | 2 | `SacredItemGraphicType (uint16)` | `GraphicType` | Known | Raw graphic representation used by Sacred.exe. |
+| 0x2 | 2 | `SacredItemGraphicFlags (uint16)` | `GraphicFlags` | Known | Rendering flags stored separately from . Sacred.exe tests low bit 0x0001 here when building static-shadow render-list entries. |
 | 0x4 | 4 | `uint32` | `MiniObjectTextureId` | Known | Texture.pak descriptor index used by atlas-backed mini objects. Static.pak bytes 0x2e..0x32 select a region or animation from this texture. |
 | 0x8 | 4 | `uint32` | `TextureId` | Known | General Texture.pak identifier used by model-backed items. |
+| 0xC | 4 | `uint32` | `PackedColor` | Known | Packed ARGB color. |
 | 0x10 | 4 | `uint32` | `MixedBaseGroupId` | Known | Base group identifier for an assembled Mixed.pak sprite. |
-| 0x20 | 4 | `uint32` | `ItemId` | Known | Item identifier repeated within the model description. |
+| 0x14 | 4 | `uint32` | `BlockRadius` | Known | Authored blocking radius (cObjectShared::blockRadius). |
+| 0x18 | 2 | `uint16` | `WeaponEntry` | Known | Index into the loaded Weapon.pak table; synthesized again by the native loader. |
+| 0x1A | 2 | `uint16` | `CreatureEntry` | Known | Index into the loaded creature table. |
+| 0x1C | 4 | `uint32` | `BookTextId` | Known | Book text resource identifier. |
+| 0x20 | 4 | `uint32` | `ResourceId` | Known | Object resource identifier (cObjectShared::resourceid). |
 | 0x24 | 4 | `uint32` | `SoundProfileId` | Known | sndProfiles.pak profile identifier. Sacred.exe uses this profile for authored object and weapon sounds; zero requests its equipment-type fallback for supported weapon families. |
+| 0x28 | 2 | `int16` | `AnchorX` | Known | Horizontal model or sprite anchor. |
+| 0x2A | 2 | `int16` | `AnchorY` | Known | Vertical model or sprite anchor. |
 | 0x2C | 2 | `uint16` | `StaticSpriteFrameCount` | Known | Number of frames used by a static-world sprite animation. |
 | 0x2E | 1 | `SacredItemCategory (byte)` | `Category` | Known | Item family used by Sacred.exe gameplay and inventory UI code. |
+| 0x2F | 1 | `byte` | `Layer` | Known | Authored descriptor layer (cObjectShared::layer). |
 | 0x30 | 1 | `byte` | `StaticSpriteFrameDuration10Ms` | Known | Static-sprite frame duration in 10-millisecond units. |
 | 0x31 | 1 | `SacredItemDescriptorFlags (byte)` | `DescriptorFlags` | Known | Descriptor-state flags; separate from the animation duration byte. |
 | 0x32 | 2 | `uint16` | `ModelExtent` | Known | Authored spatial extent. For animated light mini-objects this is the visible halo diameter. For invisible world-light marker entries it is the radial reach, so renderers using full quad size must double it. |
+| 0x34 | 3 | `byte[3]` | `Dimensions3D` | Known | Three packed model extents named lwh3d by the native type. |
 | 0x37 | 32 | `string[32] (ISO-8859-1, NUL-terminated)` | `ModelName` | Known | Null-terminated model resource name encoded as ISO-8859-1. |
-| 0x66 | 4 | `uint32` | `EffectTextureId` | Known | Texture identifier used by an attached visual effect. |
+| 0x57 | 4 | `float32` | `Angle3D` | Known | Authored 3D angle in radians. |
+| 0x5B | 2 | `uint16` | `StaticShadowAtlasCellIndex` | Known | Cell index in the 16x16 SHADOW_TREE00.TGA static-shadow atlas. |
+| 0x5D | 2 | `int16` | `StaticShadowAnchorX` | Known | Half-pixel horizontal coordinate of the shadow's ground anchor. |
+| 0x5F | 2 | `int16` | `StaticShadowAnchorY` | Known | Half-pixel vertical coordinate of the shadow's ground anchor. |
+| 0x61 | 2 | `byte[2]` | `BookEntries` | Known | Two compact book-entry selectors. |
+| 0x63 | 1 | `SacredItemStaticShadowProjection (byte)` | `StaticShadowProjection` | Known | Selects the contact or directionally projected shadow quad. |
+| 0x64 | 2 | `uint16` | `StaticShadowContactExtent` | Known | Authored extent of the shadow's ground-contact footprint. This is not a directional shadow length; projected shadows derive that from object height. |
+| 0x66 | 4 | `uint32` | `EffectTextureId` | Known | Texture identifier used by an attached model effect. This field is part of the descriptor's model/static-sprite union and overlaps static-shadow data. |
+| 0x6A | 2 | `uint16` | `UpgradeItemType` | Known | Upgrade-item category. |
+| 0x6C | 2 | `uint16` | `UpgradeFlags` | Known | Upgrade behavior flags. |
+| 0x6E | 1 | `byte` | `EffectTextureIndex` | Known | Compact model-effect selector returned by Sacred.exe 0x426520. Selector 9 enables white `PARTICLE_GLOW03.TGA` billboards at `sera03_fx0..3`. |
+| 0x6F | 1 | `byte` | `GoreType` | Known | Gore rendering category. |
+| 0x70 | 4 | `uint32` | `ModelId` | Known | 3D model resource identifier. |
+| 0x74 | 2 | `uint16` | `SwitchType` | Known | Object switch behavior. |
+| 0x76 | 10 | `byte[10]` | `Reserved` | Unknown | No XML documentation yet. |
 
-Unknown byte ranges: `0xC–0xF` (4 bytes), `0x14–0x1F` (12 bytes), `0x28–0x2B` (4 bytes), `0x2F`, `0x34–0x36` (3 bytes), `0x57–0x65` (15 bytes), `0x6A–0x7F` (22 bytes)
+Unknown byte ranges: `0x76–0x7F` (10 bytes)
 
 #### `ItemsPakHeaderLayout`
 
@@ -551,46 +997,299 @@ Unknown byte ranges: `0x20–0x23` (4 bytes)
 
 Fixed-size equipment record stored after the Weapon.pak header.
 
-Size: **0x102** bytes. Fields: **20/21 (95.2%)**. Bytes: **125/258 (48.4%)**.
+Size: **0x102** bytes. Fields: **52/53 (98.1%)**. Bytes: **257/258 (99.6%)**.
 
 | Offset | Bytes | Serialized type | Field | Status | Documentation |
 |---:|---:|---|---|---|---|
-| 0x0 | 2 | `uint16` | `Short1` | Unknown | Unresolved two-byte value at the beginning of the record. |
-| 0x2 | 4 | `float32` | `PreviewRotationX` | Known | Item-preview rotation around the X axis, in radians. |
-| 0x6 | 4 | `float32` | `PreviewRotationY` | Known | Item-preview rotation around the Y axis, in radians. |
-| 0xA | 4 | `float32` | `PreviewRotationZ` | Known | Item-preview rotation around the Z axis, in radians. |
-| 0x1A | 1 | `byte` | `Width` | Known | Inventory-grid width in cells. |
-| 0x1B | 1 | `byte` | `Height` | Known | Inventory-grid height in cells. |
-| 0x1C | 1 | `byte` | `UsageIdentifier` | Known | Weapon or animation usage code, partly associated with handedness. |
-| 0x25 | 1 | `byte` | `TypeIdentifier` | Known | Equipment type byte observed as zero in the sampled records. |
-| 0x26 | 88 | `string[88] (ISO-8859-1, NUL-terminated)` | `Name` | Known | Null-terminated equipment name encoded as ISO-8859-1. |
-| 0x7E | 2 | `uint16` | `ItemId` | Known | Items.pak identifier for the equipment's visual definition. |
-| 0x82 | 1 | `SacredCharacterClassMask (byte)` | `CharacterClassMask` | Known | Character-class availability flags. |
-| 0x83 | 1 | `SacredEquipmentType (byte)` | `EquipmentType` | Known | Equipment category. |
-| 0x84 | 1 | `byte` | `RarityAndClassFlags` | Known | Packed rarity-tier and class-specific flags. |
-| 0x9A | 2 | `uint16` | `PhysicalDamageMinimum` | Known | Minimum physical damage. |
-| 0x9C | 2 | `uint16` | `FireDamageMinimum` | Known | Minimum fire damage. |
-| 0x9E | 2 | `uint16` | `MagicDamageMinimum` | Known | Minimum magic damage. |
-| 0xA0 | 2 | `uint16` | `PoisonDamageMinimum` | Known | Minimum poison damage. |
-| 0xA2 | 2 | `uint16` | `PhysicalDamageMaximum` | Known | Maximum physical damage. |
-| 0xA4 | 2 | `uint16` | `FireDamageMaximum` | Known | Maximum fire damage. |
-| 0xA6 | 2 | `uint16` | `MagicDamageMaximum` | Known | Maximum magic damage. |
-| 0xA8 | 2 | `uint16` | `PoisonDamageMaximum` | Known | Maximum poison damage. |
+| 0x0 | 4 | `float32` | `PreviewScale` | Known | Uniform inventory-preview scale; 0x434270 passes this float to scale-matrix helper 0x6539D0. |
+| 0x4 | 4 | `float32` | `PreviewRotationX` | Known | Item-preview rotation around the X axis, in radians. |
+| 0x8 | 4 | `float32` | `PreviewRotationY` | Known | Item-preview rotation around the Y axis, in radians. |
+| 0xC | 4 | `float32` | `PreviewRotationZ` | Known | Item-preview rotation around the Z axis, in radians. |
+| 0x10 | 4 | `float32` | `PreviewOffsetX` | Known | Native preview translation X, added to matrix +0x30 at 0x43437B. |
+| 0x14 | 4 | `float32` | `PreviewOffsetY` | Known | sWeaponInfoShared::ty; stored preview translation Y. |
+| 0x18 | 4 | `float32` | `PreviewOffsetZ` | Known | Native preview translation Z, added to matrix +0x38 at 0x434381. |
+| 0x1C | 1 | `byte` | `Width` | Known | Inventory-grid width in cells. |
+| 0x1D | 1 | `byte` | `Height` | Known | Inventory-grid height in cells. |
+| 0x1E | 1 | `byte` | `UsageIdentifier` | Known | Weapon or animation usage code, partly associated with handedness. |
+| 0x1F | 1 | `byte` | `HitSet` | Known | Native sWeaponInfoShared event-set selectors;. |
+| 0x20 | 1 | `byte` | `ParrySet` | Known | No XML documentation yet. |
+| 0x21 | 1 | `byte` | `MissSet` | Known | No XML documentation yet. |
+| 0x22 | 1 | `byte` | `LolSet` | Known | No XML documentation yet. |
+| 0x23 | 1 | `byte` | `SetType` | Known | No XML documentation yet. |
+| 0x24 | 4 | `uint32` | `BaseItemId` | Known | Optional base visual item. Native predicates test this ID after the item's own ID; 0x425A35 also copies its Items.pak descriptor. Zero means no inherited visual. |
+| 0x28 | 64 | `string[64] (ISO-8859-1, NUL-terminated)` | `Name` | Known | Null-terminated equipment name encoded as ISO-8859-1. |
+| 0x68 | 24 | `uint32[6]` | `DefaultSlotItems` | Known | sWeaponInfoShared::slotDefault[6], immediately after Name[64]. These are six 32-bit eItemType IDs, not part of the name string. |
+| 0x80 | 4 | `uint32` | `ItemId` | Known | Items.pak identifier for the equipment's visual definition. |
+| 0x84 | 1 | `SacredCharacterClassMask (byte)` | `CharacterClassMask` | Known | Character-class availability flags. |
+| 0x85 | 1 | `SacredEquipmentType (byte)` | `EquipmentType` | Known | Equipment category. |
+| 0x86 | 1 | `byte` | `RarityAndClassFlags` | Known | Packed rarity-tier and class-specific flags. |
+| 0x87 | 1 | `byte` | `UnknownFlagHighByte` | Unknown | Remaining high byte of the native sWeaponInfo::Flag word. |
+| 0x88 | 4 | `uint32` | `Price` | Known | No XML documentation yet. |
+| 0x8C | 8 | `byte[8]` | `SlotTypes` | Known | Native SlotType[8] bytes. |
+| 0x94 | 1 | `byte` | `MinimumLevel` | Known | No XML documentation yet. |
+| 0x95 | 1 | `byte` | `MinimumStrength` | Known | No XML documentation yet. |
+| 0x96 | 1 | `byte` | `MinimumDexterity` | Known | No XML documentation yet. |
+| 0x97 | 1 | `byte` | `MinimumCharisma` | Known | No XML documentation yet. |
+| 0x98 | 1 | `byte` | `MinimumResistance` | Known | Native MinWiederstand; original spelling retained in the symbol catalogue. |
+| 0x99 | 1 | `byte` | `SpawnLevel` | Known | No XML documentation yet. |
+| 0x9A | 1 | `byte` | `MinimumSkill` | Known | No XML documentation yet. |
+| 0x9B | 1 | `byte` | `MinimumSkillLevel` | Known | No XML documentation yet. |
+| 0x9C | 2 | `uint16` | `PhysicalDamageMinimum` | Known | Minimum physical damage. |
+| 0x9E | 2 | `uint16` | `FireDamageMinimum` | Known | Minimum fire damage. |
+| 0xA0 | 2 | `uint16` | `MagicDamageMinimum` | Known | Minimum magic damage. |
+| 0xA2 | 2 | `uint16` | `PoisonDamageMinimum` | Known | Minimum poison damage. |
+| 0xA4 | 2 | `uint16` | `PhysicalDamageMaximum` | Known | Maximum physical damage. |
+| 0xA6 | 2 | `uint16` | `FireDamageMaximum` | Known | Maximum fire damage. |
+| 0xA8 | 2 | `uint16` | `MagicDamageMaximum` | Known | Maximum magic damage. |
+| 0xAA | 2 | `uint16` | `PoisonDamageMaximum` | Known | Maximum poison damage. |
+| 0xAC | 2 | `int16` | `AttackValue` | Known | Native AW, PW, BW values; signed 16-bit fields in sWeaponInfo. |
+| 0xAE | 2 | `int16` | `ParryValue` | Known | No XML documentation yet. |
+| 0xB0 | 2 | `int16` | `BW` | Known | No XML documentation yet. |
+| 0xB2 | 2 | `int16` | `PhysicalResistance` | Known | No XML documentation yet. |
+| 0xB4 | 2 | `int16` | `FireResistance` | Known | No XML documentation yet. |
+| 0xB6 | 2 | `int16` | `MagicResistance` | Known | No XML documentation yet. |
+| 0xB8 | 2 | `int16` | `PoisonResistance` | Known | No XML documentation yet. |
+| 0xBA | 16 | `uint16[8]` | `BonusTypes` | Known | Native BonusT[8], BonusG[8], BonusP[8]. Meanings of individual bonus codes remain separate research. |
+| 0xCA | 32 | `uint32[8]` | `BonusGroups` | Known | No XML documentation yet. |
+| 0xEA | 16 | `int16[8]` | `BonusValues` | Known | No XML documentation yet. |
+| 0xFA | 7 | `byte[7]` | `LegacyRequirements` | Known | Native minOld[7], legacy requirement bytes; not current minimum requirements. |
+| 0x101 | 1 | `byte` | `BlacksmithLevel` | Known | No XML documentation yet. |
 
-Unknown byte ranges: `0x0–0x1` (2 bytes), `0xE–0x19` (12 bytes), `0x1D–0x24` (8 bytes), `0x80–0x81` (2 bytes), `0x85–0x99` (21 bytes), `0xAA–0x101` (88 bytes)
+Unknown byte ranges: `0x87`
 
 #### `WeaponPakHeaderLayout`
 
 Header preceding the fixed-size equipment records in Weapon.pak.
 
-Size: **0x102** bytes. Fields: **2/2 (100.0%)**. Bytes: **5/258 (1.9%)**.
+Size: **0x100** bytes. Fields: **3/3 (100.0%)**. Bytes: **8/256 (3.1%)**.
 
 | Offset | Bytes | Serialized type | Field | Status | Documentation |
 |---:|---:|---|---|---|---|
 | 0x0 | 3 | `byte[3]` | `Signature` | Known | ASCII file signature; expected to contain WPN. |
-| 0x3 | 2 | `uint16` | `EntryCount` | Known | Number of 258-byte equipment records. |
+| 0x3 | 1 | `byte` | `Version` | Known | Format version checked by Sacred.exe's weapon loader (0x434100). |
+| 0x4 | 4 | `uint32` | `EntryCount` | Known | Number of 258-byte equipment records read by the native loader. |
 
-Unknown byte ranges: `0x5–0x101` (253 bytes)
+Unknown byte ranges: `0x8–0xFF` (248 bytes)
+
+### `Sacred.Core.Particles`
+
+#### `SacredDwarfMagicParticleStateLayout`
+
+0x48C-byte block serialized from cParticleSystem_dwarfmagic +0x20A0 by 0x78A420. Framing is UInt32 length, this block, 0xDEADC0DE, then base state. Texture handles are outside this serialized block. Gaps remain unmapped.
+
+Size: **0x48C** bytes. Fields: **5/7 (71.4%)**. Bytes: **1158/1164 (99.5%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 1 | `byte` | `Active` | Known | No XML documentation yet. |
+| 0x1 | 1 | `byte` | `Unknown001` | Unknown | No XML documentation yet. |
+| 0x2 | 2 | `uint16` | `Unknown002` | Unknown | No XML documentation yet. |
+| 0x4 | 4 | `float32` | `ElapsedTime` | Known | No XML documentation yet. |
+| 0x8 | 1024 | `uint32[256]` | `Colors` | Known | No XML documentation yet. |
+| 0x408 | 32 | `SacredParticleMotionLayout` | `Motion` | Known | No XML documentation yet. |
+| 0x428 | 100 | `SacredParticleEmissionLayout` | `Emission` | Known | No XML documentation yet. |
+
+Unknown byte ranges: `0x1–0x3` (3 bytes), `0x489–0x48B` (3 bytes)
+
+#### `SacredDwarfMagicParticleSystemLayout`
+
+Recovered fields of the original 32-bit cParticleSystem_dwarfmagic object (constructor 0x78A2D0), including the blue lamp sparkle system.
+
+Size: **0x2530** bytes. Fields: **3/3 (100.0%)**. Bytes: **1166/9520 (12.2%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 4 | `uint32` | `NativeVtableAddress` | Known | No XML documentation yet. |
+| 0x20A0 | 1164 | `SacredDwarfMagicParticleStateLayout` | `State` | Known | No XML documentation yet. |
+| 0x252C | 4 | `uint32` | `SparkTextureHandle` | Known | Resolved from PARTICLE_SPARK04.TGA by native name lookup. |
+
+Unknown byte ranges: `0x4–0x209F` (8348 bytes), `0x20A1–0x20A3` (3 bytes), `0x2529–0x252B` (3 bytes)
+
+#### `SacredModelParticleStateLayout`
+
+0xA0 serialized bytes starting at native object +0x20A0 in TORCHSMOKE (serializer 0x775100) and MAGICWORMS (0x77C6C0). Texture handles are outside this block.
+
+Size: **0xA0** bytes. Fields: **9/9 (100.0%)**. Bytes: **154/160 (96.3%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 4 | `float32` | `Elapsed` | Known | No XML documentation yet. |
+| 0x4 | 1 | `byte` | `Active` | Known | No XML documentation yet. |
+| 0x8 | 4 | `uint32` | `EmissionStage` | Known | No XML documentation yet. |
+| 0xC | 4 | `uint32` | `CornerColor0` | Known | No XML documentation yet. |
+| 0x10 | 4 | `uint32` | `CornerColor1` | Known | No XML documentation yet. |
+| 0x14 | 4 | `uint32` | `CornerColor2` | Known | No XML documentation yet. |
+| 0x18 | 4 | `uint32` | `CornerColor3` | Known | No XML documentation yet. |
+| 0x1C | 32 | `SacredParticleMotionLayout` | `Motion` | Known | No XML documentation yet. |
+| 0x3C | 100 | `SacredParticleEmissionLayout` | `Emission` | Known | No XML documentation yet. |
+
+Unknown byte ranges: `0x5–0x7` (3 bytes), `0x9D–0x9F` (3 bytes)
+
+#### `SacredModelTrailPointLayout`
+
+One constrained chain node: position followed by retained displacement.
+
+Size: **0x18** bytes. Fields: **2/2 (100.0%)**. Bytes: **24/24 (100.0%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 12 | `SacredParticleVectorLayout` | `Position` | Known | No XML documentation yet. |
+| 0xC | 12 | `SacredParticleVectorLayout` | `Displacement` | Known | No XML documentation yet. |
+
+Unknown byte ranges: none
+
+#### `SacredModelTrailStateLayout`
+
+MAGICWHIP/MAGICSTREAK serialized state at native object +0x20A0; serializers 0x7875B0/0x787F70. Draw quads and texture handles follow this block.
+
+Size: **0x4BC** bytes. Fields: **4/4 (100.0%)**. Bytes: **1209/1212 (99.8%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 4 | `float32` | `Elapsed` | Known | No XML documentation yet. |
+| 0x4 | 1 | `byte` | `Active` | Known | No XML documentation yet. |
+| 0x8 | 1200 | `SacredModelTrailPointLayout[50]` | `Points` | Known | No XML documentation yet. |
+| 0x4B8 | 4 | `float32` | `Inertia` | Known | 13.5 in both constructors. Update multiplies by 0.05 to retain 0.675 of displacement. |
+
+Unknown byte ranges: `0x5–0x7` (3 bytes)
+
+#### `SacredNativeParticleLayout`
+
+Native cParticle (0x40 bytes), confirmed by executable analysis. This is an in-memory element of cParticleSystem::particles, not a PAK header. Gold's stdMovement (0x7640C0) uses the same member offsets.
+
+Size: **0x40** bytes. Fields: **11/11 (100.0%)**. Bytes: **62/64 (96.9%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 12 | `SacredParticleVectorLayout` | `Position` | Known | No XML documentation yet. |
+| 0xC | 12 | `SacredParticleVectorLayout` | `OldPosition` | Known | No XML documentation yet. |
+| 0x18 | 12 | `SacredParticleVectorLayout` | `Velocity` | Known | No XML documentation yet. |
+| 0x24 | 4 | `float32` | `Mass` | Known | Native mass; used as the gravity acceleration scalar. |
+| 0x28 | 4 | `float32` | `Size` | Known | No XML documentation yet. |
+| 0x2C | 4 | `float32` | `Energy` | Known | Native energy; 255-based fade/liveness counter. |
+| 0x30 | 4 | `float32` | `Phi` | Known | No XML documentation yet. |
+| 0x34 | 4 | `uint32` | `Color` | Known | No XML documentation yet. |
+| 0x38 | 4 | `float32` | `Moment` | Known | No XML documentation yet. |
+| 0x3C | 1 | `byte` | `Frame` | Known | No XML documentation yet. |
+| 0x3D | 1 | `byte` | `ParameterSetId` | Known | Parameter-block index, distinct from the atlas frame. |
+
+Unknown byte ranges: `0x3E–0x3F` (2 bytes)
+
+#### `SacredParticleColorTableLayout`
+
+256 packed AARRGGBB values built by 0x763F50, stored in the serialized system state. Draw flag 0x08 selects [parameterSet * 256 + truncate(fade)]. Index 255 is birth; index 0 is the end of the fade. Without flag 0x08 only the first four words are initialized and used as quad corner colors.
+
+Size: **0x4** bytes. Fields: **1/1 (100.0%)**. Bytes: **4/4 (100.0%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 4 | `uint32` | `element0` | Known | No XML documentation yet. |
+
+Unknown byte ranges: none
+
+#### `SacredParticleEmissionLayout`
+
+Native 0x64-byte spawn-parameter block consumed by Sacred.exe 0x764760. Included verbatim in the smoke system's serialized state; presets originate in executable code, not Items.pak. Scalar size is NOT a measured pixel diameter. Fields named RandomWidth are half-ranges: base + (2 * rand/32767 - 1) * value (0x765590..0x76587D), not a total width.
+
+Size: **0x64** bytes. Fields: **17/19 (89.5%)**. Bytes: **97/100 (97.0%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 4 | `float32` | `Gravity` | Known | Acceleration scalar. Update subtracts dt * gravity from vertical velocity and adds dt * gravity * the motion block's GravityDirection to velocity. |
+| 0x4 | 4 | `float32` | `GravityRandomWidth` | Known | No XML documentation yet. |
+| 0x8 | 4 | `float32` | `Size` | Known | No XML documentation yet. |
+| 0xC | 4 | `float32` | `SizeRandomWidth` | Known | No XML documentation yet. |
+| 0x10 | 4 | `float32` | `Rotation` | Known | No XML documentation yet. |
+| 0x14 | 4 | `float32` | `RotationRandomWidth` | Known | No XML documentation yet. |
+| 0x18 | 4 | `float32` | `AngularVelocity` | Known | No XML documentation yet. |
+| 0x1C | 4 | `float32` | `AngularVelocityRandomWidth` | Known | No XML documentation yet. |
+| 0x20 | 12 | `SacredParticleVectorLayout` | `Velocity` | Known | No XML documentation yet. |
+| 0x2C | 12 | `SacredParticleVectorLayout` | `VelocityRandomWidth` | Known | No XML documentation yet. |
+| 0x38 | 12 | `SacredParticleVectorLayout` | `PositionOffset` | Known | No XML documentation yet. |
+| 0x44 | 12 | `SacredParticleVectorLayout` | `PositionRandomWidth` | Known | No XML documentation yet. |
+| 0x50 | 4 | `uint32` | `Color` | Known | Packed color copied to particle +0x34 when the +0x54 parameter is zero. |
+| 0x54 | 4 | `uint32` | `ColorRandomWidth` | Known | Packed AARRGGBB per-channel random half-ranges. The generator unpacks each byte, samples base + (2 * rand/32767 - 1) * range, truncates and packs the channels (0x764828..0x7648E8, 0x76585E..0x765972). |
+| 0x58 | 4 | `float32` | `EmissionInterval` | Known | Time between spawns; the generator divides elapsed time by this value. Zero selects its count-based path. Time unit follows the native simulation clock. |
+| 0x5C | 4 | `uint32` | `BurstCount` | Known | Count limit in the zero-interval generation path (0x764DFF). |
+| 0x60 | 1 | `byte` | `VariantSelection` | Known | 0 selects variant 0; 0xFF uses the selected parameter-set index; other values enter random variant selection (0x764DC2). |
+| 0x61 | 1 | `byte` | `Unknown61` | Unknown | No XML documentation yet. |
+| 0x62 | 2 | `uint16` | `Unknown62` | Unknown | No XML documentation yet. |
+
+Unknown byte ranges: `0x61–0x63` (3 bytes)
+
+#### `SacredParticleMotionLayout`
+
+Native 0x20-byte motion block consumed by 0x7640C0 and serialized by the smoke system. Rates use the native simulation time unit.
+
+Size: **0x20** bytes. Fields: **6/6 (100.0%)**. Bytes: **32/32 (100.0%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 4 | `float32` | `GravityChangeRate` | Known | No XML documentation yet. |
+| 0x4 | 4 | `float32` | `FadeChangeRate` | Known | Change of the particle's 255-based fade counter; a nonpositive counter kills it. |
+| 0x8 | 4 | `float32` | `SizeChangeRate` | Known | A nonpositive resulting size also kills the particle. |
+| 0xC | 4 | `float32` | `AdditionalAngularVelocity` | Known | No XML documentation yet. |
+| 0x10 | 12 | `SacredParticleVectorLayout` | `GravityDirection` | Known | No XML documentation yet. |
+| 0x1C | 4 | `float32` | `InwardAcceleration` | Known | Nonzero values accelerate along the normalized displacement; positive values pull toward the emitter, negative values push away. |
+
+Unknown byte ranges: none
+
+#### `SacredParticleVectorLayout`
+
+Three consecutive native float32 coordinates in particle parameter blocks.
+
+Size: **0xC** bytes. Fields: **3/3 (100.0%)**. Bytes: **12/12 (100.0%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 4 | `float32` | `X` | Known | No XML documentation yet. |
+| 0x4 | 4 | `float32` | `Y` | Known | No XML documentation yet. |
+| 0x8 | 4 | `float32` | `Z` | Known | No XML documentation yet. |
+
+Unknown byte ranges: none
+
+#### `SacredSmokeParticleStateLayout`
+
+0xD9C-byte state block written from cParticleSystem_smoke +0x20A0 by Sacred.exe 0x76E7D0. The serializer precedes it with its UInt32 byte length and follows it with 0xDEADC0DE and base-system state. Its enclosing save-file location has not been recovered. Gaps remain unmapped, not inferred padding.
+
+Size: **0xD9C** bytes. Fields: **13/15 (86.7%)**. Bytes: **3472/3484 (99.7%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 4 | `float32` | `ElapsedTime` | Known | No XML documentation yet. |
+| 0x4 | 1 | `byte` | `Active` | Known | No XML documentation yet. |
+| 0x5 | 1 | `byte` | `Unknown005` | Unknown | No XML documentation yet. |
+| 0x6 | 2 | `uint16` | `Unknown006` | Unknown | No XML documentation yet. |
+| 0x8 | 4 | `int32` | `Preset` | Known | Local preset selector supplied by the create-object dispatch. Not an item ID. |
+| 0xC | 1024 | `uint32[256]` | `Colors0` | Known | No XML documentation yet. |
+| 0x40C | 1024 | `uint32[256]` | `Colors1` | Known | No XML documentation yet. |
+| 0x80C | 1024 | `uint32[256]` | `Colors2` | Known | No XML documentation yet. |
+| 0xC0C | 32 | `SacredParticleMotionLayout` | `Motion0` | Known | No XML documentation yet. |
+| 0xC2C | 32 | `SacredParticleMotionLayout` | `Motion1` | Known | No XML documentation yet. |
+| 0xC4C | 32 | `SacredParticleMotionLayout` | `Motion2` | Known | No XML documentation yet. |
+| 0xC6C | 100 | `SacredParticleEmissionLayout` | `Emission0` | Known | No XML documentation yet. |
+| 0xCD0 | 100 | `SacredParticleEmissionLayout` | `Emission1` | Known | No XML documentation yet. |
+| 0xD34 | 100 | `SacredParticleEmissionLayout` | `Emission2` | Known | No XML documentation yet. |
+| 0xD98 | 4 | `float32` | `BurstCountdown` | Known | Geyser countdown reduced by dt; negative values reset the random quiet period, values below one enter the high-speed burst (0x76E3FF). |
+
+Unknown byte ranges: `0x5–0x7` (3 bytes), `0xCCD–0xCCF` (3 bytes), `0xD31–0xD33` (3 bytes), `0xD95–0xD97` (3 bytes)
+
+#### `SacredSmokeParticleSystemLayout`
+
+Recovered fields of the ORIGINAL 32-bit cParticleSystem_smoke object (constructor 0x76E200). This is a memory layout, not an Items.pak record. Texture handles are resolved by native name lookup and are not fixed texture IDs.
+
+Size: **0x2E4C** bytes. Fields: **6/6 (100.0%)**. Bytes: **3492/11852 (29.5%)**.
+
+| Offset | Bytes | Serialized type | Field | Status | Documentation |
+|---:|---:|---|---|---|---|
+| 0x0 | 4 | `uint32` | `NativeVtableAddress` | Known | No XML documentation yet. |
+| 0x20A0 | 3484 | `SacredSmokeParticleStateLayout` | `State` | Known | No XML documentation yet. |
+| 0x2E3C | 4 | `uint32` | `FireTextureHandle` | Known | Resolved from PARTICLE_FIRE03.TGA. |
+| 0x2E40 | 4 | `uint32` | `SmokeTextureHandle` | Known | Resolved from PARTICLE_SMOKE03.TGA. |
+| 0x2E44 | 4 | `uint32` | `WaterTextureHandle` | Known | Resolved from PARTICLE_WATER01.TGA. |
+| 0x2E48 | 4 | `uint32` | `MultiTextureHandle` | Known | Resolved from PARTICLE_MULTI02.TGA. |
+
+Unknown byte ranges: `0x4–0x209F` (8348 bytes), `0x20A5–0x20A7` (3 bytes), `0x2D6D–0x2D6F` (3 bytes), `0x2DD1–0x2DD3` (3 bytes), `0x2E35–0x2E37` (3 bytes)
 
 ### `Sacred.Core.World`
 
@@ -637,8 +1336,8 @@ Size: **0x300** bytes. Fields: **10/10 (100.0%)**. Bytes: **31/768 (4.0%)**.
 | 0xEC | 4 | `uint32` | `CompressedOffset` | Known | Absolute offset of the compressed sector payload in sectors.wldx. |
 | 0xF0 | 4 | `uint32` | `CompressedSize` | Known | Compressed sector payload size in bytes. |
 | 0x1CC | 1 | `SectorEnvironmentFlags (byte)` | `EnvironmentFlags` | Known | Authored environment and sector-edge flags. |
-| 0x2E0 | 1 | `byte` | `Style90` | Known | Style byte associated with environment value 0x90. |
-| 0x2E1 | 1 | `byte` | `StyleA0` | Known | Style byte associated with environment value 0xA0. |
+| 0x2E0 | 1 | `byte` | `LiquidStyleA` | Known | Style identifier for WLDX liquid material A. |
+| 0x2E1 | 1 | `byte` | `LiquidStyleB` | Known | Style identifier for WLDX liquid material B. |
 
 Unknown byte ranges: `0x0–0x23` (36 bytes), `0x28–0x3B` (20 bytes), `0x44–0xD3` (144 bytes), `0xDC–0xEB` (16 bytes), `0xF4–0x1CB` (216 bytes), `0x1CD–0x2DF` (275 bytes), `0x2E2–0x2FF` (30 bytes)
 
@@ -646,7 +1345,7 @@ Unknown byte ranges: `0x0–0x23` (36 bytes), `0x28–0x3B` (20 bytes), `0x44–
 
 One linked static-world object record stored in Static.pak.
 
-Size: **0x40** bytes. Fields: **14/14 (100.0%)**. Bytes: **34/64 (53.1%)**.
+Size: **0x40** bytes. Fields: **24/26 (92.3%)**. Bytes: **55/64 (85.9%)**.
 
 | Offset | Bytes | Serialized type | Field | Status | Documentation |
 |---:|---:|---|---|---|---|
@@ -656,20 +1355,32 @@ Size: **0x40** bytes. Fields: **14/14 (100.0%)**. Bytes: **34/64 (53.1%)**.
 | 0xC | 2 | `uint16` | `SectorId` | Known | Owning sector identifier. |
 | 0xE | 4 | `int32` | `ProjectedX` | Known | Projected world X coordinate. |
 | 0x12 | 4 | `int32` | `ProjectedY` | Known | Projected world Y coordinate. |
+| 0x16 | 1 | `byte` | `ElevationTier` | Known | Height level stored in the packed world position. |
+| 0x17 | 4 | `int32` | `QualityQuantityOrContent` | Known | Native sObject_Q union: signed quality in its low word, quantity, or content identifier depending on object type. |
+| 0x1B | 4 | `uint32` | `ContainerId` | Known | Identifier of the container holding this object. |
 | 0x1F | 4 | `uint32` | `NextStaticId` | Known | Identifier of the next static object in the tile's linked list. |
-| 0x2B | 2 | `int16` | `SurfaceRenderLayer` | Known | Signed layer controlling placement above or below the base surface. |
+| 0x23 | 2 | `int16` | `AnchorOffsetX` | Known | Horizontal per-instance anchor adjustment. |
+| 0x25 | 2 | `int16` | `AnchorOffsetY` | Known | Vertical per-instance anchor adjustment. |
+| 0x27 | 4 | `uint32` | `TriggerId` | Known | Trigger identifier attached to this static object. |
+| 0x2B | 2 | `uint16` | `TriggerState` | Known | Current trigger state. |
+| 0x2D | 1 | `byte` | `HeightLevelId` | Known | Additional height-level identifier outside the packed world position. |
 | 0x2E | 1 | `byte` | `SpriteParam2E` | Known | First texture-region or animation selector byte. |
 | 0x2F | 1 | `byte` | `SpriteParam2F` | Known | Second texture-region or animation selector byte. |
 | 0x30 | 1 | `byte` | `OrientationOrFrame` | Known | Sprite orientation or initial animation frame. |
 | 0x31 | 1 | `byte` | `AnimationFrameDurationTicks` | Known | Duration of one animation frame in game ticks. |
 | 0x32 | 1 | `byte` | `AnimationFrameCount` | Known | Number of frames in the object's sprite animation. |
-| 0x33 | 1 | `byte` | `ElevationTier` | Known | Authored elevation tier used to place the sprite. |
+| 0x33 | 1 | `byte` | `SurfaceRenderLayer` | Known | Layer controlling placement on exterior or indoor surfaces. |
+| 0x34 | 1 | `byte` | `TriggerInitialState` | Known | Initial trigger state byte. |
+| 0x35 | 1 | `byte` | `EffectVisibleStates` | Known | Visibility-state mask for attached effects. |
+| 0x36 | 1 | `byte` | `Reserved1` | Unknown | No XML documentation yet. |
+| 0x37 | 1 | `byte` | `Brightness` | Known | Per-instance brightness. |
+| 0x38 | 8 | `byte[8]` | `Reserved` | Unknown | No XML documentation yet. |
 
-Unknown byte ranges: `0x16–0x1E` (9 bytes), `0x23–0x2A` (8 bytes), `0x2D`, `0x34–0x3F` (12 bytes)
+Unknown byte ranges: `0x36`, `0x38–0x3F` (8 bytes)
 
-#### `WldxIndoorGroupDescriptorLayout`
+#### `WldxTileGridDescriptorLayout`
 
-Descriptor for one indoor tile grid following the outdoor tile table in a decompressed sectors.wldx sector payload.
+Descriptor for one tile grid in a decompressed sectors.wldx sector payload. The first descriptor after the outdoor tile table identifies the outdoor origin and has no tile payload; subsequent descriptors identify sparse indoor grids.
 
 Size: **0x24** bytes. Fields: **7/7 (100.0%)**. Bytes: **24/36 (66.7%)**.
 
@@ -677,49 +1388,55 @@ Size: **0x24** bytes. Fields: **7/7 (100.0%)**. Bytes: **24/36 (66.7%)**.
 |---:|---:|---|---|---|---|
 | 0x0 | 4 | `int32` | `WorldX` | Known | World X coordinate of the indoor grid origin. |
 | 0x4 | 4 | `int32` | `WorldY` | Known | World Y coordinate of the indoor grid origin. |
-| 0x8 | 2 | `uint16` | `Width` | Known | Indoor grid width in tiles. |
-| 0xA | 2 | `uint16` | `Height` | Known | Indoor grid height in tiles. |
-| 0xC | 4 | `uint32` | `Kind` | Known | Payload kind; observed indoor tile grids use value 6. |
-| 0x10 | 4 | `uint32` | `TilesOffset` | Known | Offset of the indoor tile array in the decompressed sector payload. |
-| 0x14 | 4 | `uint32` | `TilesSize` | Known | Byte length of the indoor tile array. |
+| 0x8 | 2 | `uint16` | `Width` | Known | Grid width in tiles; zero on the outdoor-origin descriptor. |
+| 0xA | 2 | `uint16` | `Height` | Known | Grid height in tiles; zero on the outdoor-origin descriptor. |
+| 0xC | 4 | `WldxTileGridKind (uint32)` | `Kind` | Known | Payload kind. |
+| 0x10 | 4 | `uint32` | `TilesOffset` | Known | Offset of the tile array in the decompressed sector payload. |
+| 0x14 | 4 | `uint32` | `TilesSize` | Known | Byte length of the tile array. |
 
 Unknown byte ranges: `0x18–0x23` (12 bytes)
 
-#### `WldxPostTileHeaderLayout`
+#### `WldxTileProperties`
 
-Unresolved fixed-size block between the outdoor WLDX tile table and the first indoor-grid descriptor.
+Packed low-nibble behavior flags and high-nibble terrain-surface value.
 
-Size: **0x24** bytes. Fields: **0/0 (0.0%)**. Bytes: **0/36 (0.0%)**.
+Size: **0x1** bytes. Fields: **1/1 (100.0%)**. Bytes: **1/1 (100.0%)**.
 
 | Offset | Bytes | Serialized type | Field | Status | Documentation |
 |---:|---:|---|---|---|---|
-| — | — | — | — | Unknown | No fields have been mapped. |
+| 0x0 | 1 | `byte` | `value` | Known | No XML documentation yet. |
 
-Unknown byte ranges: `0x0–0x23` (36 bytes)
+Unknown byte ranges: none
 
 #### `WldxTileRecord`
 
 One 0x20-byte outdoor or indoor tile record in a decompressed WLDX payload.
 
-Size: **0x20** bytes. Fields: **13/13 (100.0%)**. Bytes: **22/32 (68.8%)**.
+Size: **0x20** bytes. Fields: **19/19 (100.0%)**. Bytes: **28/32 (87.5%)**.
 
 | Offset | Bytes | Serialized type | Field | Status | Documentation |
 |---:|---:|---|---|---|---|
 | 0x0 | 4 | `uint32` | `GroundTileId` | Known | Ground-tile definition identifier. |
 | 0x4 | 4 | `uint32` | `StaticChainHeadId` | Known | Head identifier of the linked Static.pak object chain. |
 | 0xC | 4 | `uint32` | `FloorChainHeadId` | Known | Head identifier of the linked Floor.pak overlay chain. |
-| 0x10 | 1 | `sbyte` | `LiquidAlphaLeft` | Known | Liquid alpha at the tile's left corner. |
-| 0x11 | 1 | `sbyte` | `LiquidAlphaTop` | Known | Liquid alpha at the tile's top corner. |
-| 0x12 | 1 | `sbyte` | `LiquidAlphaRight` | Known | Liquid alpha at the tile's right corner. |
-| 0x13 | 1 | `sbyte` | `LiquidAlphaBottom` | Known | Liquid alpha at the tile's bottom corner. |
+| 0x10 | 1 | `sbyte` | `VisualElevationLeft` | Known | Signed visual Y offset at the left/south-west terrain vertex. On liquid tiles, Sacred.exe also converts its negative magnitude to per-corner liquid opacity. |
+| 0x11 | 1 | `sbyte` | `VisualElevationTop` | Known | Signed visual Y offset at the top/north-west terrain vertex. |
+| 0x12 | 1 | `sbyte` | `VisualElevationRight` | Known | Signed visual Y offset at the right/north-east terrain vertex. |
+| 0x13 | 1 | `sbyte` | `VisualElevationBottom` | Known | Signed visual Y offset at the bottom/south-east terrain vertex. |
+| 0x14 | 1 | `byte` | `BakedBrightnessSouthWest` | Known | Baked terrain brightness at the south-west corner. |
+| 0x15 | 1 | `byte` | `BakedBrightnessNorthWest` | Known | Baked terrain brightness at the north-west corner. |
+| 0x16 | 1 | `byte` | `BakedBrightnessNorthEast` | Known | Baked terrain brightness at the north-east corner. |
+| 0x17 | 1 | `byte` | `BakedBrightnessSouthEast` | Known | Baked terrain brightness at the south-east corner. |
 | 0x18 | 1 | `sbyte` | `ElevationSouthWest` | Known | Signed terrain elevation at the south-west corner. |
 | 0x19 | 1 | `sbyte` | `ElevationNorthWest` | Known | Signed terrain elevation at the north-west corner. |
 | 0x1A | 1 | `sbyte` | `ElevationNorthEast` | Known | Signed terrain elevation at the north-east corner. |
 | 0x1B | 1 | `sbyte` | `ElevationSouthEast` | Known | Signed terrain elevation at the south-east corner. |
-| 0x1E | 1 | `WorldPathFlags (byte)` | `PathFlags` | Known | Raw navigation and collision flags. |
-| 0x1F | 1 | `byte` | `TypeAndSurface` | Known | Packed path type in the low nibble and terrain-surface category in the high nibble. |
+| 0x1C | 1 | `sbyte` | `IndoorAnchorDeltaX` | Known | Signed X delta to the authored anchor tile of a multi-tile indoor surface. Adding this value to the tile's world X resolves the shared anchor. |
+| 0x1D | 1 | `sbyte` | `IndoorAnchorDeltaY` | Known | Signed Y delta to the authored anchor tile of a multi-tile indoor surface. Adding this value to the tile's world Y resolves the shared anchor. |
+| 0x1E | 1 | `WorldPathFlags (byte)` | `PathFlags` | Known | Authored per-tile world flags, including indoor areas, towns, triggers, and runtime movement blocking. |
+| 0x1F | 1 | `WldxTileProperties` | `Properties` | Known | Packed tile-behavior flags in the low nibble and terrain-surface value in the high nibble. |
 
-Unknown byte ranges: `0x8–0xB` (4 bytes), `0x14–0x17` (4 bytes), `0x1C–0x1D` (2 bytes)
+Unknown byte ranges: `0x8–0xB` (4 bytes)
 
 ### `Sacred.Core.World.Stairs`
 
@@ -775,17 +1492,14 @@ These catalogued formats were found in the game or are adjacent to the formats c
 | `bin/**/merc.bin` | Mercenary data | `bin/Addon/merc.bin` (1.8 KiB), `bin/merc.bin` (1.8 KiB) |
 | `bin/MultiStart.bin` | Multiplayer start data | `bin/MultiStart.bin` (768 B) |
 | `bin/Rust.bin` | Unmapped binary table | `bin/Rust.bin` (4.3 KiB) |
-| `bin/sgf.bin` | Compiled script data | `bin/sgf.bin` (3.8 MiB) |
 | `bin/sgq.bin` | Compiled quest data | `bin/sgq.bin` (40 B) |
 | `bin/sgqp.bin` | Compiled quest-pool data | `bin/sgqp.bin` (1 B) |
 | `bin/static*.bin` | Static-object auxiliary data | `bin/static10_18.bin` (40.5 KiB) |
 | `bin/wea.bin` | Weather data | `bin/wea.bin` (4.5 KiB) |
 | `bin/World*.bin` | World configuration tables | `bin/World.bin` (45.2 KiB), `bin/World2.bin` (32.0 KiB) |
 | `bin/wpmod.bin` | World or weapon modifier data | `bin/wpmod.bin` (144.3 KiB) |
-| `bin/**/FunkCode.bin` | Compiled function scripts | 20 files; `bin/Addon/NetScript/FunkCode.bin` (2.6 MiB), `bin/Addon/NetScriptCamp/FunkCode.bin` (2.4 MiB), `bin/Addon/TYPE_NPC_DAEMONIN/FunkCode.bin` (2.4 MiB), … |
 | `bin/**/QuestCode.bin` | Compiled quest scripts | 20 files; `bin/Addon/NetScript/QuestCode.bin` (15 B), `bin/Addon/NetScriptCamp/QuestCode.bin` (1 B), `bin/Addon/TYPE_NPC_DAEMONIN/QuestCode.bin` (1 B), … |
 | `bin/**/QuestPoolCode.bin` | Compiled quest-pool scripts | 20 files; `bin/Addon/NetScript/QuestPoolCode.bin` (1 B), `bin/Addon/NetScriptCamp/QuestPoolCode.bin` (1 B), `bin/Addon/TYPE_NPC_DAEMONIN/QuestPoolCode.bin` (1 B), … |
-| `bin/**/StartCode.bin` | Compiled start scripts | 20 files; `bin/Addon/NetScript/StartCode.bin` (625.5 KiB), `bin/Addon/NetScriptCamp/StartCode.bin` (586.7 KiB), `bin/Addon/TYPE_NPC_DAEMONIN/StartCode.bin` (586.7 KiB), … |
 | `bin/**/Vectoren.bin` | Compiled script vector tables | 20 files; `bin/Addon/NetScript/Vectoren.bin` (1.6 MiB), `bin/Addon/NetScriptCamp/Vectoren.bin` (1.4 MiB), `bin/Addon/TYPE_NPC_DAEMONIN/Vectoren.bin` (1.4 MiB), … |
 | `pak/Texture.tmp` | Texture companion metadata | `pak/Texture.TMP` (1.9 MiB) |
 | `World/Triggers.pak` | World trigger definitions | `World/Triggers.PAK` (35.7 KiB) |

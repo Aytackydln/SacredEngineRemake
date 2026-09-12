@@ -37,6 +37,12 @@ public readonly struct ModelsMetadataModelLayout
     [BinaryString("ModelName", 0x20, "ISO-8859-1")]
     private readonly byte _modelName;
 
+    /// <summary>Native <c>cGrannyModelChunk::params[16]</c>.</summary>
+    [FieldOffset(0x30)] public readonly ModelChunkParameters Parameters;
+
+    /// <summary>All native <c>cGrannyModelChunk::motions[256]</c> indexes.</summary>
+    [FieldOffset(0x70)] public readonly ModelChunkMotionIndexes MotionIndexes;
+
     /// <summary>Idle motion indexes for the first thirteen weapon styles.</summary>
     [FieldOffset(116)] public readonly ModelMotionIndexArray13 IdleMotionIndexes;
     /// <summary>Fighting-idle motion indexes for the first thirteen weapon styles.</summary>
@@ -85,6 +91,13 @@ public readonly struct ModelsMetadataModelLayout
     [FieldOffset(1064)] public readonly uint RunMotionIndex13;
     /// <summary>Attack motion index for the fourteenth weapon style.</summary>
     [FieldOffset(1076)] public readonly uint AttackMotionIndex13;
+
+    /// <summary>Native <c>cGrannyModelChunk::scale[3]</c>.</summary>
+    [FieldOffset(0x470)] public readonly ModelChunkScale Scale;
+    /// <summary>Native <c>cGrannyModelChunk::reserved[11]</c>.</summary>
+    [FieldOffset(0x47C), BinaryUnknown] public readonly ModelChunkReservedWords Reserved;
+    /// <summary>Native <c>cGrannyModelChunk::fileEntry</c>.</summary>
+    [FieldOffset(0x4A8)] public readonly ushort FileEntry;
 }
 
 /// <summary>One fixed-size motion-name record in Models.tmp.</summary>

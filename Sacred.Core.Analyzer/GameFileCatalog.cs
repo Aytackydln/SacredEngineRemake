@@ -4,6 +4,11 @@ internal static class GameFileCatalog
 {
     public static IReadOnlyList<GameFileDefinition> Files { get; } =
     [
+        File("Sacred.exe", "Native type catalogue and encoded game code",
+            Section("Symbolic type records", "Sacred.Core.Executable.SacredExecutableTypeNameLayout", "5,624 records in the verified Gold build",
+                "VA 0x8EC328, stride 0x44; each row stores its own type ID followed by a 64-byte name."),
+            Section("Decoded loader header", "Sacred.Core.Executable.SacredExecutableCodeHeaderLayout", "once after rolling-XOR decoding",
+                "VA 0x1D6D380 in the verified Gold build. Native instruction bytes and standard PE structures are outside these fixed layouts.")),
         File("pak/Items*.pak", "Item visuals and model references",
             Section("Header", "Sacred.Core.Pak.Items.ItemsPakHeaderLayout", "once"),
             Section("Entry descriptors", "Sacred.Core.Pak.Items.ItemsPakEntryInfoLayout", "EntryCount times"),
@@ -33,7 +38,7 @@ internal static class GameFileCatalog
         File("pak/tiles.pak", "Terrain tile definitions",
             Section("Header", "Sacred.Core.Pak.PakArchiveHeaderLayout", "once"),
             Section("Entry descriptors", "Sacred.Core.Pak.PakEntryDescriptorLayout", "EntryCount times"),
-            Section("Known tile prefix", "Sacred.Core.Pak.Tiles.TilePakEntryLayout", "one per populated descriptor")),
+                Section("Tile definitions", "Sacred.Core.Pak.Tiles.TilePakEntryLayout", "one 0x40-byte cPatchSharedIso record per populated descriptor")),
         Missing("pak/Creature.pak", "Creature definitions"),
         Missing("pak/MOTIONS.PAK", "Motion archive"),
         File("pak/sndProfiles.pak", "Sound selection profiles",
@@ -67,7 +72,8 @@ internal static class GameFileCatalog
         File("bin/treppe.bin", "Stairs trigger cells and zone anchors",
             Section("Cell associations", "Sacred.Core.World.Stairs.SacredStairsCellLayout", "until end of file")),
         File("bin/**/DefPos.bin", "Named script positions used by stairs and portals",
-            Section("First-table header", "Sacred.Core.World.Stairs.SacredDefPosHeaderLayout", "once"),
+            Section("First-table header", "Sacred.Core.World.Stairs.SacredDefPosHeaderLayout", "once in count-first files"),
+            Section("Versioned header", "Sacred.Core.World.Stairs.SacredDefPosVersionedHeaderLayout", "instead of the count-first header when marker 1234 is present"),
             Section("Named positions", "Sacred.Core.World.Stairs.SacredDefPosPositionLayout", "PositionCount times",
                 "Later DefPos.bin tables are not yet represented by StructLayout types.")),
         File("scripts/*/global.res", "Localized resource strings",
@@ -79,17 +85,17 @@ internal static class GameFileCatalog
         Missing("bin/**/merc.bin", "Mercenary data"),
         Missing("bin/MultiStart.bin", "Multiplayer start data"),
         Missing("bin/Rust.bin", "Unmapped binary table"),
-        Missing("bin/sgf.bin", "Compiled script data"),
+        CompiledScript("bin/sgf.bin", "Selected compiled function-script cache"),
         Missing("bin/sgq.bin", "Compiled quest data"),
         Missing("bin/sgqp.bin", "Compiled quest-pool data"),
         Missing("bin/static*.bin", "Static-object auxiliary data"),
         Missing("bin/wea.bin", "Weather data"),
         Missing("bin/World*.bin", "World configuration tables"),
         Missing("bin/wpmod.bin", "World or weapon modifier data"),
-        Missing("bin/**/FunkCode.bin", "Compiled function scripts"),
+        CompiledScript("bin/**/FunkCode.bin", "Compiled function scripts, including independent effect placements"),
         Missing("bin/**/QuestCode.bin", "Compiled quest scripts"),
         Missing("bin/**/QuestPoolCode.bin", "Compiled quest-pool scripts"),
-        Missing("bin/**/StartCode.bin", "Compiled start scripts"),
+        CompiledScript("bin/**/StartCode.bin", "Compiled start scripts"),
         Missing("bin/**/Vectoren.bin", "Compiled script vector tables"),
         Missing("pak/Texture.tmp", "Texture companion metadata"),
         Missing("World/Triggers.pak", "World trigger definitions")
@@ -102,6 +108,13 @@ internal static class GameFileCatalog
 
     private static GameFileDefinition Missing(string pattern, string description) =>
         new(pattern, description, []);
+
+    private static GameFileDefinition CompiledScript(string pattern, string description) => File(pattern, description,
+        Section("Instruction prefix", "Sacred.Core.GameBin.Scripts.SacredScriptCommandHeaderLayout", "once per variable-length command"),
+        Section("Literal type operand", "Sacred.Core.GameBin.Scripts.SacredScriptTypeArgumentLayout", "for tag 0x02"),
+        Section("Literal position operand", "Sacred.Core.GameBin.Scripts.SacredScriptPositionArgumentLayout", "for literal tags 0x04 / 0x20",
+            "Tag 0x04 with first coordinate -2 is symbolic and has a different layout. Strings and other operands remain variable-length/unmapped."),
+        Section("Height operand", "Sacred.Core.GameBin.Scripts.SacredScriptHeightArgumentLayout", "for tag 0x7E"));
 
     private static GameFileSection Section(
         string name,

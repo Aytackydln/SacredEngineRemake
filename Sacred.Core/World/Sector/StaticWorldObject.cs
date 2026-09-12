@@ -9,6 +9,7 @@ public readonly record struct StaticWorldObject(
     int ProjectedY,
     uint NextStaticId,
     short SurfaceRenderLayer,
+    byte HeightLevelId,
     byte SpriteParam2E,
     byte SpriteParam2F,
     byte OrientationOrFrame,
@@ -20,6 +21,9 @@ public readonly record struct StaticWorldObject(
     int ChainDepth,
     int InsertionOrder)
 {
+    /// <summary>Owning building anchor from the outdoor WLDX tile's 0x1C/0x1D offsets.</summary>
+    public (int X, int Y)? IndoorAnchor { get; init; }
+
     public byte MiniObjectSourceXOrAtlasColumns => SpriteParam2E;
     public byte MiniObjectSourceYOrAtlasRows => SpriteParam2F;
     public byte MiniObjectSourceSize => OrientationOrFrame;

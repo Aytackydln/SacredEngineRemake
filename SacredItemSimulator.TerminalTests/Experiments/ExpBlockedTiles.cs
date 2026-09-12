@@ -157,14 +157,13 @@ public sealed class ExpBlockedTiles : IExperiment
             var offset = (localY * width + localX) * WldxTileRecord.Size;
             var tile = WldxTileRecord.FromBytes(tileData.AsSpan(offset, WldxTileRecord.Size));
             var coordinate = new TileCoordinate(worldX + localX, worldY + localY);
-            switch (tile.Properties.TileFlags)
+
+            if (tile.Properties.TileFlags.HasFlag(WldxTileFlags.MovementBlockerA))
             {
-                case WldxTileFlags.MovementBlockerA:
-                    fullBlockedTiles.Add(coordinate);
-                    break;
-                case WldxTileFlags.MovementBlockerB:
-                    flyableBlockedTiles.Add(coordinate);
-                    break;
+                fullBlockedTiles.Add(coordinate);
+            }else if (tile.Properties.TileFlags.HasFlag(WldxTileFlags.MovementBlockerB))
+            {
+                flyableBlockedTiles.Add(coordinate);
             }
         }
     }

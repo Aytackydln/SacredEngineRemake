@@ -15,6 +15,7 @@ internal sealed class InGameInputController
     private readonly ClickToMoveController _clickToMove;
     private readonly PlayerCharacterController _player;
     private readonly StairsTraversalController _stairs;
+    private readonly DoorSceneController _doors;
     private readonly WorldStreamer _worldStreamer;
     private readonly WorldCollisionResolver _collision;
     private readonly WorldElevationSampler _elevation;
@@ -25,10 +26,12 @@ internal sealed class InGameInputController
     private readonly Action _updateWindowTitle;
     private readonly Func<int> _viewportWidth;
     private readonly Func<int> _viewportHeight;
+    private readonly Func<Vector2, Vector2> _outputToViewport;
     private readonly Action<bool> _setHandCursor;
     private ElevationMovementTrace? _elevationTrace;
 
     public CollisionCheatMode CollisionMode { get; private set; }
+    public float PlayerMovementSpeedMultiplier { get; private set; } = 1.0f;
 
     public InGameInputController(
         InputState input,
@@ -37,6 +40,7 @@ internal sealed class InGameInputController
         ClickToMoveController clickToMove,
         PlayerCharacterController player,
         StairsTraversalController stairs,
+        DoorSceneController doors,
         WorldStreamer worldStreamer,
         SceneState scene,
         WorldLightingController worldLighting,
@@ -44,6 +48,7 @@ internal sealed class InGameInputController
         Action updateWindowTitle,
         Func<int> viewportWidth,
         Func<int> viewportHeight,
+        Func<Vector2, Vector2> outputToViewport,
         Action<bool> setHandCursor)
     {
         _input = input;
@@ -52,6 +57,7 @@ internal sealed class InGameInputController
         _clickToMove = clickToMove;
         _player = player;
         _stairs = stairs;
+        _doors = doors;
         _worldStreamer = worldStreamer;
         _collision = new WorldCollisionResolver(worldStreamer, () => scene.Indoor.ActiveGroup);
         _elevation = new WorldElevationSampler(worldStreamer);
@@ -62,6 +68,7 @@ internal sealed class InGameInputController
         _updateWindowTitle = updateWindowTitle;
         _viewportWidth = viewportWidth;
         _viewportHeight = viewportHeight;
+        _outputToViewport = outputToViewport;
         _setHandCursor = setHandCursor;
     }
 
@@ -114,16 +121,23 @@ internal sealed class InGameInputController
                 _camera,
                 _viewportWidth(),
                 _viewportHeight(),
+                _outputToViewport,
                 _collision,
                 _elevation,
                 CollisionMode,
+                _doors.TryToggleAt,
                 deltaSeconds);
         }
 
         if ((!uiWantsMouse && _input.ConsumeRightMouseButtonPressed()) || _gamepad.WasPressed(GamepadButtons.X))
             _player.PlayAttack();
 
-        _camera.UpdateFromInput(_input, deltaSeconds, _collision, CollisionMode);
+        _camera.UpdateFromInput(
+            _input,
+            deltaSeconds,
+            _collision,
+            CollisionMode,
+            PlayerMovementSpeedMultiplier);
         var surfaceLevel = _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0;
         if (_stairs.Update(_camera, surfaceLevel, out var destinationSurfaceLevel))
         {
@@ -164,10 +178,12 @@ internal sealed class InGameInputController
         var mouseWorld = GameActorElevation.ScreenToWorldOnSurface(
             _camera,
             _elevation,
-            _input.MousePosition,
+            _outputToViewport(_input.MousePosition),
             _viewportWidth(),
             _viewportHeight());
-        _setHandCursor(!uiWantsMouse && _stairs.IsStairsAt(mouseWorld, _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0));
+        _setHandCursor(!uiWantsMouse &&
+            (_doors.IsDoorAt(mouseWorld) ||
+             _stairs.IsStairsAt(mouseWorld, _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0)));
     }
 
     public void OnActivated() => _mapInput.OnActivated();
@@ -183,6 +199,9 @@ internal sealed class InGameInputController
         _clickToMove.StopMoving();
         _camera.StopMoving();
     }
+
+    public void SetPlayerMovementSpeedMultiplier(float value) =>
+        PlayerMovementSpeedMultiplier = float.IsFinite(value) ? Math.Clamp(value, 0.25f, 4.0f) : 1.0f;
 
     public void Teleport(Vector2 destination)
     {

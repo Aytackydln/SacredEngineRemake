@@ -3,6 +3,7 @@ using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Sacred.Assets.GameBin.Sets;
 using Sacred.Assets.Paks.Items;
 using Sacred.Assets.Paks.Mixed;
 using Sacred.Assets.Paks.Models;
@@ -10,6 +11,7 @@ using Sacred.Assets.Paks.Texture;
 using Sacred.Assets.Paks.Tiles;
 using Sacred.Assets.Paks.Weapon;
 using Sacred.Core;
+using Sacred.Core.GameBin.Sets;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Pak.Weapon;
 using Sacred.Granny.Abstractions;
@@ -36,6 +38,7 @@ internal sealed class GameResourceLoader : IDisposable
     private MixedPakArchive? _mixedPak;
     private TilesPakArchive? _tilesPak;
     private SacredEquipment[]? _equipment;
+    private IReadOnlyList<SacredSetEntry>? _itemSets;
     private SacredWorldArchive? _worldArchive;
     private bool _ownershipTransferred;
     private bool _disposed;
@@ -66,6 +69,7 @@ internal sealed class GameResourceLoader : IDisposable
     [
         new("Tiles.pak", LoadTilesPak),
         new("Weapons.pak", LoadWeaponsPak),
+        new("sets.bin", LoadItemSets),
         new("world files", LoadWorldArchive)
     ];
 
@@ -81,13 +85,14 @@ internal sealed class GameResourceLoader : IDisposable
         var mixedPak = Require(_mixedPak, "Mixed.pak");
         var tilesPak = Require(_tilesPak, "Tiles.pak");
         var equipment = Require(_equipment, "Weapons.pak");
+        var itemSets = Require(_itemSets, "sets.bin");
         var worldArchive = Require(_worldArchive, "world sectors");
 
         AssetManager? assets = null;
         SacredWorldArchive? world = null;
         try
         {
-            assets = new AssetManager(texturePak, tilesPak, items, equipment, mixedPak, modelsPak);
+            assets = new AssetManager(texturePak, tilesPak, items, equipment, itemSets, mixedPak, modelsPak);
             world = worldArchive;
             _ownershipTransferred = true;
             ReleaseTransferredReferences();
@@ -137,6 +142,13 @@ internal sealed class GameResourceLoader : IDisposable
         _itemsByModelId = null;
     }
 
+    private void LoadItemSets()
+    {
+        var path = _directories.ItemSetsPath ?? Path.Combine(_gameDirectory, "bin", "sets.bin");
+        _itemSets = SetsBinArchive.Load(path);
+        EngineLog.WriteLine($"Item sets loaded: {_itemSets.Count} records from {path}.");
+    }
+
     private void LoadWorldArchive() => _worldArchive = SacredWorldArchiveFactory.Load(_gameDirectory);
 
     private static T Require<T>(T? value, string resourceName) where T : class =>
@@ -151,6 +163,7 @@ internal sealed class GameResourceLoader : IDisposable
         _mixedPak = null;
         _tilesPak = null;
         _equipment = null;
+        _itemSets = null;
         _worldArchive = null;
     }
 

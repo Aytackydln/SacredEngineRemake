@@ -141,9 +141,19 @@ internal sealed class PrioritizedAssetLoadScheduler : IDisposable
             if (_completion.Task.IsCompleted)
                 return;
 
+            // A load can request another prioritized asset (a model resolves its
+            // textures, and the player resolves attachment models).  Blocking the
+            // single scheduler worker here deadlocks that dependency behind its
+            // parent request.  Start the asynchronous pipeline and immediately
+            // let the worker select the next queued dependency.
+            _ = ExecuteAsync();
+        }
+
+        private async Task ExecuteAsync()
+        {
             try
             {
-                _completion.TrySetResult(operation().GetAwaiter().GetResult());
+                _completion.TrySetResult(await operation().ConfigureAwait(false));
             }
             catch (OperationCanceledException exception)
             {

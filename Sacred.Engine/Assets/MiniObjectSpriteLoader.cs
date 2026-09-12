@@ -18,7 +18,7 @@ internal sealed class MiniObjectSpriteLoader
     private readonly Func<uint, Task<TextureAsset>> _loadTextureAsync;
     private readonly WorldSpriteLoadQueue _loadQueue;
     private readonly Dictionary<MiniObjectTextureReference, StaticSpriteAsset?> _sprites = [];
-    private readonly HashSet<MiniObjectTextureReference> _loads = [];
+    private readonly Dictionary<MiniObjectTextureReference, TaskCompletionSource<StaticSpriteAsset?>> _loads = [];
     private readonly SemaphoreSlim _lock = new(1, 1);
 
     public MiniObjectSpriteLoader(
@@ -57,8 +57,14 @@ internal sealed class MiniObjectSpriteLoader
             if (_sprites.TryGetValue(key, out sprite))
                 return true;
 
-            if (_loads.Add(key))
+            if (!_loads.ContainsKey(key))
+            {
+                _loads.Add(
+                    key,
+                    new TaskCompletionSource<StaticSpriteAsset?>(
+                        TaskCreationOptions.RunContinuationsAsynchronously));
                 _loadQueue.Enqueue(() => LoadAndCacheAsync(key));
+            }
 
             return false;
         }
@@ -66,6 +72,51 @@ internal sealed class MiniObjectSpriteLoader
         {
             _lock.Release();
         }
+    }
+
+    public async Task<StaticSpriteAsset?> GetAsync(
+        ItemsPakEntry item,
+        byte sourceX,
+        byte sourceY,
+        byte sourceSize,
+        byte animationFrameDurationTicks,
+        byte animationFrameCount)
+    {
+        if (!WorldParticleMapper.TryResolveMiniObject(
+                item,
+                sourceX,
+                sourceY,
+                sourceSize,
+                animationFrameDurationTicks,
+                animationFrameCount,
+                out var key))
+        {
+            return null;
+        }
+
+        Task<StaticSpriteAsset?> load;
+        await _lock.WaitAsync();
+        try
+        {
+            if (_sprites.TryGetValue(key, out var cached))
+                return cached;
+
+            if (!_loads.TryGetValue(key, out var completion))
+            {
+                completion = new TaskCompletionSource<StaticSpriteAsset?>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+                _loads.Add(key, completion);
+                _loadQueue.Enqueue(() => LoadAndCacheAsync(key));
+            }
+
+            load = completion.Task;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        return await load;
     }
 
     public void Clear()
@@ -113,7 +164,8 @@ internal sealed class MiniObjectSpriteLoader
         try
         {
             _sprites[key] = sprite;
-            _loads.Remove(key);
+            if (_loads.Remove(key, out var completion))
+                completion.TrySetResult(sprite);
         }
         finally
         {

@@ -103,26 +103,6 @@ public sealed class DayWorldRasterizer(
         var liquidResult = await new WorldLiquidRasterizer(textures)
             .RenderAsync(canvas, sectors, centerIso, width, height, zoom)
             .ConfigureAwait(false);
-        foreach (var cover in liquidResult.Covers)
-        {
-            var primary = await GetTileSourceAsync(cover.PrimaryTileId).ConfigureAwait(false);
-            if (primary is null)
-                continue;
-            var secondary = cover.SecondaryTileId == 0
-                ? null
-                : await GetTileSourceAsync(cover.SecondaryTileId).ConfigureAwait(false);
-            canvas.DrawTerrainDiamond(
-                primary.Texture,
-                primary.SourceX,
-                primary.SourceY,
-                secondary?.Texture,
-                secondary?.SourceX ?? 0,
-                secondary?.SourceY ?? 0,
-                cover.ScreenX,
-                cover.ScreenY,
-                RenderTileWidth * zoom,
-                RenderTileHeight * zoom);
-        }
         cancellationToken.ThrowIfCancellationRequested();
 
         var staticResult = staticSprites is null
@@ -161,10 +141,13 @@ public sealed class DayWorldRasterizer(
             if (staticObject.IsExcludedFromNormalRender ||
                 staticObject.SurfaceRenderLayer > ExteriorActiveLayer)
                 continue;
-            var item = staticSprites!.GetItem(staticObject.TypeId);
-            if (item is null ||
-                staticObject.Flags.HasFlag(StaticObjectFlags.NightOnly) &&
-                item.Value.StaticSpriteFrameCount <= 1)
+            var itemNullable = staticSprites!.GetItem(staticObject.TypeId);
+            if (itemNullable is null)
+                continue;
+            
+            var item = itemNullable.Value;
+            if (staticObject.Flags.HasFlag(StaticObjectFlags.NightOnly) &&
+                item.ModelDesc.StaticSpriteFrameCount <= 1)
                 continue;
 
             var footX = staticObject.ProjectedX + ObjectShiftX;
@@ -174,7 +157,7 @@ public sealed class DayWorldRasterizer(
             if (screenFootX < -512 || screenFootX > width + 512 || screenFootY < -512 || screenFootY > height + 512)
                 continue;
             draws.Add(new StaticDraw(
-                EngineQueueIndex(item.Value.GraphicFlags, item.Value.Category),
+                EngineQueueIndex(item.ModelDesc.GraphicFlags, item.ModelDesc.Category),
                 staticObject,
                 footX,
                 footY,

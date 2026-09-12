@@ -16,7 +16,10 @@ using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
 using Sacred.Shaders;
 using Sacred.World;
+using Sacred.World.Particles;
+using Vortice;
 using Vortice.Direct3D12;
+using Vortice.Mathematics;
 
 namespace Sacred.Engine.Graphics;
 
@@ -167,7 +170,7 @@ internal sealed class Dx12WorldPass : IDisposable
     public void BeginDebugUiFrame(float deltaSeconds, double lastCompletedFrameTimeMilliseconds)
     {
         _lastCompletedFrameTimeMilliseconds = lastCompletedFrameTimeMilliseconds;
-        _imgui.BeginFrame(deltaSeconds, _graphics.RenderWidth, _graphics.RenderHeight);
+        _imgui.BeginFrame(deltaSeconds, _graphics.OutputWidth, _graphics.OutputHeight);
     }
 
     public void DiscardDebugUiFrame() => _imgui.DiscardFrame();
@@ -175,13 +178,15 @@ internal sealed class Dx12WorldPass : IDisposable
     public Dx12PreparedWorldFrame Prepare(
         SacredCamera camera,
         VisibleWorld world,
-        SceneState scene)
+        SceneState scene,
+        IReadOnlyList<WorldParticle>? particles = null,
+        ulong particleRevision = 0)
     {
         camera.SetViewportSize(_graphics.RenderWidth, _graphics.RenderHeight);
         var prepared = new Dx12PreparedWorldFrame(
             _terrain.PrepareVisibleWorld(world, scene.Indoor.ActiveGroup),
             _terrain.PrepareVisibleLiquidSprites(),
-            _terrain.PrepareVisibleStaticSprites(),
+            _terrain.PrepareVisibleStaticSprites(particles, particleRevision),
             _terrain.VisibleWorldLights);
         _sectorTextures.PrepareFrame(prepared.SectorImages, _graphics.CurrentFrame);
         return prepared;
@@ -261,8 +266,8 @@ internal sealed class Dx12WorldPass : IDisposable
                 prepared.StaticSprites,
                 prepared.WorldLights,
                 _debugOverlay.FramesPerSecond,
-                _graphics.RenderWidth,
-                _graphics.RenderHeight);
+                _graphics.OutputWidth,
+                _graphics.OutputHeight);
         }
         _commandRecorder.Record(
             camera,
@@ -273,8 +278,10 @@ internal sealed class Dx12WorldPass : IDisposable
             scene,
             _terrain.WorldSpriteRevision,
             _graphics.CurrentFrame,
-            _graphics.CurrentBackBuffer,
-            _graphics.CurrentRenderTarget,
+            _graphics.SceneColor,
+            _graphics.SceneRenderTarget,
+            _graphics.SceneColorInitialState,
+            _graphics.SceneColorFinalState,
             _graphics.DepthStencil,
             _graphics.ShaderVisibleDescriptorHeaps,
             terrainRootSignature,
@@ -301,6 +308,37 @@ internal sealed class Dx12WorldPass : IDisposable
         }
     }
 
+    public void RecordUi(
+        SceneState scene,
+        ID3D12RootSignature rootSignature,
+        ID3D12PipelineState terrainPipeline)
+    {
+        Dx12TextureUploader.Transition(
+            _graphics.CommandList,
+            _graphics.CurrentBackBuffer,
+            ResourceStates.Present,
+            ResourceStates.RenderTarget);
+        _graphics.CommandList.RSSetViewports(new Viewport(
+            0, 0, _graphics.OutputWidth, _graphics.OutputHeight, 0, 1));
+        _graphics.CommandList.RSSetScissorRects(new RawRect(
+            0, 0, _graphics.OutputWidth, _graphics.OutputHeight));
+        _graphics.CommandList.OMSetRenderTargets(_graphics.CurrentRenderTarget, null);
+        _graphics.CommandList.SetDescriptorHeaps(1, _graphics.ShaderVisibleDescriptorHeaps);
+        _commandRecorder.RecordUi(
+            scene,
+            _graphics.CurrentFrame,
+            rootSignature,
+            terrainPipeline,
+            _graphics.DisplayProfile,
+            _graphics.OutputWidth,
+            _graphics.OutputHeight);
+        Dx12TextureUploader.Transition(
+            _graphics.CommandList,
+            _graphics.CurrentBackBuffer,
+            ResourceStates.RenderTarget,
+            ResourceStates.Present);
+    }
+
     public void RecordWorldMap(
         WorldMapOverlay overlay,
         ID3D12RootSignature rootSignature,
@@ -311,8 +349,8 @@ internal sealed class Dx12WorldPass : IDisposable
             _minimap.Record(
                 rootSignature,
                 pipeline,
-                _graphics.RenderWidth,
-                _graphics.RenderHeight,
+                _graphics.OutputWidth,
+                _graphics.OutputHeight,
                 _graphics.DisplayProfile.UiPaperWhiteNits);
         }
         if (overlay.TargetMarkerVisible)
@@ -321,8 +359,8 @@ internal sealed class Dx12WorldPass : IDisposable
                 rootSignature,
                 pipeline,
                 overlay.TargetScreenPosition,
-                _graphics.RenderWidth,
-                _graphics.RenderHeight,
+                _graphics.OutputWidth,
+                _graphics.OutputHeight,
                 _graphics.DisplayProfile.UiPaperWhiteNits);
         }
     }
@@ -333,13 +371,14 @@ internal sealed class Dx12WorldPass : IDisposable
         Dx12CreatedPipelineGroup staticSprites,
         Dx12CreatedPipelineGroup lightHalos,
         Dx12CreatedPipelineGroup models,
-        Dx12CreatedPipelineGroup imgui)
+        Dx12CreatedPipelineGroup imgui,
+        bool hdrOutput)
     {
         _surfaceLights.SetPipeline(surfaceLights);
         _playerOcclusionMap.SetPipeline(playerOcclusionMap);
-        _sprites.SetPipeline(staticSprites);
+        _sprites.SetPipeline(staticSprites, hdrOutput);
         _lightHalos.SetPipeline(lightHalos);
-        _models.SetPipeline(models);
+        _models.SetPipeline(models, hdrOutput);
         _imgui.SetPipeline(imgui);
     }
 

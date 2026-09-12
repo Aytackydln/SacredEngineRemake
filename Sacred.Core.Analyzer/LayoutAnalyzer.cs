@@ -53,6 +53,16 @@ internal sealed partial class LayoutAnalyzer
         {
             for (var index = Math.Max(0, item.Offset); index < Math.Min(size, item.Offset + item.Size); index++)
                 knownBytes[index] = true;
+
+            // Knowing where an embedded block starts does not establish all of its bytes.
+            // Preserve the nested layout's explicit unknown fields and unmapped gaps.
+            var sourceField = fields.FirstOrDefault(field => field.Name == item.Name);
+            if (sourceField?.Type is not INamedTypeSymbol nestedType ||
+                !SymbolEqualityComparer.Default.Equals(nestedType.ContainingAssembly, _compilation.Assembly) ||
+                FindAttribute(nestedType, StructLayoutAttributeName) is null)
+                continue;
+            foreach (var unknown in Analyze(nestedType.ToDisplayString()).UnknownRanges)
+                Array.Fill(knownBytes, false, item.Offset + unknown.Offset, unknown.Length);
         }
 
         return new LayoutCoverage(

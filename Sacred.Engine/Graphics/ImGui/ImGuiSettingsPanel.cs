@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Scene.InGame;
+using Sacred.Particles;
 using DearImGui = ImGuiNET.ImGui;
 
 namespace Sacred.Engine.Graphics.ImGui;
@@ -32,6 +33,19 @@ internal static class ImGuiSettingsPanel
         DrawSunAngleControls();
         Checkbox("Borderless fullscreen (F10)", controls.BorderlessFullscreen,
             value => controls.RequestedBorderlessFullscreen = value);
+        EnumCombo(
+            "Particle effects",
+            controls.ParticleQuality,
+            value => controls.RequestedParticleQuality = value,
+            FormatParticleQuality);
+        var resolution = controls.RenderResolutionPercentage;
+        if (DearImGui.SliderInt("Render resolution", ref resolution, 25, 200, "%d%%"))
+        {
+            controls.RequestedRenderResolutionPercentage = resolution;
+            EngineLog.WriteLine($"Debug input: render resolution set to {resolution}%");
+        }
+        EnumCombo("Render scaling", controls.RenderScalingMode,
+            value => controls.RequestedRenderScalingMode = value, FormatRenderScalingMode);
         if (DearImGui.Button("Capture screenshot (F12)"))
         {
             controls.ScreenshotRequested = true;
@@ -195,6 +209,20 @@ internal static class ImGuiSettingsPanel
     {
         WorldLightingMode.TimedDayNightCycle => "Timed day/night cycle",
         WorldLightingMode.PitchBlack => "Pitch black",
+        _ => mode.ToString()
+    };
+
+    private static string FormatParticleQuality(SacredParticleQuality quality) => quality switch
+    {
+        SacredParticleQuality.Low => "Low",
+        SacredParticleQuality.Medium => "Medium",
+        SacredParticleQuality.High => "High",
+        _ => quality.ToString()
+    };
+
+    private static string FormatRenderScalingMode(RenderScalingMode mode) => mode switch
+    {
+        RenderScalingMode.Fsr1 => "FSR 1 (spatial)",
         _ => mode.ToString()
     };
 }

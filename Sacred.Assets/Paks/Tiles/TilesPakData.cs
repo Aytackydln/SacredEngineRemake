@@ -1,4 +1,6 @@
-﻿using System.Text;
+﻿using System.Runtime.InteropServices;
+using System.Text;
+using Sacred.Core.Pak.Tiles;
 
 namespace Sacred.Assets.Paks.Tiles;
 
@@ -35,8 +37,15 @@ public sealed class TilesPakData
                 continue;
             }
 
+            if (recordSize < TilePakEntryLayout.SerializedSize)
+            {
+                _definitions.Add(TileDefinition.Empty);
+                continue;
+            }
+
+            var layout = MemoryMarshal.Read<TilePakEntryLayout>(data.Slice(recordOffset, TilePakEntryLayout.SerializedSize));
             var fileName = PakDataHelpers.ReadCString(data, recordOffset, 0x20, NameEncoding);
-            var tileNumber = recordSize >= 0x28 ? BitConverter.ToUInt32(data.Slice(recordOffset + 0x24, 4)) : 0;
+            var tileNumber = (uint)layout.SubtextureId;
             _definitions.Add(new TileDefinition(fileName, tileNumber));
         }
     }

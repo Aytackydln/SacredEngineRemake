@@ -12,7 +12,11 @@ public readonly struct StaticSpriteInstance(
     float depth,
     uint textureIndex,
     uint frameCount,
-    uint flags,
+    uint textureVariant,
+    uint transposeTexture,
+    uint mixedLightEmitter,
+    uint particleSprite,
+    uint playerOcclusionFade,
     float animationPeriodSeconds,
     float alphaLeft,
     float alphaTop,
@@ -28,7 +32,11 @@ public readonly struct StaticSpriteInstance(
     public readonly float Depth = depth;
     public readonly uint TextureIndex = textureIndex;
     public readonly uint FrameCount = frameCount;
-    public readonly uint Flags = flags;
+    public readonly uint TextureVariant = textureVariant;
+    public readonly uint TransposeTexture = transposeTexture;
+    public readonly uint MixedLightEmitter = mixedLightEmitter;
+    public readonly uint ParticleSprite = particleSprite;
+    public readonly uint PlayerOcclusionFade = playerOcclusionFade;
     public readonly float AnimationPeriodSeconds = animationPeriodSeconds;
     public readonly float AlphaLeft = alphaLeft;
     public readonly float AlphaTop = alphaTop;
@@ -36,6 +44,7 @@ public readonly struct StaticSpriteInstance(
     public readonly float AlphaBottom = alphaBottom;
     public readonly uint AtlasColumns = atlasColumns;
     public readonly uint AtlasRows = atlasRows;
+    public float ParticleRotation { get; init; }
 }
 
 public readonly record struct StaticSpriteSceneConstants(

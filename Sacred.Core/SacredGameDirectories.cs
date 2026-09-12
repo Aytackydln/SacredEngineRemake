@@ -15,6 +15,12 @@ public class SacredGameDirectories
     /// Engine clients infer <c>bin\NetScript\DefPos.bin</c> when omitted.
     /// </summary>
     public string? DefPosPath { get; init; }
+
+    /// <summary>
+    /// Optional explicit path to Sacred's item-set table. Engine clients infer
+    /// <c>bin\sets.bin</c> from the PAK directory when this is not supplied.
+    /// </summary>
+    public string? ItemSetsPath { get; init; }
     
     public required string ItemsPakPath { get; init; }
     public required string WeaponsPakPath { get; init; }

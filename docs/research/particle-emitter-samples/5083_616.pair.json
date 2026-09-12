@@ -1,0 +1,84 @@
+{
+  "scene_id": "5083_616",
+  "changed_pixels": 1307,
+  "green_changed_pixels": 1034,
+  "compared_rectangle": {
+    "x": 0,
+    "y": 0,
+    "width": 1695,
+    "height": 882
+  },
+  "clean_width": 1695,
+  "clean_height": 882,
+  "marked_width": 1695,
+  "marked_height": 882,
+  "alignment": "Top-left aligned common rectangle; right/bottom excess pixels are not compared.",
+  "non_green_changed_pixels": 273,
+  "marks": [
+    {
+      "id": "5083_616_P01",
+      "x": 656,
+      "y": 87,
+      "width": 40,
+      "height": 5,
+      "pixel_count": 149
+    },
+    {
+      "id": "5083_616_P02",
+      "x": 478,
+      "y": 168,
+      "width": 35,
+      "height": 6,
+      "pixel_count": 116
+    },
+    {
+      "id": "5083_616_P03",
+      "x": 300,
+      "y": 264,
+      "width": 24,
+      "height": 4,
+      "pixel_count": 84
+    },
+    {
+      "id": "5083_616_P04",
+      "x": 982,
+      "y": 300,
+      "width": 40,
+      "height": 5,
+      "pixel_count": 145
+    },
+    {
+      "id": "5083_616_P05",
+      "x": 616,
+      "y": 485,
+      "width": 35,
+      "height": 5,
+      "pixel_count": 125
+    },
+    {
+      "id": "5083_616_P06",
+      "x": 1608,
+      "y": 624,
+      "width": 39,
+      "height": 7,
+      "pixel_count": 131
+    },
+    {
+      "id": "5083_616_P07",
+      "x": 1253,
+      "y": 795,
+      "width": 37,
+      "height": 5,
+      "pixel_count": 126
+    },
+    {
+      "id": "5083_616_P08",
+      "x": 266,
+      "y": 799,
+      "width": 40,
+      "height": 4,
+      "pixel_count": 158
+    }
+  ],
+  "detection": "Changed pixels with G\u003E180, R\u003C140, B\u003C140, G\u003ER\u002B70; 8-connected components with \u003E=8 pixels and width\u003E=8. Coordinates are original image pixels, origin top-left."
+}

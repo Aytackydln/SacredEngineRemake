@@ -49,7 +49,7 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
             sector.Coord.Y * Sector.TileCount);
         var sectorBounds = TerrainTileGeometry.CalculateSectorBounds(sector);
         var baseTiles = new List<TerrainCompositionTile>(Sector.TileCount * Sector.TileCount + sector.FloorOverlays.Count);
-        var coverTiles = new List<TerrainCompositionTile>(sector.FloorOverlays.Count);
+        var coverTiles = new List<TerrainCompositionTile>();
         var stairsDebugTiles = new List<TerrainCompositionTile>(sector.StairsCells.Count);
         var debugDoorTiles = new HashSet<(int X, int Y)>();
         var blockedAreaDebugTiles = new List<TerrainCompositionTile>();
@@ -61,11 +61,6 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
         var floorCandidateTiles = 0;
         var floorDrawnTiles = 0;
         var floorMissingTiles = 0;
-
-        var liquidInsertionDepths = new byte[Sector.TileCount * Sector.TileCount];
-        Array.Fill(liquidInsertionDepths, byte.MaxValue);
-        foreach (var liquid in sector.LiquidSurfaces.Surfaces)
-            liquidInsertionDepths[liquid.LocalY * Sector.TileCount + liquid.LocalX] = liquid.FloorInsertionDepth;
 
         var drawTiles = new List<DrawTile>(Sector.TileCount * Sector.TileCount);
         for (var localY = 0; localY < Sector.TileCount; localY++)
@@ -81,7 +76,6 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
                 sector.Ground[localX, localY],
                 0,
                 0,
-                false,
                 surface));
             terrainTopologyDebugTiles.Add(new TerrainCompositionTile(
                 (int)MathF.Round(iso.X - sectorBounds.X),
@@ -123,7 +117,6 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
                     overlay.PrimaryTileId,
                     overlay.SecondaryTileId,
                     overlay.ChainDepth,
-                    overlay.ChainDepth >= liquidInsertionDepths[localY * Sector.TileCount + localX],
                     surface);
                 drawTiles.Add(drawTile);
             }
@@ -150,7 +143,10 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
             }
 
             var compositionTile = new TerrainCompositionTile(item.ScreenX, item.ScreenY, primary, secondary, item.Surface);
-            (item.AboveLiquid ? coverTiles : baseTiles).Add(compositionTile);
+            // Sacred queues all floor overlays before renderWater. The liquid's
+            // authored vertex alpha then reveals the terrain beneath it; the
+            // WLDX low nibble is tile behavior, not an overlay insertion depth.
+            baseTiles.Add(compositionTile);
             floorDrawnTiles++;
         }
 
@@ -241,7 +237,8 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
             groundMissingTiles,
             floorCandidateTiles,
             floorDrawnTiles,
-            floorMissingTiles);
+            floorMissingTiles,
+            Array.Empty<TerrainEmbeddedSprite>());
     }
 
     private async Task<TerrainTileSource?> GetTileSourceAsync(uint tileId)
@@ -305,6 +302,5 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
         uint PrimaryTileId,
         uint SecondaryTileId,
         int ChainDepth,
-        bool AboveLiquid,
         TerrainTileSurface Surface);
 }

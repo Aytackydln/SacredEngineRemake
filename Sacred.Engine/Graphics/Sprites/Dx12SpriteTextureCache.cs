@@ -165,8 +165,11 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
         StaticSpriteAsset? preparedShadowAtlas = null;
         foreach (var visibleSprite in sprites)
         {
-            if (TryPrepareStaticTexture(visibleSprite.Sprite, frame))
+            if (!visibleSprite.IsEmbeddedInTerrain &&
+                TryPrepareStaticTexture(visibleSprite.Sprite, frame))
+            {
                 attempted++;
+            }
             if (attempted == StaticUploadBatchSize)
                 return false;
 

@@ -5,7 +5,7 @@ namespace Sacred.Core.World.Sector;
 /// The boundary flags identify an absent neighbor on the corresponding map edge.
 /// </summary>
 [Flags]
-public enum SectorEnvironmentFlags : byte
+public enum SectorEnvironmentFlags : uint
 {
     None = 0,
     /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal byte value.</summary>

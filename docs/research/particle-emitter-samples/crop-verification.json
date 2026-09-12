@@ -1,0 +1,6 @@
+{
+  "verified_crop_count": 88,
+  "compared_pixels": 2452305,
+  "exact_argb_pixel_matches": true,
+  "method": "Every crop pixel compared to its original clean PNG pixel at the recorded crop offset, including alpha."
+}

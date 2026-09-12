@@ -28,6 +28,20 @@ internal static class ImGuiCheatsPanel
             DearImGui.EndCombo();
         }
 
+        var movementSpeed = controls.PlayerMovementSpeedMultiplier;
+        DearImGui.SetNextItemWidth(180.0f);
+        if (DearImGui.SliderFloat("Movement speed", ref movementSpeed, 0.25f, 4.0f, "%.2fx"))
+        {
+            controls.RequestedPlayerMovementSpeedMultiplier = movementSpeed;
+            EngineLog.WriteLine($"Debug input: player movement speed set to {movementSpeed:0.00}x");
+        }
+        DearImGui.SameLine();
+        if (DearImGui.SmallButton("Reset##movement-speed"))
+        {
+            controls.RequestedPlayerMovementSpeedMultiplier = 1.0f;
+            EngineLog.WriteLine("Debug input: player movement speed reset to 1.00x");
+        }
+
         DearImGui.TextDisabled("Console: set collision <walk|fly|noclip>");
     }
 }

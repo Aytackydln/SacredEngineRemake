@@ -1,7 +1,14 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Sacred.Core.Binary;
 
 namespace Sacred.Core.Pak.Texture;
+
+[InlineArray(39)]
+public struct TexturePakEntryReservedBytes
+{
+    private byte _element0;
+}
 
 /// <summary>Metadata prefix stored before one Texture.pak image payload.</summary>
 [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SerializedSize)]
@@ -27,35 +34,19 @@ public readonly struct TexturePakEntryHeaderLayout
     [FieldOffset(0x24)]
     public readonly SacredTextureStorageFormat StorageFormat;
 
-    /// <summary>Compressed pixel payload size, repeated from the entry descriptor.</summary>
+    /// <summary>
+    /// Encoded pixel payload size, repeated from the entry descriptor. The Demo
+    /// calls this <c>RLEsize</c>, although Gold primarily stores zlib payloads.
+    /// </summary>
     [FieldOffset(0x25)]
-    public readonly uint CompressedSize;
-}
+    public readonly uint EncodedSize;
 
-/// <summary>Header preceding the descriptor table in Texture.pak.</summary>
-[StructLayout(LayoutKind.Explicit, Pack = 1, Size = SerializedSize)]
-public readonly struct TexturePakHeaderLayout
-{
-    /// <summary>Serialized header size before entry descriptors.</summary>
-    public const int SerializedSize = 0x100;
-
-    /// <summary>ASCII file signature; expected to contain <c>TEX</c>.</summary>
-    [FieldOffset(0x00)] public readonly Signature3 Signature;
-
-    /// <summary>Texture archive format version.</summary>
-    [FieldOffset(0x03)] public readonly byte Version;
-
-    /// <summary>Number of 12-byte texture entry descriptors.</summary>
-    [FieldOffset(0x04)] public readonly uint EntryCount;
-
-    public bool SignatureValid => Signature == Signature3.Texture;
-
-    public void ValidateSignature()
-    {
-        if (SignatureValid)
-            return;
-
-        throw new InvalidDataException(
-            $"Invalid file format. Expected header 'TEX', but got '{Signature.Text}'.");
-    }
+    /// <summary>
+    /// Native <c>sTextureEntry::reserved[39]</c>. Every byte is zero in all
+    /// 4,465 populated January-demo entries, all 25,534 Gold entries, and both
+    /// entries in Gold's Texture03.pak. These bytes contain no serialized blend
+    /// mode or colour parameters.
+    /// </summary>
+    [FieldOffset(0x29)]
+    public readonly TexturePakEntryReservedBytes Reserved;
 }

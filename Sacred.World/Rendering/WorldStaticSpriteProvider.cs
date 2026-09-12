@@ -28,7 +28,7 @@ public sealed class WorldStaticSpriteProvider(
 
         SpriteKey key;
         Func<Task<WorldStaticSprite?>> factory;
-        if (item.Value.MixedBaseGroupId != 0 && mixed.ResolveGroupId(item.Value.MixedBaseGroupId) is { } groupId)
+        if (item.Value.ModelDesc.MixedBaseGroupId != 0 && mixed.ResolveGroupId(item.Value.ModelDesc.MixedBaseGroupId) is { } groupId)
         {
             key = new SpriteKey(groupId, 0, 0, 0, 0);
             factory = () => LoadMixedAsync(groupId);

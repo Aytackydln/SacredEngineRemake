@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Sacred.Granny;
 using Sacred.Granny.Meshes;
 using Sacred.Particles;
 
@@ -15,9 +14,64 @@ internal sealed class EffectMeshBuilder
     private readonly List<string?> _vertexBoneNames = [];
     private readonly List<bool> _vertexDetachesAfterSpawn = [];
     private string? _attachmentBoneName;
+    private readonly List<NativeModelEffectSimulation> _nativeEffects = [];
+
+    public void AddNativeEffect(SacredModelEffectDefinition definition, Vector3 start, Vector3 end,
+        string? boneName, Vector3 direction)
+    {
+        var count = definition.PointCount > 0 ? definition.PointCount :
+            definition.Emission.EmissionInterval > 0 ?
+                (int)MathF.Ceiling(255f / -definition.Motion.FadeChangeRate / definition.Emission.EmissionInterval) + 1 : 0;
+        var firstVertex = _vertices.Count;
+        var surfaces = new EquipmentEffectSurface[count];
+        for (var index = 0; index < count; index++)
+        {
+            // Emitted particles fade independently; each chain layer shares one draw.
+            var colored = definition.CornerColors.Count == 4;
+            var color = colored ? new Vector4(1, 1, 1, NativeModelEffectSimulation.Unpack(definition.CornerColors[0]).W) : Vector4.Zero;
+            AddBillboard(start, 0, 0, definition.TextureName, color,
+                colored ? ParticleTextureMode.NativeModelColored : ParticleTextureMode.NativeModel, colored ? 0 : index);
+            surfaces[index] = _surfaces[^1];
+        }
+        _nativeEffects.Add(new NativeModelEffectSimulation(definition, start, end, boneName,
+            direction, firstVertex, surfaces));
+        // These vertices are updated by the simulation, including detached particles.
+        for (var index = firstVertex; index < _vertices.Count; index++)
+            _vertexBoneNames[index] = null;
+        if (definition.HaloCornerColors.Count == 4)
+            AddNativeEffect(definition with { HalfSize = definition.HaloHalfSize,
+                CornerColors = definition.HaloCornerColors, HaloCornerColors = [] }, start, end, boneName, direction);
+    }
 
     public void BeginAttachment(string? attachmentBoneName) =>
         _attachmentBoneName = attachmentBoneName;
+
+    public void AddNativeBeam(SacredModelEffectDefinition definition, Vector3 start, Vector3 end)
+    {
+        AddField(definition.HalfSize, definition.Color, definition.BeamDensity);
+        if (definition.HaloDensity > 0)
+            AddField(definition.HaloHalfSize, definition.HaloColor, definition.HaloDensity);
+
+        void AddField(float halfSize, uint color, float density)
+        {
+            // 0x40DA80: floor(length * density) camera-facing glow quads; end is exclusive.
+            var count = Math.Max(1, (int)(Vector3.Distance(start, end) * density));
+            for (var i = 0; i < count; i++)
+                AddBillboard(Vector3.Lerp(start, end, (float)i / count), halfSize * 2, halfSize * 2,
+                    definition.TextureName, NativeModelEffectSimulation.Unpack(color), ParticleTextureMode.NativeModel);
+        }
+    }
+
+    public void AddNativeGlowLine(Vector3 start, Vector3 end, string textureName,
+        uint color, float halfSize, float density)
+    {
+        // renderGlowLine 0x40DA80: max(1, floor(length * density)) camera-facing
+        // quads, with the end point excluded.
+        var count = Math.Max(1, (int)(Vector3.Distance(start, end) * density));
+        for (var i = 0; i < count; i++)
+            AddBillboard(Vector3.Lerp(start, end, (float)i / count), halfSize * 2, halfSize * 2,
+                textureName, NativeModelEffectSimulation.Unpack(color), ParticleTextureMode.NativeModel);
+    }
 
     public void AddBillboard(
         Vector3 center,
@@ -27,7 +81,8 @@ internal sealed class EffectMeshBuilder
         Vector4 color,
         ParticleTextureMode textureMode,
         float phase = 0.0f,
-        bool bindToAttachment = true)
+        bool bindToAttachment = true,
+        string? boneName = null)
     {
         var halfWidth = width * 0.5f;
         var halfHeight = height * 0.5f;
@@ -40,11 +95,23 @@ internal sealed class EffectMeshBuilder
         {
             EnsureVertexCapacity();
             var start = (ushort)_vertices.Count;
-            AddVertex(center, new Vector3(-halfWidth, -halfHeight, vertexMarker), new Vector2(0.0f, 1.0f), bindToAttachment);
-            AddVertex(center, new Vector3( halfWidth, -halfHeight, vertexMarker), new Vector2(1.0f, 1.0f), bindToAttachment);
-            AddVertex(center, new Vector3( halfWidth,  halfHeight, vertexMarker), new Vector2(1.0f, 0.0f), bindToAttachment);
-            AddVertex(center, new Vector3(-halfWidth,  halfHeight, vertexMarker), new Vector2(0.0f, 0.0f), bindToAttachment);
-            AddQuadIndices(start);
+            AddVertex(center, new Vector3(-halfWidth, -halfHeight, vertexMarker), new Vector2(0.0f, 1.0f), bindToAttachment, boneName);
+            AddVertex(center, new Vector3( halfWidth, -halfHeight, vertexMarker), new Vector2(1.0f, 1.0f), bindToAttachment, boneName);
+            AddVertex(center, new Vector3( halfWidth,  halfHeight, vertexMarker), new Vector2(1.0f, 0.0f), bindToAttachment, boneName);
+            AddVertex(center, new Vector3(-halfWidth,  halfHeight, vertexMarker), new Vector2(0.0f, 0.0f), bindToAttachment, boneName);
+            if (textureMode == ParticleTextureMode.NativeModelColored)
+            {
+                // Native D3DPT_TRIANGLESTRIP: BL, TL, BR, TR. Its TL--BR diagonal
+                // interpolates the authored blue/green center; BL--TR turns it purple.
+                _indices.Add(start);
+                _indices.Add((ushort)(start + 3));
+                _indices.Add((ushort)(start + 1));
+                _indices.Add((ushort)(start + 1));
+                _indices.Add((ushort)(start + 3));
+                _indices.Add((ushort)(start + 2));
+            }
+            else
+                AddQuadIndices(start);
         });
     }
 
@@ -85,7 +152,7 @@ internal sealed class EffectMeshBuilder
             _surfaces.ToArray(),
             Array.ConvertAll(vertices, static vertex => vertex.Position),
             _vertexBoneNames.ToArray(),
-            _vertexDetachesAfterSpawn.ToArray());
+            _vertexDetachesAfterSpawn.ToArray()) { NativeEffects = _nativeEffects.ToArray() };
     }
 
     private void AddSurface(
@@ -137,11 +204,13 @@ internal sealed class EffectMeshBuilder
         Vector3 position,
         Vector3 normal,
         Vector2 textureCoordinate,
-        bool bindToAttachment = true)
+        bool bindToAttachment = true,
+        string? boneName = null)
     {
         _vertices.Add(new VertexPositionNormalTexture(position, normal, textureCoordinate));
-        _vertexBoneNames.Add(_attachmentBoneName);
-        _vertexDetachesAfterSpawn.Add(!bindToAttachment && _attachmentBoneName is not null);
+        var binding = boneName ?? _attachmentBoneName;
+        _vertexBoneNames.Add(binding);
+        _vertexDetachesAfterSpawn.Add(!bindToAttachment && binding is not null);
     }
 
     private void EnsureVertexCapacity()

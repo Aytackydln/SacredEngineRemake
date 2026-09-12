@@ -45,4 +45,10 @@ public sealed record GrnBoneDiagnostics(
     int Index,
     string Name,
     int ParentIndex,
-    Vector3 Position);
+    Vector3 Position)
+{
+    /// <summary>Animated ancestor carrying this attachment after equipment retargeting.</summary>
+    public string? AnimationBoneName { get; init; }
+    /// <summary>Bone-local +X expressed in the projected model rest space.</summary>
+    public Vector3 Direction { get; init; } = Vector3.UnitX;
+}

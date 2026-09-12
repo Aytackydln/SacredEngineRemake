@@ -1,0 +1,28 @@
+{
+  "scene_id": "2262_3132",
+  "changed_pixels": 3293,
+  "green_changed_pixels": 172,
+  "compared_rectangle": {
+    "x": 0,
+    "y": 0,
+    "width": 1327,
+    "height": 762
+  },
+  "clean_width": 1328,
+  "clean_height": 762,
+  "marked_width": 1327,
+  "marked_height": 762,
+  "alignment": "Top-left aligned common rectangle; right/bottom excess pixels are not compared.",
+  "non_green_changed_pixels": 3121,
+  "marks": [
+    {
+      "id": "2262_3132_P01",
+      "x": 597,
+      "y": 605,
+      "width": 53,
+      "height": 8,
+      "pixel_count": 172
+    }
+  ],
+  "detection": "Changed pixels with G\u003E180, R\u003C140, B\u003C140, G\u003ER\u002B70; 8-connected components with \u003E=8 pixels and width\u003E=8. Coordinates are original image pixels, origin top-left."
+}

@@ -101,7 +101,10 @@ float2 animated_tex_coord(float2 tex_coord)
 float4 ps_sdr(vs_output input) : SV_Target
 {
     float4 sampled = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord));
-    float alpha = sampled.a * model_color.a * input.opacity;
+    // Native RGB lens flares use black as zero energy and carry no coverage
+    // alpha. All existing SDR modes retain their authored alpha behavior.
+    bool native_rgb_lens_flare = texture_flags.x > 10.5f && texture_flags.x < 11.5f;
+    float alpha = (native_rgb_lens_flare ? 1.0f : sampled.a) * model_color.a * input.opacity;
     if (alpha < 0.02f)
         discard;
 
@@ -109,14 +112,54 @@ float4 ps_sdr(vs_output input) : SV_Target
     return float4(color, alpha);
 }
 
-float4 ps_hdr(vs_output input) : SV_Target
+// HDR channel-specific entry points. The SDR entry point above is intentionally
+// unchanged because the original SDR blend path already matches the game.
+float4 ps_hdr_rgb(vs_output input) : SV_Target
+{
+    float3 sampled = particle_texture.Sample(
+        particle_sampler, animated_tex_coord(input.tex_coord)).rgb;
+    float alpha = model_color.a * input.opacity;
+    if (alpha < 0.02f)
+        discard;
+
+    return float4(SdrParticleToHdr10Screen(
+        sampled * model_color.rgb,
+        alpha,
+        hdr_display.x,
+        hdr_display.w), 0.0f);
+}
+
+float4 ps_hdr_argb(vs_output input) : SV_Target
 {
     float4 sampled = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord));
     float alpha = sampled.a * model_color.a * input.opacity;
-    if (alpha < 0.1f)
+    if (alpha < 0.02f)
         discard;
 
     float3 color = sampled.rgb * model_color.rgb;
-    float3 hdr_color = SdrTextureToPremultipliedHdr10(color, alpha, hdr_display.w);
-    return float4(hdr_color, alpha);
+    return float4(SdrParticleToHdr10Screen(
+        color,
+        alpha,
+        hdr_display.x,
+        hdr_display.w), 0.0f);
+}
+
+float4 ps_hdr_alpha_mask(vs_output input) : SV_Target
+{
+    float mask = particle_texture.Sample(
+        particle_sampler, animated_tex_coord(input.tex_coord)).a;
+    float alpha = mask * model_color.a * input.opacity;
+    if (alpha < 0.02f)
+        discard;
+
+    return float4(SdrParticleToHdr10Screen(
+        model_color.rgb,
+        alpha,
+        hdr_display.x,
+        hdr_display.w), 0.0f);
+}
+
+float4 ps_hdr(vs_output input) : SV_Target
+{
+    return ps_hdr_argb(input);
 }

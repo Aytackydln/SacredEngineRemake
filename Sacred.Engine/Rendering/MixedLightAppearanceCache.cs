@@ -65,8 +65,11 @@ internal sealed class MixedLightAppearanceCache
             var red = rgba[pixel] / 255.0;
             var green = rgba[pixel + 1] / 255.0;
             var blue = rgba[pixel + 2] / 255.0;
+            // Blue cloth and painted signs are common in mixed sprites. The
+            // authored magical-light palette is substantially more saturated:
+            // its blue channel is clearly above both red and green.
             var blueSignal = blue > 0.40
-                ? Math.Max(0.0, Math.Min(blue - red - 0.12, blue - green - 0.04))
+                ? Math.Max(0.0, Math.Min(blue - red - 0.12, blue - green - 0.12))
                 : 0.0;
             var warmSignal = red > 0.65 && green > 0.18 && red - blue > 0.18 && red >= green * 0.90
                 ? Math.Max(0.0, Math.Min(red - blue - 0.10, Math.Max(red, green) - 0.55))
@@ -79,7 +82,7 @@ internal sealed class MixedLightAppearanceCache
             {
                 blueWeightSum += weight;
                 bluePixelCount++;
-                if (blue > 0.65 && blue - red > 0.20 && blue - green > 0.06)
+                if (blue > 0.65 && blue - red > 0.20 && blue - green > 0.14)
                     brightBluePixelCount++;
             }
             else

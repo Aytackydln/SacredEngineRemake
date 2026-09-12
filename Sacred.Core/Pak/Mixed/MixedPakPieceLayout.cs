@@ -14,18 +14,26 @@ public readonly record struct MixedPakPieceLayout
     [BinaryString("ResourceName", 0x20, "ASCII")]
     private readonly byte _resourceName;
 
-    /// <summary>Texture cutout identifier used by the sprite piece.</summary>
+    /// <summary>Native texture: texture-cutout identifier used by the sprite piece.</summary>
     [FieldOffset(0x20)] public readonly uint CutoutId;
-    /// <summary>Right edge of the source rectangle.</summary>
+    /// <summary>Native sizeX.</summary>
+    [FieldOffset(0x24)] public readonly ushort Width;
+    /// <summary>Native sizeY.</summary>
+    [FieldOffset(0x26)] public readonly ushort Height;
+    /// <summary>Native x: signed source or placement X coordinate.</summary>
+    [FieldOffset(0x28)] public readonly short OffsetX;
+    /// <summary>Native y: signed source or placement Y coordinate.</summary>
+    [FieldOffset(0x2A)] public readonly short OffsetY;
+    [FieldOffset(0x2C), BinaryUnknown] public readonly uint Reserved;
+
+    /// <summary>Compatibility alias for <see cref="Width"/>.</summary>
     [FieldOffset(0x24)] public readonly ushort Right;
-    /// <summary>Bottom edge of the source rectangle.</summary>
+    /// <summary>Compatibility alias for <see cref="Height"/>.</summary>
     [FieldOffset(0x26)] public readonly ushort Bottom;
-    /// <summary>Left edge of the source rectangle.</summary>
+    /// <summary>Compatibility alias for <see cref="OffsetX"/>.</summary>
     [FieldOffset(0x28)] public readonly short Left;
-    /// <summary>Top edge of the source rectangle.</summary>
+    /// <summary>Compatibility alias for <see cref="OffsetY"/>.</summary>
     [FieldOffset(0x2A)] public readonly short Top;
-    /// <summary>Unresolved value at byte offset 0x2C.</summary>
-    [FieldOffset(0x2C)] public readonly uint Unknown2C;
     /// <summary>First normalized texture-coordinate component.</summary>
     [FieldOffset(0x30)] public readonly float Uv0;
     /// <summary>Second normalized texture-coordinate component.</summary>

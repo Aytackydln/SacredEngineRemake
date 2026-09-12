@@ -1,0 +1,1975 @@
+{
+  "script": {
+    "path": "bin/TYPE_NPC_VAMPIRELADY/FunkCode.bin",
+    "sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+    "byte_length": 3963314,
+    "command_count": 125060,
+    "create_object_count": 6779,
+    "literal_create_object_count": 4658,
+    "effect_count": 4650,
+    "unsupported_creates": {
+      "Symbolic tile position at \u002B0x14.": 44,
+      "Unsupported operand 0x54 at \u002B0x4.": 6,
+      "Unsupported operand 0x9E at \u002B0x9.": 13,
+      "Unsupported operand 0x79 at \u002B0x9.": 5,
+      "Symbolic tile position at \u002B0x9.": 92,
+      "Unsupported operand 0x29 at \u002B0x14.": 4,
+      "Symbolic tile position at \u002B0x1F.": 29,
+      "Symbolic tile position at \u002B0x1B.": 2,
+      "Unsupported operand 0x3C at \u002B0x9.": 1,
+      "Unsupported operand 0x29 at \u002B0x16.": 22,
+      "Unsupported operand 0x83 at \u002B0x14.": 3,
+      "Symbolic tile position at \u002B0x13.": 64,
+      "Unsupported operand 0x41 at \u002B0x14.": 2,
+      "Unsupported operand 0x61 at \u002B0x14.": 1,
+      "Unsupported operand 0x41 at \u002B0x21.": 5,
+      "Unsupported operand 0x9E at \u002B0x14.": 1,
+      "Unsupported operand 0x41 at \u002B0x16.": 12,
+      "Unsupported operand 0x41 at \u002B0x20.": 1,
+      "Unsupported operand 0x8E at \u002B0x14.": 1,
+      "Symbolic tile position at \u002B0x2C.": 54,
+      "Symbolic tile position at \u002B0x4.": 536,
+      "Symbolic tile position at \u002B0x2D.": 78,
+      "Symbolic tile position at \u002B0x15.": 4,
+      "Unsupported operand 0x8E at \u002B0x21.": 1,
+      "Unsupported operand 0x62 at \u002B0x14.": 7,
+      "Unsupported operand 0x62 at \u002B0x21.": 1,
+      "Unsupported operand 0x03 at \u002B0x9.": 12,
+      "Unsupported operand 0x29 at \u002B0x15.": 1061,
+      "Unsupported operand 0x29 at \u002B0x1A.": 2,
+      "Unsupported operand 0x29 at \u002B0x1E.": 5,
+      "Unsupported operand 0x29 at \u002B0x18.": 18,
+      "Unsupported operand 0x29 at \u002B0x19.": 10,
+      "Unsupported operand 0x29 at \u002B0x1C.": 1,
+      "Unsupported operand 0x29 at \u002B0x17.": 11,
+      "Unsupported operand 0x9E at \u002B0x15.": 3,
+      "Unsupported operand 0x29 at \u002B0x12.": 3,
+      "Unsupported operand 0x29 at \u002B0x22.": 1,
+      "Unsupported operand 0x29 at \u002B0x1D.": 1,
+      "Unsupported operand 0x29 at \u002B0x1F.": 4
+    }
+  },
+  "method": "Nearest literal FX creation by fixture tile XY. All candidates within five tiles retained; nearest three otherwise. No pixel classification or item-ID rules.",
+  "limitation": "Spatial evidence does not establish one-to-one fixture ownership or script execution. Fissure fixtures were provisional in the input observations.",
+  "matches": [
+    {
+      "observation_id": "2146_2947_P01",
+      "scene_id": "2146_2947",
+      "fixture_status": "candidate_only",
+      "fixture_x": 2133,
+      "fixture_y": 2925,
+      "candidates": [
+        {
+          "tile_distance": 1.4142135623730951,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3049873,
+            "type_name": "TYPE_FX_LV_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 882,
+              "tile_position": {
+                "x": 2134,
+                "y": 2926,
+                "z": 0
+              },
+              "world_position": {
+                "x": 114524,
+                "y": 157041,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500027203000004560800006e0b000000000000205cbf010071650200000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 2.23606797749979,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3049925,
+            "type_name": "TYPE_FX_LV_SMOKE_L",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 881,
+              "tile_position": {
+                "x": 2135,
+                "y": 2926,
+                "z": 0
+              },
+              "world_position": {
+                "x": 114609,
+                "y": 157039,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500027103000004570800006e0b00000000000020b1bf01006f650200000000007e00000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "2146_2947_P02",
+      "scene_id": "2146_2947",
+      "fixture_status": "candidate_only",
+      "fixture_x": 2138,
+      "fixture_y": 2924,
+      "candidates": [
+        {
+          "tile_distance": 1.4142135623730951,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3049821,
+            "type_name": "TYPE_FX_LV_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 882,
+              "tile_position": {
+                "x": 2139,
+                "y": 2925,
+                "z": 0
+              },
+              "world_position": {
+                "x": 114804,
+                "y": 156987,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e49515545000272030000045b0800006d0b0000000000002074c001003b650200000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 3.605551275463989,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3049925,
+            "type_name": "TYPE_FX_LV_SMOKE_L",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 881,
+              "tile_position": {
+                "x": 2135,
+                "y": 2926,
+                "z": 0
+              },
+              "world_position": {
+                "x": 114609,
+                "y": 157039,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500027103000004570800006e0b00000000000020b1bf01006f650200000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 4.47213595499958,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3049873,
+            "type_name": "TYPE_FX_LV_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 882,
+              "tile_position": {
+                "x": 2134,
+                "y": 2926,
+                "z": 0
+              },
+              "world_position": {
+                "x": 114524,
+                "y": 157041,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500027203000004560800006e0b000000000000205cbf010071650200000000007e00000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "2146_2947_P03",
+      "scene_id": "2146_2947",
+      "fixture_status": "candidate_only",
+      "fixture_x": 2144,
+      "fixture_y": 2927,
+      "candidates": [
+        {
+          "tile_distance": 1.4142135623730951,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3050029,
+            "type_name": "TYPE_FX_LV_SMOKE_L",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 881,
+              "tile_position": {
+                "x": 2145,
+                "y": 2928,
+                "z": 0
+              },
+              "world_position": {
+                "x": 115116,
+                "y": 157156,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e495155450002710300000461080000700b00000000000020acc10100e4650200000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 2,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3049977,
+            "type_name": "TYPE_FX_LV_SMOKE_L",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 881,
+              "tile_position": {
+                "x": 2146,
+                "y": 2927,
+                "z": 0
+              },
+              "world_position": {
+                "x": 115167,
+                "y": 157083,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500027103000004620800006f0b00000000000020dfc101009b650200000000007e00000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "2146_2947_P04",
+      "scene_id": "2146_2947",
+      "fixture_status": "candidate_only",
+      "fixture_x": 2145,
+      "fixture_y": 2933,
+      "candidates": [
+        {
+          "tile_distance": 1,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3050133,
+            "type_name": "TYPE_FX_LV_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 882,
+              "tile_position": {
+                "x": 2145,
+                "y": 2934,
+                "z": 0
+              },
+              "world_position": {
+                "x": 115131,
+                "y": 157489,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e495155450002720300000461080000760b00000000000020bbc1010031670200000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 1.4142135623730951,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3050185,
+            "type_name": "TYPE_FX_LV_SMOKE_L",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 881,
+              "tile_position": {
+                "x": 2146,
+                "y": 2934,
+                "z": 0
+              },
+              "world_position": {
+                "x": 115179,
+                "y": 157473,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e495155450002710300000462080000760b00000000000020ebc1010021670200000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 2.23606797749979,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3050081,
+            "type_name": "TYPE_FX_LV_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 882,
+              "tile_position": {
+                "x": 2147,
+                "y": 2932,
+                "z": 0
+              },
+              "world_position": {
+                "x": 115240,
+                "y": 157398,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e495155450002720300000463080000740b0000000000002028c20100d6660200000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 4,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3050289,
+            "type_name": "TYPE_FX_LV_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 882,
+              "tile_position": {
+                "x": 2145,
+                "y": 2937,
+                "z": 0
+              },
+              "world_position": {
+                "x": 115148,
+                "y": 157642,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e495155450002720300000461080000790b00000000000020ccc10100ca670200000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 4.47213595499958,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3050341,
+            "type_name": "TYPE_FX_LV_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 882,
+              "tile_position": {
+                "x": 2147,
+                "y": 2937,
+                "z": 0
+              },
+              "world_position": {
+                "x": 115226,
+                "y": 157640,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e495155450002720300000463080000790b000000000000201ac20100c8670200000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 5,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3050029,
+            "type_name": "TYPE_FX_LV_SMOKE_L",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 881,
+              "tile_position": {
+                "x": 2145,
+                "y": 2928,
+                "z": 0
+              },
+              "world_position": {
+                "x": 115116,
+                "y": 157156,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e495155450002710300000461080000700b00000000000020acc10100e4650200000000007e00000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "2146_2947_P05",
+      "scene_id": "2146_2947",
+      "fixture_status": "candidate_only",
+      "fixture_x": 2143,
+      "fixture_y": 2939,
+      "candidates": [
+        {
+          "tile_distance": 1.4142135623730951,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3050445,
+            "type_name": "TYPE_FX_LV_SMOKE_L",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 881,
+              "tile_position": {
+                "x": 2144,
+                "y": 2940,
+                "z": 0
+              },
+              "world_position": {
+                "x": 115072,
+                "y": 157788,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500027103000004600800007c0b0000000000002080c101005c680200000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 2.8284271247461903,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3050289,
+            "type_name": "TYPE_FX_LV_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 882,
+              "tile_position": {
+                "x": 2145,
+                "y": 2937,
+                "z": 0
+              },
+              "world_position": {
+                "x": 115148,
+                "y": 157642,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e495155450002720300000461080000790b00000000000020ccc10100ca670200000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 3,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3050393,
+            "type_name": "TYPE_FX_LV_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 882,
+              "tile_position": {
+                "x": 2146,
+                "y": 2939,
+                "z": 0
+              },
+              "world_position": {
+                "x": 115201,
+                "y": 157761,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500027203000004620800007b0b0000000000002001c2010041680200000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 4.47213595499958,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3050341,
+            "type_name": "TYPE_FX_LV_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 882,
+              "tile_position": {
+                "x": 2147,
+                "y": 2937,
+                "z": 0
+              },
+              "world_position": {
+                "x": 115226,
+                "y": 157640,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e495155450002720300000463080000790b000000000000201ac20100c8670200000000007e00000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "2146_2947_P06",
+      "scene_id": "2146_2947",
+      "fixture_status": "candidate_only",
+      "fixture_x": 2146,
+      "fixture_y": 2939,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3050393,
+            "type_name": "TYPE_FX_LV_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 882,
+              "tile_position": {
+                "x": 2146,
+                "y": 2939,
+                "z": 0
+              },
+              "world_position": {
+                "x": 115201,
+                "y": 157761,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500027203000004620800007b0b0000000000002001c2010041680200000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 2.23606797749979,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3050289,
+            "type_name": "TYPE_FX_LV_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 882,
+              "tile_position": {
+                "x": 2145,
+                "y": 2937,
+                "z": 0
+              },
+              "world_position": {
+                "x": 115148,
+                "y": 157642,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e495155450002720300000461080000790b00000000000020ccc10100ca670200000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 2.23606797749979,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3050341,
+            "type_name": "TYPE_FX_LV_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 882,
+              "tile_position": {
+                "x": 2147,
+                "y": 2937,
+                "z": 0
+              },
+              "world_position": {
+                "x": 115226,
+                "y": 157640,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e495155450002720300000463080000790b000000000000201ac20100c8670200000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 2.23606797749979,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3050445,
+            "type_name": "TYPE_FX_LV_SMOKE_L",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 881,
+              "tile_position": {
+                "x": 2144,
+                "y": 2940,
+                "z": 0
+              },
+              "world_position": {
+                "x": 115072,
+                "y": 157788,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500027103000004600800007c0b0000000000002080c101005c680200000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 5,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3050185,
+            "type_name": "TYPE_FX_LV_SMOKE_L",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 881,
+              "tile_position": {
+                "x": 2146,
+                "y": 2934,
+                "z": 0
+              },
+              "world_position": {
+                "x": 115179,
+                "y": 157473,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e495155450002710300000462080000760b00000000000020ebc1010021670200000000007e00000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "2146_2947_P07",
+      "scene_id": "2146_2947",
+      "fixture_status": "candidate_only",
+      "fixture_x": 2138,
+      "fixture_y": 2955,
+      "candidates": [
+        {
+          "tile_distance": 2,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3083279,
+            "type_name": "TYPE_FX_LV_SMOKE_L",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 881,
+              "tile_position": {
+                "x": 2138,
+                "y": 2957,
+                "z": 0
+              },
+              "world_position": {
+                "x": 114753,
+                "y": 158699,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e49515545000271030000045a0800008d0b0000000000002041c00100eb6b0200000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 3.605551275463989,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3083123,
+            "type_name": "TYPE_FX_LV_SMOKE_L",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 881,
+              "tile_position": {
+                "x": 2140,
+                "y": 2952,
+                "z": 0
+              },
+              "world_position": {
+                "x": 114848,
+                "y": 158455,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e49515545000271030000045c080000880b00000000000020a0c00100f76a0200000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 4.123105625617661,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3083227,
+            "type_name": "TYPE_FX_LV_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 882,
+              "tile_position": {
+                "x": 2142,
+                "y": 2954,
+                "z": 0
+              },
+              "world_position": {
+                "x": 114952,
+                "y": 158551,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e49515545000272030000045e0800008a0b0000000000002008c10100576b0200000000007e00000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "2146_2947_P08",
+      "scene_id": "2146_2947",
+      "fixture_status": "candidate_only",
+      "fixture_x": 2141,
+      "fixture_y": 2953,
+      "candidates": [
+        {
+          "tile_distance": 1.4142135623730951,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3083123,
+            "type_name": "TYPE_FX_LV_SMOKE_L",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 881,
+              "tile_position": {
+                "x": 2140,
+                "y": 2952,
+                "z": 0
+              },
+              "world_position": {
+                "x": 114848,
+                "y": 158455,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e49515545000271030000045c080000880b00000000000020a0c00100f76a0200000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 1.4142135623730951,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3083227,
+            "type_name": "TYPE_FX_LV_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 882,
+              "tile_position": {
+                "x": 2142,
+                "y": 2954,
+                "z": 0
+              },
+              "world_position": {
+                "x": 114952,
+                "y": 158551,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e49515545000272030000045e0800008a0b0000000000002008c10100576b0200000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 2,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3083175,
+            "type_name": "TYPE_FX_LV_SMOKE_L",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 881,
+              "tile_position": {
+                "x": 2143,
+                "y": 2953,
+                "z": 0
+              },
+              "world_position": {
+                "x": 115009,
+                "y": 158496,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e49515545000271030000045f080000890b0000000000002041c10100206b0200000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 5,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3083279,
+            "type_name": "TYPE_FX_LV_SMOKE_L",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 881,
+              "tile_position": {
+                "x": 2138,
+                "y": 2957,
+                "z": 0
+              },
+              "world_position": {
+                "x": 114753,
+                "y": 158699,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e49515545000271030000045a0800008d0b0000000000002041c00100eb6b0200000000007e00000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "2262_3132_P01",
+      "scene_id": "2262_3132",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 2260,
+      "fixture_y": 3137,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3177576,
+            "type_name": "TYPE_FX_FIRE_L",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 884,
+              "tile_position": {
+                "x": 2260,
+                "y": 3137,
+                "z": 0
+              },
+              "world_position": {
+                "x": 121308,
+                "y": 168375,
+                "z": 0
+              },
+              "height_offset": 26
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500027403000004d4080000410c00000000000020dcd90100b7910200000000007e1a000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "2286_3135_P01",
+      "scene_id": "2286_3135",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 2292,
+      "fixture_y": 3132,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3147913,
+            "type_name": "TYPE_FX_DWARFMAGIC_BLU",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 833,
+              "tile_position": {
+                "x": 2292,
+                "y": 3132,
+                "z": 0
+              },
+              "world_position": {
+                "x": 123093,
+                "y": 168217,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500024103000004f40800003c0c00000000000020d5e0010019910200000000007e00000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "2551_1689_P01",
+      "scene_id": "2551_1689",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 2547,
+      "fixture_y": 1676,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2324998,
+            "type_name": "TYPE_FX_FI_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 813,
+              "tile_position": {
+                "x": 2547,
+                "y": 1676,
+                "z": 0
+              },
+              "world_position": {
+                "x": 136710,
+                "y": 89968,
+                "z": 0
+              },
+              "height_offset": 75
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500022d03000004f30900008c060000000000002006160200705f0100000000007e4b000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "2551_1689_P02",
+      "scene_id": "2551_1689",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 2553,
+      "fixture_y": 1676,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2325050,
+            "type_name": "TYPE_FX_FI_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 813,
+              "tile_position": {
+                "x": 2553,
+                "y": 1676,
+                "z": 0
+              },
+              "world_position": {
+                "x": 137030,
+                "y": 89965,
+                "z": 0
+              },
+              "height_offset": 74
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500022d03000004f90900008c0600000000000020461702006d5f0100000000007e4a000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "3191_1152_P01",
+      "scene_id": "3191_1152",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 3178,
+      "fixture_y": 1144,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2189332,
+            "type_name": "TYPE_FX_FI_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 813,
+              "tile_position": {
+                "x": 3178,
+                "y": 1144,
+                "z": 0
+              },
+              "world_position": {
+                "x": 170574,
+                "y": 61419,
+                "z": 0
+              },
+              "height_offset": 75
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500022d030000046a0c00007804000000000000204e9a0200ebef0000000000007e4b000000"
+          }
+        },
+        {
+          "tile_distance": 4,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2189384,
+            "type_name": "TYPE_FX_FI_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 813,
+              "tile_position": {
+                "x": 3178,
+                "y": 1148,
+                "z": 0
+              },
+              "world_position": {
+                "x": 170570,
+                "y": 61629,
+                "z": 0
+              },
+              "height_offset": 73
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500022d030000046a0c00007c04000000000000204a9a0200bdf00000000000007e49000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "3191_1152_P02",
+      "scene_id": "3191_1152",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 3178,
+      "fixture_y": 1148,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2189384,
+            "type_name": "TYPE_FX_FI_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 813,
+              "tile_position": {
+                "x": 3178,
+                "y": 1148,
+                "z": 0
+              },
+              "world_position": {
+                "x": 170570,
+                "y": 61629,
+                "z": 0
+              },
+              "height_offset": 73
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500022d030000046a0c00007c04000000000000204a9a0200bdf00000000000007e49000000"
+          }
+        },
+        {
+          "tile_distance": 4,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2189332,
+            "type_name": "TYPE_FX_FI_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 813,
+              "tile_position": {
+                "x": 3178,
+                "y": 1144,
+                "z": 0
+              },
+              "world_position": {
+                "x": 170574,
+                "y": 61419,
+                "z": 0
+              },
+              "height_offset": 75
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500022d030000046a0c00007804000000000000204e9a0200ebef0000000000007e4b000000"
+          }
+        },
+        {
+          "tile_distance": 4,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2208744,
+            "type_name": "TYPE_FX_FI_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 813,
+              "tile_position": {
+                "x": 3178,
+                "y": 1152,
+                "z": 0
+              },
+              "world_position": {
+                "x": 170571,
+                "y": 61845,
+                "z": 0
+              },
+              "height_offset": 75
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500022d030000046a0c00008004000000000000204b9a020095f10000000000007e4b000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "3191_1152_P03",
+      "scene_id": "3191_1152",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 3178,
+      "fixture_y": 1152,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2208744,
+            "type_name": "TYPE_FX_FI_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 813,
+              "tile_position": {
+                "x": 3178,
+                "y": 1152,
+                "z": 0
+              },
+              "world_position": {
+                "x": 170571,
+                "y": 61845,
+                "z": 0
+              },
+              "height_offset": 75
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500022d030000046a0c00008004000000000000204b9a020095f10000000000007e4b000000"
+          }
+        },
+        {
+          "tile_distance": 4,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2189384,
+            "type_name": "TYPE_FX_FI_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 813,
+              "tile_position": {
+                "x": 3178,
+                "y": 1148,
+                "z": 0
+              },
+              "world_position": {
+                "x": 170570,
+                "y": 61629,
+                "z": 0
+              },
+              "height_offset": 73
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500022d030000046a0c00007c04000000000000204a9a0200bdf00000000000007e49000000"
+          }
+        },
+        {
+          "tile_distance": 5,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2208796,
+            "type_name": "TYPE_FX_FI_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 813,
+              "tile_position": {
+                "x": 3178,
+                "y": 1157,
+                "z": 0
+              },
+              "world_position": {
+                "x": 170572,
+                "y": 62115,
+                "z": 0
+              },
+              "height_offset": 74
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500022d030000046a0c00008504000000000000204c9a0200a3f20000000000007e4a000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "3191_1152_P04",
+      "scene_id": "3191_1152",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 3178,
+      "fixture_y": 1157,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2208796,
+            "type_name": "TYPE_FX_FI_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 813,
+              "tile_position": {
+                "x": 3178,
+                "y": 1157,
+                "z": 0
+              },
+              "world_position": {
+                "x": 170572,
+                "y": 62115,
+                "z": 0
+              },
+              "height_offset": 74
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500022d030000046a0c00008504000000000000204c9a0200a3f20000000000007e4a000000"
+          }
+        },
+        {
+          "tile_distance": 5,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2208744,
+            "type_name": "TYPE_FX_FI_SMOKE_M",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 813,
+              "tile_position": {
+                "x": 3178,
+                "y": 1152,
+                "z": 0
+              },
+              "world_position": {
+                "x": 170571,
+                "y": 61845,
+                "z": 0
+              },
+              "height_offset": 75
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500022d030000046a0c00008004000000000000204b9a020095f10000000000007e4b000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "3501_3630_P01",
+      "scene_id": "3501_3630",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 3495,
+      "fixture_y": 3608,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3350979,
+            "type_name": "TYPE_FX_FIRE_S",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 886,
+              "tile_position": {
+                "x": 3495,
+                "y": 3608,
+                "z": 0
+              },
+              "world_position": {
+                "x": 187583,
+                "y": 193652,
+                "z": 0
+              },
+              "height_offset": 25
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500027603000004a70d0000180e00000000000020bfdc020074f40200000000007e19000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "3501_3630_P02",
+      "scene_id": "3501_3630",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 3502,
+      "fixture_y": 3622,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3351031,
+            "type_name": "TYPE_FX_FIRE_S",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 886,
+              "tile_position": {
+                "x": 3502,
+                "y": 3622,
+                "z": 0
+              },
+              "world_position": {
+                "x": 187959,
+                "y": 194401,
+                "z": 0
+              },
+              "height_offset": 24
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500027603000004ae0d0000260e0000000000002037de020061f70200000000007e18000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "3501_3630_P03",
+      "scene_id": "3501_3630",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 3495,
+      "fixture_y": 3639,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 3351135,
+            "type_name": "TYPE_FX_FIRE_S",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 886,
+              "tile_position": {
+                "x": 3495,
+                "y": 3639,
+                "z": 0
+              },
+              "world_position": {
+                "x": 187583,
+                "y": 195313,
+                "z": 0
+              },
+              "height_offset": 24
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500027603000004a70d0000370e00000000000020bfdc0200f1fa0200000000007e18000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "4585_986_P01",
+      "scene_id": "4585_986",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 4585,
+      "fixture_y": 965,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2154583,
+            "type_name": "TYPE_FX_DWARFMAGIC_BLU",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 833,
+              "tile_position": {
+                "x": 4585,
+                "y": 965,
+                "z": 0
+              },
+              "world_position": {
+                "x": 246080,
+                "y": 51866,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500024103000004e9110000c5030000000000002040c103009aca0000000000007e00000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "4585_986_P02",
+      "scene_id": "4585_986",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 4568,
+      "fixture_y": 983,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2154843,
+            "type_name": "TYPE_FX_DWARFMAGIC_BLU",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 833,
+              "tile_position": {
+                "x": 4568,
+                "y": 983,
+                "z": 0
+              },
+              "world_position": {
+                "x": 245168,
+                "y": 52832,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500024103000004d8110000d70300000000000020b0bd030060ce0000000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 5,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2154895,
+            "type_name": "TYPE_FX_DWARFMAGIC_BLU",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 833,
+              "tile_position": {
+                "x": 4573,
+                "y": 983,
+                "z": 0
+              },
+              "world_position": {
+                "x": 245436,
+                "y": 52832,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500024103000004dd110000d70300000000000020bcbe030060ce0000000000007e00000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "4585_986_P03",
+      "scene_id": "4585_986",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 4573,
+      "fixture_y": 983,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2154895,
+            "type_name": "TYPE_FX_DWARFMAGIC_BLU",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 833,
+              "tile_position": {
+                "x": 4573,
+                "y": 983,
+                "z": 0
+              },
+              "world_position": {
+                "x": 245436,
+                "y": 52832,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500024103000004dd110000d70300000000000020bcbe030060ce0000000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 5,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2154843,
+            "type_name": "TYPE_FX_DWARFMAGIC_BLU",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 833,
+              "tile_position": {
+                "x": 4568,
+                "y": 983,
+                "z": 0
+              },
+              "world_position": {
+                "x": 245168,
+                "y": 52832,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500024103000004d8110000d70300000000000020b0bd030060ce0000000000007e00000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "4585_986_P04",
+      "scene_id": "4585_986",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 4581,
+      "fixture_y": 980,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2154791,
+            "type_name": "TYPE_FX_DWARFMAGIC_BLU",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 833,
+              "tile_position": {
+                "x": 4581,
+                "y": 980,
+                "z": 0
+              },
+              "world_position": {
+                "x": 245916,
+                "y": 52666,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500024103000004e5110000d403000000000000209cc00300bacd0000000000007e00000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "4585_986_P05",
+      "scene_id": "4585_986",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 4591,
+      "fixture_y": 979,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2154739,
+            "type_name": "TYPE_FX_DWARFMAGIC_BLU",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 833,
+              "tile_position": {
+                "x": 4591,
+                "y": 979,
+                "z": 0
+              },
+              "world_position": {
+                "x": 246463,
+                "y": 52623,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500024103000004ef110000d30300000000000020bfc203008fcd0000000000007e00000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "4585_986_P06",
+      "scene_id": "4585_986",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 4581,
+      "fixture_y": 998,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2155207,
+            "type_name": "TYPE_FX_DWARFMAGIC_BLU",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 833,
+              "tile_position": {
+                "x": 4581,
+                "y": 998,
+                "z": 0
+              },
+              "world_position": {
+                "x": 245916,
+                "y": 53632,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500024103000004e5110000e603000000000000209cc0030080d10000000000007e00000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "4585_986_P07",
+      "scene_id": "4585_986",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 4591,
+      "fixture_y": 999,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2155259,
+            "type_name": "TYPE_FX_DWARFMAGIC_BLU",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 833,
+              "tile_position": {
+                "x": 4591,
+                "y": 999,
+                "z": 0
+              },
+              "world_position": {
+                "x": 246463,
+                "y": 53696,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500024103000004ef110000e70300000000000020bfc20300c0d10000000000007e00000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "4585_986_P08",
+      "scene_id": "4585_986",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 4584,
+      "fixture_y": 1008,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2155415,
+            "type_name": "TYPE_FX_DWARFMAGIC_BLU",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 833,
+              "tile_position": {
+                "x": 4584,
+                "y": 1008,
+                "z": 0
+              },
+              "world_position": {
+                "x": 246088,
+                "y": 54179,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500024103000004e8110000f0030000000000002048c10300a3d30000000000007e00000000"
+          }
+        },
+        {
+          "tile_distance": 2.8284271247461903,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 1783967,
+            "type_name": "TYPE_FX_STARGATE",
+            "creation": {
+              "name": null,
+              "type_id": 802,
+              "tile_position": {
+                "x": 4582,
+                "y": 1010,
+                "z": 0
+              },
+              "world_position": null,
+              "height_offset": null
+            },
+            "raw_hex": "08001600022203000004e6110000f203000000000000"
+          }
+        },
+        {
+          "tile_distance": 5,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2155467,
+            "type_name": "TYPE_FX_DWARFMAGIC_BLU",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 833,
+              "tile_position": {
+                "x": 4584,
+                "y": 1013,
+                "z": 0
+              },
+              "world_position": {
+                "x": 246088,
+                "y": 54448,
+                "z": 0
+              },
+              "height_offset": 0
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500024103000004e8110000f5030000000000002048c10300b0d40000000000007e00000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "5083_616_P01",
+      "scene_id": "5083_616",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 5067,
+      "fixture_y": 606,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2021555,
+            "type_name": "TYPE_FX_FIRE_S",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 886,
+              "tile_position": {
+                "x": 5067,
+                "y": 606,
+                "z": 0
+              },
+              "world_position": {
+                "x": 271949,
+                "y": 32542,
+                "z": 0
+              },
+              "height_offset": 89
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500027603000004cb1300005e02000000000000204d2604001e7f0000000000007e59000000"
+          }
+        },
+        {
+          "tile_distance": 5,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2021215,
+            "type_name": "TYPE_FX_FIRE_S",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 886,
+              "tile_position": {
+                "x": 5067,
+                "y": 601,
+                "z": 0
+              },
+              "world_position": {
+                "x": 271947,
+                "y": 32272,
+                "z": 0
+              },
+              "height_offset": 87
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500027603000004cb1300005902000000000000204b260400107e0000000000007e57000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "5083_616_P02",
+      "scene_id": "5083_616",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 5067,
+      "fixture_y": 612,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2021807,
+            "type_name": "TYPE_FX_FIRE_S",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 886,
+              "tile_position": {
+                "x": 5067,
+                "y": 612,
+                "z": 0
+              },
+              "world_position": {
+                "x": 271951,
+                "y": 32862,
+                "z": 0
+              },
+              "height_offset": 90
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500027603000004cb1300006402000000000000204f2604005e800000000000007e5a000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "5083_616_P03",
+      "scene_id": "5083_616",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 5067,
+      "fixture_y": 618,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2022051,
+            "type_name": "TYPE_FX_FIRE_S",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 886,
+              "tile_position": {
+                "x": 5067,
+                "y": 618,
+                "z": 0
+              },
+              "world_position": {
+                "x": 271947,
+                "y": 33181,
+                "z": 0
+              },
+              "height_offset": 89
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500027603000004cb1300006a02000000000000204b2604009d810000000000007e59000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "5083_616_P04",
+      "scene_id": "5083_616",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 5080,
+      "fixture_y": 608,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2021607,
+            "type_name": "TYPE_FX_FIRE_S",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 886,
+              "tile_position": {
+                "x": 5080,
+                "y": 608,
+                "z": 0
+              },
+              "world_position": {
+                "x": 272653,
+                "y": 32666,
+                "z": 0
+              },
+              "height_offset": 107
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500027603000004d81300006002000000000000200d2904009a7f0000000000007e6b000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "5083_616_P05",
+      "scene_id": "5083_616",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 5080,
+      "fixture_y": 620,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2022103,
+            "type_name": "TYPE_FX_FIRE_S",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 886,
+              "tile_position": {
+                "x": 5080,
+                "y": 620,
+                "z": 0
+              },
+              "world_position": {
+                "x": 272637,
+                "y": 33295,
+                "z": 0
+              },
+              "height_offset": 98
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500027603000004d81300006c0200000000000020fd2804000f820000000000007e62000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "5083_616_P06",
+      "scene_id": "5083_616",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 5101,
+      "fixture_y": 608,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2021659,
+            "type_name": "TYPE_FX_FIRE_S",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 886,
+              "tile_position": {
+                "x": 5101,
+                "y": 608,
+                "z": 0
+              },
+              "world_position": {
+                "x": 273772,
+                "y": 32658,
+                "z": 0
+              },
+              "height_offset": 103
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500027603000004ed1300006002000000000000206c2d0400927f0000000000007e67000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "5083_616_P07",
+      "scene_id": "5083_616",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 5101,
+      "fixture_y": 620,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2022203,
+            "type_name": "TYPE_FX_FIRE_S",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 886,
+              "tile_position": {
+                "x": 5101,
+                "y": 620,
+                "z": 0
+              },
+              "world_position": {
+                "x": 273776,
+                "y": 33305,
+                "z": 0
+              },
+              "height_offset": 104
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500027603000004ed1300006c0200000000000020702d040019820000000000007e68000000"
+          }
+        }
+      ]
+    },
+    {
+      "observation_id": "5083_616_P08",
+      "scene_id": "5083_616",
+      "fixture_status": "high_visual_and_spatial",
+      "fixture_x": 5084,
+      "fixture_y": 636,
+      "candidates": [
+        {
+          "tile_distance": 0,
+          "effect": {
+            "script_sha256": "68bf2d31151ba6c1cf78662683f559b3397c6ff270131410bdea369305a51ef2",
+            "offset": 2022407,
+            "type_name": "TYPE_FX_FIRE_S",
+            "creation": {
+              "name": "NON_UNIQUE",
+              "type_id": 886,
+              "tile_position": {
+                "x": 5084,
+                "y": 636,
+                "z": 0
+              },
+              "world_position": {
+                "x": 272857,
+                "y": 34147,
+                "z": 0
+              },
+              "height_offset": 88
+            },
+            "raw_hex": "08003400014e4f4e5f554e4951554500027603000004dc1300007c0200000000000020d929040063850000000000007e58000000"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -71,29 +71,14 @@ public enum SacredItemGraphicType : ushort
     None = 0,
     Model = 0b0010,
     Shadowable = 0b0100,
-    AnimatedMiniObject = 0b1000,
+    MiniObject = 0b1000,
     LightMarker = 0b0001,
-    StaticMiniObject = 0b1100,
-    RepresentationMask = 0b1111,
 
     /// <summary>
     /// Allows the world object to become translucent when it obscures the player.
     /// This bit is authored on mixed sprites such as trees, roofs, walls, and arches.
     /// </summary>
     AllowsTransparency = 0b1_0000,
-}
-
-/// <summary>Known descriptor-state bits stored at Items.pak model-descriptor offset 0x31.</summary>
-[Flags]
-public enum SacredItemDescriptorFlags : byte
-{
-    None = 0,
-
-    /// <summary>
-    /// Marks a populated model descriptor. This bit is set on every populated
-    /// record in the Sacred Gold Items.pak except the reserved entry zero.
-    /// </summary>
-    Present = 0x01,
 }
 
 /// <summary>

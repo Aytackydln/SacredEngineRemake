@@ -1,0 +1,139 @@
+{
+  "scope": "Screenshot evidence conversion and reproducible local archive context for subsequent particle-parameter research.",
+  "scene_count": 8,
+  "source_image_count": 16,
+  "marked_regions": 35,
+  "positive_fixture_matches": 27,
+  "provisional_fissure_regions": 8,
+  "visual_negative_controls": 24,
+  "additional_context_regions": 29,
+  "fixture_item_types": 11,
+  "families": [
+    {
+      "family": "blue_lamp_glints",
+      "observation_count": 9,
+      "item_ids": [
+        21917,
+        21918,
+        21920,
+        21921
+      ],
+      "observation_ids": [
+        "2286_3135_P01",
+        "4585_986_P01",
+        "4585_986_P02",
+        "4585_986_P03",
+        "4585_986_P04",
+        "4585_986_P05",
+        "4585_986_P06",
+        "4585_986_P07",
+        "4585_986_P08"
+      ]
+    },
+    {
+      "family": "coal_bowl_fire",
+      "observation_count": 4,
+      "item_ids": [
+        9239
+      ],
+      "observation_ids": [
+        "2262_3132_P01",
+        "3501_3630_P01",
+        "3501_3630_P02",
+        "3501_3630_P03"
+      ]
+    },
+    {
+      "family": "large_brazier_fire",
+      "observation_count": 6,
+      "item_ids": [
+        9320
+      ],
+      "observation_ids": [
+        "2551_1689_P01",
+        "2551_1689_P02",
+        "3191_1152_P01",
+        "3191_1152_P02",
+        "3191_1152_P03",
+        "3191_1152_P04"
+      ]
+    },
+    {
+      "family": "scorched_fissure_smoke",
+      "observation_count": 8,
+      "item_ids": [
+        15497,
+        15498,
+        15501,
+        15503
+      ],
+      "observation_ids": [
+        "2146_2947_P01",
+        "2146_2947_P02",
+        "2146_2947_P03",
+        "2146_2947_P04",
+        "2146_2947_P05",
+        "2146_2947_P06",
+        "2146_2947_P07",
+        "2146_2947_P08"
+      ]
+    },
+    {
+      "family": "wall_sconce_fire_smoke",
+      "observation_count": 8,
+      "item_ids": [
+        9212
+      ],
+      "observation_ids": [
+        "5083_616_P01",
+        "5083_616_P02",
+        "5083_616_P03",
+        "5083_616_P04",
+        "5083_616_P05",
+        "5083_616_P06",
+        "5083_616_P07",
+        "5083_616_P08"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "status": "observed_archive_bytes",
+      "claim": "All 35 proposed fixtures have zero Static.PAK bytes 0x2e..0x32, zero Items model extent at 0x32, and no 0x0002 bit in Items graphic flags at 0x02. These sampled fields alone cannot supply their visible particle animation or an all-emitter classifier."
+    },
+    {
+      "status": "visual_asset_comparison",
+      "claim": "Decoded Coalpot 1 (9239), DUN_light_1 (9320) and Candle 6 (9212) fixture sprites contain the bowl/sconce but no flame. Their screenshot crops show added warm flame/smoke."
+    },
+    {
+      "status": "visual_asset_comparison",
+      "claim": "The LICHTER fixture sprites contain the cyan bowls themselves. Some screenshot crops also show separated star-like glints. Do not equate the blue base pixels with proof of a particle texture match."
+    },
+    {
+      "status": "useful_paired_example",
+      "claim": "Items 9239 Coalpot 1 is associated with the broad bright effect in scene 2262_3132 and three much smaller flames in scene 3501_3630. Compare complete instance records and runtime/environment state before assuming particle size is constant for an item ID."
+    },
+    {
+      "status": "observed_archive_bytes",
+      "claim": "The four compared Coalpot 1 Static.PAK records differ only in instance identity, sector and projected position. Every other byte is identical; see same-item-coalpot-comparison.json."
+    },
+    {
+      "status": "coordinate_fit",
+      "claim": "Repeated braziers and sconces support about 0.625 screen pixels per projected coordinate unit. Projection fit is a locating aid, with manual landmarks and explicit residuals."
+    },
+    {
+      "status": "unresolved",
+      "claim": "Exact particle texture, quad size, socket offset, lifetime, emission rate, velocity, blend mode and dispatch code have not been recovered."
+    }
+  ],
+  "new_binary_field_mappings": [],
+  "layout_change_reason": "No new byte semantics were established; existing layout mappings were exported with raw bytes. No Sacred.* production changes are needed for this evidence conversion.",
+  "next_investigations": [
+    "Use 2262_3132_P01 versus the three 3501_3630 positives as the same-item/different-effect comparison. Check their complete Static.PAK bytes, neighboring linked records and scene/runtime state.",
+    "Trace the static-object setup/update dispatch for Items 9212, 9239, 9320, 21917, 21918, 21920 and 21921 in the hashed Sacred.exe; prove whether it uses item IDs, descriptor fields, other tables or scripts.",
+    "Use Sacred.exe.particle-string-leads.jsonl to start disassembly-confirmed xref research and Texture.pak.candidates.jsonl to compare actual pixel assets. Literal pointer matches alone are not confirmed calls.",
+    "Resolve all eight fissure regions against overlapping BasaltRiss records before using their item or instance bytes as supervised positives.",
+    "Capture multiple original-game frames at a fixed scene and known timestamps to measure motion, lifetime and birth counts. In remake debugging use the console screenshot cheat, as required by AGENTS.md.",
+    "Confirm the screenshot game build/renderer matches the hashed local Sacred Gold files before treating differences as byte-semantic evidence."
+  ]
+}

@@ -8,6 +8,7 @@ using Sacred.Core.World.Pathing;
 using Sacred.Core.World.Sector;
 using Sacred.Granny.Meshes;
 using Sacred.Inventory.Effects;
+using Sacred.World.Geometry;
 
 namespace Sacred.Engine.Scene;
 
@@ -42,6 +43,37 @@ public sealed class SceneState
     {
         if (_models[index].SetMesh(mesh))
             ModelSetRevision++;
+    }
+
+    /// <summary>
+    /// Replaces model-backed world scenery while retaining the player at index zero.
+    /// The player controller relies on that stable slot for animation updates.
+    /// </summary>
+    public void SetWorldModels(IReadOnlyList<SceneModel> models)
+    {
+        if (_models.Count == 0)
+            throw new InvalidOperationException("World models require the player model to be initialized first.");
+
+        if (_models.Count - 1 == models.Count)
+        {
+            var matches = true;
+            for (var index = 0; index < models.Count; index++)
+            {
+                if (ReferenceEquals(_models[index + 1], models[index]))
+                    continue;
+
+                matches = false;
+                break;
+            }
+
+            if (matches)
+                return;
+        }
+
+        _models.RemoveRange(1, _models.Count - 1);
+        for (var index = 0; index < models.Count; index++)
+            _models.Add(models[index]);
+        ModelSetRevision++;
     }
 }
 
@@ -85,14 +117,14 @@ public sealed class SceneDebugState
     public bool SectorBoundsVisible { get; set; }
     public bool WorldLightBoundsVisible { get; set; }
     public bool StaticSpriteBoundsVisible { get; set; }
+    /// <summary>Shows each rendered 3D model's name and transform anchor in the world overlay.</summary>
+    public bool ModelNamesVisible { get; set; }
     public uint? HoveredStaticObjectId { get; set; }
     public float ActorTerrainHeight { get; set; }
 }
 
 public sealed class SceneLighting
 {
-    public static readonly Vector3 DefaultLocalLightColour = new(1.0f, 0.89f, 0.55f);
-
     public Vector3 LightPosition { get; set; } = new(0.0f, 250.0f, 650.0f);
     public Vector3 DirectionToLight { get; set; } = Vector3.UnitZ;
     public Vector3 DirectionToSun { get; set; } = Vector3.UnitZ;
@@ -110,10 +142,10 @@ public sealed class SceneLighting
     /// <summary>Normalized solar elevation: zero at/below the horizon and one at noon.</summary>
     public float SunHeight { get; set; } = 1.0f;
     /// <summary>Solar shadow opacity used by objects on the outdoor surface.</summary>
-    public float OutdoorShadowOpacity { get; set; } = 0.5f;
+    public float OutdoorShadowOpacity { get; set; } = 0.65f;
     /// <summary>Contact-shadow opacity used by objects on the active indoor surface.</summary>
     public float IndoorShadowOpacity { get; set; }
-    public float ShadowOpacity { get; set; } = 0.5f;
+    public float ShadowOpacity { get; set; } = 0.65f;
     public SceneShadowMode ShadowMode { get; set; } = SceneShadowMode.Directional;
 }
 
@@ -129,6 +161,8 @@ public sealed class SceneModel
 {
     private Matrix4x4 _transform;
     private Vector3 _localBoundsCenter;
+    private float _localBoundsRadius;
+    private Vector3 _modelOffset;
 
     public SceneModel(
         string name,
@@ -148,8 +182,9 @@ public sealed class SceneModel
         Scale = scale;
         TextureAliases = textureAliases;
         EquipmentEffects = equipmentEffects;
+        EquipmentEffects?.ResetNativeEffects();
         GroundPlaneZ = groundPlaneZ ?? position.Z;
-        (_localBoundsCenter, GroundShadowRadius) = CalculateBounds(mesh);
+        (_localBoundsCenter, _localBoundsRadius, GroundShadowRadius) = CalculateBounds(mesh);
         RebuildTransform();
     }
 
@@ -160,11 +195,32 @@ public sealed class SceneModel
     public Vector3 Rotation { get; private set; }
     public float Scale { get; }
     public float GroundShadowRadius { get; private set; }
+    /// <summary>Conservative local mesh-sphere radius used by the renderer's early visibility test.</summary>
+    public float WorldBoundsRadius => _localBoundsRadius * Scale;
     public float GroundPlaneZ { get; private set; }
+    /// <summary>Absolute model-camera position derived from the gameplay tile anchor.</summary>
+    public Vector3 RenderPosition
+    {
+        get
+        {
+            var modelWorld = IsometricProjection.WorldToModel(Position.X, Position.Y);
+            return new Vector3(modelWorld, Position.Z);
+        }
+    }
     public Vector3 VisualCenter => Vector3.Transform(_localBoundsCenter, _transform);
     public IReadOnlyDictionary<string, ModelTextureReference>? TextureAliases { get; }
     public EquipmentEffectScene? EquipmentEffects { get; }
     public Matrix4x4 Transform => _transform;
+
+    /// <summary>Applies an authored local-model animation offset without changing its world tile anchor.</summary>
+    public void SetModelOffset(Vector3 offset)
+    {
+        if (offset == _modelOffset)
+            return;
+
+        _modelOffset = offset;
+        RebuildTransform();
+    }
 
     public void SetPose(Vector3 position, Vector3 rotation)
     {
@@ -178,6 +234,26 @@ public sealed class SceneModel
 
     public void SetPose(Vector3 position, Vector3 rotation, Vector2 depthAnchor, float groundPlaneZ)
     {
+        SetPose(position, rotation, depthAnchor, groundPlaneZ, null);
+    }
+
+    public void SetPoseFollowingCamera(
+        Vector3 position,
+        Vector3 rotation,
+        Vector2 depthAnchor,
+        float groundPlaneZ,
+        Vector2 cameraWorldMovement)
+    {
+        SetPose(position, rotation, depthAnchor, groundPlaneZ, cameraWorldMovement);
+    }
+
+    private void SetPose(
+        Vector3 position,
+        Vector3 rotation,
+        Vector2 depthAnchor,
+        float groundPlaneZ,
+        Vector2? cameraWorldMovement)
+    {
         if (position == Position && rotation == Rotation && depthAnchor == DepthAnchor && groundPlaneZ == GroundPlaneZ)
             return;
 
@@ -185,7 +261,7 @@ public sealed class SceneModel
         Rotation = rotation;
         DepthAnchor = depthAnchor;
         GroundPlaneZ = groundPlaneZ;
-        RebuildTransform();
+        RebuildTransform(cameraWorldMovement);
     }
 
     internal bool SetMesh(Mesh mesh)
@@ -194,7 +270,7 @@ public sealed class SceneModel
             return false;
 
         Mesh = mesh;
-        (_localBoundsCenter, GroundShadowRadius) = CalculateBounds(mesh);
+        (_localBoundsCenter, _localBoundsRadius, GroundShadowRadius) = CalculateBounds(mesh);
         return true;
     }
 
@@ -208,17 +284,22 @@ public sealed class SceneModel
             : ModelTextureReference.Static(textureName);
     }
 
-    private void RebuildTransform()
+    private void RebuildTransform(Vector2? cameraWorldMovement = null)
     {
+        var previous = _transform;
+        var rotation = Matrix4x4.CreateFromYawPitchRoll(Rotation.X, Rotation.Y, Rotation.Z);
+        var renderPosition = RenderPosition + Vector3.Transform(_modelOffset, rotation);
         _transform = Matrix4x4.CreateScale(Scale) *
-                     Matrix4x4.CreateFromYawPitchRoll(Rotation.X, Rotation.Y, Rotation.Z) *
-                     Matrix4x4.CreateTranslation(Position);
+                     rotation *
+                     Matrix4x4.CreateTranslation(renderPosition);
+        if (previous != default)
+            EquipmentEffects?.RebaseNativeEffects(previous, _transform);
     }
 
-    private static (Vector3 Center, float GroundShadowRadius) CalculateBounds(Mesh mesh)
+    private static (Vector3 Center, float BoundsRadius, float GroundShadowRadius) CalculateBounds(Mesh mesh)
     {
         if (mesh.Vertices.Length == 0)
-            return (Vector3.Zero, 6.0f);
+            return (Vector3.Zero, 0.0f, 6.0f);
 
         var minimum = mesh.Vertices[0].Position;
         var maximum = minimum;
@@ -231,7 +312,9 @@ public sealed class SceneModel
         var size = maximum - minimum;
         var horizontalRadius = MathF.Max(size.X, size.Y) * 0.575f;
         var heightRadius = size.Z * 0.10f;
+        var boundsRadius = size.Length() * 0.5f;
         return ((minimum + maximum) * 0.5f,
+            boundsRadius,
             MathF.Max(6.0f, MathF.Max(horizontalRadius, heightRadius)));
     }
 }

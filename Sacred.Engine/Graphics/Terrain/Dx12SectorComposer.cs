@@ -29,9 +29,12 @@ internal sealed class Dx12SectorComposer : IDisposable
     private readonly ID3D12CommandQueue _commandQueue;
     private readonly ID3D12Fence _fence;
     private readonly Dictionary<string, SourceTexture> _sourceTextures = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<StaticSpriteAsset, SourceTexture> _spriteSourceTextures =
+        new(ReferenceEqualityComparer.Instance);
     private readonly ID3D12RootSignature _rootSignature;
     private readonly ID3D12PipelineState _basePipeline;
     private readonly ID3D12PipelineState _coverPipeline;
+    private readonly ID3D12PipelineState _spritePipeline;
 
     private nint _fenceEvent;
     private ulong _fenceValue;
@@ -50,6 +53,7 @@ internal sealed class Dx12SectorComposer : IDisposable
         _rootSignature = pipeline.RootSignature;
         _basePipeline = pipeline.Base;
         _coverPipeline = pipeline.Cover;
+        _spritePipeline = pipeline.Sprite;
     }
 
     public Dx12ComposedSector Compose(TerrainSectorComposition composition)
@@ -65,6 +69,7 @@ internal sealed class Dx12SectorComposer : IDisposable
         ID3D12Resource? terrainTopologyDebugTexture = null;
         var transientResources = new List<ID3D12Resource>();
         var addedSourceNames = new List<string>();
+        var addedSpriteSources = new List<StaticSpriteAsset>();
 
         try
         {
@@ -133,10 +138,16 @@ internal sealed class Dx12SectorComposer : IDisposable
                 commandList,
                 transientResources,
                 addedSourceNames);
+            var embeddedSpriteDraws = CreateEmbeddedSpriteDraws(
+                composition.EmbeddedSprites,
+                commandList,
+                transientResources,
+                addedSpriteSources);
 
             sourceSrvHeap = CreateSourceDescriptorHeap(
                 baseDraws.Length + coverDraws.Length + stairsDebugDraws.Length +
-                blockedAreaDebugDraws.Length + terrainTopologyDebugDraws.Length);
+                blockedAreaDebugDraws.Length + terrainTopologyDebugDraws.Length +
+                embeddedSpriteDraws.Length);
             var nextSourceDescriptor = 0;
             RecordTarget(
                 commandList,
@@ -145,6 +156,7 @@ internal sealed class Dx12SectorComposer : IDisposable
                 composition.Width,
                 composition.Height,
                 baseDraws,
+                embeddedSpriteDraws,
                 _basePipeline,
                 transientResources,
                 sourceSrvHeap,
@@ -156,6 +168,7 @@ internal sealed class Dx12SectorComposer : IDisposable
                 composition.BlockedAreaDebugWidth,
                 composition.BlockedAreaDebugHeight,
                 blockedAreaDebugDraws,
+                [],
                 _coverPipeline,
                 transientResources,
                 sourceSrvHeap,
@@ -167,6 +180,7 @@ internal sealed class Dx12SectorComposer : IDisposable
                 composition.StairsDebugWidth,
                 composition.StairsDebugHeight,
                 stairsDebugDraws,
+                [],
                 _coverPipeline,
                 transientResources,
                 sourceSrvHeap,
@@ -178,6 +192,7 @@ internal sealed class Dx12SectorComposer : IDisposable
                 composition.TerrainTopologyDebugWidth,
                 composition.TerrainTopologyDebugHeight,
                 terrainTopologyDebugDraws,
+                [],
                 _coverPipeline,
                 transientResources,
                 sourceSrvHeap,
@@ -189,6 +204,7 @@ internal sealed class Dx12SectorComposer : IDisposable
                 composition.Width,
                 composition.Height,
                 coverDraws,
+                [],
                 _coverPipeline,
                 transientResources,
                 sourceSrvHeap,
@@ -235,6 +251,11 @@ internal sealed class Dx12SectorComposer : IDisposable
                 if (_sourceTextures.Remove(name, out var source))
                     source.Resource.Dispose();
             }
+            foreach (var sprite in addedSpriteSources)
+            {
+                if (_spriteSourceTextures.Remove(sprite, out var source))
+                    source.Resource.Dispose();
+            }
 
             throw;
         }
@@ -260,7 +281,11 @@ internal sealed class Dx12SectorComposer : IDisposable
         foreach (var source in _sourceTextures.Values)
             source.Resource.Dispose();
         _sourceTextures.Clear();
+        foreach (var source in _spriteSourceTextures.Values)
+            source.Resource.Dispose();
+        _spriteSourceTextures.Clear();
 
+        _spritePipeline.Dispose();
         _coverPipeline.Dispose();
         _basePipeline.Dispose();
         _rootSignature.Dispose();
@@ -320,6 +345,24 @@ internal sealed class Dx12SectorComposer : IDisposable
         return draws;
     }
 
+    private GpuSectorSpriteDraw[] CreateEmbeddedSpriteDraws(
+        IReadOnlyList<TerrainEmbeddedSprite> sprites,
+        ID3D12GraphicsCommandList commandList,
+        ICollection<ID3D12Resource> transientResources,
+        ICollection<StaticSpriteAsset> addedSpriteSources)
+    {
+        var draws = new GpuSectorSpriteDraw[sprites.Count];
+        for (var index = 0; index < sprites.Count; index++)
+        {
+            var sprite = sprites[index];
+            draws[index] = new GpuSectorSpriteDraw(
+                new GpuSectorSpriteInstance(sprite),
+                EnsureSourceTexture(sprite.Sprite, commandList, transientResources, addedSpriteSources));
+        }
+
+        return draws;
+    }
+
     private SourceTexture EnsureSourceTexture(
         TextureAsset texture,
         ID3D12GraphicsCommandList commandList,
@@ -352,6 +395,38 @@ internal sealed class Dx12SectorComposer : IDisposable
         }
     }
 
+    private SourceTexture EnsureSourceTexture(
+        StaticSpriteAsset sprite,
+        ID3D12GraphicsCommandList commandList,
+        ICollection<ID3D12Resource> transientResources,
+        ICollection<StaticSpriteAsset> addedSources)
+    {
+        if (_spriteSourceTextures.TryGetValue(sprite, out var cached))
+            return cached;
+
+        ID3D12Resource? resource = null;
+        try
+        {
+            resource = _uploader.UploadRgbaTexture(
+                commandList,
+                sprite.AtlasWidth,
+                sprite.AtlasHeight,
+                sprite.Rgba,
+                transientResources);
+            var source = new SourceTexture(resource);
+            _spriteSourceTextures.Add(sprite, source);
+            addedSources.Add(sprite);
+            // A shared sprite can be baked into the exterior and later uploaded
+            // for an active elevated indoor surface.
+            return source;
+        }
+        catch
+        {
+            resource?.Dispose();
+            throw;
+        }
+    }
+
     private unsafe void RecordTarget(
         ID3D12GraphicsCommandList commandList,
         ID3D12Resource target,
@@ -359,6 +434,7 @@ internal sealed class Dx12SectorComposer : IDisposable
         int width,
         int height,
         GpuTerrainTileDraw[] draws,
+        GpuSectorSpriteDraw[] embeddedSprites,
         ID3D12PipelineState pipeline,
         ICollection<ID3D12Resource> transientResources,
         ID3D12DescriptorHeap sourceSrvHeap,
@@ -401,6 +477,50 @@ internal sealed class Dx12SectorComposer : IDisposable
                 var primaryDescriptor = sourceCpuStart + nextSourceDescriptor * sourceDescriptorSize;
                 _uploader.CreateShaderResourceView(draw.Primary.Resource, primaryDescriptor);
                 _uploader.CreateShaderResourceView(draw.Secondary.Resource, primaryDescriptor + sourceDescriptorSize);
+                commandList.SetGraphicsRootDescriptorTable(
+                    2,
+                    sourceGpuStart + nextSourceDescriptor * sourceDescriptorSize);
+                commandList.SetGraphicsRootShaderResourceView(
+                    1,
+                    instanceBuffer.GPUVirtualAddress + (ulong)(firstInstance * instanceStride));
+                commandList.DrawInstanced(VerticesPerTile, (uint)instanceCount, 0, 0);
+                nextSourceDescriptor += 2;
+                firstInstance += instanceCount;
+            }
+        }
+
+        if (embeddedSprites.Length != 0)
+        {
+            var instances = new GpuSectorSpriteInstance[embeddedSprites.Length];
+            for (var index = 0; index < embeddedSprites.Length; index++)
+                instances[index] = embeddedSprites[index].Instance;
+            var instanceBuffer = _uploader.CreateUploadBuffer(MemoryMarshal.AsBytes(instances.AsSpan()));
+            transientResources.Add(instanceBuffer);
+            commandList.SetDescriptorHeaps(1, [sourceSrvHeap]);
+            commandList.SetGraphicsRootSignature(_rootSignature);
+            commandList.SetPipelineState(_spritePipeline);
+            commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
+            var targetSize = stackalloc float[2] { width, height };
+            commandList.SetGraphicsRoot32BitConstants(0, 2, targetSize, 0);
+            var sourceCpuStart = sourceSrvHeap.GetCPUDescriptorHandleForHeapStart();
+            var sourceGpuStart = sourceSrvHeap.GetGPUDescriptorHandleForHeapStart();
+            var sourceDescriptorSize = (int)_device.GetDescriptorHandleIncrementSize(
+                DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView);
+            var instanceStride = Marshal.SizeOf<GpuSectorSpriteInstance>();
+            var firstInstance = 0;
+            while (firstInstance < embeddedSprites.Length)
+            {
+                var draw = embeddedSprites[firstInstance];
+                var instanceCount = 1;
+                while (firstInstance + instanceCount < embeddedSprites.Length &&
+                       ReferenceEquals(draw.Source, embeddedSprites[firstInstance + instanceCount].Source))
+                {
+                    instanceCount++;
+                }
+
+                var sourceDescriptor = sourceCpuStart + nextSourceDescriptor * sourceDescriptorSize;
+                _uploader.CreateShaderResourceView(draw.Source.Resource, sourceDescriptor);
+                _uploader.CreateShaderResourceView(draw.Source.Resource, sourceDescriptor + sourceDescriptorSize);
                 commandList.SetGraphicsRootDescriptorTable(
                     2,
                     sourceGpuStart + nextSourceDescriptor * sourceDescriptorSize);
@@ -464,6 +584,10 @@ internal sealed class Dx12SectorComposer : IDisposable
         GpuTerrainTileInstance Instance,
         SourceTexture Primary,
         SourceTexture Secondary);
+
+    private readonly record struct GpuSectorSpriteDraw(
+        GpuSectorSpriteInstance Instance,
+        SourceTexture Source);
 }
 
 internal sealed record Dx12ComposedSector(

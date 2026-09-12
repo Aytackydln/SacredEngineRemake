@@ -72,8 +72,13 @@ public static partial class Granny1MeshExtractor
         IReadOnlyList<ParsedMeshSlice> renderedSlices = extractionMode == GrnMeshExtractionMode.CompositeSlices
             ? slices
             : [SelectPrimarySlice(slices)];
-        var mesh = BuildMesh(renderedSlices).Mesh;
-        return new GrnExtractionResult(mesh, CreateDiagnostics(slices, renderedSlices));
+        // Static props can have the same skeleton and rigid bone bindings as characters.
+        // Retaining them lets native door sequences use their authored hinge/pivot.
+        var skinSkeleton = renderedSlices.Count == 1 ? renderedSlices[0].Skeleton : null;
+        if (skinSkeleton is not null)
+            renderedSlices = renderedSlices.Select(slice => BindSliceToSkeleton(slice, skinSkeleton)).ToArray();
+        var built = BuildMesh(renderedSlices, skinSkeleton: skinSkeleton);
+        return new GrnExtractionResult(built.Mesh, CreateDiagnostics(slices, renderedSlices), built.Skin);
     }
 
     public static Mesh? TryExtractCharacter(
@@ -141,7 +146,8 @@ public static partial class Granny1MeshExtractor
         for (var partIndex = 0; partIndex < parts.Length; partIndex++)
         {
             var part = slice.Parts[partIndex];
-            IReadOnlyList<uint> boneTieBones = part.BoneTieBones.Length > 0
+            var hasExplicitPartBindings = part.BoneTieBones.Length > 0;
+            IReadOnlyList<uint> boneTieBones = hasExplicitPartBindings
                 ? part.BoneTieBones
                 : targetSkeleton.BoneTieBones;
             var targetBoneIndices = new int[boneTieBones.Count];
@@ -152,7 +158,22 @@ public static partial class Granny1MeshExtractor
                     targetBoneIndices[tieIndex] = checked((int)boneTieBones[tieIndex]);
             }
 
-            parts[partIndex] = part with { TargetBoneIndices = targetBoneIndices };
+            // Fixed world models often omit a weight block and their form omits bone ties.
+            // Their mesh records still follow the Granny object-bone order: mesh zero belongs
+            // to the first non-root object bone, mesh one to the next, and so on. Preserve that
+            // rigid relationship so paired sliding doors and hinged lids animate independently.
+            var rigidBoneIndex = part.RigidBoneIndex;
+            if (rigidBoneIndex < 0 && part.Weights.All(static weights => weights.Length == 0) &&
+                targetSkeleton.Bones.Length > 1)
+            {
+                rigidBoneIndex = Math.Min(part.SourceMeshIndex + 1, targetSkeleton.Bones.Length - 1);
+            }
+
+            parts[partIndex] = part with
+            {
+                TargetBoneIndices = targetBoneIndices,
+                RigidBoneIndex = rigidBoneIndex
+            };
         }
 
         return slice with { Parts = parts };

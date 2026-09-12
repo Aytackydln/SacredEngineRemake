@@ -76,8 +76,10 @@ internal sealed class Dx12WorldCommandRecorder
         SceneState scene,
         ulong worldSpriteRevision,
         Dx12FrameContext frame,
-        ID3D12Resource backBuffer,
+        ID3D12Resource sceneColor,
         CpuDescriptorHandle renderTarget,
+        ResourceStates initialColorState,
+        ResourceStates finalColorState,
         CpuDescriptorHandle depthStencil,
         ID3D12DescriptorHeap[] shaderVisibleDescriptorHeaps,
         ID3D12RootSignature rootSignature,
@@ -89,8 +91,8 @@ internal sealed class Dx12WorldCommandRecorder
     {
         Dx12TextureUploader.Transition(
             _commandList,
-            backBuffer,
-            ResourceStates.Present,
+            sceneColor,
+            initialColorState,
             ResourceStates.RenderTarget);
 
         _commandList.RSSetViewports(new Viewport(0, 0, renderWidth, renderHeight, 0.0f, 1.0f));
@@ -225,7 +227,9 @@ internal sealed class Dx12WorldCommandRecorder
             renderWidth,
             renderHeight);
         _commandList.ClearDepthStencilView(depthStencil, ClearFlags.Depth, 1.0f, 0, 0, []);
-        _models.RecordShadows(camera, scene.Models, scene.Lighting, frame.Index);
+        // Static scenery keeps animated mini-object details in painter order,
+        // including flames behind their fixture. Foreground translucent props
+        // and player-aware fading effects remain for the post-model pass.
         _sprites.RecordOpaqueStatic(
             spriteBatch,
             scene.Lighting.WorldSurfaceAmbientColour,
@@ -234,6 +238,7 @@ internal sealed class Dx12WorldCommandRecorder
             frame,
             renderWidth,
             renderHeight);
+        _models.RecordShadows(camera, scene.Models, scene.Lighting, frame.Index);
 
         if (scene.Debug.StairsMapVisible)
         {
@@ -314,30 +319,37 @@ internal sealed class Dx12WorldCommandRecorder
                 renderHeight);
         }
 
+        Dx12TextureUploader.Transition(
+            _commandList,
+            sceneColor,
+            ResourceStates.RenderTarget,
+            finalColorState);
+    }
+
+    public void RecordUi(
+        SceneState scene,
+        Dx12FrameContext frame,
+        ID3D12RootSignature rootSignature,
+        ID3D12PipelineState terrainPipeline,
+        Dx12DisplayProfile displayProfile,
+        int outputWidth,
+        int outputHeight)
+    {
         _commandList.SetGraphicsRootSignature(rootSignature);
         _commandList.SetPipelineState(terrainPipeline);
         _commandList.SetGraphicsRootDescriptorTable(
             WorldQuadShaderLayout.SurfaceLightMapRootParameter,
             _surfaceLights.ShaderResourceHandle);
-        _commandList.OMSetRenderTargets(renderTarget, null);
         if (scene.Debug.OverlaysVisible)
-            _debugOverlay.RecordDebugOverlay(renderWidth, renderHeight, displayProfile.UiPaperWhiteNits);
+            _debugOverlay.RecordDebugOverlay(outputWidth, outputHeight, displayProfile.UiPaperWhiteNits);
         if (scene.Minimap.IsVisible)
-        {
             _minimap.Record(
                 rootSignature,
                 terrainPipeline,
-                renderWidth,
-                renderHeight,
+                outputWidth,
+                outputHeight,
                 displayProfile.UiPaperWhiteNits);
-        }
         _imgui.Record(frame, displayProfile.UiPaperWhiteNits);
-
-        Dx12TextureUploader.Transition(
-            _commandList,
-            backBuffer,
-            ResourceStates.RenderTarget,
-            ResourceStates.Present);
     }
 
     private unsafe void RecordStairsDebug(

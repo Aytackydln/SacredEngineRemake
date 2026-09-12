@@ -11,6 +11,7 @@ using Sacred.Engine.Platform;
 using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
 using Sacred.Granny.Abstractions;
+using Sacred.Particles;
 
 namespace Sacred.Engine;
 
@@ -123,10 +124,52 @@ internal sealed class SacredGameRuntime : IDisposable
             UpdateWindowTitle();
         }
 
+        if (_debugUiControls.RequestedParticleQuality is { } particleQuality)
+        {
+            _debugUiControls.RequestedParticleQuality = null;
+            _inGameScene?.SetParticleQuality(particleQuality);
+        }
+
+        if (_debugUiControls.RequestedRenderResolutionPercentage is { } renderResolutionPercentage)
+        {
+            _debugUiControls.RequestedRenderResolutionPercentage = null;
+            _renderer.SetRenderResolutionPercentage(renderResolutionPercentage);
+        }
+
+        if (_debugUiControls.RequestedRenderScalingMode is { } renderScalingMode)
+        {
+            _debugUiControls.RequestedRenderScalingMode = null;
+            _renderer.SetRenderScalingMode(renderScalingMode);
+        }
+
         if (_debugUiControls.RequestedCollisionMode is { } collisionMode)
         {
             _debugUiControls.RequestedCollisionMode = null;
             _inGameScene?.SetCollisionMode(collisionMode);
+        }
+
+        if (_debugUiControls.RequestedPlayerMovementSpeedMultiplier is { } movementSpeedMultiplier)
+        {
+            _debugUiControls.RequestedPlayerMovementSpeedMultiplier = null;
+            _inGameScene?.SetPlayerMovementSpeedMultiplier(movementSpeedMultiplier);
+        }
+
+        if (_debugUiControls.RequestedPlayerEquipmentRemoval is { } equipmentSlot)
+        {
+            _debugUiControls.RequestedPlayerEquipmentRemoval = null;
+            _inGameScene?.RemovePlayerEquipment(equipmentSlot);
+        }
+
+        if (_debugUiControls.RequestedPlayerItemSet is { } itemSet)
+        {
+            _debugUiControls.RequestedPlayerItemSet = null;
+            _inGameScene?.EquipPlayerItemSet(itemSet);
+        }
+
+        if (_debugUiControls.RequestedPlayerCharacter is { } characterEntryId)
+        {
+            _debugUiControls.RequestedPlayerCharacter = null;
+            _inGameScene?.SelectPlayerCharacter(characterEntryId);
         }
 
         if (_debugUiControls.ScreenshotRequested)
@@ -144,25 +187,43 @@ internal sealed class SacredGameRuntime : IDisposable
         _debugUiControls.WorldLightingMode =
             _inGameScene?.WorldLightingMode ?? _initialSaveState.WorldLightingMode;
         _debugUiControls.BorderlessFullscreen = _window.IsBorderlessFullscreen;
+        _debugUiControls.ParticleQuality = _inGameScene?.ParticleQuality ?? _initialSaveState.ParticleQuality;
         _debugUiControls.CollisionMode = _inGameScene?.CollisionMode ?? CollisionCheatMode.Walk;
+        _debugUiControls.PlayerMovementSpeedMultiplier =
+            _inGameScene?.PlayerMovementSpeedMultiplier ?? _initialSaveState.PlayerMovementSpeedMultiplier;
+        _debugUiControls.RenderResolutionPercentage = _renderer.RenderResolutionPercentage;
+        _debugUiControls.RenderScalingMode = _renderer.RenderScalingMode;
+        _debugUiControls.Player = _inGameScene?.CreatePlayerDebugPanelState();
     }
 
-    public SacredGameSaveState CaptureSaveState() => new()
+    public SacredGameSaveState CaptureSaveState()
     {
-        BorderlessFullscreen = _window.IsBorderlessFullscreen,
-        WindowedWidth = _window.WindowedWidth,
-        WindowedHeight = _window.WindowedHeight,
-        HdrEnabled = _renderer.IsHdrEnabled,
-        HdrBrightness = _renderer.HdrBrightnessSettings,
-        FramePacingMode = _framePacing.Mode,
-        LowLatencyMode = _latency.Mode,
-        GrannyBackend = _grannyBackend,
-        WorldLightingMode = _inGameScene?.WorldLightingMode ?? _initialSaveState.WorldLightingMode,
-        StairsTilesVisible = _inGameScene?.StairsTilesVisible ?? _initialSaveState.StairsTilesVisible,
-        BlockedTilesVisible = _inGameScene?.BlockedTilesVisible ?? _initialSaveState.BlockedTilesVisible,
-        CharacterName = _inGameScene?.SelectedCharacterName ?? _initialSaveState.CharacterName,
-        LastLocation = _inGameScene?.PlayerWorldPosition ?? _initialSaveState.LastLocation
-    };
+        var windowedBounds = _window.CaptureWindowedBounds();
+        return new SacredGameSaveState
+        {
+            BorderlessFullscreen = _window.IsBorderlessFullscreen,
+            WindowedWidth = windowedBounds.Width,
+            WindowedHeight = windowedBounds.Height,
+            WindowedX = windowedBounds.X,
+            WindowedY = windowedBounds.Y,
+            WindowedMaximized = windowedBounds.Maximized,
+            HdrEnabled = _renderer.IsHdrEnabled,
+            HdrBrightness = _renderer.HdrBrightnessSettings,
+            FramePacingMode = _framePacing.Mode,
+            LowLatencyMode = _latency.Mode,
+            RenderResolutionPercentage = _renderer.RenderResolutionPercentage,
+            RenderScalingMode = _renderer.RenderScalingMode,
+            GrannyBackend = _grannyBackend,
+            WorldLightingMode = _inGameScene?.WorldLightingMode ?? _initialSaveState.WorldLightingMode,
+            StairsTilesVisible = _inGameScene?.StairsTilesVisible ?? _initialSaveState.StairsTilesVisible,
+            BlockedTilesVisible = _inGameScene?.BlockedTilesVisible ?? _initialSaveState.BlockedTilesVisible,
+            PlayerMovementSpeedMultiplier =
+                _inGameScene?.PlayerMovementSpeedMultiplier ?? _initialSaveState.PlayerMovementSpeedMultiplier,
+            ParticleQuality = _inGameScene?.ParticleQuality ?? _initialSaveState.ParticleQuality,
+            CharacterName = _inGameScene?.SelectedCharacterName ?? _initialSaveState.CharacterName,
+            LastLocation = _inGameScene?.PlayerWorldPosition ?? _initialSaveState.LastLocation
+        };
+    }
 
     public void Dispose()
     {
@@ -194,6 +255,10 @@ internal sealed class SacredGameRuntime : IDisposable
         {
             WindowedWidth = NormalizeWindowDimension(state.WindowedWidth, 1600),
             WindowedHeight = NormalizeWindowDimension(state.WindowedHeight, 900),
+            PlayerMovementSpeedMultiplier = NormalizePlayerMovementSpeedMultiplier(state.PlayerMovementSpeedMultiplier),
+            ParticleQuality = Enum.IsDefined(state.ParticleQuality)
+                ? state.ParticleQuality
+                : SacredParticleQuality.High,
             HdrBrightness = (state.HdrBrightness ?? HdrBrightnessSettings.Default).Normalized(),
             FramePacingMode = Enum.IsDefined(state.FramePacingMode)
                 ? state.FramePacingMode
@@ -201,6 +266,10 @@ internal sealed class SacredGameRuntime : IDisposable
             LowLatencyMode = Enum.IsDefined(state.LowLatencyMode)
                 ? state.LowLatencyMode
                 : LowLatencyMode.On,
+            RenderResolutionPercentage = Math.Clamp(state.RenderResolutionPercentage, 25, 200),
+            RenderScalingMode = Enum.IsDefined(state.RenderScalingMode)
+                ? state.RenderScalingMode
+                : RenderScalingMode.Bilinear,
             GrannyBackend = Enum.IsDefined(state.GrannyBackend)
                 ? state.GrannyBackend
                 : GrnBackendKind.ManagedParser,
@@ -301,7 +370,7 @@ internal sealed class SacredGameRuntime : IDisposable
         switch (command)
         {
             case HelpCheatCommand:
-                EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set item-flags <hex>; set character next; set hdr <on|off>; set pacing <vrr|vsync|limit>; set latency <off|on|boost>; set granny <managed|native>.");
+                EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set particles <on|off>; set item-flags <hex>; set character next; set hdr <on|off>; set pacing <vrr|vsync|limit>; set latency <off|on|boost>; set granny <managed|native>.");
                 return;
             case TeleportCheatCommand teleport:
                 if (_inGameScene is null)
@@ -458,6 +527,9 @@ internal sealed class SacredGameRuntime : IDisposable
 
     private static int NormalizeWindowDimension(int dimension, int fallback) =>
         dimension is >= 320 and <= 16_384 ? dimension : fallback;
+
+    private static float NormalizePlayerMovementSpeedMultiplier(float value) =>
+        float.IsFinite(value) ? Math.Clamp(value, 0.25f, 4.0f) : 1.0f;
 
     private static bool TryParseBoolean(string value, out bool enabled)
     {

@@ -1,5 +1,41 @@
 namespace Sacred.Assets.Paks.Texture;
 
+/// <summary>Channels that carry authored colour and coverage after archive decoding.</summary>
+public enum SacredTextureChannelEncoding
+{
+    Rgb,
+    Argb,
+    AlphaMask
+}
+
+public static class SacredTextureChannelAnalyzer
+{
+    public static SacredTextureChannelEncoding Analyze(ReadOnlySpan<byte> rgba)
+    {
+        var hasTransparent = false;
+        var hasOpaque = false;
+        var hasFractionalAlpha = false;
+        var hasChromaticColor = false;
+        for (var offset = 0; offset < rgba.Length; offset += 4)
+        {
+            var alpha = rgba[offset + 3];
+            hasTransparent |= alpha == 0;
+            hasOpaque |= alpha == byte.MaxValue;
+            hasFractionalAlpha |= alpha is not 0 and not byte.MaxValue;
+            var maximum = Math.Max(rgba[offset], Math.Max(rgba[offset + 1], rgba[offset + 2]));
+            var minimum = Math.Min(rgba[offset], Math.Min(rgba[offset + 1], rgba[offset + 2]));
+            hasChromaticColor |= maximum - minimum > 8;
+        }
+
+        var alphaCarriesCoverage = hasFractionalAlpha || (hasTransparent && hasOpaque);
+        if (!alphaCarriesCoverage)
+            return SacredTextureChannelEncoding.Rgb;
+        return hasChromaticColor
+            ? SacredTextureChannelEncoding.Argb
+            : SacredTextureChannelEncoding.AlphaMask;
+    }
+}
+
 public sealed record TextureAsset(
     string Name,
     int Width,
@@ -34,6 +70,7 @@ public sealed class StaticSpriteAsset
         PlacementX = placementX;
         PlacementY = placementY;
         HasTranslucentPixels = ContainsFractionalAlpha(rgba);
+        ChannelEncoding = SacredTextureChannelAnalyzer.Analyze(rgba);
     }
 
     public uint GroupId { get; }
@@ -55,6 +92,7 @@ public sealed class StaticSpriteAsset
     public float AnimationPeriodSeconds => FrameDurationSeconds * FrameCount;
     /// <summary>Whether the authored sprite contains alpha values between fully transparent and opaque.</summary>
     public bool HasTranslucentPixels { get; }
+    public SacredTextureChannelEncoding ChannelEncoding { get; }
 
     public void ReleasePixelData() => Interlocked.Exchange(ref _rgba, []);
 

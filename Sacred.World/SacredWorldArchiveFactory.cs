@@ -1,6 +1,9 @@
+using Sacred.Assets.Paks.Items;
 using Sacred.Assets.World.Floor;
 using Sacred.Assets.World.Static;
 using Sacred.Core.World.Stairs;
+using Sacred.World.Objects;
+using Sacred.World.Particles;
 
 namespace Sacred.World;
 
@@ -28,7 +31,11 @@ public static class SacredWorldArchiveFactory
                 staticPak,
                 SacredStairsMap.Load(
                     Path.Combine(fullGameDirectory, "bin", "treppe.bin"),
-                    Path.Combine(fullGameDirectory, "bin", "NetScript", "DefPos.bin")));
+                    Path.Combine(fullGameDirectory, "bin", "NetScript", "DefPos.bin")),
+                WorldParticleScriptIndex.Load(Path.Combine(fullGameDirectory, "bin", "sgf.bin")),
+                WorldObjectScriptIndex.Load(
+                    FindWorldObjectScriptSources(fullGameDirectory),
+                    ItemsPakArchive.Load(Path.Combine(fullGameDirectory, "pak", "Items.pak"))));
             wldxStream = null;
             floorPak = null;
             staticPak = null;
@@ -47,8 +54,9 @@ public static class SacredWorldArchiveFactory
         FileStream wldxStream,
         FloorPakArchive floorPak,
         StaticPakArchive staticPak,
-        SacredStairsMap stairsMap) =>
-        SacredWorldArchive.Create(keyxData, wldxStream, floorPak, staticPak, stairsMap);
+        SacredStairsMap stairsMap,
+        WorldParticleScriptIndex? particleScript = null, WorldObjectScriptIndex? objectScript = null) =>
+        SacredWorldArchive.Create(keyxData, wldxStream, floorPak, staticPak, stairsMap, particleScript, objectScript);
 
     private static FileStream OpenWldx(string path) => new(
         path,
@@ -57,4 +65,17 @@ public static class SacredWorldArchiveFactory
         FileShare.Read,
         bufferSize: 1,
         FileOptions.Asynchronous | FileOptions.RandomAccess);
+
+    private static IReadOnlyList<WorldObjectScriptSource> FindWorldObjectScriptSources(string gameDirectory)
+    {
+        var binDirectory = Path.Combine(gameDirectory, "bin");
+        var sources = Directory.EnumerateFiles(binDirectory, "StartCode.bin", SearchOption.AllDirectories)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .Select(path => new WorldObjectScriptSource(path, Path.Combine(Path.GetDirectoryName(path)!, "DefPos.bin")))
+            .ToList();
+        sources.Add(new WorldObjectScriptSource(
+            Path.Combine(binDirectory, "sgf.bin"),
+            Path.Combine(binDirectory, "NetScript", "DefPos.bin")));
+        return sources;
+    }
 }

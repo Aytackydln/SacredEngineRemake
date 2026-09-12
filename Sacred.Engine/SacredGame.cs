@@ -33,13 +33,18 @@ public sealed class SacredGame : IDisposable
             "Sacred Remake",
             initialSaveState.WindowedWidth,
             initialSaveState.WindowedHeight,
-            initialSaveState.BorderlessFullscreen);
+            initialSaveState.BorderlessFullscreen,
+            initialSaveState.WindowedX,
+            initialSaveState.WindowedY,
+            initialSaveState.WindowedMaximized);
         _renderer = new Dx12Renderer(
             _window,
             gameDirectory,
             _latency,
             initialSaveState.HdrEnabled,
-            initialSaveState.HdrBrightness);
+            initialSaveState.HdrBrightness,
+            initialSaveState.RenderResolutionPercentage,
+            initialSaveState.RenderScalingMode);
         _framePacing = new FramePacingController(
             _renderer,
             _latency,

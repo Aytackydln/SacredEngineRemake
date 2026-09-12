@@ -18,6 +18,7 @@ using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
 using Sacred.Shaders;
 using Sacred.World;
+using Sacred.World.Particles;
 using Vortice;
 using Vortice.Direct3D12;
 using Vortice.Mathematics;
@@ -43,6 +44,8 @@ public sealed class Dx12Renderer : IDisposable
     private Dx12WorldPass? _worldPass;
     private ID3D12RootSignature _screenRootSignature = null!;
     private ID3D12PipelineState _screenPipeline = null!;
+    private ID3D12RootSignature _upscaleRootSignature = null!;
+    private ID3D12PipelineState _upscalePipeline = null!;
     private ID3D12RootSignature _rootSignature = null!;
     private ID3D12PipelineState _terrainPipeline = null!;
     private ID3D12PipelineState _terrainLiquidCoverPipeline = null!;
@@ -53,7 +56,9 @@ public sealed class Dx12Renderer : IDisposable
         string gameDirectory,
         LowLatencySystem latency,
         bool hdrEnabled = false,
-        HdrBrightnessSettings? hdrBrightnessSettings = null)
+        HdrBrightnessSettings? hdrBrightnessSettings = null,
+        int renderResolutionPercentage = 100,
+        RenderScalingMode renderScalingMode = RenderScalingMode.Bilinear)
     {
         _gameDirectory = gameDirectory;
         _screenshotWriter = new Dx12ScreenshotWriterQueue(gameDirectory);
@@ -72,6 +77,8 @@ public sealed class Dx12Renderer : IDisposable
             _textureUploader,
             _graphics.SrvCpuHandle(Dx12DescriptorLayout.Screen),
             _graphics.SrvGpuHandle(Dx12DescriptorLayout.Screen));
+        _graphics.SetRenderResolutionPercentage(renderResolutionPercentage);
+        RenderScalingMode = renderScalingMode;
         CreatePipeline();
         Dx12ShaderCatalog.Reloaded += _shaderReloadHandler;
     }
@@ -79,6 +86,12 @@ public sealed class Dx12Renderer : IDisposable
     public bool VariableRefreshRateSupported => _graphics.VariableRefreshRateSupported;
     public bool IsHdrEnabled => _graphics.IsHdrEnabled;
     public HdrBrightnessSettings HdrBrightnessSettings => _graphics.HdrBrightnessSettings;
+    public int OutputWidth => _graphics.OutputWidth;
+    public int OutputHeight => _graphics.OutputHeight;
+    public int RenderWidth => _graphics.RenderWidth;
+    public int RenderHeight => _graphics.RenderHeight;
+    public int RenderResolutionPercentage => _graphics.RenderResolutionPercentage;
+    public RenderScalingMode RenderScalingMode { get; private set; } = RenderScalingMode.Bilinear;
     internal DebugUiControlState DebugUiControls => _debugUiControls;
     public bool WorldInitialized => _worldPass is not null;
     public WorldPreparationStatus LastWorldPreparationStatus =>
@@ -87,6 +100,15 @@ public sealed class Dx12Renderer : IDisposable
     public Task StartWorldPreparation() => GetWorldPass().StartPreparation();
 
     public void QueueScreenshot(string? label) => _pendingScreenshotLabels.Enqueue(label);
+
+    public void SetRenderResolutionPercentage(int percentage) => _graphics.SetRenderResolutionPercentage(percentage);
+
+    public void SetRenderScalingMode(RenderScalingMode mode) => RenderScalingMode = mode;
+
+    /// <summary>Converts client-space pointer coordinates to the scene target's pixel space.</summary>
+    public Vector2 OutputToRender(Vector2 position) => new(
+        position.X * _graphics.RenderWidth / Math.Max(1, _graphics.OutputWidth),
+        position.Y * _graphics.RenderHeight / Math.Max(1, _graphics.OutputHeight));
 
     public void InitializeWorld(AssetManager assets, SacredWorldArchive worldArchive)
     {
@@ -140,8 +162,8 @@ public sealed class Dx12Renderer : IDisposable
     {
         _worldPass?.DiscardDebugUiFrame();
         var destination = new Vector4(
-            _graphics.RenderWidth * 0.5f - map.Center.X * map.Zoom,
-            _graphics.RenderHeight * 0.5f - map.Center.Y * map.Zoom,
+            _graphics.OutputWidth * 0.5f - map.Center.X * map.Zoom,
+            _graphics.OutputHeight * 0.5f - map.Center.Y * map.Zoom,
             map.Map.Width * map.Zoom,
             map.Map.Height * map.Zoom);
 
@@ -157,13 +179,15 @@ public sealed class Dx12Renderer : IDisposable
         SacredCamera camera,
         VisibleWorld world,
         SceneState scene,
+        IReadOnlyList<WorldParticle> particles,
+        ulong particleRevision,
         bool verticalSyncEnabled,
         string framePacingStatus,
         ulong frameId,
         CancellationToken cancellationToken = default)
     {
         var worldPass = GetWorldPass();
-        var prepared = worldPass.Prepare(camera, world, scene);
+        var prepared = worldPass.Prepare(camera, world, scene, particles, particleRevision);
         _graphics.BeginRenderSubmission(_terrainPipeline);
         worldPass.UploadAndRecord(
             camera,
@@ -174,6 +198,9 @@ public sealed class Dx12Renderer : IDisposable
             _rootSignature,
             _terrainPipeline,
             _terrainLiquidCoverPipeline);
+        if (_graphics.UsesRenderScaling)
+            RecordUpscalePass();
+        worldPass.RecordUi(scene, _rootSignature, _terrainPipeline);
         SubmitAndPresent(verticalSyncEnabled, frameId);
         return ValueTask.CompletedTask;
     }
@@ -208,6 +235,7 @@ public sealed class Dx12Renderer : IDisposable
     private void CreatePipeline()
     {
         CreateScreenPipeline(Dx12RendererPipelineFactory.CompileScreen(_graphics.Shaders));
+        CreateUpscalePipeline(Dx12RendererPipelineFactory.CompileUpscale(_graphics.Shaders, _graphics.IsHdrEnabled));
         if (_worldPass is not null)
             CreateWorldPipeline(Dx12RendererPipelineFactory.Compile(_graphics.Shaders, _graphics.IsHdrEnabled));
     }
@@ -258,7 +286,8 @@ public sealed class Dx12Renderer : IDisposable
             Dx12RendererPipelineFactory.Create(
                 _graphics.Device,
                 shaders.ImGui,
-                _graphics.BackBufferFormat));
+                _graphics.BackBufferFormat),
+            _graphics.IsHdrEnabled);
     }
 
     private void CreateScreenPipeline(Dx12CompiledPipelineGroup shaders)
@@ -269,6 +298,13 @@ public sealed class Dx12Renderer : IDisposable
             _graphics.BackBufferFormat);
         _screenRootSignature = screen.RootSignature;
         _screenPipeline = screen[Dx12PipelineKind.Terrain];
+    }
+
+    private void CreateUpscalePipeline(Dx12CompiledPipelineGroup shaders)
+    {
+        var upscale = Dx12RendererPipelineFactory.Create(_graphics.Device, shaders, _graphics.BackBufferFormat);
+        _upscaleRootSignature = upscale.RootSignature;
+        _upscalePipeline = upscale[Dx12PipelineKind.Terrain];
     }
 
     private void CreateTerrainPipeline(Dx12CompiledPipelineGroup shaders)
@@ -292,12 +328,14 @@ public sealed class Dx12Renderer : IDisposable
         try
         {
             var screenShaders = Dx12RendererPipelineFactory.CompileScreen(_graphics.Shaders);
+            var upscaleShaders = Dx12RendererPipelineFactory.CompileUpscale(_graphics.Shaders, _graphics.IsHdrEnabled);
             var rendererShaders = _worldPass is null
                 ? null
                 : Dx12RendererPipelineFactory.Compile(_graphics.Shaders, _graphics.IsHdrEnabled);
             _graphics.WaitForGpu(_releaseRetiredResources);
             DisposePipelineResources();
             CreateScreenPipeline(screenShaders);
+            CreateUpscalePipeline(upscaleShaders);
             if (rendererShaders is null)
                 return;
 
@@ -325,6 +363,10 @@ public sealed class Dx12Renderer : IDisposable
         _screenPipeline = null!;
         _screenRootSignature?.Dispose();
         _screenRootSignature = null!;
+        _upscalePipeline?.Dispose();
+        _upscalePipeline = null!;
+        _upscaleRootSignature?.Dispose();
+        _upscaleRootSignature = null!;
         _terrainPipeline?.Dispose();
         _terrainPipeline = null!;
         _terrainLiquidCoverPipeline?.Dispose();
@@ -345,15 +387,15 @@ public sealed class Dx12Renderer : IDisposable
         _graphics.CommandList.RSSetViewports(new Viewport(
             0,
             0,
-            _graphics.RenderWidth,
-            _graphics.RenderHeight,
+            _graphics.OutputWidth,
+            _graphics.OutputHeight,
             0.0f,
             1.0f));
         _graphics.CommandList.RSSetScissorRects(new RawRect(
             0,
             0,
-            _graphics.RenderWidth,
-            _graphics.RenderHeight));
+            _graphics.OutputWidth,
+            _graphics.OutputHeight));
         _graphics.CommandList.OMSetRenderTargets(_graphics.CurrentRenderTarget, null);
         _graphics.CommandList.ClearRenderTargetView(
             _graphics.CurrentRenderTarget,
@@ -365,8 +407,8 @@ public sealed class Dx12Renderer : IDisposable
             _screenPass.Record(
                 _screenRootSignature,
                 _screenPipeline,
-                _graphics.RenderWidth,
-                _graphics.RenderHeight,
+                _graphics.OutputWidth,
+                _graphics.OutputHeight,
                 _graphics.DisplayProfile.UiPaperWhiteNits,
                 destination);
         }
@@ -375,13 +417,39 @@ public sealed class Dx12Renderer : IDisposable
             _screenPass.Record(
                 _screenRootSignature,
                 _screenPipeline,
-                _graphics.RenderWidth,
-                _graphics.RenderHeight,
+                _graphics.OutputWidth,
+                _graphics.OutputHeight,
                 _graphics.DisplayProfile.UiPaperWhiteNits);
         }
 
         if (worldMapOverlay is { } overlay)
             GetWorldPass().RecordWorldMap(overlay, _screenRootSignature, _screenPipeline);
+        Dx12TextureUploader.Transition(
+            _graphics.CommandList,
+            _graphics.CurrentBackBuffer,
+            ResourceStates.RenderTarget,
+            ResourceStates.Present);
+    }
+
+    private void RecordUpscalePass()
+    {
+        Dx12TextureUploader.Transition(
+            _graphics.CommandList,
+            _graphics.CurrentBackBuffer,
+            ResourceStates.Present,
+            ResourceStates.RenderTarget);
+        _graphics.CommandList.RSSetViewports(new Viewport(0, 0, _graphics.OutputWidth, _graphics.OutputHeight, 0, 1));
+        _graphics.CommandList.RSSetScissorRects(new RawRect(0, 0, _graphics.OutputWidth, _graphics.OutputHeight));
+        _graphics.CommandList.OMSetRenderTargets(_graphics.CurrentRenderTarget, null);
+        _graphics.CommandList.SetDescriptorHeaps(1, _graphics.ShaderVisibleDescriptorHeaps);
+        _screenPass.RecordUpscale(
+            _upscaleRootSignature,
+            _upscalePipeline,
+            _graphics.OutputWidth,
+            _graphics.OutputHeight,
+            _graphics.DisplayProfile.UiPaperWhiteNits,
+            _graphics.SceneColorSrvGpuHandle,
+            RenderScalingMode);
         Dx12TextureUploader.Transition(
             _graphics.CommandList,
             _graphics.CurrentBackBuffer,
