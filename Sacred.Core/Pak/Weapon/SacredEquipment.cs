@@ -16,11 +16,11 @@ public readonly struct SacredEquipmentLayout
     public const int NameOffset = 40;
     public const int NameLength = 64;
 
-    /// <summary>Uniform inventory-preview scale; 0x434270 passes this float to scale-matrix helper 0x6539D0.</summary>
+    /// <summary>Uniform inventory-preview scale; Demo <c>TypeManager::getInventoryWorldMatrix</c> passes this to its scale-matrix helper.</summary>
     [FieldOffset(0)]
     public readonly float PreviewScale;
 
-    /// <summary>Item-preview rotation around the X axis, in radians.</summary>
+    /// <summary>Item-preview rotation around the X axis, in radians. Demo composes the preview as scale * Rx * Ry * Rz.</summary>
     [FieldOffset(4)]
     public readonly float PreviewRotationX;
 
@@ -28,18 +28,18 @@ public readonly struct SacredEquipmentLayout
     [FieldOffset(8)]
     public readonly float PreviewRotationY;
 
-    /// <summary>Item-preview rotation around the Z axis, in radians.</summary>
+    /// <summary>Item-preview rotation around Z in native radians; negate for System.Numerics.CreateRotationZ.</summary>
     [FieldOffset(12)]
     public readonly float PreviewRotationZ;
 
-    /// <summary>Native preview translation X, added to matrix +0x30 at 0x43437B.</summary>
+    /// <summary>Native preview translation X, added to matrix +0x30 by Demo <c>TypeManager::getInventoryWorldMatrix</c>.</summary>
     [FieldOffset(16)]
     public readonly float PreviewOffsetX;
 
-    /// <summary>sWeaponInfoShared::ty (demo); stored preview translation Y.</summary>
+    /// <summary>sWeaponInfoShared::ty; stored Y translation, ignored by the inventory world-matrix function.</summary>
     [FieldOffset(20)] public readonly float PreviewOffsetY;
 
-    /// <summary>Native preview translation Z, added to matrix +0x38 at 0x434381.</summary>
+    /// <summary>Native preview translation Z, added to matrix +0x38 by Demo <c>TypeManager::getInventoryWorldMatrix</c>.</summary>
     [FieldOffset(24)]
     public readonly float PreviewOffsetZ;
 

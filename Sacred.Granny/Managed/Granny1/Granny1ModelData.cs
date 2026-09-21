@@ -38,13 +38,6 @@ public static partial class Granny1MeshExtractor
 
     private readonly record struct BuiltMesh(Mesh Mesh, GrnMeshSkin? Skin);
 
-    private enum SideRemap
-    {
-        None,
-        RightToLeft,
-        LeftToRight
-    }
-
     private sealed record GrannySkeleton(
         GrannyBone[] Bones,
         uint[] BoneTieBones,

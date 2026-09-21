@@ -8,13 +8,12 @@ public static class GrnAssetLoaderFactory
     public static IGrnAssetLoader Create(
         GrnBackendKind backend,
         string gameDirectory,
-        string? workerPath = null) =>
+        string? nativeLibraryPath = null) =>
         backend switch
         {
             GrnBackendKind.ManagedParser => ManagedGrnAssetLoader.Instance,
             GrnBackendKind.GrannyDll => new GrannyDllGrnAssetLoader(
-                Path.Combine(gameDirectory, "granny.dll"),
-                workerPath ?? GrannyDllWorkerLocator.Find()),
+                nativeLibraryPath ?? Path.Combine(gameDirectory, "granny_x64.dll")),
             _ => throw new ArgumentOutOfRangeException(nameof(backend), backend, "Unknown Granny backend.")
         };
 }

@@ -33,6 +33,8 @@ internal static class SacredEngineRemakeConfig
     private const string WindowedMaximizedKey = "WINDOWED_MAXIMIZED";
     private const string FramePacingKey = "FRAME_PACING";
     private const string LowLatencyKey = "LOW_LATENCY";
+    private const string RenderResolutionPercentageKey = "RENDER_RESOLUTION_PERCENTAGE";
+    private const string RenderScalingModeKey = "RENDER_SCALING_MODE";
     private const string GrannyBackendKey = "GRANNY_BACKEND";
     private const string WorldLightingKey = "WORLD_LIGHTING";
     private const string StairsTilesKey = "STAIRS_TILES";
@@ -82,6 +84,8 @@ internal static class SacredEngineRemakeConfig
                 },
                 FramePacingMode = ReadEnum(values, FramePacingKey, FramePacingMode.VariableRefreshRate),
                 LowLatencyMode = ReadEnum(values, LowLatencyKey, LowLatencyMode.On),
+                RenderResolutionPercentage = ReadInteger(values, RenderResolutionPercentageKey, 100),
+                RenderScalingMode = ReadEnum(values, RenderScalingModeKey, RenderScalingMode.Bilinear),
                 GrannyBackend = ReadEnum(values, GrannyBackendKey, GrnBackendKind.ManagedParser),
                 WorldLightingMode = ReadEnum(values, WorldLightingKey, WorldLightingMode.TimedDayNightCycle),
                 StairsTilesVisible = ReadBoolean(values, StairsTilesKey),
@@ -158,6 +162,8 @@ internal static class SacredEngineRemakeConfig
             $"{HdrUnlitSpriteKey} : {FormatFloat(state.HdrBrightness.UnlitSpriteNits)}",
             $"{FramePacingKey} : {state.FramePacingMode}",
             $"{LowLatencyKey} : {state.LowLatencyMode}",
+            $"{RenderResolutionPercentageKey} : {state.RenderResolutionPercentage}",
+            $"{RenderScalingModeKey} : {state.RenderScalingMode}",
             $"{GrannyBackendKey} : {state.GrannyBackend}",
             $"{WorldLightingKey} : {state.WorldLightingMode}",
             $"{StairsTilesKey} : {FormatBoolean(state.StairsTilesVisible)}",

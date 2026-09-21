@@ -210,7 +210,7 @@ public static partial class Granny1MeshExtractor
 
         var pointOffset = -1;
         var normalOffset = -1;
-        var textureOffset = -1;
+        var textureOffsets = new List<int>();
         var weightOffset = -1;
         var polygonOffset = -1;
         var meshIdOffset = -1;
@@ -232,7 +232,7 @@ public static partial class Granny1MeshExtractor
                     normalOffset = absoluteOffset;
                     break;
                 case TexturePointChunk:
-                    textureOffset = textureOffset < 0 ? absoluteOffset : textureOffset;
+                    textureOffsets.Add(absoluteOffset);
                     break;
                 case WeightChunk:
                     weightOffset = absoluteOffset;
@@ -248,12 +248,35 @@ public static partial class Granny1MeshExtractor
             descriptorOffset += DescriptorSize;
         }
 
-        if (!OffsetsAreValid(data.Length, pointOffset, normalOffset, textureOffset, weightOffset, polygonOffset, meshIdOffset))
+        var orderedTextureOffsets = textureOffsets
+            .Distinct()
+            .Order()
+            .ToArray();
+        if (orderedTextureOffsets.Length == 0)
+            return false;
+
+        // 0xCA5E0803 is a separate texture-coordinate stream. The following
+        // stream is not part of the first stream's payload; open-grn parses the
+        // same nested block layout and uses its local stride and end address.
+        var textureOffset = orderedTextureOffsets[0];
+        var textureEnd = orderedTextureOffsets.Length > 1
+            ? orderedTextureOffsets[1]
+            : weightOffset;
+        if (!OffsetsAreValid(data.Length, pointOffset, normalOffset, textureOffset, weightOffset, polygonOffset, meshIdOffset) ||
+            textureEnd <= textureOffset || textureEnd > weightOffset)
             return false;
 
         var pointCount = (normalOffset - pointOffset) / 12;
         var normalCount = (textureOffset - normalOffset) / 12;
-        var textureCount = (weightOffset - textureOffset - 4) / TextureCoordinateStride;
+        if (!TryReadTextureCoordinateLayout(
+                data,
+                textureOffset,
+                textureEnd,
+                out var textureComponentCount,
+                out var textureCount))
+        {
+            return false;
+        }
         var polygonCount = (meshIdOffset - polygonOffset) / 24;
         if (pointCount <= 0 || normalCount < 0 || textureCount < 0 || polygonCount <= 0)
             return false;
@@ -280,7 +303,7 @@ public static partial class Granny1MeshExtractor
         var textureDataOffset = textureOffset + 4;
         for (var i = 0; i < texCoords.Length; i++)
         {
-            var offset = textureDataOffset + i * TextureCoordinateStride;
+            var offset = textureDataOffset + i * textureComponentCount * sizeof(float);
             texCoords[i] = new Vector2(ReadSingle(data, offset), ReadSingle(data, offset + 4));
         }
 
@@ -309,6 +332,35 @@ public static partial class Granny1MeshExtractor
             boneTieBones,
             [],
             -1);
+        return true;
+    }
+
+    private static bool TryReadTextureCoordinateLayout(
+        ReadOnlySpan<byte> data,
+        int textureOffset,
+        int nextChannelOffset,
+        out int componentCount,
+        out int textureCount)
+    {
+        componentCount = 0;
+        textureCount = 0;
+        if (textureOffset < 0 || textureOffset + sizeof(uint) > nextChannelOffset ||
+            nextChannelOffset > data.Length)
+        {
+            return false;
+        }
+
+        var declaredComponentCount = ReadUInt32(data, textureOffset);
+        if (declaredComponentCount is < 2 or > 16)
+            return false;
+
+        var elementSize = checked((int)declaredComponentCount * sizeof(float));
+        var channelBytes = nextChannelOffset - textureOffset - sizeof(uint);
+        if (channelBytes < 0 || channelBytes % elementSize != 0)
+            return false;
+
+        componentCount = checked((int)declaredComponentCount);
+        textureCount = channelBytes / elementSize;
         return true;
     }
 
@@ -353,4 +405,3 @@ public static partial class Granny1MeshExtractor
         return weights;
     }
 }
-

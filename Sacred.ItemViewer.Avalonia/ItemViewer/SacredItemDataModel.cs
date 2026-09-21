@@ -32,6 +32,9 @@ public readonly record struct SacredItemDataModel(
     bool PreviewConfirmedUserRotationIsZero = false
 )
 {
+    public float PreviewScale { get; init; }
+    public Vector3 PreviewOffset { get; init; }
+
     // Parsed equipment contains inline arrays, which cannot use the record's generated ValueType.Equals.
     // Weapon.pak item IDs are the stable identity for rows and their favorite/confirmation variants.
     public bool Equals(SacredItemDataModel other)
@@ -77,6 +80,10 @@ public readonly record struct SacredItemDataModel(
             PreviewRotation: equipment.PreviewRotation,
             Width: equipment.Width,
             Height: equipment.Height
-        );
+        )
+        {
+            PreviewScale = equipment.PreviewScale,
+            PreviewOffset = equipment.PreviewOffset
+        };
     }
 }

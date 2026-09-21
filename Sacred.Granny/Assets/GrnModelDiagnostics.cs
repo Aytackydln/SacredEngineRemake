@@ -7,6 +7,9 @@ public sealed record GrnModelDiagnostics(
     GrnBoundsDiagnostics? WholeModelBounds,
     GrnBoundsDiagnostics? SkeletonBounds)
 {
+    /// <summary>Translation to restore authored coordinates from the centered, grounded mesh.</summary>
+    public Vector3 SourceOriginOffset { get; init; }
+
     public int PartCount => Slices.Sum(static slice => slice.Parts.Count);
     public int BoneCount => Slices.Sum(static slice => slice.Bones.Count);
 }

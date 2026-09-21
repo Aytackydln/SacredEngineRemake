@@ -9,7 +9,6 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
-using Sacred.Granny;
 using Sacred.Granny.Assets;
 
 namespace Sacred.ItemViewer.Avalonia.ItemViewer;
@@ -21,8 +20,8 @@ public sealed class ModelViewerControl : UserControl
     private GrnAsset? _asset;
     private string _status = "Select an item to load its model.";
     private Vector3 _previewRotation;
-    private ItemPreviewRotationMode _rotationMode = ItemPreviewRotationMode.DirectYawPitchRoll;
-    private ItemPreviewPivotMode _pivotMode = ItemPreviewPivotMode.BoundsCenter;
+    private ItemPreviewRotationMode _rotationMode = ItemPreviewRotationMode.RawXyz;
+    private ItemPreviewPivotMode _pivotMode = ItemPreviewPivotMode.ModelOrigin;
     private int _gridWidth = 1;
     private int _gridHeight = 1;
     private int _effectTextureCount;
@@ -77,8 +76,8 @@ public sealed class ModelViewerControl : UserControl
         {
             _asset = null;
             _previewRotation = Vector3.Zero;
-            _rotationMode = ItemPreviewRotationMode.DirectYawPitchRoll;
-            _pivotMode = ItemPreviewPivotMode.BoundsCenter;
+            _rotationMode = ItemPreviewRotationMode.RawXyz;
+            _pivotMode = ItemPreviewPivotMode.ModelOrigin;
             _gridWidth = 1;
             _gridHeight = 1;
             _effectTextureCount = 0;
@@ -112,6 +111,13 @@ public sealed class ModelViewerControl : UserControl
                 : $"{asset.Name}: {asset.Mesh.Vertices.Length} vertices, {asset.Mesh.Indices.Length / 3} triangles | {asset.Backend} | {_gridWidth}x{_gridHeight} cells | rot {FormatRotation(previewRotation)} | {rotationMode}/{pivotMode}");
         });
     }
+
+    public void SetInventoryPlacement(float scale, Vector3 offset)
+    {
+        RunOnUiThread(() => _viewport.SetInventoryPlacement(scale, offset));
+    }
+
+    public void SaveScreenshot(string path) => _viewport.SaveScreenshot(path);
 
     public void SetUserRotation(float yaw, float pitch, float roll)
     {
@@ -163,8 +169,8 @@ public sealed class ModelViewerControl : UserControl
         {
             _asset = null;
             _previewRotation = Vector3.Zero;
-            _rotationMode = ItemPreviewRotationMode.DirectYawPitchRoll;
-            _pivotMode = ItemPreviewPivotMode.BoundsCenter;
+            _rotationMode = ItemPreviewRotationMode.RawXyz;
+            _pivotMode = ItemPreviewPivotMode.ModelOrigin;
             _gridWidth = 1;
             _gridHeight = 1;
             _effectTextureCount = 0;

@@ -573,20 +573,21 @@ internal sealed class SacredGameRuntime : IDisposable
     {
         backend = value.ToLowerInvariant() switch
         {
-            "native" or "dll" or "granny.dll" => GrnBackendKind.GrannyDll,
+            "native" or "dll" or "granny.dll" or "granny_x64.dll" => GrnBackendKind.GrannyDll,
             "managed" or "parser" => GrnBackendKind.ManagedParser,
             _ => default
         };
         return value.Equals("native", StringComparison.OrdinalIgnoreCase) ||
                value.Equals("dll", StringComparison.OrdinalIgnoreCase) ||
                value.Equals("granny.dll", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("granny_x64.dll", StringComparison.OrdinalIgnoreCase) ||
                value.Equals("managed", StringComparison.OrdinalIgnoreCase) ||
                value.Equals("parser", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string FormatGrannyBackend(GrnBackendKind backend) => backend switch
     {
-        GrnBackendKind.GrannyDll => "Granny.dll",
+        GrnBackendKind.GrannyDll => "granny_x64.dll",
         _ => "Managed"
     };
 

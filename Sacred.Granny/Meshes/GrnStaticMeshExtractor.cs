@@ -179,10 +179,7 @@ public static class GrnStaticMeshExtractor
             globalMax = Vector3.Max(globalMax, position);
         }
 
-        var span = globalMax - globalMin;
-        var verticalAxis = span.X >= span.Y && span.X >= span.Z
-            ? 0
-            : span.Y >= span.Z ? 1 : 2;
+        const int verticalAxis = GrnCoordinateSystem.VerticalAxis;
         const float scale = 1.0f;
 
         var rawCenter = (globalMin + globalMax) * 0.5f;
@@ -219,8 +216,8 @@ public static class GrnStaticMeshExtractor
     private static Vector3 ProjectPosition(Vector3 source, Vector3 center, float bottom, int verticalAxis, float scale)
     {
         var a = Axis(source, verticalAxis);
-        var h0 = (verticalAxis + 1) % 3;
-        var h1 = (verticalAxis + 2) % 3;
+        const int h0 = GrnCoordinateSystem.HorizontalAxis0;
+        const int h1 = GrnCoordinateSystem.HorizontalAxis1;
 
         return new Vector3(
             (Axis(source, h0) - Axis(center, h0)) * scale,

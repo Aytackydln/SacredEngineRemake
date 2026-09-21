@@ -7,10 +7,25 @@ internal static class GrannyDllMeshBuilder
 {
     private const int MaximumVertexCount = ushort.MaxValue + 1;
 
+    public static Vector3 GetSourceOriginOffset(GrannyDllMeshData data, Vector3? modelScale)
+    {
+        var scale = SanitizeScale(modelScale ?? Vector3.One);
+        var minimum = new Vector3(float.MaxValue);
+        var maximum = new Vector3(float.MinValue);
+        foreach (var buffer in data.Buffers)
+        foreach (var position in buffer.Positions)
+        {
+            minimum = Vector3.Min(minimum, position * scale);
+            maximum = Vector3.Max(maximum, position * scale);
+        }
+        var center = (minimum + maximum) * 0.5f;
+        return new Vector3(center.X, center.Y, minimum.Z);
+    }
+
     public static Mesh Build(GrannyDllMeshData data, Mesh? managedMesh, Vector3? modelScale)
     {
         if (data.Buffers.Length == 0 || data.Surfaces.Length == 0)
-            throw new InvalidDataException("Granny.dll returned no renderable mesh data.");
+            throw new InvalidDataException("granny_x64.dll returned no renderable mesh data.");
 
         var scale = SanitizeScale(modelScale ?? Vector3.One);
         var bufferOffsets = new int[data.Buffers.Length];
@@ -25,21 +40,20 @@ internal static class GrannyDllMeshBuilder
             vertexCount = checked(vertexCount + buffer.Positions.Length);
             if (vertexCount > MaximumVertexCount)
                 throw new NotSupportedException(
-                    $"The Granny.dll mesh contains {vertexCount:N0} vertices; the renderer supports {MaximumVertexCount:N0}.");
+                    $"The granny_x64.dll mesh contains {vertexCount:N0} vertices; the renderer supports {MaximumVertexCount:N0}.");
             foreach (var sourcePosition in buffer.Positions)
             {
                 var position = sourcePosition * scale;
                 if (!IsFinite(position))
-                    throw new InvalidDataException("Granny.dll returned a non-finite vertex position.");
+                    throw new InvalidDataException("granny_x64.dll returned a non-finite vertex position.");
                 minimum = Vector3.Min(minimum, position);
                 maximum = Vector3.Max(maximum, position);
             }
         }
 
-        var span = maximum - minimum;
-        var verticalAxis = VerticalAxis(span);
-        var horizontalAxis0 = (verticalAxis + 1) % 3;
-        var horizontalAxis1 = (verticalAxis + 2) % 3;
+        const int verticalAxis = GrnCoordinateSystem.VerticalAxis;
+        const int horizontalAxis0 = GrnCoordinateSystem.HorizontalAxis0;
+        const int horizontalAxis1 = GrnCoordinateSystem.HorizontalAxis1;
         var center = (minimum + maximum) * 0.5f;
         var inverseScale = new Vector3(1.0f / scale.X, 1.0f / scale.Y, 1.0f / scale.Z);
         var vertices = new VertexPositionNormalTexture[vertexCount];
@@ -70,7 +84,7 @@ internal static class GrannyDllMeshBuilder
         {
             var sourceSurface = data.Surfaces[surfaceIndex];
             if ((uint)sourceSurface.BufferIndex >= (uint)bufferOffsets.Length)
-                throw new InvalidDataException($"Granny.dll referenced vertex buffer {sourceSurface.BufferIndex}.");
+                throw new InvalidDataException($"granny_x64.dll referenced vertex buffer {sourceSurface.BufferIndex}.");
 
             var indexStart = indices.Count;
             var vertexOffset = bufferOffsets[sourceSurface.BufferIndex];
@@ -78,7 +92,7 @@ internal static class GrannyDllMeshBuilder
             foreach (var sourceIndex in sourceSurface.Indices)
             {
                 if (sourceIndex >= sourceVertexCount)
-                    throw new InvalidDataException($"Granny.dll returned vertex index {sourceIndex}.");
+                    throw new InvalidDataException($"granny_x64.dll returned vertex index {sourceIndex}.");
                 indices.Add(checked((ushort)(vertexOffset + sourceIndex)));
             }
 
@@ -104,7 +118,7 @@ internal static class GrannyDllMeshBuilder
             buffer.TextureCoordinates.Length != buffer.Positions.Length)
         {
             throw new InvalidDataException(
-                "Granny.dll returned position, normal, and texture-coordinate arrays with different lengths.");
+                "granny_x64.dll returned position, normal, and texture-coordinate arrays with different lengths.");
         }
     }
 
@@ -119,9 +133,6 @@ internal static class GrannyDllMeshBuilder
     private static Vector2 Sanitize(Vector2 value) => new(
         float.IsFinite(value.X) ? value.X : 0.0f,
         float.IsFinite(value.Y) ? value.Y : 0.0f);
-
-    private static int VerticalAxis(Vector3 span) =>
-        span.X >= span.Y && span.X >= span.Z ? 0 : span.Y >= span.Z ? 1 : 2;
 
     private static float Axis(Vector3 value, int axis) => axis switch
     {

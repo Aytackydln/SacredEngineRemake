@@ -7,7 +7,6 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform;
 using Avalonia.Threading;
-using Sacred.Granny;
 using Sacred.Granny.Assets;
 
 namespace Sacred.ItemViewer.Avalonia.ItemViewer;
@@ -29,6 +28,8 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
     private float _pendingYaw;
     private float _pendingPitch;
     private float _pendingRoll;
+    private float _pendingPreviewScale = 1.0f;
+    private Vector3 _pendingPreviewOffset;
 
     public Dx12ModelViewportHost()
     {
@@ -79,6 +80,16 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
         _renderer?.SetUserRotation(yaw, pitch, roll);
     }
 
+    public void SetInventoryPlacement(float scale, Vector3 offset)
+    {
+        _pendingPreviewScale = scale;
+        _pendingPreviewOffset = offset;
+        _renderer?.SetInventoryPlacement(scale, offset);
+    }
+
+    public void SaveScreenshot(string path) =>
+        (_renderer ?? throw new InvalidOperationException("The inventory renderer is not ready.")).SaveScreenshot(path);
+
     public async Task ShowTexturesAsync(
         IReadOnlyDictionary<string, ModelTextureBinding> textures,
         CancellationToken cancellationToken = default)
@@ -108,6 +119,7 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
         if (_renderer is null)
             return;
 
+        _renderer.SetInventoryPlacement(_pendingPreviewScale, _pendingPreviewOffset);
         if (_pendingAsset is not null)
             _renderer.SetModel(_pendingAsset, _pendingPreviewRotation, _pendingGridWidth, _pendingGridHeight, _pendingRotationMode, _pendingPivotMode, _pendingPivotBoneName, _pendingEffectScene);
         else

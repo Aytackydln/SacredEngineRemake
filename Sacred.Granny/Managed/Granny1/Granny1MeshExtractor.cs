@@ -44,7 +44,6 @@ public static partial class Granny1MeshExtractor
     private const uint ObjectKeyChunk = 0xCA5E0F01;
     private const uint ObjectValueChunk = 0xCA5E0F02;
     private const int DescriptorSize = 12;
-    private const int TextureCoordinateStride = 12;
     private const int MaximumMeshChildDescriptors = 128;
     private const int MaximumMeshVertices = ushort.MaxValue;
 

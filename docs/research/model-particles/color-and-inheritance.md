@@ -92,9 +92,9 @@ the base ID without fixing this origin would read the wrong bytes.
 |---|---|
 | Header `+03`, byte | `Version`; native checks it is at least 8 |
 | Header `+04`, UInt32 | `EntryCount`; supported archive contains 4,883 |
-| Record `+00`, float | `PreviewScale`; `4342CA` → uniform scale helper `6539D0` |
-| Record `+04/+08/+0C`, floats | Existing preview rotation fields, with corrected record-relative offsets |
-| Record `+10/+18`, floats | `PreviewOffsetX/Z`; added to matrix `+30/+38` at `43437B/434381` |
+| Record `+00`, float | `PreviewScale`; Demo `TypeManager::getInventoryWorldMatrix` (`41F340`) passes it to the uniform scale helper. |
+| Record `+04/+08/+0C`, floats | Preview X/Y/Z radians. Demo `41F3BE/41F3EA/41F416` creates Rx/Ry/Rz, and `5BEF70` appends each matrix to the accumulated scale matrix, producing `scale × Rx × Ry × Rz`. |
+| Record `+10/+18`, floats | `PreviewOffsetX/Z`; Demo `41F44D/41F453` adds them to matrix `+30/+38`. The stored Y offset is not added by this function. |
 | Record `+24`, UInt32 | **`BaseItemId`**, zero when no base visual is selected |
 | Record `+28`, 64 bytes | Null-terminated equipment name |
 | Record `+68`, 24 bytes | `slotDefault[6]`, six UInt32 item-type IDs |

@@ -197,11 +197,6 @@ public static partial class Granny1MeshExtractor
         return absolute is >= 0 and <= int.MaxValue ? (int)absolute : -1;
     }
 
-    private static int VerticalAxis(Vector3 span) =>
-        span.X >= span.Y && span.X >= span.Z
-            ? 0
-            : span.Y >= span.Z ? 1 : 2;
-
     private static float Axis(Vector3 value, int axis) =>
         axis switch
         {

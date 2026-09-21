@@ -11,9 +11,9 @@ public static partial class Granny1MeshExtractor
     {
         var renderedParts = renderedSlices.SelectMany(static slice => slice.Parts).ToArray();
         var bounds = CalculateBounds(renderedParts);
-        var verticalAxis = VerticalAxis(bounds.Max - bounds.Min);
-        var horizontalAxis0 = (verticalAxis + 1) % 3;
-        var horizontalAxis1 = (verticalAxis + 2) % 3;
+        const int verticalAxis = GrnCoordinateSystem.VerticalAxis;
+        const int horizontalAxis0 = GrnCoordinateSystem.HorizontalAxis0;
+        const int horizontalAxis1 = GrnCoordinateSystem.HorizontalAxis1;
         var center = (bounds.Min + bounds.Max) * 0.5f;
         const float scale = 1.0f;
 
@@ -87,7 +87,10 @@ public static partial class Granny1MeshExtractor
                 bonePositions.Aggregate(Vector3.Min),
                 bonePositions.Aggregate(Vector3.Max));
 
-        return new GrnModelDiagnostics(sliceDiagnostics, wholeModelBounds, skeletonBounds);
+        return new GrnModelDiagnostics(sliceDiagnostics, wholeModelBounds, skeletonBounds)
+        {
+            SourceOriginOffset = new Vector3(center.X, center.Y, bounds.Min.Z)
+        };
     }
 
     private static GrnSurfaceTriangleDiagnostics[] CreateSurfaceTriangles(

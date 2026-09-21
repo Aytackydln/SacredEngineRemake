@@ -21,7 +21,7 @@ using static Vortice.DXGI.DXGI;
 
 namespace Sacred.ItemViewer.Avalonia.ItemViewer;
 
-internal sealed class Dx12ItemModelRenderer : IDisposable
+internal sealed partial class Dx12ItemModelRenderer : IDisposable
 {
     private const int FrameCount = 2;
     private const int MaxTextures = 128;
@@ -29,8 +29,7 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
     private const int FirstModelTextureSlot = 1;
     private const int GridColumns = 4;
     private const int GridRows = 5;
-    private const float GridCellWorldSize = 36.0f;
-    private const float GridFitPadding = 0.86f;
+    private const float GridCellWorldSize = 32.0f;
     private const float GridLineWorldThickness = 1.35f;
     private const float MinimumZoom = 0.45f;
     private const float MaximumZoom = 3.5f;
@@ -90,6 +89,9 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
     private GrnBoundsDiagnostics? _skeletonBounds;
     private Vector2 _itemGridCenter;
     private float _modelScale = 1.0f;
+    private float _previewScale = 1.0f;
+    private Vector3 _previewOffset;
+    private Vector3 _sourceOriginOffset;
     private int _itemGridWidth = 1;
     private int _itemGridHeight = 1;
     private float _userYaw;
@@ -179,6 +181,7 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
         _selectedBonePosition = ResolveBonePosition(asset.Diagnostics, pivotBoneName);
         _wholeModelBounds = asset.Diagnostics?.WholeModelBounds;
         _skeletonBounds = asset.Diagnostics?.SkeletonBounds;
+        _sourceOriginOffset = asset.Diagnostics?.SourceOriginOffset ?? Vector3.Zero;
         _itemGridWidth = Math.Clamp(gridWidth, 1, GridColumns);
         _itemGridHeight = Math.Clamp(gridHeight, 1, GridRows);
         _itemGridCenter = CalculateOccupiedCellCenter(_itemGridWidth, _itemGridHeight);
@@ -190,7 +193,7 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
             return;
 
         _meshBounds = CalculateBounds(asset.Mesh.Vertices);
-        _modelScale = CalculateGridFitScale(asset.Mesh.Vertices, GetPivotPoint(), CreateItemRotationMatrix(), _itemGridWidth, _itemGridHeight);
+        _modelScale = _previewScale == 0.0f ? 1.0f : MathF.Abs(_previewScale);
         _mesh = UploadMesh(asset.Mesh);
         _sourceMesh = asset.Mesh;
         _selectedBoneHighlightMesh = CreateSelectedBoneHighlightMesh(_selectedBonePosition);
@@ -204,6 +207,13 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
         _surfaces = asset.Mesh.Surfaces.Count == 0
             ? [new MeshSurface(0, asset.Mesh.Indices.Length, null)]
             : asset.Mesh.Surfaces.ToArray();
+        Console.WriteLine($"[Inventory] Loaded {asset.Name}: scale={_previewScale}, rotation={_previewRotation}, offset={_previewOffset}, source origin={_sourceOriginOffset}, cells={_itemGridWidth}x{_itemGridHeight}.");
+    }
+
+    public void SetInventoryPlacement(float scale, Vector3 offset)
+    {
+        _previewScale = scale;
+        _previewOffset = offset;
     }
 
     public void SetUserRotation(float yaw, float pitch, float roll)
@@ -863,10 +873,9 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
     private Matrix4x4 CreateWorldMatrix()
     {
         var userRotation = Matrix4x4.CreateFromYawPitchRoll(_userYaw, _userPitch, _userRoll);
-        var rotation = CreateItemRotationMatrix() * userRotation;
         return Matrix4x4.CreateTranslation(-GetPivotPoint()) *
-               rotation *
-               Matrix4x4.CreateScale(_modelScale) *
+               WeaponPakPreviewTransform.CreateWorld(_previewScale, CreateItemRotationMatrix(), _previewOffset) *
+               userRotation *
                Matrix4x4.CreateTranslation(_itemGridCenter.X, 0.0f, _itemGridCenter.Y);
     }
 
@@ -876,9 +885,7 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
         return _rotationMode switch
         {
             ItemPreviewRotationMode.LegacyCurrent => CreateLegacyViewerPreviewRotation(rotation),
-            ItemPreviewRotationMode.RawXyz => Matrix4x4.CreateRotationX(rotation.X) *
-                                             Matrix4x4.CreateRotationY(rotation.Y) *
-                                             Matrix4x4.CreateRotationZ(rotation.Z),
+            ItemPreviewRotationMode.RawXyz => WeaponPakPreviewTransform.CreateRotation(rotation),
             ItemPreviewRotationMode.DirectYawPitchRoll => Matrix4x4.CreateFromYawPitchRoll(rotation.X, rotation.Y, rotation.Z),
             ItemPreviewRotationMode.GrnMatrix => CreateGrnRotationMatrix(rotation),
             _ => Matrix4x4.CreateFromYawPitchRoll(0, 0, 0),
@@ -889,8 +896,7 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
     {
         var rotation = CanonicalizePreviewRotation(r);
 
-        // Weapon.pak armor rotations are authored in direct yaw/pitch/roll order, while weapon entries
-        // use the legacy item-viewer order that is already handled by Dx12ItemModelRenderer.
+        // Retained only as a viewer experiment. The Demo inventory path uses RawXyz.
         return Matrix4x4.CreateFromYawPitchRoll(rotation.Y, rotation.Z, rotation.X);
     }
 
@@ -929,7 +935,7 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
     {
         return _pivotMode switch
         {
-            ItemPreviewPivotMode.ModelOrigin => Vector3.Zero,
+            ItemPreviewPivotMode.ModelOrigin => -_sourceOriginOffset,
             ItemPreviewPivotMode.BoundsBottomCenter => new Vector3(_meshBounds.Center.X, _meshBounds.Center.Y, _meshBounds.Min.Z),
             ItemPreviewPivotMode.BoundsTopCenter => new Vector3(_meshBounds.Center.X, _meshBounds.Center.Y, _meshBounds.Max.Z),
             ItemPreviewPivotMode.BoundsCenterGround => new Vector3(_meshBounds.Center.X, _meshBounds.Center.Y, 0.0f),
@@ -994,21 +1000,11 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
 
     private Matrix4x4 CreateViewProjectionMatrix()
     {
-        var sceneRadius = Math.Max(GridCellWorldSize * 3.0f, _meshBounds.Radius * _modelScale * 2.0f);
-        var distance = Math.Max(120.0f, sceneRadius * 3.25f);
         var aspect = Math.Max(0.1f, _renderWidth / (float)Math.Max(1, _renderHeight));
-        var eye = new Vector3(0.0f, -distance, sceneRadius * 0.18f);
-        var target = Vector3.Zero;
-        var view = Matrix4x4.CreateLookAt(eye, target, Vector3.UnitZ);
         var gridWidth = GridColumns * GridCellWorldSize;
         var gridHeight = GridRows * GridCellWorldSize;
         var orthographicHeight = Math.Max(gridHeight, gridWidth / aspect) * 1.18f / _zoom;
-        var projection = Matrix4x4.CreateOrthographic(
-            orthographicHeight * aspect,
-            orthographicHeight,
-            0.5f,
-            distance + sceneRadius * 6.0f);
-        return view * projection;
+        return WeaponPakPreviewTransform.CreateViewProjection(orthographicHeight * aspect, orthographicHeight);
     }
 
     private ModelTexture? ResolveTexture(string? textureName)
@@ -1263,33 +1259,6 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
         return new MeshBounds(min, max, center, Math.Max(1.0f, radius));
     }
 
-    private static float CalculateGridFitScale(
-        IReadOnlyList<VertexPositionNormalTexture> vertices,
-        Vector3 pivot,
-        Matrix4x4 rotation,
-        int gridWidth,
-        int gridHeight)
-    {
-        if (vertices.Count == 0)
-            return 1.0f;
-
-        var min = new Vector2(float.MaxValue);
-        var max = new Vector2(float.MinValue);
-        foreach (var vertex in vertices)
-        {
-            var position = Vector3.Transform(vertex.Position - pivot, rotation);
-            min = Vector2.Min(min, new Vector2(position.X, position.Z));
-            max = Vector2.Max(max, new Vector2(position.X, position.Z));
-        }
-
-        var extents = Vector2.Max(max - min, new Vector2(0.001f));
-        var target = new Vector2(
-            Math.Max(1, gridWidth) * GridCellWorldSize * GridFitPadding,
-            Math.Max(1, gridHeight) * GridCellWorldSize * GridFitPadding);
-        var scale = Math.Min(target.X / extents.X, target.Y / extents.Y);
-        return float.IsFinite(scale) && scale > 0.0f ? scale : 1.0f;
-    }
-
     private unsafe void WritePreviewSceneConstants(float* target)
     {
         var sceneRadius = Math.Max(GridCellWorldSize * 3.0f, _meshBounds.Radius * _modelScale * 2.0f);
@@ -1297,9 +1266,9 @@ internal sealed class Dx12ItemModelRenderer : IDisposable
 
         _modelShaderConstants.WriteSceneConstants(
             target,
-            new Vector3(-sceneRadius * 0.35f, -distance * 0.55f, sceneRadius * 0.85f),
+            new Vector3(-sceneRadius * 0.35f, distance * 0.55f, sceneRadius * 0.85f),
             specularIntensity: 0.10f,
-            new Vector3(0.0f, -distance, sceneRadius * 0.18f),
+            new Vector3(0.0f, distance, 0.0f),
             shininess: 16.0f,
             new Vector4(1.0f, 1.0f, 1.0f, 0.38f),
             new Vector4(1.0f, 0.96f, 0.88f, 0.82f),

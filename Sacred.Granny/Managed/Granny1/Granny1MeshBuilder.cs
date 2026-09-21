@@ -12,9 +12,9 @@ public static partial class Granny1MeshExtractor
     {
         var allParts = slices.SelectMany(static slice => slice.Parts).ToArray();
         var bounds = CalculateBounds(projectionParts ?? allParts);
-        var axis = VerticalAxis(bounds.Max - bounds.Min);
-        var horizontal0 = (axis + 1) % 3;
-        var horizontal1 = (axis + 2) % 3;
+        const int axis = GrnCoordinateSystem.VerticalAxis;
+        const int horizontal0 = GrnCoordinateSystem.HorizontalAxis0;
+        const int horizontal1 = GrnCoordinateSystem.HorizontalAxis1;
         var center = (bounds.Min + bounds.Max) * 0.5f;
 
         var vertices = new List<VertexPositionNormalTexture>();

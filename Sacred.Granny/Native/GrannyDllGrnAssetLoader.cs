@@ -9,17 +9,17 @@ namespace Sacred.Granny.Native;
 
 public sealed class GrannyDllGrnAssetLoader : IGrnAssetLoader
 {
-    private readonly GrannyDllWorkerProcess _worker;
+    private readonly GrannyX64NativeApi _native;
     private bool _disposed;
 
-    public GrannyDllGrnAssetLoader(string grannyDllPath, string workerPath)
+    public GrannyDllGrnAssetLoader(string nativeLibraryPath)
     {
-        _worker = new GrannyDllWorkerProcess(grannyDllPath, workerPath);
+        _native = new GrannyX64NativeApi(nativeLibraryPath);
     }
 
     public GrnBackendKind Kind => GrnBackendKind.GrannyDll;
 
-    public string DisplayName => "Game Granny.dll (1.2b)";
+    public string DisplayName => "granny_x64.dll (Granny 1.2b)";
 
     public GrnAsset LoadFromBytes(
         string name,
@@ -33,22 +33,41 @@ public sealed class GrannyDllGrnAssetLoader : IGrnAssetLoader
             return ManagedGrnAssetLoader.Instance
                 .LoadFromBytes(name, bytes, meshExtractionMode, modelScale) with
             {
-                BackendDetail = "The Granny.dll backend currently delegates composite-slice extraction to the managed parser."
+                BackendDetail = "The granny_x64.dll backend currently delegates composite-slice extraction to the managed parser."
             };
         }
 
         var managedExtraction = Granny1MeshExtractor.Extract(bytes, meshExtractionMode, modelScale);
-        var nativeData = _worker.Extract(bytes);
-        var mesh = GrannyDllMeshBuilder.Build(nativeData, managedExtraction.Mesh, modelScale);
-        return new GrnAsset(name, bytes, null, mesh)
+        try
         {
-            Skin = managedExtraction.Skin,
-            Diagnostics = managedExtraction.Diagnostics,
-            Backend = Kind,
-            BackendDetail =
-                "Geometry, indices, UVs, and surface ranges came from the game's 32-bit Granny.dll; " +
-                "texture names were matched to managed GRN materials by triangle geometry and UVs."
-        };
+            var nativeData = GrannyX64MeshReader.Read(_native, bytes);
+            var mesh = GrannyDllMeshBuilder.Build(nativeData, managedExtraction.Mesh, modelScale);
+            return new GrnAsset(name, bytes, null, mesh)
+            {
+                Skin = managedExtraction.Skin,
+                Diagnostics = managedExtraction.Diagnostics with
+                {
+                    SourceOriginOffset = GrannyDllMeshBuilder.GetSourceOriginOffset(nativeData, modelScale)
+                },
+                Backend = Kind,
+                BackendDetail =
+                    "Geometry, indices, UVs, and surface ranges came from granny_x64.dll; " +
+                    "texture names were matched to managed GRN materials by triangle geometry and UVs."
+            };
+        }
+        catch (Exception exception) when (exception is InvalidDataException or NotSupportedException or IOException)
+        {
+            // A model that the x64 renderer cannot materialize must remain
+            // available to the game. The managed reader is data-driven and
+            // keeps the scene complete while reporting the native limitation.
+            return new GrnAsset(name, bytes, null, managedExtraction.Mesh)
+            {
+                Skin = managedExtraction.Skin,
+                Diagnostics = managedExtraction.Diagnostics,
+                Backend = GrnBackendKind.ManagedParser,
+                BackendDetail = $"granny_x64.dll could not render this model: {exception.Message}"
+            };
+        }
     }
 
     public GrnAsset LoadCharacterFromBytes(
@@ -69,7 +88,7 @@ public sealed class GrannyDllGrnAssetLoader : IGrnAssetLoader
         {
             BackendDetail =
                 "Character composition and editable animation tracks currently use the managed parser; " +
-                "the Granny.dll rendering path is used for standalone models."
+                "the granny_x64.dll rendering path is used for standalone models."
         };
 
     public GrnAnimationClip? TryExtractAnimation(
@@ -84,6 +103,6 @@ public sealed class GrannyDllGrnAssetLoader : IGrnAssetLoader
             return;
 
         _disposed = true;
-        _worker.Dispose();
+        _native.Dispose();
     }
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
@@ -57,10 +57,10 @@ public partial class SacredItemDataTable : UserControl
         GrannyBackendComboBox.SelectedItem = _grannyBackend;
         ModelViewerPanel.Children.Add(_modelViewer);
         PreviewRotationModeComboBox.ItemsSource = ItemPreviewRotationModeFactory.GetValues();
-        PreviewRotationModeComboBox.SelectedItem = ItemPreviewRotationMode.LegacyCurrent;
+        PreviewRotationModeComboBox.SelectedItem = ItemPreviewRotationMode.RawXyz;
         PreviewRotationModeComboBox.SelectionChanged += ExperimentModeComboBox_OnSelectionChanged;
         PreviewPivotModeComboBox.ItemsSource = ItemPreviewPivotModeFactory.GetValues();
-        PreviewPivotModeComboBox.SelectedItem = ItemPreviewPivotMode.BoundsCenter;
+        PreviewPivotModeComboBox.SelectedItem = ItemPreviewPivotMode.ModelOrigin;
         PreviewPivotModeComboBox.SelectionChanged += ExperimentModeComboBox_OnSelectionChanged;
         ModelYawSlider.ValueChanged += (_, _) => UpdateModelRotationFromSliders();
         ModelPitchSlider.ValueChanged += (_, _) => UpdateModelRotationFromSliders();
@@ -153,6 +153,7 @@ public partial class SacredItemDataTable : UserControl
 
         BuildEnumFilters();
         _tableViewModel.LoadPage(0);
+        StartInventoryConsole(items.Select(item => SacredItemDataModel.FromSacredEquipment(item, sacredGameData.GameResStore)).ToArray());
         DataGrid.IsVisible = true;
     }
 
@@ -221,6 +222,11 @@ public partial class SacredItemDataTable : UserControl
 
     private async Task<string> PromptForGameDirectoryAsync(string savedGameDirectory)
     {
+        var args = Environment.GetCommandLineArgs();
+        var directoryArgument = Array.IndexOf(args, "--game-directory");
+        if (directoryArgument >= 0 && directoryArgument + 1 < args.Length)
+            return Path.GetFullPath(args[directoryArgument + 1]);
+
         var initialGameDirectory = string.IsNullOrWhiteSpace(savedGameDirectory)
             ? DefaultGameDir
             : savedGameDirectory;
@@ -358,14 +364,7 @@ public partial class SacredItemDataTable : UserControl
             Console.WriteLine($"Could not load the selected item's inventory sound: {exception.Message}");
         }
 
-        if (_previewConfirmationsByItemId.TryGetValue(selectedItem.ItemId, out var confirmation))
-        {
-            SetModelRotationSliders(ToVector3(confirmation.UserRotationYawPitchRoll));
-        }
-        else
-        {
-            ResetModelRotationSliders();
-        }
+        ResetModelRotationSliders();
 
         if (string.IsNullOrWhiteSpace(selectedItem.ModelName))
         {
@@ -466,6 +465,7 @@ public partial class SacredItemDataTable : UserControl
                 selectedItem.EquipmentType,
                 selectedItem.ItemEffectSelector) ?? EquipmentEffectScene.Empty;
 
+            _modelViewer.SetInventoryPlacement(selectedItem.PreviewScale, selectedItem.PreviewOffset);
             _modelViewer.ShowModel(
                 asset,
                 viewerPreviewRotation,
@@ -843,7 +843,7 @@ public partial class SacredItemDataTable : UserControl
     private ItemPreviewRotationMode SelectedRotationMode =>
         PreviewRotationModeComboBox.SelectedItem is ItemPreviewRotationMode mode
             ? mode
-            : ItemPreviewRotationMode.LegacyCurrent;
+            : ItemPreviewRotationMode.RawXyz;
 
     private static ItemPreviewRotationMode ResolveRotationMode(
         SacredItemDataModel item,
@@ -852,15 +852,13 @@ public partial class SacredItemDataTable : UserControl
         if (requestedMode != ItemPreviewRotationMode.Auto)
             return requestedMode;
 
-        return item.EquipmentType is SacredEquipmentType.Bow or SacredEquipmentType.Crossbow or SacredEquipmentType.Shield
-            ? ItemPreviewRotationMode.LegacyCurrent
-            : ItemPreviewRotationMode.DirectYawPitchRoll;
+        return ItemPreviewRotationMode.RawXyz;
     }
 
     private ItemPreviewPivotMode SelectedPivotMode =>
         PreviewPivotModeComboBox.SelectedItem is ItemPreviewPivotMode mode
             ? mode
-            : ItemPreviewPivotMode.BoundsCenter;
+            : ItemPreviewPivotMode.ModelOrigin;
 
     private void ExperimentModeComboBox_OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {

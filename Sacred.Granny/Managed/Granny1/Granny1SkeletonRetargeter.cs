@@ -12,10 +12,6 @@ public static partial class Granny1MeshExtractor
         if (sourceSkeleton is null || targetSkeleton is null)
             return null;
 
-        var bounds = CalculateBounds(slice.Parts);
-        var axis = VerticalAxis(bounds.Max - bounds.Min);
-        var sideAxis = DetermineSideAxis(sourceSkeleton, axis);
-        var center = Axis((bounds.Min + bounds.Max) * 0.5f, sideAxis);
         var partTieTransforms = new Matrix4x4?[slice.Parts.Length][];
         var partTargetBoneIndices = new int[slice.Parts.Length][];
         var mappedTieCount = 0;
@@ -25,12 +21,6 @@ public static partial class Granny1MeshExtractor
             IReadOnlyList<uint> boneTieBones = part.BoneTieBones.Length > 0
                 ? part.BoneTieBones
                 : sourceSkeleton.BoneTieBones;
-            var sideRemap = DetermineSingleSidedMirrorRemap(
-                part,
-                sourceSkeleton,
-                boneTieBones,
-                sideAxis,
-                center);
             var tieTransforms = new Matrix4x4?[boneTieBones.Count];
             var targetBoneIndices = new int[boneTieBones.Count];
             Array.Fill(targetBoneIndices, -1);
@@ -44,15 +34,9 @@ public static partial class Granny1MeshExtractor
                     continue;
 
                 var sourceBone = sourceSkeleton.Bones[sourceBoneIndex];
-                var targetBoneName = RemapSideBoneName(sourceBone.Name, sideRemap);
-                var sourceRestBone = sourceBone;
-                if (!string.Equals(targetBoneName, sourceBone.Name, StringComparison.Ordinal) &&
-                    sourceSkeleton.BonesByName.TryGetValue(targetBoneName, out var remappedSourceBoneIndex))
-                    sourceRestBone = sourceSkeleton.Bones[remappedSourceBoneIndex];
-
-                if (string.IsNullOrWhiteSpace(targetBoneName) ||
-                    !targetSkeleton.BonesByName.TryGetValue(targetBoneName, out var targetBoneIndex) ||
-                    !Matrix4x4.Invert(sourceRestBone.RestWorld, out var inverseSourceRest))
+                if (string.IsNullOrWhiteSpace(sourceBone.Name) ||
+                    !targetSkeleton.BonesByName.TryGetValue(sourceBone.Name, out var targetBoneIndex) ||
+                    !Matrix4x4.Invert(sourceBone.RestWorld, out var inverseSourceRest))
                     continue;
 
                 // System.Numerics transforms row vectors, so the column-vector Granny skinning order is reversed.
@@ -151,122 +135,4 @@ public static partial class Granny1MeshExtractor
             mapping[normalIndex] = checked((int)vertexIndex);
     }
 
-    private static int DetermineSideAxis(GrannySkeleton skeleton, int verticalAxis)
-    {
-        var score = new float[3];
-        for (var boneIndex = 0; boneIndex < skeleton.Bones.Length; boneIndex++)
-        {
-            var bone = skeleton.Bones[boneIndex];
-            if (!IsLeftSideBoneName(bone.Name))
-                continue;
-
-            var rightName = bone.Name.Replace(" L ", " R ", StringComparison.Ordinal);
-            if (!skeleton.BonesByName.TryGetValue(rightName, out var rightBoneIndex))
-                continue;
-
-            var leftPosition = new Vector3(bone.RestWorld.M41, bone.RestWorld.M42, bone.RestWorld.M43);
-            var rightBone = skeleton.Bones[rightBoneIndex];
-            var rightPosition = new Vector3(rightBone.RestWorld.M41, rightBone.RestWorld.M42, rightBone.RestWorld.M43);
-            var delta = Vector3.Abs(leftPosition - rightPosition);
-            score[0] += delta.X;
-            score[1] += delta.Y;
-            score[2] += delta.Z;
-        }
-
-        score[verticalAxis] = -1.0f;
-        var bestAxis = (verticalAxis + 1) % 3;
-        for (var axis = 0; axis < score.Length; axis++)
-        {
-            if (score[axis] > score[bestAxis])
-                bestAxis = axis;
-        }
-
-        return bestAxis;
-    }
-
-    private static SideRemap DetermineSingleSidedMirrorRemap(
-        ParsedMeshPart part,
-        GrannySkeleton sourceSkeleton,
-        IReadOnlyList<uint> boneTieBones,
-        int horizontalAxis,
-        float center)
-    {
-        var usesLeft = false;
-        var usesRight = false;
-        var totalWeight = 0.0f;
-        var sideWeight = 0.0f;
-        var weightedBoneCenter = 0.0f;
-        foreach (var vertexWeights in part.Weights)
-        {
-            foreach (var weight in vertexWeights)
-            {
-                if (weight.BoneTieIndex >= boneTieBones.Count)
-                    continue;
-
-                var boneIndex = boneTieBones[(int)weight.BoneTieIndex];
-                if (boneIndex >= sourceSkeleton.Bones.Length)
-                    continue;
-
-                var bone = sourceSkeleton.Bones[boneIndex];
-                var influence = float.IsFinite(weight.Weight) && weight.Weight > 0.0f
-                    ? weight.Weight
-                    : 1.0f;
-                totalWeight += influence;
-
-                var name = bone.Name;
-                var left = IsLeftSideBoneName(name);
-                var right = IsRightSideBoneName(name);
-                usesLeft |= left;
-                usesRight |= right;
-                if (!left && !right)
-                    continue;
-
-                weightedBoneCenter += Axis(new Vector3(bone.RestWorld.M41, bone.RestWorld.M42, bone.RestWorld.M43), horizontalAxis) * influence;
-                sideWeight += influence;
-            }
-        }
-
-        if (usesLeft == usesRight)
-            return SideRemap.None;
-        if (sideWeight < totalWeight * 0.5f)
-            return SideRemap.None;
-
-        var partCenter = 0.0f;
-        for (var i = 0; i < part.Positions.Length; i++)
-            partCenter += Axis(part.Positions[i], horizontalAxis);
-        partCenter /= Math.Max(1, part.Positions.Length);
-
-        if (sideWeight <= 0.000001f)
-            return SideRemap.None;
-
-        weightedBoneCenter /= sideWeight;
-        const float mirrorSideThreshold = 0.0001f;
-        var partSide = partCenter - center;
-        var boneSide = weightedBoneCenter - center;
-        if (MathF.Abs(partSide) <= mirrorSideThreshold ||
-            MathF.Abs(boneSide) <= mirrorSideThreshold ||
-            partSide * boneSide >= 0.0f)
-            return SideRemap.None;
-
-        if (usesRight)
-            return SideRemap.RightToLeft;
-        if (usesLeft)
-            return SideRemap.LeftToRight;
-
-        return SideRemap.None;
-    }
-
-    private static string RemapSideBoneName(string name, SideRemap sideRemap) =>
-        sideRemap switch
-        {
-            SideRemap.RightToLeft when IsRightSideBoneName(name) => name.Replace(" R ", " L ", StringComparison.Ordinal),
-            SideRemap.LeftToRight when IsLeftSideBoneName(name) => name.Replace(" L ", " R ", StringComparison.Ordinal),
-            _ => name
-        };
-
-    private static bool IsLeftSideBoneName(string name) =>
-        name.Contains(" L ", StringComparison.Ordinal);
-
-    private static bool IsRightSideBoneName(string name) =>
-        name.Contains(" R ", StringComparison.Ordinal);
 }
