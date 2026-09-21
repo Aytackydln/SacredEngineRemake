@@ -16,6 +16,7 @@ internal sealed class DebugUiControlState
     public CollisionCheatMode CollisionMode { get; set; }
     public float PlayerMovementSpeedMultiplier { get; set; } = 1.0f;
     public int RenderResolutionPercentage { get; set; } = 100;
+    public bool AutoRenderResolution { get; set; }
     public RenderScalingMode RenderScalingMode { get; set; } = RenderScalingMode.Bilinear;
     public PlayerDebugPanelState? Player { get; set; }
     public bool PlayerPanelVisible { get; set; }
@@ -29,6 +30,7 @@ internal sealed class DebugUiControlState
     public CollisionCheatMode? RequestedCollisionMode { get; set; }
     public float? RequestedPlayerMovementSpeedMultiplier { get; set; }
     public int? RequestedRenderResolutionPercentage { get; set; }
+    public bool? RequestedAutoRenderResolution { get; set; }
     public RenderScalingMode? RequestedRenderScalingMode { get; set; }
     public int? RequestedPlayerEquipmentRemoval { get; set; }
     public int? RequestedPlayerItemSet { get; set; }

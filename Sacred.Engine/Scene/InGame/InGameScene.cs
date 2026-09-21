@@ -186,6 +186,9 @@ internal sealed class InGameScene : IGameScene
     private static bool TryParseCollisionMode(string value, out CollisionCheatMode mode) =>
         Enum.TryParse(value, ignoreCase: true, out mode);
 
+    public SacredCamera Camera => _camera;
+    public float CameraZoom => _camera.Zoom;
+
     public void OnActivated()
     {
         _window.Input.ClearTransientEvents();
@@ -200,6 +203,7 @@ internal sealed class InGameScene : IGameScene
     public void Update(float deltaSeconds)
     {
         _inputController.Update(deltaSeconds);
+        Renderer.UpdateAutoRenderResolution(_camera.Zoom);
         _doors.Update(_worldStreamer.VisibleWorld, _camera.WorldCenter, deltaSeconds);
         _particles.Update(deltaSeconds, _worldStreamer.VisibleWorld);
         UpdateRegionDisplayName();

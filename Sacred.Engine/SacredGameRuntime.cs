@@ -136,6 +136,12 @@ internal sealed class SacredGameRuntime : IDisposable
             _renderer.SetRenderResolutionPercentage(renderResolutionPercentage);
         }
 
+        if (_debugUiControls.RequestedAutoRenderResolution is { } autoResolution)
+        {
+            _debugUiControls.RequestedAutoRenderResolution = null;
+            _renderer.SetAutoRenderResolution(autoResolution);
+        }
+
         if (_debugUiControls.RequestedRenderScalingMode is { } renderScalingMode)
         {
             _debugUiControls.RequestedRenderScalingMode = null;
@@ -192,6 +198,7 @@ internal sealed class SacredGameRuntime : IDisposable
         _debugUiControls.PlayerMovementSpeedMultiplier =
             _inGameScene?.PlayerMovementSpeedMultiplier ?? _initialSaveState.PlayerMovementSpeedMultiplier;
         _debugUiControls.RenderResolutionPercentage = _renderer.RenderResolutionPercentage;
+        _debugUiControls.AutoRenderResolution = _renderer.AutoRenderResolution;
         _debugUiControls.RenderScalingMode = _renderer.RenderScalingMode;
         _debugUiControls.Player = _inGameScene?.CreatePlayerDebugPanelState();
     }
@@ -212,6 +219,7 @@ internal sealed class SacredGameRuntime : IDisposable
             FramePacingMode = _framePacing.Mode,
             LowLatencyMode = _latency.Mode,
             RenderResolutionPercentage = _renderer.RenderResolutionPercentage,
+            AutoRenderResolution = _renderer.AutoRenderResolution,
             RenderScalingMode = _renderer.RenderScalingMode,
             GrannyBackend = _grannyBackend,
             WorldLightingMode = _inGameScene?.WorldLightingMode ?? _initialSaveState.WorldLightingMode,
@@ -267,6 +275,7 @@ internal sealed class SacredGameRuntime : IDisposable
                 ? state.LowLatencyMode
                 : LowLatencyMode.On,
             RenderResolutionPercentage = Math.Clamp(state.RenderResolutionPercentage, 25, 200),
+            AutoRenderResolution = state.AutoRenderResolution,
             RenderScalingMode = Enum.IsDefined(state.RenderScalingMode)
                 ? state.RenderScalingMode
                 : RenderScalingMode.Bilinear,
@@ -370,7 +379,7 @@ internal sealed class SacredGameRuntime : IDisposable
         switch (command)
         {
             case HelpCheatCommand:
-                EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set particles <on|off>; set item-flags <hex>; set character next; set hdr <on|off>; set pacing <vrr|vsync|limit>; set latency <off|on|boost>; set granny <managed|native>.");
+                EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set particles <on|off>; set item-flags <hex>; set character next; set hdr <on|off>; set pacing <vrr|vsync|limit>; set latency <off|on|boost>; set resolution <percentage|auto>; set autoscale <on|off>; set scaling <none|bilinear|fsr1>; set granny <managed|native>.");
                 return;
             case TeleportCheatCommand teleport:
                 if (_inGameScene is null)
@@ -501,6 +510,22 @@ internal sealed class SacredGameRuntime : IDisposable
                 _grannyBackend = grannyBackend;
                 UpdateWindowTitle();
                 message = $"Granny implementation set to {FormatGrannyBackend(grannyBackend)}; restart to reload game assets";
+                return true;
+            case "resolution" or "res" when value.Equals("auto", StringComparison.OrdinalIgnoreCase):
+                _renderer.SetAutoRenderResolution(true);
+                message = "render resolution set to auto (1:1 tiles)";
+                return true;
+            case "resolution" or "res" when int.TryParse(value, out var resolutionPercentage):
+                _renderer.SetRenderResolutionPercentage(Math.Clamp(resolutionPercentage, 25, 200));
+                message = $"render resolution set to {_renderer.RenderResolutionPercentage}%";
+                return true;
+            case "autoscale" or "autoresolution" or "auto-resolution" when TryParseBoolean(value, out var autoScale):
+                _renderer.SetAutoRenderResolution(autoScale);
+                message = $"auto resolution scaling {(autoScale ? "enabled (1:1 tiles)" : "disabled")}";
+                return true;
+            case "scaling" when Enum.TryParse<RenderScalingMode>(value, ignoreCase: true, out var scalingMode):
+                _renderer.SetRenderScalingMode(scalingMode);
+                message = $"render scaling mode set to {scalingMode}";
                 return true;
             default:
                 message = "Unknown option. Type 'help' for commands.";

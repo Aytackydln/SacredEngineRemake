@@ -58,7 +58,8 @@ public sealed class Dx12Renderer : IDisposable
         bool hdrEnabled = false,
         HdrBrightnessSettings? hdrBrightnessSettings = null,
         int renderResolutionPercentage = 100,
-        RenderScalingMode renderScalingMode = RenderScalingMode.Bilinear)
+        RenderScalingMode renderScalingMode = RenderScalingMode.Bilinear,
+        bool autoRenderResolution = false)
     {
         _gameDirectory = gameDirectory;
         _screenshotWriter = new Dx12ScreenshotWriterQueue(gameDirectory);
@@ -78,6 +79,7 @@ public sealed class Dx12Renderer : IDisposable
             _graphics.SrvCpuHandle(Dx12DescriptorLayout.Screen),
             _graphics.SrvGpuHandle(Dx12DescriptorLayout.Screen));
         _graphics.SetRenderResolutionPercentage(renderResolutionPercentage);
+        AutoRenderResolution = autoRenderResolution;
         RenderScalingMode = renderScalingMode;
         CreatePipeline();
         Dx12ShaderCatalog.Reloaded += _shaderReloadHandler;
@@ -91,6 +93,7 @@ public sealed class Dx12Renderer : IDisposable
     public int RenderWidth => _graphics.RenderWidth;
     public int RenderHeight => _graphics.RenderHeight;
     public int RenderResolutionPercentage => _graphics.RenderResolutionPercentage;
+    public bool AutoRenderResolution { get; private set; }
     public RenderScalingMode RenderScalingMode { get; private set; } = RenderScalingMode.Bilinear;
     internal DebugUiControlState DebugUiControls => _debugUiControls;
     public bool WorldInitialized => _worldPass is not null;
@@ -101,7 +104,22 @@ public sealed class Dx12Renderer : IDisposable
 
     public void QueueScreenshot(string? label) => _pendingScreenshotLabels.Enqueue(label);
 
-    public void SetRenderResolutionPercentage(int percentage) => _graphics.SetRenderResolutionPercentage(percentage);
+    public void SetRenderResolutionPercentage(int percentage)
+    {
+        AutoRenderResolution = false;
+        _graphics.SetRenderResolutionPercentage(percentage);
+    }
+
+    public void SetAutoRenderResolution(bool enabled) => AutoRenderResolution = enabled;
+
+    public void UpdateAutoRenderResolution(float zoom)
+    {
+        if (!AutoRenderResolution)
+            return;
+
+        var percentage = TileResolutionScaling.CalculateRenderResolutionPercentage(zoom);
+        _graphics.SetRenderResolutionPercentage(percentage);
+    }
 
     public void SetRenderScalingMode(RenderScalingMode mode) => RenderScalingMode = mode;
 
@@ -186,6 +204,7 @@ public sealed class Dx12Renderer : IDisposable
         ulong frameId,
         CancellationToken cancellationToken = default)
     {
+        UpdateAutoRenderResolution(camera.Zoom);
         var worldPass = GetWorldPass();
         var prepared = worldPass.Prepare(camera, world, scene, particles, particleRevision);
         _graphics.BeginRenderSubmission(_terrainPipeline);

@@ -38,11 +38,26 @@ internal static class ImGuiSettingsPanel
             controls.ParticleQuality,
             value => controls.RequestedParticleQuality = value,
             FormatParticleQuality);
+        Checkbox("Auto resolution (1:1 tiles)", controls.AutoRenderResolution,
+            value =>
+            {
+                controls.RequestedAutoRenderResolution = value;
+                EngineLog.WriteLine($"Debug input: auto render resolution set to {(value ? "enabled" : "disabled")}");
+            });
         var resolution = controls.RenderResolutionPercentage;
-        if (DearImGui.SliderInt("Render resolution", ref resolution, 25, 200, "%d%%"))
+        if (controls.AutoRenderResolution)
         {
-            controls.RequestedRenderResolutionPercentage = resolution;
-            EngineLog.WriteLine($"Debug input: render resolution set to {resolution}%");
+            DearImGui.BeginDisabled();
+            DearImGui.SliderInt("Render resolution", ref resolution, 25, 200, "%d%% (auto 1:1)");
+            DearImGui.EndDisabled();
+        }
+        else
+        {
+            if (DearImGui.SliderInt("Render resolution", ref resolution, 25, 200, "%d%%"))
+            {
+                controls.RequestedRenderResolutionPercentage = resolution;
+                EngineLog.WriteLine($"Debug input: render resolution set to {resolution}%");
+            }
         }
         EnumCombo("Render scaling", controls.RenderScalingMode,
             value => controls.RequestedRenderScalingMode = value, FormatRenderScalingMode);
@@ -74,7 +89,7 @@ internal static class ImGuiSettingsPanel
             "Sun diffuse", "sun-diffuse", ref diffuse,
             40.0f, 2_000.0f, HdrBrightnessSettings.DefaultSunDiffuseNits);
         changed |= BrightnessControl(
-            "Sun specular", "sun-specular", ref specular,
+            "Highlights", "sun-specular", ref specular,
             40.0f, 4_000.0f, HdrBrightnessSettings.DefaultSunSpecularNits);
         changed |= BrightnessControl(
             "Unlit sprites / halos", "unlit-sprites", ref unlitSprites,
