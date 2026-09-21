@@ -125,7 +125,7 @@ float4 ps_hdr_rgb(vs_output input) : SV_Target
     return float4(SdrParticleToHdr10Screen(
         sampled * model_color.rgb,
         alpha,
-        hdr_display.x,
+        hdr_display.x * alpha,
         hdr_display.w), 0.0f);
 }
 
@@ -133,14 +133,14 @@ float4 ps_hdr_argb(vs_output input) : SV_Target
 {
     float4 sampled = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord));
     float alpha = sampled.a * model_color.a * input.opacity;
-    if (alpha < 0.02f)
+    if (alpha < 0.01f)
         discard;
 
     float3 color = sampled.rgb * model_color.rgb;
     return float4(SdrParticleToHdr10Screen(
         color,
         alpha,
-        hdr_display.x,
+        hdr_display.x * alpha,
         hdr_display.w), 0.0f);
 }
 
@@ -149,13 +149,13 @@ float4 ps_hdr_alpha_mask(vs_output input) : SV_Target
     float mask = particle_texture.Sample(
         particle_sampler, animated_tex_coord(input.tex_coord)).a;
     float alpha = mask * model_color.a * input.opacity;
-    if (alpha < 0.02f)
+    if (alpha < 0.01f)
         discard;
 
     return float4(SdrParticleToHdr10Screen(
         model_color.rgb,
         alpha,
-        hdr_display.x,
+        hdr_display.x * alpha,
         hdr_display.w), 0.0f);
 }
 
