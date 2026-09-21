@@ -34,6 +34,7 @@ internal static class SacredEngineRemakeConfig
     private const string FramePacingKey = "FRAME_PACING";
     private const string LowLatencyKey = "LOW_LATENCY";
     private const string RenderResolutionPercentageKey = "RENDER_RESOLUTION_PERCENTAGE";
+    private const string AutoRenderResolutionKey = "AUTO_RENDER_RESOLUTION";
     private const string RenderScalingModeKey = "RENDER_SCALING_MODE";
     private const string GrannyBackendKey = "GRANNY_BACKEND";
     private const string WorldLightingKey = "WORLD_LIGHTING";
@@ -62,7 +63,7 @@ internal static class SacredEngineRemakeConfig
                 : null;
             var state = new SacredGameSaveState
             {
-                BorderlessFullscreen = ReadBoolean(values, BorderlessFullscreenKey, defaultValue: true),
+                BorderlessFullscreen = ReadBoolean(values, BorderlessFullscreenKey),
                 WindowedWidth = ReadPositiveInteger(values, WindowedWidthKey, 1600),
                 WindowedHeight = ReadPositiveInteger(values, WindowedHeightKey, 900),
                 WindowedX = ReadInteger(values, WindowedXKey, 100),
@@ -85,6 +86,7 @@ internal static class SacredEngineRemakeConfig
                 FramePacingMode = ReadEnum(values, FramePacingKey, FramePacingMode.VariableRefreshRate),
                 LowLatencyMode = ReadEnum(values, LowLatencyKey, LowLatencyMode.On),
                 RenderResolutionPercentage = ReadInteger(values, RenderResolutionPercentageKey, 100),
+                AutoRenderResolution = ReadBoolean(values, AutoRenderResolutionKey),
                 RenderScalingMode = ReadEnum(values, RenderScalingModeKey, RenderScalingMode.Bilinear),
                 GrannyBackend = ReadEnum(values, GrannyBackendKey, GrnBackendKind.ManagedParser),
                 WorldLightingMode = ReadEnum(values, WorldLightingKey, WorldLightingMode.TimedDayNightCycle),
@@ -163,6 +165,7 @@ internal static class SacredEngineRemakeConfig
             $"{FramePacingKey} : {state.FramePacingMode}",
             $"{LowLatencyKey} : {state.LowLatencyMode}",
             $"{RenderResolutionPercentageKey} : {state.RenderResolutionPercentage}",
+            $"{AutoRenderResolutionKey} : {FormatBoolean(state.AutoRenderResolution)}",
             $"{RenderScalingModeKey} : {state.RenderScalingMode}",
             $"{GrannyBackendKey} : {state.GrannyBackend}",
             $"{WorldLightingKey} : {state.WorldLightingMode}",

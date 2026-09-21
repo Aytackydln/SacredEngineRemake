@@ -11,7 +11,7 @@ namespace Sacred.Engine;
 public sealed record SacredGameSaveState
 {
     /// <summary>Whether the game uses a borderless window that fills the primary display.</summary>
-    public bool BorderlessFullscreen { get; init; } = true;
+    public bool BorderlessFullscreen { get; init; }
     /// <summary>Outer dimensions restored when leaving borderless fullscreen.</summary>
     public int WindowedWidth { get; init; } = 1600;
     public int WindowedHeight { get; init; } = 900;
@@ -23,6 +23,7 @@ public sealed record SacredGameSaveState
     public FramePacingMode FramePacingMode { get; init; } = FramePacingMode.VariableRefreshRate;
     public LowLatencyMode LowLatencyMode { get; init; } = LowLatencyMode.On;
     public int RenderResolutionPercentage { get; init; } = 100;
+    public bool AutoRenderResolution { get; init; }
     public RenderScalingMode RenderScalingMode { get; init; } = RenderScalingMode.Bilinear;
     public GrnBackendKind GrannyBackend { get; init; } = GrnBackendKind.ManagedParser;
     public WorldLightingMode WorldLightingMode { get; init; } = WorldLightingMode.TimedDayNightCycle;

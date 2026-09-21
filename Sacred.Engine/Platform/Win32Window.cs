@@ -13,11 +13,13 @@ public sealed class Win32Window : IDisposable
     private const int VerticalRefreshCapsIndex = 116;
     private const int XButton1 = 1;
     private const int XButton2 = 2;
-    private const uint WindowStyleOverlappedWindow = 0x00CF0000;
-    private const uint WindowStylePopup = 0x80000000;
+    private const uint WindowStyleVisible = 0x10000000;
+    private const uint WindowStyleOverlappedWindow = 0x00CF0000 | WindowStyleVisible;
+    private const uint WindowStylePopup = 0x80000000 | WindowStyleVisible;
     private const int WindowStyleIndex = -16;
     private const uint SetWindowPosNoZOrder = 0x0004;
     private const uint SetWindowPosFrameChanged = 0x0020;
+    private const uint SetWindowPosShowWindow = 0x0040;
     private const uint SetWindowPosNoOwnerZOrder = 0x0200;
     private const uint DefaultDisplayRefreshRate = 60;
     private const int ArrowCursorId = 32512;
@@ -221,14 +223,13 @@ public sealed class Win32Window : IDisposable
                     y,
                     width,
                     height,
-                    SetWindowPosNoZOrder | SetWindowPosFrameChanged | SetWindowPosNoOwnerZOrder))
+                    SetWindowPosNoZOrder | SetWindowPosFrameChanged | SetWindowPosNoOwnerZOrder | SetWindowPosShowWindow))
             {
                 throw new Win32Exception(Marshal.GetLastPInvokeError(), "Could not change window mode.");
             }
 
             IsBorderlessFullscreen = enabled;
-            if (!enabled && _windowedMaximized)
-                User32.ShowWindow(Hwnd, ShowWindowMaximized);
+            User32.ShowWindow(Hwnd, !enabled && _windowedMaximized ? ShowWindowMaximized : 5);
         }
         finally
         {
