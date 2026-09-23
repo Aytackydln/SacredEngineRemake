@@ -10,6 +10,10 @@
     <PublishAot>true</PublishAot>
     <PublishTrimmed>true</PublishTrimmed>
     <RootNamespace>SacredRemake</RootNamespace>
+
+    <AssemblyName>SacredEngineRemake</AssemblyName>
+    <Product>Sacred Engine Remake</Product>
+    <AssemblyTitle>Sacred Engine Remake</AssemblyTitle>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />

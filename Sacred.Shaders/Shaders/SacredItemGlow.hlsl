@@ -56,7 +56,6 @@ vs_output vs_main(vs_input input)
         {
             float cycle = frac(texture_flags.w * 1.8f + texture_flags.z);
             float pulse = saturate(sin(cycle * 3.14159265f));
-            output.opacity = smoothstep(0.08f, 0.42f, pulse);
             size_scale = lerp(0.3f, 1.1f, pulse);
         }
         world_position += (right * input.normal.x + up * input.normal.y) * model_scale * size_scale;
@@ -116,17 +115,19 @@ float4 ps_sdr(vs_output input) : SV_Target
 // unchanged because the original SDR blend path already matches the game.
 float4 ps_hdr_rgb(vs_output input) : SV_Target
 {
-    float3 sampled = particle_texture.Sample(
-        particle_sampler, animated_tex_coord(input.tex_coord)).rgb;
+    float2 animated_coord = animated_tex_coord(input.tex_coord);
+    float4 sampled = particle_texture.Sample(
+        particle_sampler, animated_coord);
     float alpha = model_color.a * input.opacity;
     if (alpha < 0.02f)
         discard;
 
+    float nits = hdr_display.x * alpha;
     return float4(SdrParticleToHdr10Screen(
-        sampled * model_color.rgb,
-        alpha,
-        hdr_display.x * alpha,
-        hdr_display.w), 0.0f);
+                      sampled * model_color.rgb,
+                      alpha,
+                      hdr_display.x,
+                      hdr_display.w), nits);
 }
 
 float4 ps_hdr_argb(vs_output input) : SV_Target
