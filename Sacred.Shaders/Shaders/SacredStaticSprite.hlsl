@@ -50,17 +50,10 @@ pixel_output ps_transparent_sdr(vertex_output input)
 pixel_output render_static_hdr(vertex_output input, float opacity)
 {
     float4 tex = sample_static_pixel(input, opacity);
-    float emission = input.mixed_light_emitter != 0 ? mixed_light_emission(tex.rgb) : 0.0f;
-    float3 lighting = surface_lighting(input.position.xy);
-    tex.rgb *= lerp(lighting, 1.0f, emission);
-    float nits = lerp(scene_paper_white, unlit_white_nits, emission);
+    tex.rgb *= surface_lighting(input.position.xy);
 
     pixel_output output;
-    // Fixed-function blending happens in the PQ-encoded back buffer. Premultiply
-    // the encoded value so the blend unit applies coverage exactly once; encoding
-    // coverage as luminance first makes translucent edges too bright, especially
-    // against night terrain.
-    output.color = float4(SdrTextureToHdr10(tex.rgb, nits) * tex.a, tex.a);
+    output.color = float4(SdrTextureToHdr10(tex.rgb, scene_paper_white) * tex.a, tex.a);
     output.depth = input.depth;
     return output;
 }

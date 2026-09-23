@@ -55,7 +55,7 @@ vertex_output vs_main(uint vertex_id : SV_VertexID)
 float4 ps_sdr(vertex_output input) : SV_Target
 {
     float4 color = texture0.Sample(sampler0, input.tex_coord);
-    color.rgb *= min(ambient_colour + surface_lighting(input.position.xy), 1.0f);
+    color.rgb *= ambient_colour + surface_lighting(input.position.xy);
     return color;
 }
 
@@ -67,12 +67,7 @@ float4 ps_sdr_screen(vertex_output input) : SV_Target
 float4 ps_hdr(vertex_output input) : SV_Target
 {
     float4 tex = texture0.Sample(sampler0, input.tex_coord);
-    tex.rgb *= min(ambient_colour + surface_lighting(input.position.xy), 1.0f);
-    if (premultiplied_alpha > 0.5f)
-    {
-        float3 straight_color = tex.a > 0.0f ? tex.rgb / tex.a : 0.0f;
-        return float4(SdrTextureToHdr10(straight_color, paper_white_nits) * tex.a, tex.a);
-    }
+    tex.rgb *= ambient_colour + surface_lighting(input.position.xy);
 
     return float4(SdrTextureToHdr10(tex.rgb, paper_white_nits), tex.a);
 }
@@ -80,11 +75,6 @@ float4 ps_hdr(vertex_output input) : SV_Target
 float4 ps_hdr_screen(vertex_output input) : SV_Target
 {
     float4 tex = texture0.Sample(sampler0, input.tex_coord);
-    if (premultiplied_alpha > 0.5f)
-    {
-        float3 straight_color = tex.a > 0.0f ? tex.rgb / tex.a : 0.0f;
-        return float4(SdrTextureToHdr10(straight_color, paper_white_nits) * tex.a, tex.a);
-    }
 
     return float4(SdrTextureToHdr10(tex.rgb, paper_white_nits), tex.a);
 }
