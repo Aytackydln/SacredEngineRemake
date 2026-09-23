@@ -107,7 +107,7 @@ internal sealed class Dx12DeviceContext : IDisposable
         _hdrBrightnessSettings = settings.Normalized();
 
     public void SetRenderResolutionPercentage(int percentage) =>
-        _requestedRenderResolutionPercentage = Math.Clamp(percentage, 25, 200);
+        _requestedRenderResolutionPercentage = Math.Clamp(percentage, 25, 300);
 
     public Dx12FrameContext CurrentFrame =>
         _currentFrame ?? throw new InvalidOperationException("No Direct3D frame is being recorded.");

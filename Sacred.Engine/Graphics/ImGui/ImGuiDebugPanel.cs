@@ -31,8 +31,8 @@ internal sealed class ImGuiDebugPanel(
         IReadOnlyList<TerrainStaticSprite> staticSprites,
         IReadOnlyList<TerrainWorldLight> worldLights,
         double framesPerSecond,
-        int renderWidth,
-        int renderHeight)
+        int outputWidth,
+        int outputHeight)
     {
         scene.Debug.HoveredStaticObjectId = null;
         if (!scene.Debug.OverlaysVisible)
@@ -51,14 +51,14 @@ internal sealed class ImGuiDebugPanel(
             assets,
             staticSprites,
             worldLights,
-            renderWidth,
-            renderHeight);
-        ImGuiModelDebugRenderer.Draw(camera, scene, renderWidth, renderHeight);
+            outputWidth,
+            outputHeight);
+        ImGuiModelDebugRenderer.Draw(camera, scene, outputWidth, outputHeight);
     }
 
     private void DrawToggle(SceneDebugState debug)
     {
-        DearImGui.SetNextWindowPos(new Vector2(12.0f, 70.0f), ImGuiCond.Always);
+        DearImGui.SetNextWindowPos(new Vector2(12.0f, 100.0f), ImGuiCond.Always);
         DearImGui.SetNextWindowBgAlpha(0.88f);
         var flags = ImGuiWindowFlags.NoDecoration |
                     ImGuiWindowFlags.AlwaysAutoResize |
@@ -152,7 +152,7 @@ internal sealed class ImGuiDebugPanel(
         double framesPerSecond)
     {
         DearImGui.SetNextWindowSize(new Vector2(560.0f, 720.0f), ImGuiCond.FirstUseEver);
-        DearImGui.SetNextWindowPos(new Vector2(12.0f, 120.0f), ImGuiCond.FirstUseEver);
+        DearImGui.SetNextWindowPos(new Vector2(12.0f, 148.0f), ImGuiCond.FirstUseEver);
         var open = scene.Debug.PanelVisible;
         DearImGui.PushFont(renderer.TitleFont);
         var drawContents = DearImGui.Begin("Sacred Engine Debug", ref open);

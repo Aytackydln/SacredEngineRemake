@@ -29,21 +29,21 @@ internal static class ImGuiWorldDebugRenderer
         AssetManager assets,
         IReadOnlyList<TerrainStaticSprite> staticSprites,
         IReadOnlyList<TerrainWorldLight> worldLights,
-        int renderWidth,
-        int renderHeight)
+        int outputWidth,
+        int outputHeight)
     {
         if (!AnyWorldDiagnosticVisible(debug))
             return;
 
         var transform = IsometricProjection.CreateScreenTransform(
             camera.WorldCenter,
-            camera.ViewportZoom,
-            renderWidth,
-            renderHeight);
+            camera.GetViewportZoom(outputHeight),
+            outputWidth,
+            outputHeight);
         var drawList = DearImGui.GetBackgroundDrawList();
 
         if (AnyTileDiagnosticVisible(debug))
-            DrawTileDiagnostics(drawList, transform, world, debug, renderWidth, renderHeight);
+            DrawTileDiagnostics(drawList, transform, world, debug, outputWidth, outputHeight);
         if (debug.SectorBoundsVisible)
             DrawSectorBounds(drawList, transform, world);
         if (debug.VisibleSectorFlags != SectorEnvironmentFlags.None)
@@ -65,8 +65,8 @@ internal static class ImGuiWorldDebugRenderer
                 debug,
                 assets,
                 staticSprites,
-                renderWidth,
-                renderHeight);
+                outputWidth,
+                outputHeight);
         }
     }
 
@@ -93,15 +93,15 @@ internal static class ImGuiWorldDebugRenderer
         WorldScreenTransform transform,
         VisibleWorld world,
         SceneDebugState debug,
-        int renderWidth,
-        int renderHeight)
+        int outputWidth,
+        int outputHeight)
     {
         foreach (var sector in world.Sectors)
         for (var localY = 0; localY < Sector.TileCount; localY++)
         for (var localX = 0; localX < Sector.TileCount; localX++)
         {
             var points = GetTilePoints(transform, sector, localX, localY);
-            if (!IsVisible(points, renderWidth, renderHeight))
+            if (!IsVisible(points, outputWidth, outputHeight))
                 continue;
 
             var tile = sector.Pathing[localX, localY];

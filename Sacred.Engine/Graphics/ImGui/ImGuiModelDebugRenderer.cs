@@ -11,7 +11,7 @@ internal static class ImGuiModelDebugRenderer
 {
     private static readonly Vector4 LabelColour = new(0.45f, 1.0f, 0.82f, 1.0f);
 
-    public static void Draw(SacredCamera camera, SceneState scene, int renderWidth, int renderHeight)
+    public static void Draw(SacredCamera camera, SceneState scene, int outputWidth, int outputHeight)
     {
         if (!scene.Debug.ModelNamesVisible)
             return;
@@ -25,9 +25,9 @@ internal static class ImGuiModelDebugRenderer
                 continue;
 
             var screen = new Vector2(
-                (clip.X / clip.W * 0.5f + 0.5f) * renderWidth,
-                (0.5f - clip.Y / clip.W * 0.5f) * renderHeight);
-            if (screen.X < 0.0f || screen.X > renderWidth || screen.Y < 0.0f || screen.Y > renderHeight)
+                (clip.X / clip.W * 0.5f + 0.5f) * outputWidth,
+                (0.5f - clip.Y / clip.W * 0.5f) * outputHeight);
+            if (screen.X < 0.0f || screen.X > outputWidth || screen.Y < 0.0f || screen.Y > outputHeight)
                 continue;
 
             drawList.AddText(screen, Colour(LabelColour),

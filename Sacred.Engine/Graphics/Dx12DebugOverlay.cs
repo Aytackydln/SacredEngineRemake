@@ -15,8 +15,8 @@ public unsafe class Dx12DebugOverlay : IDisposable
 {
     private const int DebugOverlayX = 12;
     private const int DebugOverlayY = 12;
-    private const int OverlayWidth = 440;
-    private const int OverlayHeight = 52;
+    private const int OverlayWidth = 880;
+    private const int OverlayHeight = 80;
 
     private readonly DebugOverlayFontSet _fonts;
     private readonly DebugTextOverlay _debugOverlay;

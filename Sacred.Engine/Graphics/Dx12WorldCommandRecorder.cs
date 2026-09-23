@@ -294,7 +294,7 @@ internal sealed class Dx12WorldCommandRecorder
             renderWidth,
             renderHeight);
 
-        if (spriteBatch.HighlightedStaticInstance >= 0)
+        if (spriteBatch.HighlightedStaticInstance is not null)
         {
             _commandList.SetGraphicsRootSignature(rootSignature);
             _commandList.SetPipelineState(liquidCoverPipeline);

@@ -9,7 +9,7 @@ namespace Sacred.Engine.Scene.InGame;
 public sealed class SacredCamera
 {
     public const float WalkingBaseSpeed = 2.0f;
-    public const float RunningBaseSpeed = 12.0f;
+    public const float RunningBaseSpeed = 10.0f;
     private const float JoystickDeadzone = 0.1f;
     private const float JoystickAntiDeadzone = 0.2f;
     private const float JoystickMaximumMovementInput = 0.8f;
@@ -46,6 +46,9 @@ public sealed class SacredCamera
 
     public static SacredCamera CreateDefault(int width, int height) => new(width, height);
 
+    public float GetViewportZoom(int viewportHeight) =>
+        Zoom * Math.Max(1, viewportHeight) / _worldViewHeight;
+
     /// <summary>
     /// Updates the aspect ratio used by the 3D projection. The vertical game-world span remains fixed,
     /// so resizing changes only the horizontal extent of the 3D camera.
@@ -71,7 +74,7 @@ public sealed class SacredCamera
     }
 
     public Vector2 ScreenToWorld(Vector2 screenPosition, int viewportWidth, int viewportHeight) =>
-        IsometricProjection.ScreenToWorld(screenPosition, WorldCenter, ViewportZoom, viewportWidth, viewportHeight);
+        IsometricProjection.ScreenToWorld(screenPosition, WorldCenter, GetViewportZoom(viewportHeight), viewportWidth, viewportHeight);
 
     public void MoveTo(Vector2 worldTarget) => _movementTarget = worldTarget;
 

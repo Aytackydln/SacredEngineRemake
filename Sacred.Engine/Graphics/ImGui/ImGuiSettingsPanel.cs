@@ -48,12 +48,12 @@ internal static class ImGuiSettingsPanel
         if (controls.AutoRenderResolution)
         {
             DearImGui.BeginDisabled();
-            DearImGui.SliderInt("Render resolution", ref resolution, 25, 200, "%d%% (auto 1:1)");
+            DearImGui.SliderInt("Render resolution", ref resolution, 25, TileResolutionScaling.MaximumPercentage, "%d%% (auto 1:1)");
             DearImGui.EndDisabled();
         }
         else
         {
-            if (DearImGui.SliderInt("Render resolution", ref resolution, 25, 200, "%d%%"))
+            if (DearImGui.SliderInt("Render resolution", ref resolution, 25, TileResolutionScaling.MaximumPercentage, "%d%%"))
             {
                 controls.RequestedRenderResolutionPercentage = resolution;
                 EngineLog.WriteLine($"Debug input: render resolution set to {resolution}%");

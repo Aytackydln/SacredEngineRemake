@@ -10,7 +10,7 @@ namespace Sacred.Engine.Graphics;
 public static class TileResolutionScaling
 {
     public const int MinimumPercentage = 25;
-    public const int MaximumPercentage = 200;
+    public const int MaximumPercentage = 300;
 
     /// <summary>
     /// Tile diamond width in pixels (96).

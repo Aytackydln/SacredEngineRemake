@@ -27,8 +27,8 @@ internal static class ImGuiObjectDebugRenderer
         SceneDebugState debug,
         AssetManager assets,
         IReadOnlyList<TerrainStaticSprite> staticSprites,
-        int renderWidth,
-        int renderHeight)
+        int outputWidth,
+        int outputHeight)
     {
         uint? hoveredStaticObjectId = null;
         var closestHoverDistanceSquared = float.MaxValue;
@@ -41,7 +41,7 @@ internal static class ImGuiObjectDebugRenderer
             var anchor = transform.ToScreen(
                 staticObject.ProjectedX + StaticObjectShiftX,
                 staticObject.ProjectedY + StaticObjectShiftY);
-            if (anchor.X < 0.0f || anchor.X > renderWidth || anchor.Y < 0.0f || anchor.Y > renderHeight)
+            if (anchor.X < 0.0f || anchor.X > outputWidth || anchor.Y < 0.0f || anchor.Y > outputHeight)
                 continue;
 
             var ringIndex = 0;
