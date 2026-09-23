@@ -1,9 +1,12 @@
+using Raiqub.Generators.EnumUtilities;
+
 namespace Sacred.Core.Pak.Items;
 
 /// <summary>
 /// Rendering flags stored at Items.pak model-descriptor offset 0x02.
 /// </summary>
 [Flags]
+[EnumGenerator]
 public enum SacredItemGraphicFlags : ushort
 {
     None = 0,
@@ -66,9 +69,12 @@ public enum SacredItemStaticShadowProjection : byte
 /// object to fade when it obscures the player.
 /// </summary>
 [Flags]
+[EnumGenerator]
 public enum SacredItemGraphicType : ushort
 {
     None = 0,
+    
+    OverWater = 0b0001,
     Model = 0b0010,
     Shadowable = 0b0100,
     MiniObject = 0b1000,
@@ -86,6 +92,7 @@ public enum SacredItemGraphicType : ushort
 /// Values are shared by inventory behavior and broad item families; this is
 /// separate from <see cref="SacredItemGraphicType"/> and Weapon.pak equipment types.
 /// </summary>
+[EnumGenerator]
 public enum SacredItemCategory : byte
 {
     Unspecified = 0,

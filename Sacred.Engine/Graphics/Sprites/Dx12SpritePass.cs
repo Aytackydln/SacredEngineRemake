@@ -157,10 +157,14 @@ internal sealed class Dx12SpritePass : IDisposable
         float highlightNits,
         Dx12FrameContext frame,
         int renderWidth,
-        int renderHeight) =>
+        int renderHeight)
+    {
+        if (batch.HighlightedStaticInstance is not { } highlightedInstance)
+            return;
+
         _batchRecorder.Record(
-            batch.HighlightedStaticInstance,
-            batch.HighlightedStaticInstance >= 0 ? 1 : 0,
+            highlightedInstance,
+            1,
             batch.HighlightedStaticIsUnlit ? _unlitStaticPipeline : _staticPipeline,
             Vector3.One,
             highlightNits,
@@ -169,6 +173,7 @@ internal sealed class Dx12SpritePass : IDisposable
             frame,
             renderWidth,
             renderHeight);
+    }
 
     public bool TryGetLiquidRange(SectorCoord coord, out LiquidSpriteDrawRange range) =>
         _instances.TryGetLiquidRange(coord, out range);

@@ -95,10 +95,10 @@ internal sealed class Dx12SpriteInstanceBuilder
                 renderHeight,
                 playerOcclusion,
                 highlightedStaticObjectId,
-                default,
+                WorldSpriteBatch.Empty,
                 0);
-            ApplyCounts(default, 0);
-            return default;
+            ApplyCounts(WorldSpriteBatch.Empty, 0);
+            return WorldSpriteBatch.Empty;
         }
 
         var screenTransform = IsometricProjection.CreateScreenTransform(
@@ -191,7 +191,7 @@ internal sealed class Dx12SpriteInstanceBuilder
         }
 
         var staticStartInstance = instanceCount;
-        var highlightedStaticInstance = -1;
+        int? highlightedStaticInstance = null;
         var highlightedStaticIsUnlit = false;
         var staticRanges = new List<StaticSpriteDrawRange>();
         var staticRangeStart = -1;

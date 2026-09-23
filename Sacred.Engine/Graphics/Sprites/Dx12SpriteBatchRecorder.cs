@@ -57,7 +57,7 @@ internal sealed class Dx12SpriteBatchRecorder
         int renderWidth,
         int renderHeight)
     {
-        if (instanceCount == 0 || pipeline is null || _rootSignature is null)
+        if (startInstance < 0 || instanceCount <= 0 || pipeline is null || _rootSignature is null || frame.SpriteInstanceBufferMapped == 0)
             return;
 
         var sceneConstants = stackalloc float[StaticSpriteShaderLayout.SceneConstantsCount];

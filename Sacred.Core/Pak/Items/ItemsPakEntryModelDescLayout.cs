@@ -40,10 +40,6 @@ public readonly struct ItemsPakEntryModelDescLayout
     internal const int ModelNameLength = 32;
     private const int ModelNameOffset = 55;
 
-    /// <summary>Native <c>cObjectShared.flags</c> word, split into the two views below.</summary>
-    [FieldOffset(0)]
-    public readonly uint RawGraphicFlags;
-
     /// <summary>Raw graphic representation used by Sacred.exe.</summary>
     [FieldOffset(0)]
     public readonly SacredItemGraphicType GraphicType;
@@ -220,7 +216,7 @@ public readonly struct ItemsPakEntryModelDescLayout
     public bool IsLightEmitting => GraphicFlags.HasFlag(SacredItemGraphicFlags.LightEmitting);
     public bool CastsStaticShadow => GraphicFlags.HasFlag(SacredItemGraphicFlags.CastsStaticShadow);
 
-    public bool UsesAnimatedMiniObject => GraphicType.HasFlag(SacredItemGraphicType.MiniObject);
+    public bool SectorEmbeddable => GraphicType.HasFlag(SacredItemGraphicType.Shadowable) && !GraphicType.HasFlag(SacredItemGraphicType.OverWater);
 
     public bool AllowsTransparency => GraphicType.HasFlag(SacredItemGraphicType.AllowsTransparency);
 

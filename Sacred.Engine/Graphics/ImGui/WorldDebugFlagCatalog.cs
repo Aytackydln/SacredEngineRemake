@@ -111,7 +111,7 @@ internal static class WorldDebugFlagCatalog
     private static IReadOnlyList<WorldDebugFlagOption<SacredItemGraphicFlags>> CreateItemGraphicOptions()
     {
         var options = new List<WorldDebugFlagOption<SacredItemGraphicFlags>>(12);
-        foreach (var flag in Enum.GetValues<SacredItemGraphicFlags>())
+        foreach (var flag in SacredItemGraphicFlagsFactory.GetValues())
         {
             var value = (ushort)flag;
             if (value == 0 || !IsSingleBit(value))

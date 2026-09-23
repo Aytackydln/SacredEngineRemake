@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Assets.Paks.Texture;
+using Sacred.Core.Pak.Items;
 using Sacred.Core.World.Lighting;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
@@ -19,6 +20,8 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
 {
     private const int SourceTileWidth = 100;
     private const int SourceTileHeight = 50;
+    private const float ObjectShiftX = 47.8f;
+    private const float ObjectShiftY = -0.3f;
 
     private static readonly (int X, int Y)[] TilePositions =
     [
@@ -208,6 +211,53 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
         var stairsDebugBounds = TerrainTileGeometry.CropTiles(stairsDebugTiles);
         var blockedAreaDebugBounds = TerrainTileGeometry.CropTiles(blockedAreaDebugTiles);
         var terrainTopologyDebugBounds = TerrainTileGeometry.CropTiles(terrainTopologyDebugTiles);
+
+        var embeddedSprites = new List<TerrainEmbeddedSprite>();
+        var embeddableObjects = new List<StaticWorldObject>();
+        for (var layerIndex = 0; layerIndex < 2; layerIndex++)
+        {
+            var objects = layerIndex == 0
+                ? sector.StaticObjects.Objects
+                : sector.WorldObjects.Objects;
+            foreach (var staticObject in objects)
+            {
+                if (staticObject.IsExcludedFromNormalRender)
+                    continue;
+
+                var item = assets.GetItem(staticObject.TypeId);
+                if (item is { ModelDesc.SectorEmbeddable: true })
+                    embeddableObjects.Add(staticObject);
+            }
+        }
+
+        embeddableObjects.Sort(CompareStaticWorldObjects);
+        foreach (var staticObject in embeddableObjects)
+        {
+            var sprite = await assets.GetStaticWorldSpriteAsync(
+                staticObject.TypeId,
+                staticObject.SpriteParam2E,
+                staticObject.SpriteParam2F,
+                staticObject.OrientationOrFrame,
+                staticObject.AnimationFrameDurationTicks,
+                staticObject.AnimationFrameCount).ConfigureAwait(false);
+
+            if (sprite is null)
+                continue;
+
+            var footX = staticObject.ProjectedX + ObjectShiftX;
+            var footY = staticObject.ProjectedY + ObjectShiftY;
+            var spriteIsoX = footX - sprite.AnchorX;
+            var spriteIsoY = footY - sprite.AnchorY;
+
+            if (Math.Abs(spriteIsoX) > 1048576 || Math.Abs(spriteIsoY) > 1048576)
+                continue;
+
+            var screenX = spriteIsoX - (sectorOriginIso.X + sectorBounds.X);
+            var screenY = spriteIsoY - (sectorOriginIso.Y + sectorBounds.Y);
+
+            embeddedSprites.Add(new TerrainEmbeddedSprite(sprite, screenX, screenY));
+        }
+
         return new TerrainSectorComposition(
             sector.Coord,
             sectorOriginIso.X + sectorBounds.X,
@@ -238,7 +288,44 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
             floorCandidateTiles,
             floorDrawnTiles,
             floorMissingTiles,
-            Array.Empty<TerrainEmbeddedSprite>());
+            embeddedSprites.ToArray());
+    }
+
+    private int EngineQueueIndex(StaticWorldObject staticObject)
+    {
+        var item = assets.GetItem(staticObject.TypeId);
+        var graphicFlags = item?.ModelDesc.GraphicFlags ?? SacredItemGraphicFlags.None;
+        var category = item?.ModelDesc.Category ?? SacredItemCategory.Unspecified;
+        if (category == SacredItemCategory.Effect)
+        {
+            if (graphicFlags.HasFlag(SacredItemGraphicFlags.FrontLayer))
+                return 4;
+            return 3;
+        }
+
+        return graphicFlags.HasFlag(SacredItemGraphicFlags.FrontLayer) ? 4 : 3;
+    }
+
+    private int CompareStaticWorldObjects(StaticWorldObject left, StaticWorldObject right)
+    {
+        var queue = EngineQueueIndex(left).CompareTo(EngineQueueIndex(right));
+        if (queue != 0)
+            return queue;
+
+        var tileDepth = left.TileDepth.CompareTo(right.TileDepth);
+        if (tileDepth != 0)
+            return tileDepth;
+
+        var tileWorldY = left.TileWorldY.CompareTo(right.TileWorldY);
+        if (tileWorldY != 0)
+            return tileWorldY;
+
+        var tileWorldX = left.TileWorldX.CompareTo(right.TileWorldX);
+        if (tileWorldX != 0)
+            return tileWorldX;
+
+        var chainDepth = left.ChainDepth.CompareTo(right.ChainDepth);
+        return chainDepth != 0 ? chainDepth : left.InsertionOrder.CompareTo(right.InsertionOrder);
     }
 
     private async Task<TerrainTileSource?> GetTileSourceAsync(uint tileId)

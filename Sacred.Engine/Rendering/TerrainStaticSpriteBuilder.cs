@@ -205,10 +205,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                     false,
                     item?.ModelDesc is { AllowsTransparency: true },
                     staticShadow,
-                    // Static world art is rendered after liquid. Baking it into
-                    // the sector texture changes that authored order and lets
-                    // water or lava cover bridges, rocks, and similar scenery.
-                    false,
+                    item?.ModelDesc is { SectorEmbeddable: true },
                     renderWidth,
                     renderHeight,
                     spriteIsoX,

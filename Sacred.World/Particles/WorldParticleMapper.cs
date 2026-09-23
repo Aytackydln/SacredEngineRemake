@@ -34,7 +34,7 @@ public static class WorldParticleMapper
 
         if (frameCount > 0)
         {
-            if (!descriptor.UsesAnimatedMiniObject ||
+            if (!descriptor.UsesMiniObjectTexture ||
                 sourceXOrAtlasColumns == 0 ||
                 sourceYOrAtlasRows == 0 ||
                 frameDurationTicks == 0 ||

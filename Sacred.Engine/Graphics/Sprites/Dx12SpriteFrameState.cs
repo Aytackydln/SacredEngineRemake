@@ -76,10 +76,13 @@ internal readonly record struct WorldSpriteBatch(
     uint ShadowTextureSlot,
     Vector2 ShadowAtlasTexelSize,
     int LegacyShadowDrawCallCount,
-    int HighlightedStaticInstance,
+    int? HighlightedStaticInstance,
     bool HighlightedStaticIsUnlit,
     IReadOnlyList<StaticSpriteDrawRange>? StaticRanges,
-    PlayerOcclusionProbe PlayerOcclusion);
+    PlayerOcclusionProbe PlayerOcclusion)
+{
+    public static WorldSpriteBatch Empty => new(0, 0, 0, 0, 0, 0, Vector2.Zero, 0, null, false, null, default);
+}
 
 internal readonly record struct StaticSpriteDrawRange(
     int StartInstance,
