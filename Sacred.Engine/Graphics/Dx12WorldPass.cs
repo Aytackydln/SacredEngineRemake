@@ -255,6 +255,9 @@ internal sealed class Dx12WorldPass : IDisposable
             camera,
             world,
             debugStats,
+            _graphics.IsHdrEnabled,
+            _graphics.RenderWidth,
+            _graphics.RenderHeight,
             _graphics.CurrentFrame.TransientResources);
         if (_imgui.IsFrameBegun)
         {

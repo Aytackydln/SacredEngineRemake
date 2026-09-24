@@ -95,6 +95,15 @@ public sealed class GrnAnimatedMesh
     public void Apply(float timeSeconds)
     {
         var sampleTime = GrnAnimationSampler.WrapTime(timeSeconds, Animation.DurationSeconds);
+        ApplySampled(sampleTime);
+    }
+
+    /// <summary>Samples a one-shot sequence, retaining its exact last pose instead of wrapping.</summary>
+    public void ApplyClamped(float timeSeconds) =>
+        ApplySampled(Math.Clamp(timeSeconds, 0.0f, MathF.Max(0.0f, Animation.DurationSeconds)));
+
+    private void ApplySampled(float sampleTime)
+    {
         SampleAnimationLocals(sampleTime);
 
         Array.Clear(_worldTransformStates);
@@ -222,4 +231,3 @@ public sealed class GrnAnimatedMesh
 
 
 }
-

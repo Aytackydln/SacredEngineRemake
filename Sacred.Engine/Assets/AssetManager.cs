@@ -24,6 +24,7 @@ using Sacred.Granny.Assets;
 using Sacred.Inventory.Actors;
 using Sacred.Inventory.Effects;
 using Sacred.Particles;
+using Sacred.World.Objects;
 
 namespace Sacred.Engine.Assets;
 

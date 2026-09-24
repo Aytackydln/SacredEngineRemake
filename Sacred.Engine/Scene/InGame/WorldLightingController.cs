@@ -15,8 +15,8 @@ public enum WorldLightingMode
 /// <summary>Applies deterministic lighting profiles, including the world-quad ambient level.</summary>
 public sealed class WorldLightingController
 {
-    private static readonly Vector3 DayAmbientColor = new(0.76f, 0.84f, 1.0f);
-    private static readonly Vector3 NightAmbientColor = new(0.43f, 0.6f, 1.0f);
+    private static readonly Vector3 DayAmbientColor = new(1.00f, 1.00f, 0.95f);
+    private static readonly Vector3 NightAmbientColor = new(0.83f, 0.86f, 1.0f);
     private static readonly float NightAmbientIntensity = 0.48f;
     private static readonly float DayAmbientIntensity = 0.54f;
     

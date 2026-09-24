@@ -71,6 +71,12 @@ public readonly struct ModelPakPayloadMetadataLayout
     [FieldOffset(0x70)]
     public readonly ModelChunkMotionIndexes MotionIndexes;
 
+    /// <summary>Activation sequence (motion slot 0xAA); used by doors and interactive props.</summary>
+    [FieldOffset(0x318)] public readonly uint ActivationMotionIndex;
+
+    /// <summary>Deactivation sequence (motion slot 0xAB); absence means no authored reset sequence.</summary>
+    [FieldOffset(0x31C)] public readonly uint DeactivationMotionIndex;
+
     /// <summary>Second motion-table index, used by the existing default-animation loader.</summary>
     [FieldOffset(0x74)]
     public readonly uint DefaultMotionIndex;

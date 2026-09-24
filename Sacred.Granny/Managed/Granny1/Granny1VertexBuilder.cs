@@ -108,7 +108,16 @@ public static partial class Granny1MeshExtractor
 
         var sourceWeights = part.Weights[positionIndex];
         if (sourceWeights.Length == 0)
+        {
+            // A single explicit form binding also binds unweighted geometry. Use the
+            // full inverse-bind delta: signed scale is part of the authored hinge.
+            // Removing scale by matrix decomposition can flip mirrored door panels.
+            if (part.BoneTieBones.Length == 1 && part.TargetBoneIndices.Length == 1 &&
+                part.TargetBoneIndices[0] >= 0)
+                return new GrnSkinVertex(part.Positions[positionIndex], bindNormal,
+                    [new GrnBoneWeight(part.TargetBoneIndices[0], 1.0f)]);
             return new GrnSkinVertex(part.Positions[positionIndex], bindNormal, []);
+        }
 
         var combined = new Dictionary<int, float>();
         foreach (var sourceWeight in sourceWeights)
@@ -140,4 +149,3 @@ public static partial class Granny1MeshExtractor
         polygon.B < part.Positions.Length &&
         polygon.C < part.Positions.Length;
 }
-

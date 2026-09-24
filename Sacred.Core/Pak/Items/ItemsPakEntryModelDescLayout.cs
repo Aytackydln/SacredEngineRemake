@@ -141,7 +141,7 @@ public readonly struct ItemsPakEntryModelDescLayout
     [BinaryString("ModelName", ModelNameLength, "ISO-8859-1")]
     public readonly ItemsPakEntryModelNameBytes ModelNameBytes;
 
-    /// <summary>Authored 3D angle in degrees (<c>cObjectShared::angle3D</c>). Its gameplay use is unresolved.</summary>
+    /// <summary>Authored model facing in projected-world degrees (<c>cObjectShared::angle3D</c>).</summary>
     [FieldOffset(87)]
     public readonly float Angle3D;
 

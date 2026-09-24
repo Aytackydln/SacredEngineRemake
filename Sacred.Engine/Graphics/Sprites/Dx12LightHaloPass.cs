@@ -155,11 +155,12 @@ internal sealed class Dx12LightHaloPass : IDisposable
         if (hasPlayerLight)
         {
             var diameter = screenTransform.Scale(lighting.PlayerLightDiameter);
-            var playerScreenPosition = ProjectWorldToScreen(
-                playerLightWorldPosition!.Value,
-                camera,
-                renderWidth,
-                renderHeight);
+            // Terrain and static-sprite illumination use the isometric world
+            // transform. The player source must use it too; projecting the 3D
+            // model origin through the camera matrix puts the light in a
+            // different coordinate space from the surface-light map.
+            var playerPosition = playerLightWorldPosition!.Value;
+            var playerScreenPosition = screenTransform.ToScreen(playerPosition.X, playerPosition.Y);
             instances[instanceCount++] = new LightHaloInstance(
                 playerScreenPosition.X - diameter * 0.5f,
                 playerScreenPosition.Y - diameter * 0.5f,
@@ -224,19 +225,6 @@ internal sealed class Dx12LightHaloPass : IDisposable
             SurfaceLightCount);
         InstanceCount = instanceCount;
         return instanceCount;
-    }
-
-    private static Vector2 ProjectWorldToScreen(
-        Vector3 worldPosition,
-        SacredCamera camera,
-        int renderWidth,
-        int renderHeight)
-    {
-        var clip = Vector4.Transform(new Vector4(worldPosition, 1.0f), camera.View * camera.Projection);
-        var inverseW = MathF.Abs(clip.W) > float.Epsilon ? 1.0f / clip.W : 1.0f;
-        return new Vector2(
-            (clip.X * inverseW * 0.5f + 0.5f) * renderWidth,
-            (0.5f - clip.Y * inverseW * 0.5f) * renderHeight);
     }
 
     private static bool IntersectsViewport(Vector2 drawPosition, float diameter, int renderWidth, int renderHeight) =>

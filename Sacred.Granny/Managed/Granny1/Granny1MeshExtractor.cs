@@ -157,21 +157,9 @@ public static partial class Granny1MeshExtractor
                     targetBoneIndices[tieIndex] = checked((int)boneTieBones[tieIndex]);
             }
 
-            // Fixed world models often omit a weight block and their form omits bone ties.
-            // Their mesh records still follow the Granny object-bone order: mesh zero belongs
-            // to the first non-root object bone, mesh one to the next, and so on. Preserve that
-            // rigid relationship so paired sliding doors and hinged lids animate independently.
-            var rigidBoneIndex = part.RigidBoneIndex;
-            if (rigidBoneIndex < 0 && part.Weights.All(static weights => weights.Length == 0) &&
-                targetSkeleton.Bones.Length > 1)
-            {
-                rigidBoneIndex = Math.Min(part.SourceMeshIndex + 1, targetSkeleton.Bones.Length - 1);
-            }
-
             parts[partIndex] = part with
             {
-                TargetBoneIndices = targetBoneIndices,
-                RigidBoneIndex = rigidBoneIndex
+                TargetBoneIndices = targetBoneIndices
             };
         }
 

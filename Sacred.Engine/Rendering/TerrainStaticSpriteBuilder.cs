@@ -14,8 +14,6 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
 {
     private const float ObjectShiftX = 47.8f;
     private const float ObjectShiftY = -0.3f;
-    private const float AuthoredLightOpacity = 0.48f;
-    private static readonly Vector3 AuthoredLightColour = Vector3.One;
 
     private readonly List<TerrainStaticSprite> _visibleSprites = new(1024);
     private readonly List<TerrainWorldLight> _visibleLights = new(64);
@@ -44,7 +42,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
         var missingObjects = 0;
         var animatedSpriteCount = 0;
         var mixedLightEmitterCount = 0;
-        var worldLightMarkerCount = 0;
+        var surfaceLightSourceCount = 0;
         var transparencyCandidateCount = 0;
         var requestsPending = false;
         foreach (var sector in sectors)
@@ -82,20 +80,14 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                         out var isIndoorSurface))
                     continue;
 
-                if (item is { } haloItem &&
-                    WorldParticleMapper.TryResolveWorldLightMarker(
-                        haloItem,
-                        out var lightMarker))
+                SacredSurfaceLight surfaceLight = default;
+                var hasSurfaceLight = item is { } lightItem &&
+                                      SacredSurfaceLightResolver.TryResolve(lightItem, out surfaceLight);
+                if (hasSurfaceLight &&
+                    surfaceLight.Attributes.Anchor == SacredSurfaceLightAnchor.GroundAnchor)
                 {
-                    var diameter = lightMarker.Radius * 2.0f;
-                    _visibleLights.Add(new TerrainWorldLight(
-                        footX - diameter * 0.5f,
-                        footY - diameter * 0.5f,
-                        diameter,
-                        AuthoredLightColour,
-                        AuthoredLightOpacity,
-                        WorldLightShape.SurfaceIllumination));
-                    worldLightMarkerCount++;
+                    AddSurfaceLight(_visibleLights, surfaceLight, footX, footY);
+                    surfaceLightSourceCount++;
                 }
 
                 if (!assets.TryGetStaticSpriteOrRequest(staticObject.TypeId, out var sprite))
@@ -143,6 +135,17 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                     !nightObjectsVisible &&
                     sprite.FrameCount <= 1)
                     continue;
+
+                if (hasSurfaceLight &&
+                    surfaceLight.Attributes.Anchor == SacredSurfaceLightAnchor.SpriteCenter)
+                {
+                    AddSurfaceLight(
+                        _visibleLights,
+                        surfaceLight,
+                        spriteIsoX + renderWidth * 0.5f,
+                        spriteIsoY + renderHeight * 0.5f);
+                    surfaceLightSourceCount++;
+                }
 
                 if (item is { } animatedHaloItem &&
                     WorldParticleMapper.TryResolveAnimatedSpriteHalo(
@@ -240,7 +243,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
             LogWorldSpriteSummary(
                 animatedSpriteCount,
                 mixedLightEmitterCount,
-                worldLightMarkerCount,
+                surfaceLightSourceCount,
                 transparencyCandidateCount);
         return new TerrainStaticPreparation(_visibleSprites, _visibleLights, true, candidateObjects, missingObjects);
     }
@@ -277,15 +280,35 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
             descriptor.StaticShadowProjection);
     }
 
+    private static void AddSurfaceLight(
+        List<TerrainWorldLight> lights,
+        SacredSurfaceLight light,
+        float centerX,
+        float centerY)
+    {
+        var attributes = light.Attributes;
+        var diameter = attributes.Radius * 2.0f;
+        lights.Add(new TerrainWorldLight(
+            centerX - diameter * 0.5f,
+            centerY - diameter * 0.5f,
+            diameter,
+            new Vector3(
+                attributes.Colour.Red / 255.0f,
+                attributes.Colour.Green / 255.0f,
+                attributes.Colour.Blue / 255.0f),
+            attributes.Opacity,
+            WorldLightShape.SurfaceIllumination));
+    }
+
     private void LogWorldSpriteSummary(
         int animatedSprites,
         int mixedLightEmitters,
-        int worldLightMarkers,
+        int surfaceLightSources,
         int transparencyCandidates)
     {
         var summary = $"World effects ready: animated static sprites={animatedSprites}, " +
                       $"mixed light emitters={mixedLightEmitters}, " +
-                      $"authored light markers={worldLightMarkers}, " +
+                      $"surface-light sources={surfaceLightSources}, " +
                       $"transparency candidates={transparencyCandidates}.";
         if (summary == _lastParticleSummary)
             return;

@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.Numerics;
 using Sacred.Assets.GameBin;
 using Sacred.Core.GameBin.Scripts;
 using Sacred.Core.Pak.Items;
@@ -9,6 +10,8 @@ namespace Sacred.World.Objects;
 
 public sealed class WorldObjectScriptIndex
 {
+    // Sacred.exe's world-coordinate conversion scale (native constant at 0x890DC0).
+    private const float WorldUnitsPerTile = 53.66563034057617f;
     private static readonly IReadOnlyList<WorldObjectScriptPlacement> EmptyPlacements = Array.Empty<WorldObjectScriptPlacement>();
     private readonly FrozenDictionary<SectorCoord, IReadOnlyList<WorldObjectScriptPlacement>> _bySector;
     public static WorldObjectScriptIndex Empty { get; } = new([]);
@@ -46,9 +49,13 @@ public sealed class WorldObjectScriptIndex
                         : (SacredScriptPosition?)null);
                 if (position is null)
                     continue;
+                var precisePosition = creation.WorldPosition is { } world
+                    ? new Vector2(world.X / WorldUnitsPerTile, world.Y / WorldUnitsPerTile)
+                    : new Vector2(position.Value.X, position.Value.Y);
                 placements.Add(new WorldObjectScriptPlacement(
                     sourceIndex * 0x04000000u + (uint)command.FileOffset,
-                    creation.TypeId, position.Value.X, position.Value.Y, position.Value.Z));
+                    creation.TypeId, position.Value.X, position.Value.Y, position.Value.Z)
+                    { PreciseWorldPosition = precisePosition });
             }
             sourceIndex++;
         }
@@ -65,6 +72,9 @@ public sealed class WorldObjectScriptIndex
     public IReadOnlyList<WorldObjectScriptPlacement> GetPlacements(SectorCoord sector) => _bySector.GetValueOrDefault(sector, EmptyPlacements);
 }
 
-public readonly record struct WorldObjectScriptPlacement(uint ScriptOffset, uint TypeId, int WorldX, int WorldY, int WorldZ);
+public readonly record struct WorldObjectScriptPlacement(uint ScriptOffset, uint TypeId, int WorldX, int WorldY, int WorldZ)
+{
+    public Vector2 PreciseWorldPosition { get; init; }
+}
 
 public readonly record struct WorldObjectScriptSource(string ScriptPath, string DefPosPath);

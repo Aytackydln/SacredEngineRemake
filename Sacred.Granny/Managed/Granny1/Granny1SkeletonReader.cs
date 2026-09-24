@@ -195,8 +195,8 @@ public static partial class Granny1MeshExtractor
             var descriptor = descriptors[descriptorIndex];
             if (descriptor.Chunk == BoneTieChunk &&
                 descriptor.DataOffset >= 0 &&
-                descriptor.DataOffset + 4 <= data.Length)
-                bones.Add(ReadUInt32(data, descriptor.DataOffset));
+                descriptor.DataOffset + Granny1FormBoneLayout.PrefixSize <= data.Length)
+                bones.Add(ReadUInt32(data, descriptor.DataOffset + Granny1FormBoneLayout.BoneIndexOffset));
         }
 
         return bones.ToArray();
@@ -295,4 +295,5 @@ public static partial class Granny1MeshExtractor
         return true;
     }
 }
+
 

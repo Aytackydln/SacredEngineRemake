@@ -11,6 +11,7 @@ internal sealed record RendererOptions(
     int Height,
     float Zoom)
 {
+    public bool OpenDoors { get; init; }
     private const string DefaultGameDirectory = @"E:\SteamLibrary\steamapps\common\Sacred Gold";
 
     public static RendererOptions Parse(string[] args)
@@ -22,6 +23,7 @@ internal sealed record RendererOptions(
         var width = 1280;
         var height = 720;
         var zoom = 0.75f;
+        var openDoors = false;
 
         for (var index = 0; index < args.Length; index++)
         {
@@ -41,6 +43,7 @@ internal sealed record RendererOptions(
                 case "--width": width = ParsePositiveInt(Read(args, ref index, argument), argument); break;
                 case "--height": height = ParsePositiveInt(Read(args, ref index, argument), argument); break;
                 case "--zoom": zoom = ParsePositiveFloat(Read(args, ref index, argument), argument); break;
+                case "--open-doors": openDoors = true; break;
                 case "--help": throw new ShowHelpException();
                 default: throw new ArgumentException($"Unknown argument '{argument}'.");
             }
@@ -56,7 +59,7 @@ internal sealed record RendererOptions(
             worldY,
             width,
             height,
-            zoom);
+            zoom) { OpenDoors = openDoors };
     }
 
     public static string Help =>
@@ -66,7 +69,8 @@ internal sealed record RendererOptions(
         "  --world-y <number>    World Y coordinate (default: start-sector center)\n" +
         "  --width <pixels>      In-game image width (default: 1280)\n" +
         "  --height <pixels>     In-game image height (default: 720)\n" +
-        "  --zoom <number>       In-game camera zoom (default: 0.75)";
+        "  --zoom <number>       In-game camera zoom (default: 0.75)\n" +
+        "  --open-doors          Sample authored activation clips at their final pose";
 
     private static string Read(IReadOnlyList<string> args, ref int index, string option)
     {

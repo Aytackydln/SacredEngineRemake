@@ -1,4 +1,6 @@
-﻿namespace Sacred.Core.World.Sector;
+﻿using System.Numerics;
+
+namespace Sacred.Core.World.Sector;
 
 public readonly record struct StaticWorldObject(
     uint StaticId,
@@ -21,6 +23,9 @@ public readonly record struct StaticWorldObject(
     int ChainDepth,
     int InsertionOrder)
 {
+    /// <summary>Full tile-space position from a compiled script's world-coordinate operand.</summary>
+    public Vector2? PreciseWorldPosition { get; init; }
+
     /// <summary>Owning building anchor from the outdoor WLDX tile's 0x1C/0x1D offsets.</summary>
     public (int X, int Y)? IndoorAnchor { get; init; }
 

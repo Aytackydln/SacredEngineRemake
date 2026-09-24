@@ -237,7 +237,8 @@ public sealed class SacredWorldArchive : IDisposable
             worldObjects.Add(new StaticWorldObject(
                 0x80000000u | placement.ScriptOffset, placement.TypeId, StaticObjectFlags.None, 0,
                 0, 0, 0, 1, (byte)Math.Clamp(placement.WorldZ, 0, byte.MaxValue),
-                0, 0, 0, 0, 0, 0, placement.WorldY, placement.WorldX, 0, worldObjects.Count));
+                0, 0, 0, 0, 0, 0, placement.WorldY, placement.WorldX, 0, worldObjects.Count)
+                { PreciseWorldPosition = placement.PreciseWorldPosition });
         }
     }
     private void LoadIndoorTileGroups(

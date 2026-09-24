@@ -8,6 +8,8 @@ using Sacred.Core.Pak.Items;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
 using Sacred.Granny.Meshes;
+using Sacred.World.Geometry;
+using Sacred.World.Objects;
 
 namespace Sacred.Engine.Scene.InGame;
 
@@ -16,7 +18,6 @@ namespace Sacred.Engine.Scene.InGame;
 /// </summary>
 internal sealed class DoorSceneController
 {
-    private const float ModelScale = 2.0f;
     private const int MaximumConcurrentModelLoads = 2;
     private const float DoorClickRadiusTiles = 2.0f;
 
@@ -106,7 +107,7 @@ internal sealed class DoorSceneController
         // Script-created interactive objects are the gameplay instances. A matching WLDX
         // entry is their scenery representation and must not create a second model.
         foreach (var sector in sectors)
-        foreach (var worldObject in sector.WorldObjects.Objects)
+        foreach (var worldObject in sector.WorldObjects.Objects.OrderByDescending(obj => obj.PreciseWorldPosition.HasValue))
             AddModelIfPresent(worldObject, placementKeys);
         foreach (var sector in sectors)
         foreach (var staticObject in sector.StaticObjects.Objects)
@@ -127,8 +128,7 @@ internal sealed class DoorSceneController
         // restart that same request every frame; retry if its sector later
         // leaves and re-enters the visible set.
         _failedLoads.RemoveWhere(staticId => !_desiredModels.ContainsKey(staticId));
-        foreach (var staticId in _doorStates.Keys.Where(staticId => !_desiredModels.ContainsKey(staticId)).ToArray())
-            _doorStates.Remove(staticId);
+        // Keep requested state when the sector leaves view, so reloading restores its pose.
 
         // A load continues after a sector leaves view. Keep tracking it until it
         // completes so a later publication cannot enqueue duplicate work.
@@ -164,7 +164,7 @@ internal sealed class DoorSceneController
 
         foreach (var (staticId, placement) in _desiredModels
                      .OrderBy(pair => Vector2.DistanceSquared(
-                         new Vector2(pair.Value.StaticObject.TileWorldX, pair.Value.StaticObject.TileWorldY), focus)))
+                         WorldModelPose.TilePosition(pair.Value.StaticObject), focus)))
         {
             if (availableLoads <= 0)
                 break;
@@ -203,13 +203,15 @@ internal sealed class DoorSceneController
             }
 
             var placement = _desiredModels[staticId];
-            var model = CreateSceneModel(placement, mesh, asset.TextureAliases);
+            var model = CreateSceneModel(placement, mesh, asset.TextureAliases,
+                asset.Model.Diagnostics?.SourceOriginOffset ?? Vector3.Zero);
             _models[staticId] = model;
             if (asset.OpenAnimation is not null || asset.CloseAnimation is not null)
             {
-                var animation = new DoorMotionPlayback(model, asset.Model.Skin, asset.OpenAnimation, asset.CloseAnimation);
+                var animation = new DoorMotionPlayback(mesh, asset.Model.Skin, asset.OpenAnimation, asset.CloseAnimation);
                 _doorAnimations[staticId] = animation;
                 animation.SetInitialState(GetDoorState(staticId) == DoorState.Open);
+                model.SetMesh(animation.Mesh);
             }
             EngineLog.WriteLine(
                 $"World model ready: item {placement.Item.ItemIndex} ({placement.Item.ModelName}) at " +
@@ -247,31 +249,38 @@ internal sealed class DoorSceneController
     private static SceneModel CreateSceneModel(
         WorldModelPlacement placement,
         Mesh mesh,
-        IReadOnlyDictionary<string, ModelTextureReference> textureAliases)
+        IReadOnlyDictionary<string, ModelTextureReference> textureAliases,
+        Vector3 sourceOriginOffset)
     {
         // Script-created objects retain their absolute tile anchor in the static-object
         // record. ProjectedX/Y are sprite-space values and must never be inverted for a
         // model transform: doing so makes a distant object share the player's 3D area.
         var label = IsInteractive(placement.Item) ? "Interactive model" : "World object";
-        return new SceneModel(
+        var model = new SceneModel(
             $"{label}: static {placement.StaticObject.StaticId}, item {placement.Item.ItemIndex}, {placement.Item.ModelName}",
             mesh,
             ModelPosition(placement),
-            new Vector3(0.0f, 0.0f, DegreesToRadians(-placement.Item.ModelDesc.Angle3D)),
-            ModelScale,
-            textureAliases);
+            new Vector3(0.0f, 0.0f, WorldModelPose.RotationRadians(placement.Item.ModelDesc.Angle3D)),
+            WorldModelPose.Scale,
+            textureAliases,
+            sourceOriginOffset: sourceOriginOffset) { IsWorldObject = true };
+        model.SetPose(model.Position, model.Rotation,
+            new Vector2(placement.StaticObject.TileWorldX, placement.StaticObject.TileWorldY));
+        model.SetModelProjection(WorldModelPose.CameraProjection);
+        return model;
     }
-
-    private static float DegreesToRadians(float degrees) =>
-        float.IsFinite(degrees) ? degrees * (MathF.PI / 180.0f) : 0.0f;
 
     private void UpdateDoorAnimations(float deltaSeconds)
     {
         if (!float.IsFinite(deltaSeconds) || deltaSeconds <= 0.0f)
             return;
 
-        foreach (var animation in _doorAnimations.Values)
+        foreach (var (staticId, animation) in _doorAnimations)
+        {
             animation.Update(deltaSeconds);
+            _models[staticId].SetMesh(animation.Mesh);
+
+        }
     }
 
     private WorldModelPlacement? FindInteractiveAt(Vector2 worldPosition)
@@ -283,13 +292,13 @@ internal sealed class DoorSceneController
             if (!IsInteractive(placement.Item))
                 continue;
 
-            var position = new Vector2(placement.StaticObject.TileWorldX, placement.StaticObject.TileWorldY);
+            var position = WorldModelPose.TilePosition(placement.StaticObject);
             if (Vector2.DistanceSquared(position, worldPosition) > maximumDistanceSquared)
                 continue;
 
             if (closest is null ||
                 Vector2.DistanceSquared(position, worldPosition) < Vector2.DistanceSquared(
-                    new Vector2(closest.Value.StaticObject.TileWorldX, closest.Value.StaticObject.TileWorldY), worldPosition))
+                    WorldModelPose.TilePosition(closest.Value.StaticObject), worldPosition))
             {
                 closest = placement;
             }
@@ -299,12 +308,13 @@ internal sealed class DoorSceneController
     }
 
     private DoorState GetDoorState(uint staticId) =>
-        _doorStates.TryGetValue(staticId, out var state) ? state : DoorState.Closed;
+        _doorStates.GetValueOrDefault(staticId, DoorState.Closed);
 
-    private static Vector3 ModelPosition(WorldModelPlacement placement) => new(
-        placement.StaticObject.TileWorldX,
-        placement.StaticObject.TileWorldY,
-        0.0f);
+    private static Vector3 ModelPosition(WorldModelPlacement placement)
+    {
+        var position = WorldModelPose.TilePosition(placement.StaticObject);
+        return new Vector3(position, 0.0f);
+    }
 
     private static bool IsWorldModel(ItemsPakEntry item) =>
         item.ModelDesc.GraphicType.HasFlag(SacredItemGraphicType.Model) &&
@@ -332,3 +342,4 @@ internal sealed class DoorSceneController
 
     private readonly record struct ModelPlacementKey(uint TypeId, int WorldX, int WorldY);
 }
+

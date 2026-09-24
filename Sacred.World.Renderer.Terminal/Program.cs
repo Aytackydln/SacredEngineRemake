@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Numerics;
 using Sacred.Assets.Paks.Items;
 using Sacred.Assets.Paks.Mixed;
+using Sacred.Assets.Paks.Models;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Assets.Paks.Tiles;
 using Sacred.Core.World.Sector;
@@ -55,6 +56,12 @@ try
     var dayWorld = await new DayWorldRasterizer(world, textures, tiles, staticSprites).RenderAsync(
         worldCenter, options.Width, options.Height, options.Zoom);
     Write("world-day.bmp", dayWorld.Image);
+    using var modelArchive = ModelsPakArchive.Load(
+        Path.Combine(pakDirectory, "models.pak"), Path.Combine(pakDirectory, "Models.tmp"));
+    var modelWorld = await new WorldModelRasterizer(world, items, modelArchive, textures)
+        { StaticSprites = staticSprites }
+        .RenderAsync(dayWorld.Image, worldCenter, options.Zoom, options.OpenDoors);
+    Write("world-models.bmp", modelWorld);
     Console.WriteLine(
         $"World image: {dayWorld.LoadedSectors} sectors, {dayWorld.RenderedTiles}/{dayWorld.CandidateTiles} tiles " +
         $"rendered, {dayWorld.MissingTiles} missing; " +

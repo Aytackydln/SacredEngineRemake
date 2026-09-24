@@ -162,7 +162,11 @@ public sealed class SceneModel
     private Matrix4x4 _transform;
     private Vector3 _localBoundsCenter;
     private float _localBoundsRadius;
+    private ulong _boundsVertexRevision;
     private Vector3 _modelOffset;
+    private Matrix4x4 _modelProjection = Matrix4x4.Identity;
+    // GRN extraction centers mesh vertices; world props retain their authored pivot here.
+    private readonly Vector3 _sourceOriginOffset;
 
     public SceneModel(
         string name,
@@ -172,7 +176,8 @@ public sealed class SceneModel
         float scale = 1.0f,
         IReadOnlyDictionary<string, ModelTextureReference>? textureAliases = null,
         EquipmentEffectScene? equipmentEffects = null,
-        float? groundPlaneZ = null)
+        float? groundPlaneZ = null,
+        Vector3 sourceOriginOffset = default)
     {
         Name = name;
         Mesh = mesh;
@@ -180,6 +185,7 @@ public sealed class SceneModel
         DepthAnchor = new Vector2(position.X, position.Y);
         Rotation = rotation;
         Scale = scale;
+        _sourceOriginOffset = sourceOriginOffset;
         TextureAliases = textureAliases;
         EquipmentEffects = equipmentEffects;
         EquipmentEffects?.ResetNativeEffects();
@@ -192,11 +198,14 @@ public sealed class SceneModel
     public Mesh Mesh { get; private set; }
     public Vector3 Position { get; private set; }
     public Vector2 DepthAnchor { get; private set; }
+    /// <summary>World props use their authored tile ordering without the character occlusion bias.</summary>
+    public bool IsWorldObject { get; init; }
     public Vector3 Rotation { get; private set; }
     public float Scale { get; }
     public float GroundShadowRadius { get; private set; }
     /// <summary>Conservative local mesh-sphere radius used by the renderer's early visibility test.</summary>
-    public float WorldBoundsRadius => _localBoundsRadius * Scale;
+    public float WorldBoundsRadius => _localBoundsRadius * Scale * MathF.Max(
+        MathF.Abs(_modelProjection.M11), MathF.Max(MathF.Abs(_modelProjection.M22), MathF.Abs(_modelProjection.M33)));
     public float GroundPlaneZ { get; private set; }
     /// <summary>Absolute model-camera position derived from the gameplay tile anchor.</summary>
     public Vector3 RenderPosition
@@ -211,6 +220,13 @@ public sealed class SceneModel
     public IReadOnlyDictionary<string, ModelTextureReference>? TextureAliases { get; }
     public EquipmentEffectScene? EquipmentEffects { get; }
     public Matrix4x4 Transform => _transform;
+
+    /// <summary>Adapts an authored model camera to the scene camera after model facing.</summary>
+    public void SetModelProjection(Matrix4x4 projection)
+    {
+        _modelProjection = projection;
+        RebuildTransform();
+    }
 
     /// <summary>Applies an authored local-model animation offset without changing its world tile anchor.</summary>
     public void SetModelOffset(Vector3 offset)
@@ -266,10 +282,11 @@ public sealed class SceneModel
 
     internal bool SetMesh(Mesh mesh)
     {
-        if (ReferenceEquals(Mesh, mesh))
+        if (ReferenceEquals(Mesh, mesh) && _boundsVertexRevision == mesh.VertexRevision)
             return false;
 
         Mesh = mesh;
+        _boundsVertexRevision = mesh.VertexRevision;
         (_localBoundsCenter, _localBoundsRadius, GroundShadowRadius) = CalculateBounds(mesh);
         return true;
     }
@@ -288,9 +305,11 @@ public sealed class SceneModel
     {
         var previous = _transform;
         var rotation = Matrix4x4.CreateFromYawPitchRoll(Rotation.X, Rotation.Y, Rotation.Z);
-        var renderPosition = RenderPosition + Vector3.Transform(_modelOffset, rotation);
-        _transform = Matrix4x4.CreateScale(Scale) *
+        var renderPosition = RenderPosition + Vector3.Transform(_modelOffset, rotation * _modelProjection);
+        _transform = Matrix4x4.CreateTranslation(_sourceOriginOffset) *
+                     Matrix4x4.CreateScale(Scale) *
                      rotation *
+                     _modelProjection *
                      Matrix4x4.CreateTranslation(renderPosition);
         if (previous != default)
             EquipmentEffects?.RebaseNativeEffects(previous, _transform);

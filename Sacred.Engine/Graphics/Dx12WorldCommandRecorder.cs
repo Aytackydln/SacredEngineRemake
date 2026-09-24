@@ -33,6 +33,7 @@ internal sealed class Dx12WorldCommandRecorder
     private readonly Dx12SurfaceLightMapPass _surfaceLights;
     private readonly Dx12PlayerOcclusionMapPass _playerOcclusionMap;
     private readonly Dx12LightHaloPass _lightHalos;
+    private readonly List<TerrainWorldLight> _frameWorldLights = new(65);
     private readonly Dx12ModelPass _models;
     private readonly Dx12DebugOverlay _debugOverlay;
     private readonly Dx12ImGuiRenderer _imgui;
@@ -111,16 +112,12 @@ internal sealed class Dx12WorldCommandRecorder
             renderWidth,
             renderHeight,
             worldSpriteRevision);
+        var frameWorldLights = PrepareFrameWorldLights(worldLights, camera, scene.Lighting);
         var lightHaloInstanceCount = _lightHalos.PrepareInstances(
             camera,
-            worldLights,
+            frameWorldLights,
             scene.Lighting,
-            scene.Models.Count > 0
-                ? new Vector3(
-                    scene.Models[0].Position.X,
-                    scene.Models[0].Position.Y,
-                    scene.Models[0].GroundPlaneZ)
-                : null,
+            playerLightWorldPosition: null,
             frame,
             renderWidth,
             renderHeight,
@@ -324,6 +321,28 @@ internal sealed class Dx12WorldCommandRecorder
             sceneColor,
             ResourceStates.RenderTarget,
             finalColorState);
+    }
+
+    private IReadOnlyList<TerrainWorldLight> PrepareFrameWorldLights(
+        IReadOnlyList<TerrainWorldLight> worldLights,
+        SacredCamera camera,
+        SceneLighting lighting)
+    {
+        _frameWorldLights.Clear();
+        _frameWorldLights.AddRange(worldLights);
+        if (lighting.PlayerLightDiameter <= 0.0f || lighting.PlayerLightOpacity <= 0.0f)
+            return _frameWorldLights;
+
+        var radius = lighting.PlayerLightDiameter * 0.5f;
+        var playerIsoPosition = IsometricProjection.WorldToIso(camera.WorldCenter);
+        _frameWorldLights.Add(new TerrainWorldLight(
+            playerIsoPosition.X - radius,
+            playerIsoPosition.Y - radius,
+            lighting.PlayerLightDiameter,
+            lighting.PlayerLightColour,
+            lighting.PlayerLightOpacity,
+            WorldLightShape.SurfaceIllumination));
+        return _frameWorldLights;
     }
 
     public void RecordUi(

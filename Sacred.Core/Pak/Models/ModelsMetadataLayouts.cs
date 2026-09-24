@@ -43,6 +43,11 @@ public readonly struct ModelsMetadataModelLayout
     /// <summary>All native <c>cGrannyModelChunk::motions[256]</c> indexes.</summary>
     [FieldOffset(0x70)] public readonly ModelChunkMotionIndexes MotionIndexes;
 
+    /// <summary>Activation sequence (motion slot 0xAA), including sliding and hinged doors.</summary>
+    [FieldOffset(0x318)] public readonly uint ActivationMotionIndex;
+    /// <summary>Deactivation sequence (motion slot 0xAB).</summary>
+    [FieldOffset(0x31C)] public readonly uint DeactivationMotionIndex;
+
     /// <summary>Idle motion indexes for the first thirteen weapon styles.</summary>
     [FieldOffset(116)] public readonly ModelMotionIndexArray13 IdleMotionIndexes;
     /// <summary>Fighting-idle motion indexes for the first thirteen weapon styles.</summary>

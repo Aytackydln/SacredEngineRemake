@@ -5,6 +5,7 @@ using System.Linq;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
+using Sacred.Core.Pak.Items;
 using Sacred.Engine.Animation;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Graphics.ImGui;
@@ -447,11 +448,18 @@ internal sealed class PlayerCharacterController : IDisposable
         // Playable actors use the largest authored invisible light volume from
         // Items.pak. Character ModelExtent is the model's spatial bound and was
         // producing a much smaller, class-dependent pool of light.
-        _scene.Lighting.PlayerLightDiameter = _assets.PlayableCharacterLightRadius > 0.0f
-            ? _assets.PlayableCharacterLightRadius * 2.0f
+        var radius = _assets.PlayableCharacterLightRadius > 0.0f
+            ? checked((ushort)_assets.PlayableCharacterLightRadius)
             : item is { } value
-                ? value.ModelDesc.Radius * 2.0f
-                : 0.0f;
+                ? value.ModelDesc.Radius
+                : (ushort)0;
+        var light = SacredSurfaceLightResolver.CreatePlayerAttributes(radius);
+        _scene.Lighting.PlayerLightDiameter = light.Radius * 2.0f;
+        _scene.Lighting.PlayerLightColour = new Vector3(
+            light.Colour.Red / 255.0f,
+            light.Colour.Green / 255.0f,
+            light.Colour.Blue / 255.0f);
+        _scene.Lighting.PlayerLightOpacity = light.Opacity;
     }
 
     private void UpdatePosition(Vector2 worldPosition, TerrainElevationSample terrain)

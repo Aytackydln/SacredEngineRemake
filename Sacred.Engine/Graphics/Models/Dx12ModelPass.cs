@@ -430,7 +430,7 @@ internal sealed class Dx12ModelPass
             0.50f - (depthKey - centerDepthKey) * PainterDepthScale,
             0.20f,
             0.72f);
-        return Math.Clamp(painterDepth + PlayerDepthBias, 0.0f, 1.0f);
+        return Math.Clamp(painterDepth + (model.IsWorldObject ? 0.0f : PlayerDepthBias), 0.0f, 1.0f);
     }
 
     private GpuDescriptorHandle SrvGpuHandle(int index) => _srvHeapStart + index * _descriptorSize;
