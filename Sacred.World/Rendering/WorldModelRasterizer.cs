@@ -16,16 +16,24 @@ public sealed class WorldModelRasterizer(SacredWorldArchive world, IReadOnlyDict
     private readonly Dictionary<(uint TypeId, bool Open), ModelGeometry?> _meshes = [];
     public WorldStaticSpriteProvider? StaticSprites { get; init; }
 
-    public async Task<RgbaImage> RenderAsync(RgbaImage terrain, Vector2 center, float zoom, bool openDoors = false)
+    public async Task<RgbaImage> RenderAsync(
+        RgbaImage terrain,
+        Vector2 center,
+        float zoom,
+        bool openDoors = false,
+        IndoorTileGroup? activeIndoorGroup = null)
     {
         var pixels = (byte[])terrain.Pixels.Clone();
         var sectors = await LoadSectors(center);
+        var indoorGroups = sectors.SelectMany(static sector => sector.IndoorTileGroups.Groups)
+            .DistinctBy(static group => group.Id).ToArray();
         var placements = sectors.SelectMany(sector => sector.WorldObjects.Objects.Concat(sector.StaticObjects.Objects))
-            .Where(IsModel).OrderByDescending(p => p.PreciseWorldPosition.HasValue)
+            .Where(placement => IsVisibleModel(placement, indoorGroups, activeIndoorGroup))
+            .OrderByDescending(p => p.PreciseWorldPosition.HasValue)
             .DistinctBy(p => (p.TypeId, p.TileWorldX, p.TileWorldY)).ToArray();
         var triangles = new List<Triangle>();
         var occlusion = StaticSprites is null ? null : await WorldModelOcclusion.BuildAsync(
-            StaticSprites, sectors, center, terrain.Width, terrain.Height, zoom);
+            StaticSprites, sectors, center, terrain.Width, terrain.Height, zoom, activeIndoorGroup);
         foreach (var placement in placements)
         {
             if (!items.TryGetValue((ushort)placement.TypeId, out var item) || string.IsNullOrWhiteSpace(item.ModelName))
@@ -96,22 +104,35 @@ public sealed class WorldModelRasterizer(SacredWorldArchive world, IReadOnlyDict
         item.ModelDesc.Category is SacredItemCategory.WorldObject or SacredItemCategory.Container or
             SacredItemCategory.Door or SacredItemCategory.Effect;
 
+    private bool IsVisibleModel(
+        StaticWorldObject placement,
+        IReadOnlyList<IndoorTileGroup> indoorGroups,
+        IndoorTileGroup? activeIndoorGroup) =>
+        IsModel(placement) &&
+        WorldObjectSurfaceVisibility.IsModelVisible(
+            placement,
+            indoorGroups,
+            activeIndoorGroup,
+            items[(ushort)placement.TypeId].ModelDesc.Category);
+
     private static void AddTriangles(List<Triangle> target, ModelGeometry geometry, StaticWorldObject placement, float angle, Vector2 center, int width, int height, float zoom)
     {
         var mesh = geometry.Mesh;
         var origin = IsometricProjection.WorldToModel(WorldModelPose.TilePosition(placement));
         var camera = IsometricProjection.WorldToModel(center);
         var localTransform = WorldModelPose.LocalTransform(angle, geometry.SourceOriginOffset);
-        // Script tile coordinates supply ordering; the separate world operand supplies
-        // the precise visual pivot. Character occlusion bias does not apply to world props.
-        var painterDepth = placement.TileWorldX + placement.TileWorldY + placement.TileWorldY * .001f;
+        // The visual pivot may be fractional, but the object is inserted into
+        // the authored tile chain as one unit for painter ordering.
+        var painterDepth = WorldPainterDepth.FromTile(placement.TileWorldX, placement.TileWorldY);
         var points = new Point[mesh.Vertices.Length];
         for (var i = 0; i < points.Length; i++)
         {
             var local = Vector3.Transform(mesh.Vertices[i].Position, localTransform);
             var position = new Vector3(origin.X + local.X, origin.Y + local.Y, local.Z);
             points[i] = new Point(width * .5f + (position.X - camera.X) * zoom,
-                height * .5f - ((position.Y - camera.Y) + position.Z) / MathF.Sqrt(2) * zoom, position.Y - position.Z, mesh.Vertices[i].TexCoord);
+                height * .5f - ((position.Y - camera.Y) + position.Z) / MathF.Sqrt(2) * zoom,
+                position.Y - position.Z,
+                mesh.Vertices[i].TexCoord);
         }
         for (var i = 0; i + 2 < mesh.Indices.Length; i += 3)
         {
@@ -143,7 +164,7 @@ public sealed class WorldModelRasterizer(SacredWorldArchive world, IReadOnlyDict
             var w = 1 - u - v;
             if (u < 0 || v < 0 || w < 0) continue;
             var pixel = y * width + x;
-            if (occlusion is not null && occlusion[pixel] > triangle.Depth) continue;
+            if (occlusion is not null && occlusion[pixel] > triangle.PainterDepth) continue;
             var depth = triangle.A.Depth * u + triangle.B.Depth * v + triangle.C.Depth * w;
             if (depth >= depths[pixel]) continue;
             var o = pixel * 4;
@@ -163,7 +184,7 @@ public sealed class WorldModelRasterizer(SacredWorldArchive world, IReadOnlyDict
     }
     private static float Edge(Point a, Point b, float x, float y) => (x - a.X) * (b.Y - a.Y) - (y - a.Y) * (b.X - a.X);
     private readonly record struct Point(float X, float Y, float Depth, Vector2 Uv);
-    private readonly record struct Triangle(Point A, Point B, Point C, float Depth, TextureAsset? Texture);
+    private readonly record struct Triangle(Point A, Point B, Point C, float PainterDepth, TextureAsset? Texture);
     private readonly record struct ModelGeometry(Mesh Mesh, Vector3 SourceOriginOffset, TextureAsset?[] Textures);
 }
 

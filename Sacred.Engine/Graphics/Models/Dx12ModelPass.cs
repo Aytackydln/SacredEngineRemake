@@ -9,6 +9,7 @@ using Sacred.Engine.Scene.InGame;
 using Sacred.Granny.Meshes;
 using Sacred.Particles;
 using Sacred.Shaders;
+using Sacred.World.Geometry;
 using Vortice.Direct3D;
 using Vortice.Direct3D12;
 
@@ -184,6 +185,9 @@ internal sealed class Dx12ModelPass
             var world = model.Transform;
             var worldViewProjection = world * viewProjection;
             var modelSceneDepth = CalculateSceneDepth(camera, model);
+            var modelGeometryDepth = model.IsWorldObject
+                ? ModelShaderVariables.EncodeFixedPainterDepth(modelSceneDepth)
+                : modelSceneDepth;
             var defaultModelColor = ModelShaderVariables.ColorFromName(model.Name);
             _shaderConstants.WriteModelBase(
                 constants,
@@ -203,7 +207,7 @@ internal sealed class Dx12ModelPass
 
             if (model.Mesh.Surfaces.Count == 0)
             {
-                RecordUntexturedMesh(mesh, constants, modelSceneDepth);
+                RecordUntexturedMesh(mesh, constants, modelGeometryDepth);
             }
             else
             {
@@ -269,7 +273,7 @@ internal sealed class Dx12ModelPass
                                 animation.IsAnimated,
                                 animation.Mode == TextureAnimationMode.RadialSweepBlackKey,
                                 overlay: false),
-                            modelSceneDepth,
+                            modelGeometryDepth,
                             animation.IsAnimated ? elapsedSeconds * animation.TimeScale : 0.0f);
                         SetRootConstantsIfChanged(
                             ModelShaderLayout.ModelConstantsRootParameter,
@@ -424,8 +428,8 @@ internal sealed class Dx12ModelPass
     {
         // Keep painter ordering tied to the gameplay/collision anchor. Model-local geometry
         // (weapons, wings, effects) must not move the character between world depth layers.
-        var depthKey = model.DepthAnchor.X + model.DepthAnchor.Y + model.DepthAnchor.Y * 0.001f;
-        var centerDepthKey = camera.WorldCenter.X + camera.WorldCenter.Y + camera.WorldCenter.Y * 0.001f;
+        var depthKey = WorldPainterDepth.FromWorld(model.DepthAnchor);
+        var centerDepthKey = WorldPainterDepth.FromWorld(camera.WorldCenter);
         var painterDepth = Math.Clamp(
             0.50f - (depthKey - centerDepthKey) * PainterDepthScale,
             0.20f,

@@ -166,10 +166,18 @@ public static class Dx12PipelineCatalog
                 shaders.StaticSpritePixelShader,
                 CreatePremultipliedBlend(),
                 RasterizerDescription.CullNone,
-                CreateLessEqualDepth(),
+                CreatePainterDepth(),
                 usesDepthBuffer: true),
             Pipeline(
                 Dx12PipelineKind.TransparentStaticSprite,
+                shaders.StaticSpriteVertexShader,
+                shaders.TransparentStaticSpritePixelShader,
+                CreatePremultipliedBlend(),
+                RasterizerDescription.CullNone,
+                CreatePainterDepth(),
+                usesDepthBuffer: true),
+            Pipeline(
+                Dx12PipelineKind.PostModelTransparentStaticSprite,
                 shaders.StaticSpriteVertexShader,
                 shaders.TransparentStaticSpritePixelShader,
                 CreatePremultipliedBlend(),
@@ -182,10 +190,18 @@ public static class Dx12PipelineCatalog
                 shaders.UnlitStaticSpritePixelShader,
                 CreatePremultipliedBlend(),
                 RasterizerDescription.CullNone,
-                CreateLessEqualDepth(),
+                CreatePainterDepth(),
                 usesDepthBuffer: true),
             Pipeline(
                 Dx12PipelineKind.TransparentUnlitStaticSprite,
+                shaders.StaticSpriteVertexShader,
+                shaders.TransparentUnlitStaticSpritePixelShader,
+                CreatePremultipliedBlend(),
+                RasterizerDescription.CullNone,
+                CreatePainterDepth(),
+                usesDepthBuffer: true),
+            Pipeline(
+                Dx12PipelineKind.PostModelTransparentUnlitStaticSprite,
                 shaders.StaticSpriteVertexShader,
                 shaders.TransparentUnlitStaticSpritePixelShader,
                 CreatePremultipliedBlend(),
@@ -404,6 +420,13 @@ public static class Dx12PipelineCatalog
     {
         var depth = DepthStencilDescription.Default;
         depth.DepthFunc = ComparisonFunction.LessEqual;
+        return depth;
+    }
+
+    private static DepthStencilDescription CreatePainterDepth()
+    {
+        var depth = DepthStencilDescription.Default;
+        depth.DepthFunc = ComparisonFunction.Always;
         return depth;
     }
 

@@ -10,6 +10,7 @@ using Sacred.Engine.Assets;
 using Sacred.Granny.Meshes;
 using Sacred.World.Geometry;
 using Sacred.World.Objects;
+using Sacred.World.Rendering;
 
 namespace Sacred.Engine.Scene.InGame;
 
@@ -36,6 +37,7 @@ internal sealed class DoorSceneController
     // of loaded sectors is.  Re-selecting on every publication used to keep the
     // render thread busy enough that the first model requests never completed.
     private readonly HashSet<SectorCoord> _visibleSectorCoordinates = [];
+    private IndoorTileGroupId? _activeIndoorGroupId;
 
     public DoorSceneController(AssetManager assets, SceneState scene)
     {
@@ -43,11 +45,17 @@ internal sealed class DoorSceneController
         _scene = scene;
     }
 
-    public void Update(VisibleWorld world, Vector2 focus, float deltaSeconds)
+    public void Update(
+        VisibleWorld world,
+        Vector2 focus,
+        float deltaSeconds,
+        IndoorTileGroup? activeIndoorGroup)
     {
-        if (VisibleSectorsChanged(world.Sectors))
+        var indoorGroupChanged = _activeIndoorGroupId != activeIndoorGroup?.Id;
+        if (VisibleSectorsChanged(world.Sectors) || indoorGroupChanged)
         {
-            SelectVisibleModels(world.Sectors);
+            _activeIndoorGroupId = activeIndoorGroup?.Id;
+            SelectVisibleModels(world.Sectors, activeIndoorGroup);
         }
 
         // LoadingSectors includes work outside the visible snapshot.  A complete
@@ -100,18 +108,22 @@ internal sealed class DoorSceneController
         return true;
     }
 
-    private void SelectVisibleModels(IReadOnlyList<Sector> sectors)
+    private void SelectVisibleModels(
+        IReadOnlyList<Sector> sectors,
+        IndoorTileGroup? activeIndoorGroup)
     {
         _desiredModels.Clear();
         var placementKeys = new HashSet<ModelPlacementKey>();
+        var indoorGroups = sectors.SelectMany(static sector => sector.IndoorTileGroups.Groups)
+            .DistinctBy(static group => group.Id).ToArray();
         // Script-created interactive objects are the gameplay instances. A matching WLDX
         // entry is their scenery representation and must not create a second model.
         foreach (var sector in sectors)
         foreach (var worldObject in sector.WorldObjects.Objects.OrderByDescending(obj => obj.PreciseWorldPosition.HasValue))
-            AddModelIfPresent(worldObject, placementKeys);
+            AddModelIfPresent(worldObject, placementKeys, indoorGroups, activeIndoorGroup);
         foreach (var sector in sectors)
         foreach (var staticObject in sector.StaticObjects.Objects)
-            AddModelIfPresent(staticObject, placementKeys);
+            AddModelIfPresent(staticObject, placementKeys, indoorGroups, activeIndoorGroup);
 
         EngineLog.WriteLine($"World model selection: {_desiredModels.Count} interactive objects in {sectors.Count} sectors.");
 
@@ -137,11 +149,20 @@ internal sealed class DoorSceneController
             PublishModels();
     }
 
-    private void AddModelIfPresent(StaticWorldObject staticObject, HashSet<ModelPlacementKey> placementKeys)
+    private void AddModelIfPresent(
+        StaticWorldObject staticObject,
+        HashSet<ModelPlacementKey> placementKeys,
+        IReadOnlyList<IndoorTileGroup> indoorGroups,
+        IndoorTileGroup? activeIndoorGroup)
     {
         var item = _assets.GetItem(staticObject.TypeId);
         if (item is not { } value || !IsWorldModel(value) ||
-            string.IsNullOrWhiteSpace(value.ModelName))
+            string.IsNullOrWhiteSpace(value.ModelName) ||
+            !WorldObjectSurfaceVisibility.IsModelVisible(
+                staticObject,
+                indoorGroups,
+                activeIndoorGroup,
+                value.ModelDesc.Category))
         {
             return;
         }

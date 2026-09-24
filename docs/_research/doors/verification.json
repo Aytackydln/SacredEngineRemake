@@ -1,0 +1,90 @@
+[
+  {
+    "name": "Door_Dwarf01.GRN",
+    "vertices": 336,
+    "moving": 336,
+    "bindError": 0.39519367,
+    "reverseJoinError": 0.41925082,
+    "roundTripError": 0.41929394
+  },
+  {
+    "name": "Door_Dwarf02.GRN",
+    "vertices": 432,
+    "moving": 432,
+    "bindError": 0.22251907,
+    "reverseJoinError": 0.23610853,
+    "roundTripError": 0.23608747
+  },
+  {
+    "name": "Door_DarkCity01.GRN",
+    "vertices": 240,
+    "moving": 240,
+    "bindError": 0.04736317,
+    "reverseJoinError": 0.0574088,
+    "roundTripError": 0.05740532
+  },
+  {
+    "name": "Door_Hof03.GRN",
+    "vertices": 324,
+    "moving": 324,
+    "bindError": 0.5209122,
+    "reverseJoinError": 0.15134588,
+    "roundTripError": 1.0691957
+  },
+  {
+    "name": "Door_Pub01.GRN",
+    "vertices": 588,
+    "moving": 588,
+    "bindError": 0.6114474,
+    "reverseJoinError": 0.17765264,
+    "roundTripError": 1.2550282
+  },
+  {
+    "name": "Door_Hof02.GRN",
+    "vertices": 384,
+    "moving": 384,
+    "bindError": 0.5209122,
+    "reverseJoinError": 0.15134737,
+    "roundTripError": 1.0691957
+  },
+  {
+    "name": "Door_NeuHof02.GRN",
+    "vertices": 384,
+    "moving": 384,
+    "bindError": 0.68568337,
+    "reverseJoinError": 0.19922286,
+    "roundTripError": 1.4073919
+  },
+  {
+    "name": "Door_Hof01.GRN",
+    "vertices": 384,
+    "moving": 384,
+    "bindError": 0.5209122,
+    "reverseJoinError": 0.15134588,
+    "roundTripError": 1.0691957
+  },
+  {
+    "name": "Door_Schmied01.GRN",
+    "vertices": 1368,
+    "moving": 564,
+    "bindError": 0.022861583,
+    "reverseJoinError": 0.05893334,
+    "roundTripError": 0.05904778
+  },
+  {
+    "name": "Door_Gate01.GRN",
+    "vertices": 732,
+    "moving": 732,
+    "bindError": 0.34680942,
+    "reverseJoinError": 0.4078459,
+    "roundTripError": 0.40784484
+  },
+  {
+    "name": "Door_Waldburg01.GRN",
+    "vertices": 540,
+    "moving": 540,
+    "bindError": 0.044189584,
+    "reverseJoinError": 0.10709769,
+    "roundTripError": 0.2251778
+  }
+]

@@ -10,8 +10,7 @@ internal sealed class EngineInputController(
     Dx12Renderer renderer,
     LowLatencySystem latency,
     Action cycleFramePacing,
-    Func<bool> toggleBorderlessFullscreen,
-    Action updateWindowTitle)
+    Func<bool> toggleBorderlessFullscreen)
 {
     public void Update()
     {
@@ -24,21 +23,18 @@ internal sealed class EngineInputController(
         if (input.ConsumePressed(VirtualKey.F5))
         {
             cycleFramePacing();
-            updateWindowTitle();
             EngineLog.WriteLine("Debug input: frame pacing cycled");
         }
 
         if (input.ConsumePressed(VirtualKey.F6))
         {
             var mode = latency.CycleMode();
-            updateWindowTitle();
             EngineLog.WriteLine($"Debug input: low latency {mode}");
         }
 
         if (input.ConsumePressed(VirtualKey.F10))
         {
             var fullscreen = toggleBorderlessFullscreen();
-            updateWindowTitle();
             EngineLog.WriteLine($"Debug input: {(fullscreen ? "borderless fullscreen" : "windowed mode")}");
         }
     }

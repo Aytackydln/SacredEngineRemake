@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
+using Sacred.World.Geometry;
 
 namespace Sacred.Engine.Graphics.Sprites;
 
@@ -26,12 +27,8 @@ internal static class Dx12PlayerOcclusionProbeFactory
         var screenPosition = new Vector2(
             (clip.X * inverseW * 0.5f + 0.5f) * renderWidth,
             (0.5f - clip.Y * inverseW * 0.5f) * renderHeight);
-        var depthKey = playerModel.DepthAnchor.X +
-                       playerModel.DepthAnchor.Y +
-                       playerModel.DepthAnchor.Y * 0.001f;
-        var centerDepthKey = camera.WorldCenter.X +
-                             camera.WorldCenter.Y +
-                             camera.WorldCenter.Y * 0.001f;
+        var depthKey = WorldPainterDepth.FromWorld(playerModel.DepthAnchor);
+        var centerDepthKey = WorldPainterDepth.FromWorld(camera.WorldCenter);
         var painterDepth = Math.Clamp(
             0.50f - (depthKey - centerDepthKey) * PainterDepthScale,
             0.20f,

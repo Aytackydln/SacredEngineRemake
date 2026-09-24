@@ -41,3 +41,12 @@ textures, since entering or leaving must remove them immediately.
 
 Verification: `_scratch/IndoorProbe` checks real archive objects across three
 two-floor buildings. Live captures use the console `screenshot` cheat.
+
+Compiled-script 3D doors and containers do not carry Static.pak's `0x2B` state.
+Their placement Z selects the indoor WLDX surface level. Z-zero containers and
+other props belong to level one, while Items.pak category `Door` at Z zero is an
+unscoped entrance portal used by towns such as Bellevue. Resolve floor membership
+with the authored tile anchor and sparse presence cells.
+The model is visible only when that exact indoor group is active. This prevents
+ground-floor models from leaking through the exterior or an upper floor while
+preserving outdoor models whose positions merely overlap a grid rectangle.

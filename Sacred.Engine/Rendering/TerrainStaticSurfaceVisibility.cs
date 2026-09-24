@@ -1,4 +1,5 @@
 using Sacred.Core.World.Sector;
+using Sacred.World.Rendering;
 
 namespace Sacred.Engine.Rendering;
 
@@ -11,26 +12,10 @@ internal static class TerrainStaticSurfaceVisibility
         StaticWorldObject staticObject,
         IndoorTileGroup? activeIndoorGroup,
         out bool isIndoorSurface)
-    {
-        isIndoorSurface = false;
-        if (activeIndoorGroup is null)
-            return staticObject.SurfaceRenderLayer <= ExteriorActiveLayer;
-
-        // Resolve membership at the parent building anchor. Sprite positions
-        // can lie in empty border cells or overlap a neighboring building grid.
-        var belongsToActiveSection = staticObject.IndoorAnchor is { } anchor &&
-            activeIndoorGroup.TryGetAuthoredLocalTile(anchor.X, anchor.Y, out _, out _);
-        if (staticObject.SurfaceRenderLayer > ExteriorActiveLayer)
-        {
-            isIndoorSurface = belongsToActiveSection &&
-                              staticObject.SurfaceRenderLayer == activeIndoorGroup.SurfaceRenderLayer;
-            return isIndoorSurface;
-        }
-
-        return !belongsToActiveSection ||
-               staticObject.SurfaceRenderLayer != ExteriorActiveLayer ||
-               !staticObject.UsesAlternateSurface;
-    }
+        => WorldObjectSurfaceVisibility.TryResolveStatic(
+            staticObject,
+            activeIndoorGroup,
+            out isIndoorSurface);
 
     /// <summary>
     /// Indicates that the sprite cannot be baked into a sector texture because

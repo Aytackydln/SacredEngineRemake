@@ -238,7 +238,10 @@ public sealed class SacredWorldArchive : IDisposable
                 0x80000000u | placement.ScriptOffset, placement.TypeId, StaticObjectFlags.None, 0,
                 0, 0, 0, 1, (byte)Math.Clamp(placement.WorldZ, 0, byte.MaxValue),
                 0, 0, 0, 0, 0, 0, placement.WorldY, placement.WorldX, 0, worldObjects.Count)
-                { PreciseWorldPosition = placement.PreciseWorldPosition });
+                {
+                    PreciseWorldPosition = placement.PreciseWorldPosition,
+                    ScriptSurfaceLevel = (byte)Math.Clamp(placement.WorldZ, 0, byte.MaxValue)
+                });
         }
     }
     private void LoadIndoorTileGroups(
@@ -359,8 +362,8 @@ public sealed class SacredWorldArchive : IDisposable
             if (depth != 0)
                 return depth;
 
-            var worldY = left.WorldY.CompareTo(right.WorldY);
-            return worldY != 0 ? worldY : left.WorldX.CompareTo(right.WorldX);
+            // Native drawLine walks left to right on a diagonal (tile index -= 63).
+            return left.WorldX.CompareTo(right.WorldX);
         });
 
         var reached = new HashSet<uint>();

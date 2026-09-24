@@ -6,6 +6,7 @@ using Sacred.Core.Pak.Items;
 using Sacred.Core.World;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
+using Sacred.World.Geometry;
 using Sacred.World.Particles;
 
 namespace Sacred.Engine.Rendering;
@@ -327,17 +328,9 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
         var queue = left.QueueIndex.CompareTo(right.QueueIndex);
         if (queue != 0)
             return queue;
-        var tileDepth = left.TileDepth.CompareTo(right.TileDepth);
-        if (tileDepth != 0)
-            return tileDepth;
-        var tileWorldY = left.TileWorldY.CompareTo(right.TileWorldY);
-        if (tileWorldY != 0)
-            return tileWorldY;
-        var tileWorldX = left.TileWorldX.CompareTo(right.TileWorldX);
-        if (tileWorldX != 0)
-            return tileWorldX;
-        var chainDepth = left.ChainDepth.CompareTo(right.ChainDepth);
-        return chainDepth != 0 ? chainDepth : left.InsertionOrder.CompareTo(right.InsertionOrder);
+        return WorldStaticDrawOrder.Compare(
+            left.TileWorldX, left.TileWorldY, left.ChainDepth, left.InsertionOrder,
+            right.TileWorldX, right.TileWorldY, right.ChainDepth, right.InsertionOrder);
     }
 
     private int EngineQueueIndex(StaticWorldObject staticObject)

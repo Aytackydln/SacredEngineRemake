@@ -142,10 +142,10 @@ public sealed class SceneLighting
     /// <summary>Normalized solar elevation: zero at/below the horizon and one at noon.</summary>
     public float SunHeight { get; set; } = 1.0f;
     /// <summary>Solar shadow opacity used by objects on the outdoor surface.</summary>
-    public float OutdoorShadowOpacity { get; set; } = 0.65f;
+    public float OutdoorShadowOpacity { get; set; } = 0.75f;
     /// <summary>Contact-shadow opacity used by objects on the active indoor surface.</summary>
     public float IndoorShadowOpacity { get; set; }
-    public float ShadowOpacity { get; set; } = 0.65f;
+    public float ShadowOpacity { get; set; } = 0.75f;
     public SceneShadowMode ShadowMode { get; set; } = SceneShadowMode.Directional;
 }
 

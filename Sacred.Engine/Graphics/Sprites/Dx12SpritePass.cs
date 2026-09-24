@@ -26,8 +26,10 @@ internal sealed class Dx12SpritePass : IDisposable
     private ID3D12PipelineState? _staticShadowPipeline;
     private ID3D12PipelineState? _staticPipeline;
     private ID3D12PipelineState? _transparentStaticPipeline;
+    private ID3D12PipelineState? _postModelTransparentStaticPipeline;
     private ID3D12PipelineState? _unlitStaticPipeline;
     private ID3D12PipelineState? _transparentUnlitStaticPipeline;
+    private ID3D12PipelineState? _postModelTransparentUnlitStaticPipeline;
     private ID3D12PipelineState? _liquidPipeline;
     private ID3D12PipelineState? _transparentParticleRgbPipeline;
     private ID3D12PipelineState? _transparentParticleArgbPipeline;
@@ -82,8 +84,10 @@ internal sealed class Dx12SpritePass : IDisposable
         _staticShadowPipeline = pipeline[Dx12PipelineKind.StaticSpriteShadow];
         _staticPipeline = pipeline[Dx12PipelineKind.StaticSprite];
         _transparentStaticPipeline = pipeline[Dx12PipelineKind.TransparentStaticSprite];
+        _postModelTransparentStaticPipeline = pipeline[Dx12PipelineKind.PostModelTransparentStaticSprite];
         _unlitStaticPipeline = pipeline[Dx12PipelineKind.UnlitStaticSprite];
         _transparentUnlitStaticPipeline = pipeline[Dx12PipelineKind.TransparentUnlitStaticSprite];
+        _postModelTransparentUnlitStaticPipeline = pipeline[Dx12PipelineKind.PostModelTransparentUnlitStaticSprite];
         _liquidPipeline = pipeline[Dx12PipelineKind.LiquidSprite];
         if (hdrOutput)
         {
@@ -105,10 +109,14 @@ internal sealed class Dx12SpritePass : IDisposable
         _staticPipeline = null;
         _transparentStaticPipeline?.Dispose();
         _transparentStaticPipeline = null;
+        _postModelTransparentStaticPipeline?.Dispose();
+        _postModelTransparentStaticPipeline = null;
         _unlitStaticPipeline?.Dispose();
         _unlitStaticPipeline = null;
         _transparentUnlitStaticPipeline?.Dispose();
         _transparentUnlitStaticPipeline = null;
+        _postModelTransparentUnlitStaticPipeline?.Dispose();
+        _postModelTransparentUnlitStaticPipeline = null;
         _liquidPipeline?.Dispose();
         _liquidPipeline = null;
         _transparentParticleRgbPipeline?.Dispose();
@@ -257,11 +265,13 @@ internal sealed class Dx12SpritePass : IDisposable
                     SacredTextureChannelEncoding.Argb => _transparentParticleArgbPipeline,
                     _ => _transparentParticleRgbPipeline
                 }
-                : (range.IsUnlit, range.RequiresAlphaBlend) switch
+                : (range.IsUnlit, range.RequiresAlphaBlend, postModel) switch
                 {
-                    (true, true) => _transparentUnlitStaticPipeline,
-                    (true, false) => _unlitStaticPipeline,
-                    (false, true) => _transparentStaticPipeline,
+                    (true, true, true) => _postModelTransparentUnlitStaticPipeline,
+                    (false, true, true) => _postModelTransparentStaticPipeline,
+                    (true, true, false) => _transparentUnlitStaticPipeline,
+                    (true, false, _) => _unlitStaticPipeline,
+                    (false, true, false) => _transparentStaticPipeline,
                     _ => _staticPipeline
                 };
             _batchRecorder.Record(

@@ -19,7 +19,6 @@ public sealed class DayWorldRasterizer(
     private const int SourceTileHeight = 50;
     private const int RenderTileWidth = 96;
     private const int RenderTileHeight = 48;
-    private const int ExteriorActiveLayer = 1;
     private const float ObjectShiftX = 47.8f;
     private const float ObjectShiftY = -0.3f;
 
@@ -39,7 +38,8 @@ public sealed class DayWorldRasterizer(
         int width = 1280,
         int height = 720,
         float zoom = 0.75f,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IndoorTileGroup? activeIndoorGroup = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
@@ -107,7 +107,8 @@ public sealed class DayWorldRasterizer(
 
         var staticResult = staticSprites is null
             ? default
-            : await DrawStaticSpritesAsync(canvas, sectors, centerIso, width, height, zoom, cancellationToken)
+            : await DrawStaticSpritesAsync(
+                    canvas, sectors, centerIso, width, height, zoom, activeIndoorGroup, cancellationToken)
                 .ConfigureAwait(false);
         canvas.DrawCross(width / 2, height / 2, 6, 255, 224, 128);
         return new DayWorldRenderResult(
@@ -130,6 +131,7 @@ public sealed class DayWorldRasterizer(
         int width,
         int height,
         float zoom,
+        IndoorTileGroup? activeIndoorGroup,
         CancellationToken cancellationToken)
     {
         var draws = new List<StaticDraw>();
@@ -139,7 +141,7 @@ public sealed class DayWorldRasterizer(
         {
             candidates++;
             if (staticObject.IsExcludedFromNormalRender ||
-                staticObject.SurfaceRenderLayer > ExteriorActiveLayer)
+                !WorldObjectSurfaceVisibility.TryResolveStatic(staticObject, activeIndoorGroup, out _))
                 continue;
             var itemNullable = staticSprites!.GetItem(staticObject.TypeId);
             if (itemNullable is null)
@@ -206,17 +208,7 @@ public sealed class DayWorldRasterizer(
         var queue = left.QueueIndex.CompareTo(right.QueueIndex);
         if (queue != 0)
             return queue;
-        var tileDepth = left.Object.TileDepth.CompareTo(right.Object.TileDepth);
-        if (tileDepth != 0)
-            return tileDepth;
-        var tileWorldY = left.Object.TileWorldY.CompareTo(right.Object.TileWorldY);
-        if (tileWorldY != 0)
-            return tileWorldY;
-        var tileWorldX = left.Object.TileWorldX.CompareTo(right.Object.TileWorldX);
-        if (tileWorldX != 0)
-            return tileWorldX;
-        var chainDepth = left.Object.ChainDepth.CompareTo(right.Object.ChainDepth);
-        return chainDepth != 0 ? chainDepth : left.Object.InsertionOrder.CompareTo(right.Object.InsertionOrder);
+        return WorldStaticDrawOrder.Compare(left.Object, right.Object);
     }
 
     private static List<WorldTileDraw> BuildDraws(

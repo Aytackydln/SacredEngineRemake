@@ -204,7 +204,7 @@ internal sealed class InGameScene : IGameScene
     {
         _inputController.Update(deltaSeconds);
         Renderer.UpdateAutoRenderResolution(_camera.Zoom);
-        _doors.Update(_worldStreamer.VisibleWorld, _camera.WorldCenter, deltaSeconds);
+        _doors.Update(_worldStreamer.VisibleWorld, _camera.WorldCenter, deltaSeconds, _scene.Indoor.ActiveGroup);
         _particles.Update(deltaSeconds, _worldStreamer.VisibleWorld);
         UpdateRegionDisplayName();
     }
@@ -226,7 +226,7 @@ internal sealed class InGameScene : IGameScene
         // The loading scene renders preload frames before this scene receives Update.
         // Select and request its initial world models here, so doors and containers
         // do not wait for the player to cross a sector boundary.
-        _doors.Update(_worldStreamer.VisibleWorld, _camera.WorldCenter, 0.0f);
+        _doors.Update(_worldStreamer.VisibleWorld, _camera.WorldCenter, 0.0f, _scene.Indoor.ActiveGroup);
         return new WorldPreloadRequest(_camera, _worldStreamer.VisibleWorld, _scene);
     }
 

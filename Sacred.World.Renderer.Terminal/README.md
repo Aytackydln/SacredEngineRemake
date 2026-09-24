@@ -23,3 +23,7 @@ Both states use Sacred.World's shared placement and animation logic. Models use 
 Items.pak materials and a software depth buffer; static sprites provide a painter-depth
 occlusion mask. Lighting, filtering and transparency are not identical to Direct3D.
 See [door research and registered comparisons](../docs/_research/doors/README.md).
+
+Use `--indoor-level <n>` with a world center inside an authored indoor grid to render
+that floor's state. Script-created 3D doors and containers are included only when their
+authored floor is active; exterior output omits them.

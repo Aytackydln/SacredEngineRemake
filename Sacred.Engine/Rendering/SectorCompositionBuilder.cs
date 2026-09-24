@@ -312,20 +312,7 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
         if (queue != 0)
             return queue;
 
-        var tileDepth = left.TileDepth.CompareTo(right.TileDepth);
-        if (tileDepth != 0)
-            return tileDepth;
-
-        var tileWorldY = left.TileWorldY.CompareTo(right.TileWorldY);
-        if (tileWorldY != 0)
-            return tileWorldY;
-
-        var tileWorldX = left.TileWorldX.CompareTo(right.TileWorldX);
-        if (tileWorldX != 0)
-            return tileWorldX;
-
-        var chainDepth = left.ChainDepth.CompareTo(right.ChainDepth);
-        return chainDepth != 0 ? chainDepth : left.InsertionOrder.CompareTo(right.InsertionOrder);
+        return WorldStaticDrawOrder.Compare(left, right);
     }
 
     private async Task<TerrainTileSource?> GetTileSourceAsync(uint tileId)

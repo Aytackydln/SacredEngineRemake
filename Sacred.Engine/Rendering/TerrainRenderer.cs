@@ -299,12 +299,11 @@ public readonly record struct TerrainStaticSprite(
         IsParticleSprite || AllowsPlayerOcclusionFade || Sprite.HasTranslucentPixels;
 
     /// <summary>
-    /// Animated mini-object details retain their painter order with the static fixture.
-    /// Other fractional-alpha props stay in the late foreground pass, as authored for signs and foliage.
+    /// Only player-aware scenery and particles belong after world models. Ordinary
+    /// source-alpha scenery participates in the same authored painter order as opaque scenery.
     /// </summary>
     public bool RequiresPostModelPass =>
-        IsParticleSprite || AllowsPlayerOcclusionFade ||
-        (Sprite.HasTranslucentPixels && !IsAnimatedMiniObject);
+        IsParticleSprite || AllowsPlayerOcclusionFade;
 }
 
 public readonly record struct TerrainStaticShadow(

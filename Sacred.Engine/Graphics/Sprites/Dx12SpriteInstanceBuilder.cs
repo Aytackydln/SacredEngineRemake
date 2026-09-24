@@ -428,11 +428,11 @@ internal sealed class Dx12SpriteInstanceBuilder
 
     private static float CalculateSceneDepth(SacredCamera camera, TerrainStaticSprite sprite)
     {
-        var depthKey = sprite.TileDepth +
-                       sprite.TileWorldY * 0.001f +
-                       sprite.TileWorldX * 0.000001f +
-                       sprite.ChainDepth * 0.0000001f;
-        var centerDepthKey = camera.WorldCenter.X + camera.WorldCenter.Y + camera.WorldCenter.Y * 0.001f;
+        var depthKey = WorldPainterDepth.FromTile(
+            sprite.TileWorldX,
+            sprite.TileWorldY,
+            sprite.ChainDepth);
+        var centerDepthKey = WorldPainterDepth.FromWorld(camera.WorldCenter);
         return Math.Clamp(0.50f - (depthKey - centerDepthKey) * PainterDepthScale, 0.20f, 0.72f);
     }
 

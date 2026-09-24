@@ -12,6 +12,7 @@ internal sealed record RendererOptions(
     float Zoom)
 {
     public bool OpenDoors { get; init; }
+    public byte? IndoorLevel { get; init; }
     private const string DefaultGameDirectory = @"E:\SteamLibrary\steamapps\common\Sacred Gold";
 
     public static RendererOptions Parse(string[] args)
@@ -24,6 +25,7 @@ internal sealed record RendererOptions(
         var height = 720;
         var zoom = 0.75f;
         var openDoors = false;
+        byte? indoorLevel = null;
 
         for (var index = 0; index < args.Length; index++)
         {
@@ -44,6 +46,7 @@ internal sealed record RendererOptions(
                 case "--height": height = ParsePositiveInt(Read(args, ref index, argument), argument); break;
                 case "--zoom": zoom = ParsePositiveFloat(Read(args, ref index, argument), argument); break;
                 case "--open-doors": openDoors = true; break;
+                case "--indoor-level": indoorLevel = ParseByte(Read(args, ref index, argument), argument); break;
                 case "--help": throw new ShowHelpException();
                 default: throw new ArgumentException($"Unknown argument '{argument}'.");
             }
@@ -59,7 +62,7 @@ internal sealed record RendererOptions(
             worldY,
             width,
             height,
-            zoom) { OpenDoors = openDoors };
+            zoom) { OpenDoors = openDoors, IndoorLevel = indoorLevel };
     }
 
     public static string Help =>
@@ -70,7 +73,8 @@ internal sealed record RendererOptions(
         "  --width <pixels>      In-game image width (default: 1280)\n" +
         "  --height <pixels>     In-game image height (default: 720)\n" +
         "  --zoom <number>       In-game camera zoom (default: 0.75)\n" +
-        "  --open-doors          Sample authored activation clips at their final pose";
+        "  --open-doors          Sample authored activation clips at their final pose\n" +
+        "  --indoor-level <n>    Select the authored indoor floor containing the world center";
 
     private static string Read(IReadOnlyList<string> args, ref int index, string option)
     {
@@ -94,6 +98,11 @@ internal sealed record RendererOptions(
         var value = ParseFloat(text, option);
         return value > 0 ? value : throw new ArgumentException($"{option} requires a positive number.");
     }
+
+    private static byte ParseByte(string text, string option) =>
+        byte.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) && value > 0
+            ? value
+            : throw new ArgumentException($"{option} requires an integer from 1 through 255.");
 }
 
 internal sealed class ShowHelpException : Exception;

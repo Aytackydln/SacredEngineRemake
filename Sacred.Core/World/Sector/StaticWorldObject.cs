@@ -29,6 +29,9 @@ public readonly record struct StaticWorldObject(
     /// <summary>Owning building anchor from the outdoor WLDX tile's 0x1C/0x1D offsets.</summary>
     public (int X, int Y)? IndoorAnchor { get; init; }
 
+    /// <summary>Floor level from a compiled script placement; absent on Static.pak objects.</summary>
+    public byte? ScriptSurfaceLevel { get; init; }
+
     public byte MiniObjectSourceXOrAtlasColumns => SpriteParam2E;
     public byte MiniObjectSourceYOrAtlasRows => SpriteParam2F;
     public byte MiniObjectSourceSize => OrientationOrFrame;

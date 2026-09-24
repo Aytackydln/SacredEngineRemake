@@ -61,14 +61,15 @@ internal sealed class SacredGameRuntime : IDisposable
             renderer,
             latency,
             framePacing.CycleMode,
-            window.ToggleBorderlessFullscreen,
-            UpdateWindowTitle);
+            window.ToggleBorderlessFullscreen);
         _cheats = new CheatsController(Console.In);
 
         SynchronizeDebugUiControls();
 
         RegisterScenes();
-        scenes.SceneChanged += UpdateWindowTitle;
+        scenes.SceneChanged += () =>
+        {
+        };
         scenes.Start(GameSceneId.InitialLoading);
         window.RequestFocus();
     }
@@ -93,35 +94,30 @@ internal sealed class SacredGameRuntime : IDisposable
             _debugUiControls.RequestedHdrEnabled = null;
             if (_renderer.IsHdrEnabled != hdrEnabled)
                 _renderer.ToggleHdr();
-            UpdateWindowTitle();
         }
 
         if (_debugUiControls.RequestedFramePacingMode is { } framePacingMode)
         {
             _debugUiControls.RequestedFramePacingMode = null;
             _framePacing.SetMode(framePacingMode);
-            UpdateWindowTitle();
         }
 
         if (_debugUiControls.RequestedLowLatencyMode is { } lowLatencyMode)
         {
             _debugUiControls.RequestedLowLatencyMode = null;
             _framePacing.SetLowLatencyMode(lowLatencyMode);
-            UpdateWindowTitle();
         }
 
         if (_debugUiControls.RequestedWorldLightingMode is { } worldLightingMode)
         {
             _debugUiControls.RequestedWorldLightingMode = null;
             _inGameScene?.SetWorldLightingMode(worldLightingMode);
-            UpdateWindowTitle();
         }
 
         if (_debugUiControls.RequestedBorderlessFullscreen is { } fullscreen)
         {
             _debugUiControls.RequestedBorderlessFullscreen = null;
             _window.SetBorderlessFullscreen(fullscreen);
-            UpdateWindowTitle();
         }
 
         if (_debugUiControls.RequestedParticleQuality is { } particleQuality)
@@ -239,7 +235,6 @@ internal sealed class SacredGameRuntime : IDisposable
             return;
 
         _disposed = true;
-        _scenes.SceneChanged -= UpdateWindowTitle;
         _cheats.Dispose();
         _scenes.Dispose();
         _resourceLoader.Dispose();
@@ -356,11 +351,12 @@ internal sealed class SacredGameRuntime : IDisposable
                 _window,
                 _gamepad,
                 _scenes.RequestSwitch,
-                UpdateWindowTitle,
+                () =>
+                {
+                },
                 _initialSaveState);
             _scenes.RegisterInstance(scene);
             _inGameScene = scene;
-            UpdateWindowTitle();
             return scene;
         }
         catch
@@ -452,7 +448,9 @@ internal sealed class SacredGameRuntime : IDisposable
         {
             var applied = _inGameScene.TrySetCheatOption(command.Option, command.Value, out var sceneMessage);
             if (applied)
-                UpdateWindowTitle();
+            {
+            }
+
             EngineLog.WriteLine($"Cheat: {sceneMessage}");
             return;
         }
@@ -498,17 +496,14 @@ internal sealed class SacredGameRuntime : IDisposable
                 return true;
             case "pacing" when TryParseFramePacing(value, out var pacingMode):
                 _framePacing.SetMode(pacingMode);
-                UpdateWindowTitle();
                 message = $"frame pacing set to {_framePacing.Status}";
                 return true;
             case "latency" when TryParseLowLatencyMode(value, out var latencyMode):
                 _framePacing.SetLowLatencyMode(latencyMode);
-                UpdateWindowTitle();
                 message = $"low latency set to {latencyMode}";
                 return true;
             case "granny" when TryParseGrannyBackend(value, out var grannyBackend):
                 _grannyBackend = grannyBackend;
-                UpdateWindowTitle();
                 message = $"Granny implementation set to {FormatGrannyBackend(grannyBackend)}; restart to reload game assets";
                 return true;
             case "resolution" or "res" when value.Equals("auto", StringComparison.OrdinalIgnoreCase):
@@ -531,23 +526,6 @@ internal sealed class SacredGameRuntime : IDisposable
                 message = "Unknown option. Type 'help' for commands.";
                 return false;
         }
-    }
-
-    private void UpdateWindowTitle()
-    {
-        var lowLatencyMode = _latency.Mode switch
-        {
-            LowLatencyMode.OnPlusBoost => "On + Boost",
-            LowLatencyMode.On => "On",
-            _ => "Off"
-        };
-
-        var lighting = _inGameScene?.LightingDisplayName ?? "not active";
-        var granny = _grannyBackend == _initialSaveState.GrannyBackend
-            ? FormatGrannyBackend(_grannyBackend)
-            : $"{FormatGrannyBackend(_initialSaveState.GrannyBackend)} (next: {FormatGrannyBackend(_grannyBackend)})";
-        _window.SetTitle(
-            $"SacredEngineRemake - Scene: {_scenes.ActiveSceneId} - Pacing: {_framePacing.Status} - Lighting: {lighting} - Granny: {granny} - Low Latency: {lowLatencyMode} ({_latency.ActiveBackendName})");
     }
 
     private static int NormalizeWindowDimension(int dimension, int fallback) =>

@@ -7,7 +7,7 @@ cbuffer ModelConstants : register(b0)
     row_major float4x4 world_view_projection;
     row_major float4x4 world;
     float4 model_color;
-    float4 texture_flags; // x: texture mode, y: signed packed animation, z: painter depth, w: scaled animation time
+    float4 texture_flags; // x: texture mode, y: signed packed animation, z: painter depth/mode, w: scaled animation time
 }
 
 cbuffer SceneConstants : register(b1)
@@ -129,7 +129,19 @@ vs_output vs_main(vs_input input)
     float4 world_position = mul(float4(input.position, 1.0f), world);
     float4 projected_position = mul(float4(input.position, 1.0f), world_view_projection);
     output.position = projected_position;
-    if (texture_flags.z >= 0.0f)
+    if (texture_flags.z >= 1.0f)
+    {
+        const float local_depth_scale = 0.08f;
+        const float half_painter_slot = 0.45f / 4096.0f;
+        float4 projected_origin = mul(float4(0.0f, 0.0f, 0.0f, 1.0f), world_view_projection);
+        float vertex_depth = projected_position.z / max(projected_position.w, 0.000001f);
+        float origin_depth = projected_origin.z / max(projected_origin.w, 0.000001f);
+        float raw_local_depth = (vertex_depth - origin_depth) * local_depth_scale;
+        float local_depth = half_painter_slot * raw_local_depth /
+                            (abs(raw_local_depth) + half_painter_slot);
+        output.position.z = output.position.w * saturate(texture_flags.z - 2.0f + local_depth);
+    }
+    else if (texture_flags.z >= 0.0f)
     {
         const float local_depth_scale = 0.08f;
         float4 projected_origin = mul(float4(0.0f, 0.0f, 0.0f, 1.0f), world_view_projection);

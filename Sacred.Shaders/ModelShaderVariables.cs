@@ -12,6 +12,13 @@ public static class ModelShaderVariables
     public const float TextureAnimationScrollBlackKey = 1.5f;
     public const float TextureAnimationRadialSweepBlackKey = 1.75f;
 
+    // Values above one are outside the scene depth range. Model shaders decode
+    // them as a fixed painter slot without adding projected per-vertex depth.
+    public const float FixedPainterDepthEncodingOffset = 2.0f;
+
+    public static float EncodeFixedPainterDepth(float painterDepth) =>
+        FixedPainterDepthEncodingOffset + Math.Clamp(painterDepth, 0.0f, 1.0f);
+
     public static Vector4 ColorFromName(string name)
     {
         var hash = (uint)StringComparer.OrdinalIgnoreCase.GetHashCode(name);
