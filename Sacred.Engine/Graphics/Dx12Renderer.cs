@@ -18,6 +18,7 @@ using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
 using Sacred.Shaders;
 using Sacred.World;
+using Sacred.World.Geometry;
 using Sacred.World.Particles;
 using Vortice;
 using Vortice.Direct3D12;
@@ -33,6 +34,7 @@ public sealed class Dx12Renderer : IDisposable
     private readonly Dx12DeviceContext _graphics;
     private readonly Dx12TextureUploader _textureUploader;
     private readonly Dx12ScreenPass _screenPass;
+    private readonly Dx12Fsr2History _fsr2History;
     private readonly string _gameDirectory;
     private readonly Action _shaderReloadHandler;
     private readonly Action<Dx12FrameContext> _releaseRetiredResources;
@@ -50,6 +52,7 @@ public sealed class Dx12Renderer : IDisposable
     private ID3D12PipelineState _terrainPipeline = null!;
     private ID3D12PipelineState _terrainLiquidCoverPipeline = null!;
     private int _shaderReloadPending;
+    private Vector2? _previousCameraCenter;
 
     public Dx12Renderer(
         Win32Window window,
@@ -78,6 +81,10 @@ public sealed class Dx12Renderer : IDisposable
             _textureUploader,
             _graphics.SrvCpuHandle(Dx12DescriptorLayout.Screen),
             _graphics.SrvGpuHandle(Dx12DescriptorLayout.Screen));
+        _fsr2History = new Dx12Fsr2History(
+            _graphics.Device,
+            _graphics.CommandList,
+            _graphics.SrvCpuHandle(Dx12DescriptorLayout.Fsr2History));
         _graphics.SetRenderResolutionPercentage(renderResolutionPercentage);
         AutoRenderResolution = autoRenderResolution;
         RenderScalingMode = renderScalingMode;
@@ -121,7 +128,14 @@ public sealed class Dx12Renderer : IDisposable
         _graphics.SetRenderResolutionPercentage(percentage);
     }
 
-    public void SetRenderScalingMode(RenderScalingMode mode) => RenderScalingMode = mode;
+    public void SetRenderScalingMode(RenderScalingMode mode)
+    {
+        if (RenderScalingMode == mode)
+            return;
+
+        RenderScalingMode = mode;
+        _fsr2History.Reset();
+    }
 
     /// <summary>Converts client-space pointer coordinates to the scene target's pixel space.</summary>
     public Vector2 OutputToRender(Vector2 position) => new(
@@ -154,6 +168,7 @@ public sealed class Dx12Renderer : IDisposable
         CancellationToken cancellationToken = default,
         WorldPreloadRequest? worldPreload = null)
     {
+        ResetFsr2History();
         _worldPass?.DiscardDebugUiFrame();
         Dx12PreparedWorldFrame prepared = default;
         if (worldPreload is not null)
@@ -178,6 +193,7 @@ public sealed class Dx12Renderer : IDisposable
         ulong frameId,
         CancellationToken cancellationToken = default)
     {
+        ResetFsr2History();
         _worldPass?.DiscardDebugUiFrame();
         var destination = new Vector4(
             _graphics.OutputWidth * 0.5f - map.Center.X * map.Zoom,
@@ -218,9 +234,12 @@ public sealed class Dx12Renderer : IDisposable
             _terrainPipeline,
             _terrainLiquidCoverPipeline);
         if (_graphics.UsesRenderScaling)
-            RecordUpscalePass();
+            RecordUpscalePass(camera, frameId);
+        else
+            _fsr2History.Reset();
         worldPass.RecordUi(scene, _rootSignature, _terrainPipeline);
         SubmitAndPresent(verticalSyncEnabled, frameId);
+        _previousCameraCenter = camera.WorldCenter;
         return ValueTask.CompletedTask;
     }
 
@@ -245,6 +264,7 @@ public sealed class Dx12Renderer : IDisposable
         _worldPass?.StopBackgroundWork();
         _graphics.WaitForGpu(_releaseRetiredResources);
         _worldPass?.Dispose();
+        _fsr2History.Dispose();
         _screenPass.Dispose();
         DisposePipelineResources();
         _screenshotWriter.Dispose();
@@ -450,8 +470,18 @@ public sealed class Dx12Renderer : IDisposable
             ResourceStates.Present);
     }
 
-    private void RecordUpscalePass()
+    private void RecordUpscalePass(SacredCamera camera, ulong frameId)
     {
+        _fsr2History.Ensure(
+            _graphics.OutputWidth,
+            _graphics.OutputHeight,
+            _graphics.RenderWidth,
+            _graphics.RenderHeight,
+            _graphics.BackBufferFormat);
+        var temporal = RenderScalingMode == RenderScalingMode.Fsr2;
+        var motionVector = temporal ? CalculateCameraMotion(camera) : Vector2.Zero;
+        var historyWeight = temporal && _fsr2History.IsValid ? 0.9f : 0.0f;
+        var jitter = temporal ? CalculateJitter(frameId) : Vector2.Zero;
         Dx12TextureUploader.Transition(
             _graphics.CommandList,
             _graphics.CurrentBackBuffer,
@@ -468,12 +498,56 @@ public sealed class Dx12Renderer : IDisposable
             _graphics.OutputHeight,
             _graphics.DisplayProfile.UiPaperWhiteNits,
             _graphics.SceneColorSrvGpuHandle,
-            RenderScalingMode);
-        Dx12TextureUploader.Transition(
-            _graphics.CommandList,
-            _graphics.CurrentBackBuffer,
-            ResourceStates.RenderTarget,
-            ResourceStates.Present);
+            RenderScalingMode,
+            motionVector,
+            historyWeight,
+            jitter);
+        if (temporal)
+            _fsr2History.Capture(_graphics.CurrentBackBuffer);
+        else
+        {
+            _fsr2History.Reset();
+            Dx12TextureUploader.Transition(
+                _graphics.CommandList,
+                _graphics.CurrentBackBuffer,
+                ResourceStates.RenderTarget,
+                ResourceStates.Present);
+        }
+    }
+
+    private Vector2 CalculateCameraMotion(SacredCamera camera)
+    {
+        if (_previousCameraCenter is not { } previousCenter)
+            return Vector2.Zero;
+
+        var worldDelta = camera.WorldCenter - previousCenter;
+        var motion = IsometricProjection.WorldToIso(worldDelta) * camera.GetViewportZoom(_graphics.OutputHeight);
+        return float.IsFinite(motion.X) && float.IsFinite(motion.Y)
+            ? motion
+            : Vector2.Zero;
+    }
+
+    private static Vector2 CalculateJitter(ulong frameId) => new(
+        Halton((uint)(frameId % 8) + 1, 2) - 0.5f,
+        Halton((uint)(frameId % 8) + 1, 3) - 0.5f);
+
+    private static float Halton(uint index, uint basis)
+    {
+        var value = 0.0f;
+        var fraction = 1.0f;
+        while (index > 0)
+        {
+            fraction /= basis;
+            value += fraction * (index % basis);
+            index /= basis;
+        }
+        return value;
+    }
+
+    private void ResetFsr2History()
+    {
+        _fsr2History.Reset();
+        _previousCameraCenter = null;
     }
 
     private void ReleaseRetiredResources(Dx12FrameContext frame)

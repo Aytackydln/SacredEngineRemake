@@ -238,6 +238,7 @@ internal static class ImGuiSettingsPanel
     private static string FormatRenderScalingMode(RenderScalingMode mode) => mode switch
     {
         RenderScalingMode.Fsr1 => "FSR 1 (spatial)",
+        RenderScalingMode.Fsr2 => "FSR 2 (temporal)",
         _ => mode.ToString()
     };
 }

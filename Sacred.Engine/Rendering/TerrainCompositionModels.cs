@@ -26,6 +26,7 @@ public readonly record struct TerrainCompositionTile(
 /// <summary>A static shadow receiver rasterized once into its sector's terrain quad.</summary>
 public readonly record struct TerrainEmbeddedSprite(
     StaticSpriteAsset Sprite,
+    uint StaticObjectId,
     float ScreenX,
     float ScreenY);
 
@@ -37,6 +38,7 @@ public sealed class TerrainSectorComposition
     private TerrainCompositionTile[] _blockedAreaDebugTiles;
     private TerrainCompositionTile[] _terrainTopologyDebugTiles;
     private TerrainEmbeddedSprite[] _embeddedSprites;
+    private int _embeddedSpriteCount;
 
     public TerrainSectorComposition(
         SectorCoord coord,
@@ -92,7 +94,7 @@ public sealed class TerrainSectorComposition
         HasBlockedAreaDebugData = blockedAreaDebugTiles.Length > 0;
         _terrainTopologyDebugTiles = terrainTopologyDebugTiles;
         _embeddedSprites = embeddedSprites;
-        EmbeddedSpriteCount = embeddedSprites.Length;
+        _embeddedSpriteCount = embeddedSprites.Length;
         TerrainTopologyDebugOffsetX = terrainTopologyDebugOffsetX;
         TerrainTopologyDebugOffsetY = terrainTopologyDebugOffsetY;
         TerrainTopologyDebugWidth = terrainTopologyDebugWidth;
@@ -137,7 +139,30 @@ public sealed class TerrainSectorComposition
     public int FloorDrawnTiles { get; }
     public int FloorMissingTiles { get; }
     public IReadOnlyList<TerrainEmbeddedSprite> EmbeddedSprites => _embeddedSprites;
-    public int EmbeddedSpriteCount { get; }
+    public int EmbeddedSpriteCount => _embeddedSpriteCount;
+
+    internal void RemoveEmbeddedSprites(IReadOnlySet<uint> staticObjectIds)
+    {
+        if (staticObjectIds.Count == 0 || _embeddedSprites.Length == 0)
+            return;
+
+        var retainedCount = 0;
+        foreach (var sprite in _embeddedSprites)
+            if (!staticObjectIds.Contains(sprite.StaticObjectId))
+                retainedCount++;
+
+        if (retainedCount == _embeddedSprites.Length)
+            return;
+
+        var retained = new TerrainEmbeddedSprite[retainedCount];
+        var destination = 0;
+        foreach (var sprite in _embeddedSprites)
+            if (!staticObjectIds.Contains(sprite.StaticObjectId))
+                retained[destination++] = sprite;
+
+        _embeddedSprites = retained;
+        _embeddedSpriteCount = retainedCount;
+    }
 
     internal void ReleaseSourceTiles()
     {

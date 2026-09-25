@@ -20,6 +20,9 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
     private readonly List<TerrainWorldLight> _visibleLights = new(64);
     private readonly AnimatedSpriteHaloAppearanceCache _animatedHaloAppearances = new();
     private readonly MixedLightAppearanceCache _mixedLightAppearanceCache = new();
+    private readonly HashSet<uint> _promotedEmbeddedObjectIds = [];
+    private readonly HashSet<long> _activeLiquidTiles = [];
+    private readonly Dictionary<long, List<TerrainStaticSprite>> _overWaterBuckets = new();
     private bool _assetRequestsPending = true;
     private bool _nightObjectsVisible;
     private string? _lastParticleSummary;
@@ -29,16 +32,26 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
     public TerrainStaticPreparation Prepare(
         IReadOnlyList<Sector> sectors,
         bool worldChanged,
+        bool visibilityChanged,
         IndoorTileGroup? activeIndoorGroup,
         bool nightObjectsVisible)
     {
         var nightVisibilityChanged = _nightObjectsVisible != nightObjectsVisible;
         _nightObjectsVisible = nightObjectsVisible;
-        if (!worldChanged && !nightVisibilityChanged && !_assetRequestsPending)
-            return new TerrainStaticPreparation(_visibleSprites, _visibleLights, false, 0, 0);
+        if (!worldChanged && !visibilityChanged && !nightVisibilityChanged && !_assetRequestsPending)
+            return new TerrainStaticPreparation(
+                _visibleSprites,
+                _visibleLights,
+                _promotedEmbeddedObjectIds,
+                false,
+                false,
+                0,
+                0);
 
         _visibleSprites.Clear();
         _visibleLights.Clear();
+        if (worldChanged)
+            _promotedEmbeddedObjectIds.Clear();
         var candidateObjects = 0;
         var missingObjects = 0;
         var animatedSpriteCount = 0;
@@ -226,7 +239,10 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                     staticObject.InsertionOrder,
                     1.0f)
                 {
-                    IsAnimatedMiniObject = isAnimatedMiniObject
+                    IsAnimatedMiniObject = isAnimatedMiniObject,
+                    IsMiniObject = item?.ModelDesc.UsesMiniObjectTexture == true,
+                    RendersOverWater = item?.ModelDesc.GraphicType.HasFlag(
+                        SacredItemGraphicType.OverWater) == true
                 });
                 if (isAnimatedMiniObject)
                     animatedSpriteCount++;
@@ -239,14 +255,28 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
         }
 
         _visibleSprites.Sort(CompareSprites);
+        var promotedMiniObjectCount = TerrainEmbeddedMiniObjectVisibility.PromoteOccluded(
+            _visibleSprites,
+            sectors,
+            _promotedEmbeddedObjectIds,
+            _activeLiquidTiles,
+            _overWaterBuckets);
         _assetRequestsPending = requestsPending;
         if (!requestsPending)
             LogWorldSpriteSummary(
                 animatedSpriteCount,
                 mixedLightEmitterCount,
                 surfaceLightSourceCount,
-                transparencyCandidateCount);
-        return new TerrainStaticPreparation(_visibleSprites, _visibleLights, true, candidateObjects, missingObjects);
+                transparencyCandidateCount,
+                _promotedEmbeddedObjectIds.Count);
+        return new TerrainStaticPreparation(
+            _visibleSprites,
+            _visibleLights,
+            _promotedEmbeddedObjectIds,
+            worldChanged || promotedMiniObjectCount > 0,
+            true,
+            candidateObjects,
+            missingObjects);
     }
 
     private static TerrainStaticShadow? CreateStaticShadow(
@@ -305,12 +335,14 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
         int animatedSprites,
         int mixedLightEmitters,
         int surfaceLightSources,
-        int transparencyCandidates)
+        int transparencyCandidates,
+        int promotedMiniObjects)
     {
         var summary = $"World effects ready: animated static sprites={animatedSprites}, " +
                       $"mixed light emitters={mixedLightEmitters}, " +
                       $"surface-light sources={surfaceLightSources}, " +
-                      $"transparency candidates={transparencyCandidates}.";
+                      $"transparency candidates={transparencyCandidates}, " +
+                      $"occluded mini objects promoted={promotedMiniObjects}.";
         if (summary == _lastParticleSummary)
             return;
 
@@ -352,6 +384,8 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
 internal readonly record struct TerrainStaticPreparation(
     IReadOnlyList<TerrainStaticSprite> Sprites,
     IReadOnlyList<TerrainWorldLight> Lights,
+    IReadOnlySet<uint> PromotedEmbeddedObjectIds,
+    bool PromotionsChanged,
     bool Changed,
     int CandidateObjects,
     int MissingObjects);

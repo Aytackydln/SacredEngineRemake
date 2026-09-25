@@ -195,7 +195,8 @@ internal sealed class MiniObjectSpriteLoader
                 0,
                 atlas.Rgba8,
                 key.FrameCount,
-                key.FrameDurationSeconds);
+                key.FrameDurationSeconds,
+                retainPixelData: true);
         }
 
         if (key.SourceX + key.SourceSize > atlas.Width ||
@@ -217,7 +218,8 @@ internal sealed class MiniObjectSpriteLoader
             key.SourceSize,
             48,
             0,
-            rgba);
+            rgba,
+            retainPixelData: true);
     }
 
 }

@@ -136,7 +136,10 @@ internal sealed class Dx12ScreenPass : IDisposable
         int outputHeight,
         float paperWhiteNits,
         GpuDescriptorHandle sceneColor,
-        RenderScalingMode scalingMode)
+        RenderScalingMode scalingMode,
+        Vector2 motionVector,
+        float historyWeight,
+        Vector2 jitter)
     {
         _commandList.SetGraphicsRootSignature(rootSignature);
         _commandList.SetPipelineState(pipelineState);
@@ -144,7 +147,8 @@ internal sealed class Dx12ScreenPass : IDisposable
         var values = stackalloc float[WorldQuadShaderLayout.RootConstantsCount];
         _constants.Write(values, new WorldQuadShaderConstants(
             new Vector4(0, 0, outputWidth, outputHeight), new Vector2(outputWidth, outputHeight),
-            new Vector3((float)scalingMode, 0, 0), false, paperWhiteNits));
+            new Vector3((float)scalingMode, 0, 0), false, paperWhiteNits,
+            motionVector, historyWeight, jitter));
         _commandList.SetGraphicsRoot32BitConstants(
             WorldQuadShaderLayout.RootConstantsRootParameter,
             WorldQuadShaderLayout.RootConstantsCount,

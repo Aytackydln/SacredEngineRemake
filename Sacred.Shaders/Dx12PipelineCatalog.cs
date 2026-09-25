@@ -83,7 +83,7 @@ public static class Dx12PipelineCatalog
                 WorldQuadShaderLayout.RootConstantsRegister,
                 0,
                 WorldQuadShaderLayout.RootConstantsCount), ShaderVisibility.All),
-            TextureTable(WorldQuadShaderLayout.TextureRegister)
+            TextureTable(WorldQuadShaderLayout.TextureRegister, 2)
         };
         return new Dx12PipelineGroupDefinition(
             rootParameters,
@@ -403,10 +403,10 @@ public static class Dx12PipelineCatalog
         DepthStencilDescription depthStencilState) =>
         new(kind, vertexShader, pixelShader, ModelInputLayout, blendState, rasterizerState, depthStencilState, usesDepthBuffer: true);
 
-    private static RootParameter TextureTable(int shaderRegister) =>
+    private static RootParameter TextureTable(int shaderRegister, uint descriptorCount = 1) =>
         new(new RootDescriptorTable
         {
-            Ranges = [new DescriptorRange(DescriptorRangeType.ShaderResourceView, 1, (uint)shaderRegister, 0, 0)]
+            Ranges = [new DescriptorRange(DescriptorRangeType.ShaderResourceView, descriptorCount, (uint)shaderRegister, 0, 0)]
         }, ShaderVisibility.Pixel);
 
     private static StaticSamplerDescription CreateSampler(

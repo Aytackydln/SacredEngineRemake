@@ -255,7 +255,11 @@ internal sealed class SectorCompositionBuilder(AssetManager assets)
             var screenX = spriteIsoX - (sectorOriginIso.X + sectorBounds.X);
             var screenY = spriteIsoY - (sectorOriginIso.Y + sectorBounds.Y);
 
-            embeddedSprites.Add(new TerrainEmbeddedSprite(sprite, screenX, screenY));
+            embeddedSprites.Add(new TerrainEmbeddedSprite(
+                sprite,
+                staticObject.StaticId,
+                screenX,
+                screenY));
         }
 
         return new TerrainSectorComposition(

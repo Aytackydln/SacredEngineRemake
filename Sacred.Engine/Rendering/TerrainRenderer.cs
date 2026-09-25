@@ -32,6 +32,7 @@ public sealed class TerrainRenderer : IDisposable
     private IndoorTileGroup? _activeIndoorGroup;
     private bool _worldChangedThisFrame;
     private bool _indoorChangedThisFrame;
+    private bool _sectorCompositionsChangedThisFrame;
     private ulong _preparedParticleRevision = ulong.MaxValue;
 
     public TerrainRenderStats LastStats { get; private set; }
@@ -67,6 +68,7 @@ public sealed class TerrainRenderer : IDisposable
             PruneSectorCache();
         }
         var sectorBuildCompleted = PumpCompletedSectorBuilds();
+        _sectorCompositionsChangedThisFrame = worldChanged || sectorBuildCompleted;
         if (!worldChanged && !sectorBuildCompleted)
             return _visibleSectorImages;
 
@@ -131,9 +133,15 @@ public sealed class TerrainRenderer : IDisposable
     {
         var preparation = _staticSpriteBuilder.Prepare(
             _candidateSectors,
-            _worldChangedThisFrame || _indoorChangedThisFrame,
+            _worldChangedThisFrame,
+            _indoorChangedThisFrame,
             _activeIndoorGroup,
             true);
+        if (preparation.PromotionsChanged || _sectorCompositionsChangedThisFrame)
+        {
+            foreach (var composition in _visibleSectorImages)
+                composition.RemoveEmbeddedSprites(preparation.PromotedEmbeddedObjectIds);
+        }
         particles ??= Array.Empty<WorldParticle>();
         var particlesChanged = _preparedParticleRevision != particleRevision ||
                                _particleSpriteBuilder.HasPendingAssetRequests;
@@ -288,6 +296,10 @@ public readonly record struct TerrainStaticSprite(
     int InsertionOrder,
     float Opacity)
 {
+    /// <summary>Identifies an atlas-backed mini object from the Items.pak graphic type.</summary>
+    public bool IsMiniObject { get; init; }
+    /// <summary>Identifies scenery authored to render after the water pass.</summary>
+    public bool RendersOverWater { get; init; }
     public uint ParticleColor { get; init; } = uint.MaxValue;
     public int ParticleAtlasCell { get; init; }
     public float ParticleRotation { get; init; }

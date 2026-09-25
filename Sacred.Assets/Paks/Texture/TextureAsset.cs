@@ -57,7 +57,8 @@ public sealed class StaticSpriteAsset
         int frameCount = 1,
         float frameDurationSeconds = 0.0f,
         int placementX = 0,
-        int placementY = 0)
+        int placementY = 0,
+        bool retainPixelData = false)
     {
         GroupId = groupId;
         Width = width;
@@ -69,6 +70,7 @@ public sealed class StaticSpriteAsset
         FrameDurationSeconds = frameDurationSeconds;
         PlacementX = placementX;
         PlacementY = placementY;
+        RetainsPixelData = retainPixelData;
         HasTranslucentPixels = ContainsFractionalAlpha(rgba);
         ChannelEncoding = SacredTextureChannelAnalyzer.Analyze(rgba);
     }
@@ -82,6 +84,8 @@ public sealed class StaticSpriteAsset
     public int PlacementX { get; }
     /// <summary>Mixed.pak placement point measured from the untrimmed group origin.</summary>
     public int PlacementY { get; }
+    /// <summary>Whether another asynchronous renderer may still require the source pixels.</summary>
+    public bool RetainsPixelData { get; }
     public byte[] Rgba => Volatile.Read(ref _rgba);
     public int FrameCount { get; }
     public float FrameDurationSeconds { get; }
@@ -94,7 +98,11 @@ public sealed class StaticSpriteAsset
     public bool HasTranslucentPixels { get; }
     public SacredTextureChannelEncoding ChannelEncoding { get; }
 
-    public void ReleasePixelData() => Interlocked.Exchange(ref _rgba, []);
+    public void ReleasePixelData()
+    {
+        if (!RetainsPixelData)
+            Interlocked.Exchange(ref _rgba, []);
+    }
 
     private static bool ContainsFractionalAlpha(ReadOnlySpan<byte> rgba)
     {

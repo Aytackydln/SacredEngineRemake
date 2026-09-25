@@ -4,5 +4,6 @@ public enum RenderScalingMode
 {
     None,
     Bilinear,
-    Fsr1
+    Fsr1,
+    Fsr2
 }
