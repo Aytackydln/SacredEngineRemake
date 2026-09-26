@@ -81,7 +81,7 @@ public sealed class WorldStaticSpriteProvider(
             {
                 atlas = await LoadTextureAsync(piece.AtlasName).ConfigureAwait(false);
             }
-            catch (Exception exception) when (exception is FileNotFoundException or InvalidDataException or NotSupportedException)
+            catch (Exception exception) when (exception is FileNotFoundException or EndOfStreamException or InvalidDataException or NotSupportedException)
             {
                 continue;
             }
@@ -131,7 +131,7 @@ public sealed class WorldStaticSpriteProvider(
         {
             atlas = await textures.LoadTextureAsync(source.TextureId).ConfigureAwait(false);
         }
-        catch (Exception exception) when (exception is FileNotFoundException or InvalidDataException or NotSupportedException)
+        catch (Exception exception) when (exception is FileNotFoundException or EndOfStreamException or InvalidDataException or NotSupportedException)
         {
             return null;
         }

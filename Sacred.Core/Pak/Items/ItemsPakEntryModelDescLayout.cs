@@ -168,8 +168,8 @@ public readonly struct ItemsPakEntryModelDescLayout
     public readonly SacredItemStaticShadowProjection StaticShadowProjection;
 
     /// <summary>
-    /// Authored extent of the shadow's ground-contact footprint. This is not a
-    /// directional shadow length; projected shadows derive that from object height.
+    /// Authored half-width of the shadow footprint and, for directional shadows,
+    /// the length of the fixed +X/-Y screen-space projection.
     /// </summary>
     [FieldOffset(100)]
     public readonly ushort StaticShadowContactExtent;

@@ -31,6 +31,7 @@ internal sealed class Dx12WorldCommandRecorder
     private readonly Dx12SectorTextureCache _sectorTextures;
     private readonly Dx12SpritePass _sprites;
     private readonly Dx12SurfaceLightMapPass _surfaceLights;
+    private readonly Dx12ShadowMap _shadowMap;
     private readonly Dx12PlayerOcclusionMapPass _playerOcclusionMap;
     private readonly Dx12LightHaloPass _lightHalos;
     private readonly List<TerrainWorldLight> _frameWorldLights = new(65);
@@ -47,6 +48,7 @@ internal sealed class Dx12WorldCommandRecorder
         Dx12SectorTextureCache sectorTextures,
         Dx12SpritePass sprites,
         Dx12SurfaceLightMapPass surfaceLights,
+        Dx12ShadowMap shadowMap,
         Dx12PlayerOcclusionMapPass playerOcclusionMap,
         Dx12LightHaloPass lightHalos,
         Dx12ModelPass models,
@@ -60,6 +62,7 @@ internal sealed class Dx12WorldCommandRecorder
         _sectorTextures = sectorTextures;
         _sprites = sprites;
         _surfaceLights = surfaceLights;
+        _shadowMap = shadowMap;
         _playerOcclusionMap = playerOcclusionMap;
         _lightHalos = lightHalos;
         _models = models;
@@ -86,6 +89,7 @@ internal sealed class Dx12WorldCommandRecorder
         ID3D12RootSignature rootSignature,
         ID3D12PipelineState terrainPipeline,
         ID3D12PipelineState liquidCoverPipeline,
+        ID3D12PipelineState shadowOverlayPipeline,
         Dx12DisplayProfile displayProfile,
         int renderWidth,
         int renderHeight)
@@ -215,7 +219,7 @@ internal sealed class Dx12WorldCommandRecorder
             }
         }
 
-        _commandList.OMSetRenderTargets(renderTarget, depthStencil);
+        _shadowMap.Begin(renderWidth, renderHeight);
         _sprites.RecordStaticShadows(
             spriteBatch,
             camera,
@@ -223,6 +227,16 @@ internal sealed class Dx12WorldCommandRecorder
             frame,
             renderWidth,
             renderHeight);
+        _models.RecordShadows(camera, scene.Models, scene.Lighting, frame.Index);
+        _shadowMap.End();
+        _commandList.OMSetRenderTargets(renderTarget, null);
+        RecordShadowOverlay(
+            rootSignature,
+            shadowOverlayPipeline,
+            constants,
+            renderWidth,
+            renderHeight);
+        _commandList.OMSetRenderTargets(renderTarget, depthStencil);
         _commandList.ClearDepthStencilView(depthStencil, ClearFlags.Depth, 1.0f, 0, 0, []);
         // Static scenery keeps animated mini-object details in painter order,
         // including flames behind their fixture. Foreground translucent props
@@ -235,8 +249,6 @@ internal sealed class Dx12WorldCommandRecorder
             frame,
             renderWidth,
             renderHeight);
-        _models.RecordShadows(camera, scene.Models, scene.Lighting, frame.Index);
-
         if (scene.Debug.StairsMapVisible)
         {
             RecordStairsDebug(
@@ -321,6 +333,35 @@ internal sealed class Dx12WorldCommandRecorder
             sceneColor,
             ResourceStates.RenderTarget,
             finalColorState);
+    }
+
+    private unsafe void RecordShadowOverlay(
+        ID3D12RootSignature rootSignature,
+        ID3D12PipelineState pipeline,
+        float* constants,
+        int renderWidth,
+        int renderHeight)
+    {
+        _worldQuadConstants.Write(
+            constants,
+            new WorldQuadShaderConstants(
+                new Vector4(0.0f, 0.0f, renderWidth, renderHeight),
+                new Vector2(renderWidth, renderHeight),
+                Vector3.One,
+                false,
+                0.0f));
+        _commandList.SetGraphicsRootSignature(rootSignature);
+        _commandList.SetPipelineState(pipeline);
+        _commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
+        _commandList.SetGraphicsRoot32BitConstants(
+            WorldQuadShaderLayout.RootConstantsRootParameter,
+            WorldQuadShaderLayout.RootConstantsCount,
+            constants,
+            0);
+        _commandList.SetGraphicsRootDescriptorTable(
+            WorldQuadShaderLayout.TextureRootParameter,
+            _shadowMap.ShaderResourceHandle);
+        _commandList.DrawInstanced(6, 1, 0, 0);
     }
 
     private IReadOnlyList<TerrainWorldLight> PrepareFrameWorldLights(

@@ -259,7 +259,7 @@ internal sealed class Dx12SpriteInstanceBuilder
                         sprite.DepthX + shadow.RootOffsetX,
                         sprite.DepthY + shadow.RootOffsetY);
                     shadowContactExtent = screenTransform.Scale(shadow.ContactExtent);
-                    shadowProjectionLength = screenTransform.Scale(shadow.ProjectionLength);
+                    shadowProjectionLength = screenTransform.Scale(shadow.ProjectionExtent);
                     var shadowCullRadius = MathF.Abs(shadowContactExtent) +
                                            MathF.Abs(shadowProjectionLength) * 1.75f;
                     shadowVisible = shadowCullRadius > 0.0f && IntersectsViewport(

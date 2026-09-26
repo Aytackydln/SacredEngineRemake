@@ -415,7 +415,7 @@ internal sealed class Dx12ModelPass
             lighting.SpecularIntensity,
             camera.EyePosition,
             lighting.Shininess,
-            new Vector4(lighting.AmbientColor, lighting.AmbientIntensity),
+            new Vector4(lighting.WorldSurfaceAmbientColour, 1.0f),
             new Vector4(lighting.LightColor, lighting.DiffuseIntensity),
             new Vector4(
                 display.ScenePaperWhiteNits,

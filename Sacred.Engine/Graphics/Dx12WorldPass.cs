@@ -34,6 +34,7 @@ internal sealed class Dx12WorldPass : IDisposable
     private readonly Dx12ModelPass _models;
     private readonly Dx12SpritePass _sprites;
     private readonly Dx12SurfaceLightMapPass _surfaceLights;
+    private readonly Dx12ShadowMap _shadowMap;
     private readonly Dx12PlayerOcclusionMapPass _playerOcclusionMap;
     private readonly Dx12LightHaloPass _lightHalos;
     private readonly Dx12MinimapPass _minimap;
@@ -74,6 +75,11 @@ internal sealed class Dx12WorldPass : IDisposable
             graphics.CommandList,
             graphics.SrvCpuHandle(Dx12DescriptorLayout.SurfaceLightMap),
             graphics.SrvGpuHandle(Dx12DescriptorLayout.SurfaceLightMap));
+        _shadowMap = new Dx12ShadowMap(
+            graphics.Device,
+            graphics.CommandList,
+            graphics.SrvCpuHandle(Dx12DescriptorLayout.ShadowMap),
+            graphics.SrvGpuHandle(Dx12DescriptorLayout.ShadowMap));
         _playerOcclusionMap = new Dx12PlayerOcclusionMapPass(
             graphics.Device,
             graphics.CommandList,
@@ -146,6 +152,7 @@ internal sealed class Dx12WorldPass : IDisposable
             _sectorTextures,
             _sprites,
             _surfaceLights,
+            _shadowMap,
             _playerOcclusionMap,
             _lightHalos,
             _models,
@@ -219,7 +226,8 @@ internal sealed class Dx12WorldPass : IDisposable
         string framePacingStatus,
         ID3D12RootSignature terrainRootSignature,
         ID3D12PipelineState terrainPipeline,
-        ID3D12PipelineState liquidCoverPipeline)
+        ID3D12PipelineState liquidCoverPipeline,
+        ID3D12PipelineState shadowOverlayPipeline)
     {
         _modelGeometry.Prepare(scene.Models);
         _modelTextures.PrepareFrame(scene, _graphics.CurrentFrame);
@@ -294,6 +302,7 @@ internal sealed class Dx12WorldPass : IDisposable
             terrainRootSignature,
             terrainPipeline,
             liquidCoverPipeline,
+            shadowOverlayPipeline,
             _graphics.DisplayProfile,
             _graphics.RenderWidth,
             _graphics.RenderHeight);
@@ -426,6 +435,7 @@ internal sealed class Dx12WorldPass : IDisposable
         _modelTextures.Dispose();
         _sprites.Dispose();
         _surfaceLights.Dispose();
+        _shadowMap.Dispose();
         _playerOcclusionMap.Dispose();
         _lightHalos.Dispose();
         _minimap.Dispose();

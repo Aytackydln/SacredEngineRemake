@@ -5,6 +5,7 @@ static const uint shadow_atlas_cell_mask = 0x000000FFu;
 static const uint directional_shadow_flag = 0x00000100u;
 static const uint indoor_surface_shadow_flag = 0x00000200u;
 static const float shadow_atlas_grid_size = 16.0f;
+static const float maximum_shadow_opacity = 0.85f;
 
 struct ShadowInstance
 {
@@ -76,13 +77,9 @@ vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_Instan
     return output;
 }
 
-float4 ps_main(vertex_output input) : SV_Target
+float ps_main(vertex_output input) : SV_Target
 {
     float alpha = shadow_atlas.Sample(sampler0, input.atlas_uv).a;
     clip(alpha - (1.0f / 255.0f));
-    return float4(
-        0.0f,
-        0.0f,
-        0.0f,
-        saturate(input.opacity * alpha));
+    return min(input.opacity * alpha, maximum_shadow_opacity);
 }

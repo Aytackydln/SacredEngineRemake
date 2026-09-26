@@ -10,6 +10,7 @@ cbuffer ModelConstants : register(b0)
 
 Texture2D model_texture : register(t0);
 SamplerState model_sampler : register(s0);
+static const float maximum_shadow_opacity = 0.85f;
 
 struct vs_input
 {
@@ -48,7 +49,7 @@ vs_output vs_main(vs_input input)
     return output;
 }
 
-float4 ps_main(vs_output input) : SV_Target
+float ps_main(vs_output input) : SV_Target
 {
     float coverage = 1.0f;
     if (texture_flags.x > 0.5f)
@@ -62,7 +63,9 @@ float4 ps_main(vs_output input) : SV_Target
     // transparent boundary, so no shadow can extend past it.
     float normalized_distance = saturate(input.shadow_distance / max(model_color.z, 0.000001f));
     float end_fade = 1.0f - smoothstep(0.35f, 1.0f, normalized_distance);
-    float alpha = model_color.a * end_fade * saturate(coverage * 2.0f);
+    float alpha = min(
+        model_color.a * end_fade * saturate(coverage * 2.0f),
+        maximum_shadow_opacity);
     clip(alpha - (1.0f / 255.0f));
-    return float4(0.0f, 0.0f, 0.0f, alpha);
+    return alpha;
 }

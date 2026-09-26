@@ -17,6 +17,7 @@ public sealed class Dx12GraphicsPipelineDefinition
         RasterizerDescription rasterizerState,
         DepthStencilDescription depthStencilState,
         bool usesDepthBuffer,
+        Format renderTargetFormat = Format.Unknown,
         uint sampleMask = uint.MaxValue,
         PrimitiveTopologyType primitiveTopologyType = PrimitiveTopologyType.Triangle,
         SampleDescription sampleDescription = default)
@@ -29,6 +30,7 @@ public sealed class Dx12GraphicsPipelineDefinition
         RasterizerState = rasterizerState;
         DepthStencilState = depthStencilState;
         UsesDepthBuffer = usesDepthBuffer;
+        RenderTargetFormat = renderTargetFormat;
         SampleMask = sampleMask;
         PrimitiveTopologyType = primitiveTopologyType;
         SampleDescription = sampleDescription.Count == 0 ? new SampleDescription(1, 0) : sampleDescription;
@@ -42,6 +44,7 @@ public sealed class Dx12GraphicsPipelineDefinition
     public RasterizerDescription RasterizerState { get; }
     public DepthStencilDescription DepthStencilState { get; }
     public bool UsesDepthBuffer { get; }
+    public Format RenderTargetFormat { get; }
     public uint SampleMask { get; }
     public PrimitiveTopologyType PrimitiveTopologyType { get; }
     public SampleDescription SampleDescription { get; }

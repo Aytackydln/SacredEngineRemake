@@ -6,6 +6,8 @@ cbuffer ModelConstants : register(b0)
     float4 texture_flags; // z: fixed painter depth
 }
 
+static const float maximum_shadow_opacity = 0.85f;
+
 struct vertex_output
 {
     float4 position : SV_Position;
@@ -32,13 +34,13 @@ vertex_output vs_main(uint vertex_id : SV_VertexID)
     return output;
 }
 
-float4 ps_main(vertex_output input) : SV_Target
+float ps_main(vertex_output input) : SV_Target
 {
     float radius = length(input.radial_position);
     if (radius >= 1.0f)
         discard;
 
     float soft_coverage = 1.0f - smoothstep(0.35f, 1.0f, radius);
-    float alpha = model_color.w * soft_coverage;
-    return float4(0.0f, 0.0f, 0.0f, alpha);
+    float alpha = min(model_color.w * soft_coverage, maximum_shadow_opacity);
+    return alpha;
 }

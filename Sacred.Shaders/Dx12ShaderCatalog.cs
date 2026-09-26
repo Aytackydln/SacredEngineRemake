@@ -16,6 +16,8 @@ public static class Dx12ShaderCatalog
 
     private static readonly Dx12ShaderSource QuadWorldVertexShader =
         DisplayShader("SacredWorldQuad", EmbeddedResource_Shaders.SacredWorldQuad_hlsl, "vs_main", "vs_5_0");
+    internal static readonly Dx12ShaderSource ShadowOverlayPixelShader =
+        DisplayShader("SacredWorldQuad", EmbeddedResource_Shaders.SacredWorldQuad_hlsl, "ps_shadow", "ps_5_0");
     private static readonly Dx12ShaderSource StaticSpriteVertexShader =
         DisplayStaticSpriteShader("SacredStaticSprite", EmbeddedResource_Shaders.SacredStaticSprite_hlsl, "vs_main", "vs_5_0");
     private static readonly Dx12ShaderSource StaticSpriteShadowVertexShader =

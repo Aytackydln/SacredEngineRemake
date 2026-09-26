@@ -129,6 +129,14 @@ public static class Dx12PipelineCatalog
                     CreatePremultipliedBlend(),
                     RasterizerDescription.CullNone,
                     DepthStencilDescription.None,
+                    usesDepthBuffer: false),
+                Pipeline(
+                    Dx12PipelineKind.ShadowOverlay,
+                    shaders.QuadWorldVertexShader,
+                    Dx12ShaderCatalog.ShadowOverlayPixelShader,
+                    BlendDescription.AlphaBlend,
+                    RasterizerDescription.CullNone,
+                    DepthStencilDescription.None,
                     usesDepthBuffer: false)
             ]);
     }
@@ -156,10 +164,11 @@ public static class Dx12PipelineCatalog
                 Dx12PipelineKind.StaticSpriteShadow,
                 shaders.StaticSpriteShadowVertexShader,
                 shaders.StaticSpriteShadowPixelShader,
-                hdrOutput ? CreatePremultipliedBlend() : BlendDescription.AlphaBlend,
+                CreateMaximumBlend(),
                 RasterizerDescription.CullNone,
                 DepthStencilDescription.None,
-                usesDepthBuffer: false),
+                usesDepthBuffer: false,
+                renderTargetFormat: Format.R8_UNorm),
             Pipeline(
                 Dx12PipelineKind.StaticSprite,
                 shaders.StaticSpriteVertexShader,
@@ -312,9 +321,10 @@ public static class Dx12PipelineCatalog
         var pipelines = new List<Dx12GraphicsPipelineDefinition>
         {
             ModelPipeline(Dx12PipelineKind.ModelShadow, shaders.ModelShadowVertexShader, shaders.ModelShadowPixelShader,
-                BlendDescription.AlphaBlend, RasterizerDescription.CullNone, shadowDepth),
+                CreateMaximumBlend(), RasterizerDescription.CullNone, shadowDepth, Format.R8_UNorm),
             Pipeline(Dx12PipelineKind.GroundShadow, shaders.GroundShadowVertexShader, shaders.GroundShadowPixelShader,
-                BlendDescription.AlphaBlend, RasterizerDescription.CullNone, shadowDepth, usesDepthBuffer: true),
+                CreateMaximumBlend(), RasterizerDescription.CullNone, shadowDepth, usesDepthBuffer: false,
+                renderTargetFormat: Format.R8_UNorm),
             ModelPipeline(Dx12PipelineKind.StaticModel, shaders.ModelVertexShader, shaders.ModelPixelShader,
                 BlendDescription.AlphaBlend, RasterizerDescription.CullClockwise, depth),
             ModelPipeline(Dx12PipelineKind.TransparentModel, shaders.ModelVertexShader, shaders.ModelPixelShader,
@@ -391,8 +401,10 @@ public static class Dx12PipelineCatalog
         BlendDescription blendState,
         RasterizerDescription rasterizerState,
         DepthStencilDescription depthStencilState,
-        bool usesDepthBuffer) =>
-        new(kind, vertexShader, pixelShader, null, blendState, rasterizerState, depthStencilState, usesDepthBuffer);
+        bool usesDepthBuffer,
+        Format renderTargetFormat = Format.Unknown) =>
+        new(kind, vertexShader, pixelShader, null, blendState, rasterizerState, depthStencilState,
+            usesDepthBuffer, renderTargetFormat);
 
     private static Dx12GraphicsPipelineDefinition ModelPipeline(
         Dx12PipelineKind kind,
@@ -400,8 +412,10 @@ public static class Dx12PipelineCatalog
         Dx12ShaderSource pixelShader,
         BlendDescription blendState,
         RasterizerDescription rasterizerState,
-        DepthStencilDescription depthStencilState) =>
-        new(kind, vertexShader, pixelShader, ModelInputLayout, blendState, rasterizerState, depthStencilState, usesDepthBuffer: true);
+        DepthStencilDescription depthStencilState,
+        Format renderTargetFormat = Format.Unknown) =>
+        new(kind, vertexShader, pixelShader, ModelInputLayout, blendState, rasterizerState, depthStencilState,
+            usesDepthBuffer: renderTargetFormat == Format.Unknown, renderTargetFormat: renderTargetFormat);
 
     private static RootParameter TextureTable(int shaderRegister, uint descriptorCount = 1) =>
         new(new RootDescriptorTable
@@ -463,6 +477,18 @@ public static class Dx12PipelineCatalog
         blend.RenderTarget[0].DestinationBlend = Blend.InverseSourceAlpha;
         blend.RenderTarget[0].SourceBlendAlpha = Blend.One;
         blend.RenderTarget[0].DestinationBlendAlpha = Blend.InverseSourceAlpha;
+        return blend;
+    }
+
+    private static BlendDescription CreateMaximumBlend()
+    {
+        var blend = BlendDescription.AlphaBlend;
+        blend.RenderTarget[0].SourceBlend = Blend.One;
+        blend.RenderTarget[0].DestinationBlend = Blend.One;
+        blend.RenderTarget[0].BlendOperation = BlendOperation.Max;
+        blend.RenderTarget[0].SourceBlendAlpha = Blend.One;
+        blend.RenderTarget[0].DestinationBlendAlpha = Blend.One;
+        blend.RenderTarget[0].BlendOperationAlpha = BlendOperation.Max;
         return blend;
     }
 

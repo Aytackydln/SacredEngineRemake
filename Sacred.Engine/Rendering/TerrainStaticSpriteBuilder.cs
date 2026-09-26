@@ -209,7 +209,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                     }
                     else if (shadowAtlas is not null)
                     {
-                        staticShadow = CreateStaticShadow(shadowItem, sprite, shadowAtlas);
+                        staticShadow = CreateStaticShadow(shadowItem, shadowAtlas);
                     }
                 }
 
@@ -281,32 +281,27 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
 
     private static TerrainStaticShadow? CreateStaticShadow(
         ItemsPakEntry item,
-        StaticSpriteAsset sprite,
         StaticSpriteAsset atlas)
     {
         var descriptor = item.ModelDesc;
         if (descriptor.StaticShadowAtlasCellIndex >=
-            StaticShadowAtlasLoader.Columns * StaticShadowAtlasLoader.Rows)
+            StaticShadowGeometry.AtlasColumns * StaticShadowGeometry.AtlasRows)
         {
             return null;
         }
 
-        var contactExtent = descriptor.StaticShadowContactExtent;
-        var isContactShadow = descriptor.StaticShadowProjection ==
-                              SacredItemStaticShadowProjection.Contact;
-        var rootOffsetY = isContactShadow
-            ? -sprite.AnchorY + contactExtent
-            : -sprite.AnchorY + descriptor.StaticShadowAnchorY * 2.0f;
-        var projectionLength = isContactShadow
-            ? (contactExtent - descriptor.StaticShadowAnchorY) * 2.0f
-            : sprite.Height;
+        var geometry = StaticShadowGeometry.Create(
+            descriptor.StaticShadowAnchorX,
+            descriptor.StaticShadowAnchorY,
+            descriptor.StaticShadowContactExtent,
+            descriptor.StaticShadowProjection);
 
         return new TerrainStaticShadow(
             atlas,
-            -sprite.AnchorX + descriptor.StaticShadowAnchorX * 2.0f,
-            rootOffsetY,
-            contactExtent,
-            projectionLength,
+            geometry.RootOffset.X,
+            geometry.RootOffset.Y,
+            geometry.ContactExtent,
+            geometry.ProjectionExtent,
             descriptor.StaticShadowAtlasCellIndex,
             descriptor.StaticShadowProjection);
     }

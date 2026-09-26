@@ -13,6 +13,9 @@ namespace Sacred.Engine.Graphics.Models;
 internal sealed class Dx12ModelShadowPass
 {
     private const float ShadowPainterDepth = 0.995f;
+    private const float ObjectShadowOpacityMultiplier = 0.75f;
+    private const float DirectionalStaticShadowOpacityScale = 1.08f;
+    private const float ContactStaticShadowOpacityScale = 0.86f;
 
     private readonly ID3D12GraphicsCommandList _commandList;
     private readonly Dx12ModelGeometryCache _geometryCache;
@@ -79,7 +82,10 @@ internal sealed class Dx12ModelShadowPass
 
         if (lighting.ShadowMode == SceneShadowMode.SoftContact)
         {
-            RecordGroundShadows(camera, models, lighting.ShadowOpacity);
+            RecordGroundShadows(
+                camera,
+                models,
+                lighting.ShadowOpacity * ContactStaticShadowOpacityScale * ObjectShadowOpacityMultiplier);
             return;
         }
 
@@ -92,7 +98,7 @@ internal sealed class Dx12ModelShadowPass
         var viewProjection = camera.View * camera.Projection;
         var shadowParameters = PlanarShadowProjection.CreateParameters(
             lighting.DirectionToSun,
-            lighting.ShadowOpacity);
+            lighting.ShadowOpacity * DirectionalStaticShadowOpacityScale * ObjectShadowOpacityMultiplier);
         _rootConstants.Reset();
         _descriptorTables.Reset();
         foreach (var model in models)

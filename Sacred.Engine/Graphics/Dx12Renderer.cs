@@ -51,6 +51,7 @@ public sealed class Dx12Renderer : IDisposable
     private ID3D12RootSignature _rootSignature = null!;
     private ID3D12PipelineState _terrainPipeline = null!;
     private ID3D12PipelineState _terrainLiquidCoverPipeline = null!;
+    private ID3D12PipelineState _shadowOverlayPipeline = null!;
     private int _shaderReloadPending;
     private Vector2? _previousCameraCenter;
 
@@ -232,7 +233,8 @@ public sealed class Dx12Renderer : IDisposable
             framePacingStatus,
             _rootSignature,
             _terrainPipeline,
-            _terrainLiquidCoverPipeline);
+            _terrainLiquidCoverPipeline,
+            _shadowOverlayPipeline);
         if (_graphics.UsesRenderScaling)
             RecordUpscalePass(camera, frameId);
         else
@@ -355,6 +357,7 @@ public sealed class Dx12Renderer : IDisposable
         _rootSignature = terrain.RootSignature;
         _terrainPipeline = terrain[Dx12PipelineKind.Terrain];
         _terrainLiquidCoverPipeline = terrain[Dx12PipelineKind.TerrainLiquidCover];
+        _shadowOverlayPipeline = terrain[Dx12PipelineKind.ShadowOverlay];
     }
 
     private void RequestShaderReload() => Interlocked.Exchange(ref _shaderReloadPending, 1);
@@ -410,6 +413,8 @@ public sealed class Dx12Renderer : IDisposable
         _terrainPipeline = null!;
         _terrainLiquidCoverPipeline?.Dispose();
         _terrainLiquidCoverPipeline = null!;
+        _shadowOverlayPipeline?.Dispose();
+        _shadowOverlayPipeline = null!;
         _rootSignature?.Dispose();
         _rootSignature = null!;
     }

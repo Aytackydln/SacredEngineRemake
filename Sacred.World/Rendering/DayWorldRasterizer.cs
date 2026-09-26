@@ -160,6 +160,7 @@ public sealed class DayWorldRasterizer(
                 continue;
             draws.Add(new StaticDraw(
                 EngineQueueIndex(item.ModelDesc.GraphicFlags, item.ModelDesc.Category),
+                item,
                 staticObject,
                 footX,
                 footY,
@@ -169,6 +170,37 @@ public sealed class DayWorldRasterizer(
         draws.Sort(CompareStaticDraws);
         await Task.WhenAll(draws.Select(static draw => draw.SpriteLoad)).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
+        var shadowAtlas = await TryLoadShadowAtlasAsync().ConfigureAwait(false);
+        if (shadowAtlas is not null)
+        {
+            var shadowMask = new byte[checked(width * height)];
+            foreach (var draw in draws)
+            {
+                var sprite = await draw.SpriteLoad.ConfigureAwait(false);
+                var descriptor = draw.Item.ModelDesc;
+                if (sprite is null || !descriptor.CastsStaticShadow)
+                    continue;
+
+                var geometry = StaticShadowGeometry.Create(
+                    descriptor.StaticShadowAnchorX,
+                    descriptor.StaticShadowAnchorY,
+                    descriptor.StaticShadowContactExtent,
+                    descriptor.StaticShadowProjection);
+                var root = new Vector2(
+                    width * 0.5f + (draw.FootX + geometry.RootOffset.X - centerIso.X) * zoom,
+                    height * 0.5f + (draw.FootY + geometry.RootOffset.Y - centerIso.Y) * zoom);
+                canvas.RasterizeShadow(
+                    shadowMask,
+                    shadowAtlas,
+                    descriptor.StaticShadowAtlasCellIndex,
+                    root,
+                    geometry.ContactExtent * zoom,
+                    geometry.Projection * zoom,
+                    0.75f);
+            }
+            canvas.ApplyShadowMask(shadowMask);
+        }
+
         var rendered = 0;
         var missing = 0;
         foreach (var draw in draws)
@@ -190,6 +222,22 @@ public sealed class DayWorldRasterizer(
             rendered++;
         }
         return new StaticRenderResult(candidates, rendered, missing);
+    }
+
+    private async Task<TextureAsset?> TryLoadShadowAtlasAsync()
+    {
+        try
+        {
+            var atlas = await textures.LoadTextureAsync("SHADOW_TREE00.TGA").ConfigureAwait(false);
+            return atlas.Width % StaticShadowGeometry.AtlasColumns == 0 &&
+                   atlas.Height % StaticShadowGeometry.AtlasRows == 0
+                ? atlas
+                : null;
+        }
+        catch (Exception exception) when (exception is FileNotFoundException or InvalidDataException or NotSupportedException)
+        {
+            return null;
+        }
     }
 
     private static int EngineQueueIndex(SacredItemGraphicFlags graphicFlags, SacredItemCategory category)
@@ -318,6 +366,7 @@ public sealed class DayWorldRasterizer(
     private sealed record TerrainTileSource(TextureAsset Texture, int SourceX, int SourceY);
     private readonly record struct StaticDraw(
         int QueueIndex,
+        ItemsPakEntry Item,
         StaticWorldObject Object,
         float FootX,
         float FootY,

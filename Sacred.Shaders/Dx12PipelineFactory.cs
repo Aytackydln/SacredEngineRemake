@@ -57,7 +57,9 @@ public static class Dx12PipelineFactory
                     DepthStencilState = definition.DepthStencilState,
                     SampleMask = definition.SampleMask,
                     PrimitiveTopologyType = definition.PrimitiveTopologyType,
-                    RenderTargetFormats = [backBufferFormat],
+                    RenderTargetFormats = [definition.RenderTargetFormat == Format.Unknown
+                        ? backBufferFormat
+                        : definition.RenderTargetFormat],
                     DepthStencilFormat = definition.UsesDepthBuffer ? depthBufferFormat : Format.Unknown,
                     SampleDescription = definition.SampleDescription
                 };

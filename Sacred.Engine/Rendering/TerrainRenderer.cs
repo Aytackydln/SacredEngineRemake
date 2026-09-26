@@ -323,7 +323,7 @@ public readonly record struct TerrainStaticShadow(
     float RootOffsetX,
     float RootOffsetY,
     float ContactExtent,
-    float ProjectionLength,
+    float ProjectionExtent,
     ushort AtlasCellIndex,
     SacredItemStaticShadowProjection Projection);
 

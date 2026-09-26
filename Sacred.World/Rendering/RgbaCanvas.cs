@@ -1,4 +1,6 @@
+using System.Numerics;
 using Sacred.Assets.Paks.Texture;
+using Sacred.World.Geometry;
 
 namespace Sacred.World.Rendering;
 
@@ -124,6 +126,75 @@ internal sealed class RgbaCanvas
         {
             BlendPixel(centerX + delta, centerY, red, green, blue, 255);
             BlendPixel(centerX, centerY + delta, red, green, blue, 255);
+        }
+    }
+
+    public void RasterizeShadow(
+        Span<byte> shadowMask,
+        TextureAsset atlas,
+        int atlasCell,
+        Vector2 root,
+        float contactExtent,
+        Vector2 projection,
+        float opacity)
+    {
+        if (shadowMask.Length != Width * Height || contactExtent <= 0.0f)
+            return;
+
+        const int atlasColumns = StaticShadowGeometry.AtlasColumns;
+        const int atlasRows = StaticShadowGeometry.AtlasRows;
+        var cellWidth = atlas.Width / atlasColumns;
+        var cellHeight = atlas.Height / atlasRows;
+        if (cellWidth <= 0 || cellHeight <= 0 || atlasCell is < 0 or >= atlasColumns * atlasRows)
+            return;
+
+        var bottomLeft = root - new Vector2(contactExtent, 0.0f);
+        var horizontal = new Vector2(contactExtent * 2.0f, 0.0f);
+        var topLeft = bottomLeft + projection;
+        var bottomRight = bottomLeft + horizontal;
+        var topRight = bottomRight + projection;
+        var firstX = Math.Max(0, (int)MathF.Floor(MathF.Min(MathF.Min(bottomLeft.X, bottomRight.X), MathF.Min(topLeft.X, topRight.X))));
+        var firstY = Math.Max(0, (int)MathF.Floor(MathF.Min(MathF.Min(bottomLeft.Y, bottomRight.Y), MathF.Min(topLeft.Y, topRight.Y))));
+        var lastX = Math.Min(Width, (int)MathF.Ceiling(MathF.Max(MathF.Max(bottomLeft.X, bottomRight.X), MathF.Max(topLeft.X, topRight.X))));
+        var lastY = Math.Min(Height, (int)MathF.Ceiling(MathF.Max(MathF.Max(bottomLeft.Y, bottomRight.Y), MathF.Max(topLeft.Y, topRight.Y))));
+        var determinant = horizontal.X * projection.Y - horizontal.Y * projection.X;
+        if (MathF.Abs(determinant) <= float.Epsilon)
+            return;
+
+        var cellX = atlasCell % atlasColumns * cellWidth;
+        var cellY = atlasCell / atlasColumns * cellHeight;
+        var opacityScale = Math.Clamp(opacity, 0.0f, 0.85f);
+        for (var y = firstY; y < lastY; y++)
+        for (var x = firstX; x < lastX; x++)
+        {
+            var relative = new Vector2(x + 0.5f, y + 0.5f) - bottomLeft;
+            var u = (relative.X * projection.Y - relative.Y * projection.X) / determinant;
+            var towardTop = (horizontal.X * relative.Y - horizontal.Y * relative.X) / determinant;
+            if (u is < 0.0f or > 1.0f || towardTop is < 0.0f or > 1.0f)
+                continue;
+
+            var v = 1.0f - towardTop;
+            var sourceX = cellX + Math.Clamp((int)(u * cellWidth), 0, cellWidth - 1);
+            var sourceY = cellY + Math.Clamp((int)(v * cellHeight), 0, cellHeight - 1);
+            var sourceAlpha = atlas.Rgba8[(sourceY * atlas.Width + sourceX) * 4 + 3];
+            var shadow = (byte)Math.Clamp((int)MathF.Round(sourceAlpha * opacityScale), 0, 217);
+            var destination = y * Width + x;
+            shadowMask[destination] = Math.Max(shadowMask[destination], shadow);
+        }
+    }
+
+    public void ApplyShadowMask(ReadOnlySpan<byte> shadowMask)
+    {
+        if (shadowMask.Length != Width * Height)
+            throw new ArgumentException("Shadow mask dimensions do not match the canvas.", nameof(shadowMask));
+
+        for (var pixel = 0; pixel < shadowMask.Length; pixel++)
+        {
+            var inverse = 255 - shadowMask[pixel];
+            var offset = pixel * 4;
+            Pixels[offset] = (byte)(Pixels[offset] * inverse / 255);
+            Pixels[offset + 1] = (byte)(Pixels[offset + 1] * inverse / 255);
+            Pixels[offset + 2] = (byte)(Pixels[offset + 2] * inverse / 255);
         }
     }
 

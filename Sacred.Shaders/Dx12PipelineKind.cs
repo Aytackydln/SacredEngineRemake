@@ -5,6 +5,7 @@ public enum Dx12PipelineKind
 {
     Terrain,
     TerrainLiquidCover,
+    ShadowOverlay,
     StaticSpriteShadow,
     StaticSprite,
     TransparentStaticSprite,

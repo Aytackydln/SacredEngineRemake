@@ -295,7 +295,7 @@ internal sealed class Dx12SpritePass : IDisposable
         Dx12FrameContext frame,
         int renderWidth,
         int renderHeight) =>
-        _shadowPass.Record(batch, camera, lighting, frame, renderWidth, renderHeight);
+        _shadowPass.Record(batch, lighting, frame, renderWidth, renderHeight);
 
     public void Dispose() => _textureCache.Dispose();
 }

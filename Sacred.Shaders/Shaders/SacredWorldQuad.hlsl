@@ -149,6 +149,12 @@ float4 sample_upscaled(float2 uv)
     return float4(max(sharpened.rgb, 0.0f), saturate(sharpened.a));
 }
 
+float4 ps_shadow(vertex_output input) : SV_Target
+{
+    float opacity = min(texture0.Sample(sampler0, input.tex_coord).r, 0.85f);
+    return float4(0.0f, 0.0f, 0.0f, opacity);
+}
+
 float4 ps_sdr_upscale(vertex_output input) : SV_Target
 {
     return sample_upscaled(input.tex_coord);

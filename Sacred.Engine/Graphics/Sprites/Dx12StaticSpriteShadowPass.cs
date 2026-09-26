@@ -2,7 +2,6 @@ using System;
 using System.Numerics;
 using Sacred.Engine.Graphics.Frames;
 using Sacred.Engine.Scene;
-using Sacred.Engine.Scene.InGame;
 using Sacred.Shaders;
 using Vortice.Direct3D;
 using Vortice.Direct3D12;
@@ -12,6 +11,10 @@ namespace Sacred.Engine.Graphics.Sprites;
 /// <summary>Records file-authored soft shadows beneath static world sprites.</summary>
 internal sealed class Dx12StaticSpriteShadowPass
 {
+    // cWorldView0::renderShadow projects directional billboard shadows by one authored
+    // extent toward +X/-Y in screen space. It does not rotate them with the 3D sun.
+    private static readonly Vector2 DirectionalProjection = new(1.0f, -1.0f);
+
     private readonly ID3D12GraphicsCommandList _commandList;
     private readonly GpuDescriptorHandle _srvHeapGpuStart;
     private readonly int _descriptorSize;
@@ -48,7 +51,6 @@ internal sealed class Dx12StaticSpriteShadowPass
 
     public unsafe void Record(
         WorldSpriteBatch batch,
-        SacredCamera camera,
         SceneLighting lighting,
         Dx12FrameContext frame,
         int renderWidth,
@@ -70,7 +72,7 @@ internal sealed class Dx12StaticSpriteShadowPass
                 new Vector2(renderWidth, renderHeight),
                 lighting.OutdoorShadowOpacity,
                 lighting.IndoorShadowOpacity,
-                CalculateScreenProjection(camera, lighting.DirectionToSun, renderWidth, renderHeight),
+                DirectionalProjection,
                 batch.ShadowAtlasTexelSize));
 
         _commandList.SetGraphicsRootSignature(_rootSignature);
@@ -94,32 +96,4 @@ internal sealed class Dx12StaticSpriteShadowPass
     private GpuDescriptorHandle SrvGpuHandle(int index) =>
         _srvHeapGpuStart + index * _descriptorSize;
 
-    private static Vector2 CalculateScreenProjection(
-        SacredCamera camera,
-        Vector3 directionToSun,
-        int renderWidth,
-        int renderHeight)
-    {
-        var direction = directionToSun.LengthSquared() > float.Epsilon
-            ? Vector3.Normalize(directionToSun)
-            : Vector3.UnitZ;
-        var vertical = MathF.Max(direction.Z, 0.18f);
-        var worldProjection = new Vector4(
-            -direction.X / vertical,
-            -direction.Y / vertical,
-            0.0f,
-            0.0f);
-        var clipProjection = Vector4.Transform(
-            worldProjection,
-            camera.View * camera.Projection);
-        var screenProjection = new Vector2(
-            clipProjection.X * renderWidth * 0.5f,
-            -clipProjection.Y * renderHeight * 0.5f);
-        if (screenProjection.LengthSquared() <= float.Epsilon)
-            return new Vector2(1.0f, -1.0f);
-
-        var solarSlope = MathF.Sqrt(
-            direction.X * direction.X + direction.Y * direction.Y) / vertical;
-        return Vector2.Normalize(screenProjection) * Math.Clamp(solarSlope, 0.45f, 1.75f);
-    }
 }
