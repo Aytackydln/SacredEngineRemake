@@ -11,7 +11,9 @@ internal sealed record SectorCompositionRequest(
     int LiquidCoverSrvSlot,
     int StairsDebugSrvSlot,
     int BlockedAreaDebugSrvSlot,
-    int TerrainTopologyDebugSrvSlot);
+    int TerrainTopologyDebugSrvSlot,
+    bool ReplacesVisibleTexture,
+    long Sequence);
 
 internal sealed record SubmittedSectorComposition(
     SectorCoord Coord,

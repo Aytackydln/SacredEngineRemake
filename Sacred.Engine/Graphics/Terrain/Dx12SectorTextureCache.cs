@@ -1,6 +1,6 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Numerics;
 using System.Threading;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Graphics.Frames;
@@ -16,20 +16,17 @@ internal sealed class Dx12SectorTextureCache : IDisposable
 
     private readonly int _maximumTextureCount;
     private readonly Dx12TextureUploader _uploader;
-    private readonly Dx12SectorComposer _composer;
+    private readonly Dx12SectorCompositionWorker _compositionWorker;
     private readonly CpuDescriptorHandle _srvHeapStart;
     private readonly int _descriptorSize;
     private readonly Dictionary<SectorCoord, SectorTexture> _textures = new();
     private readonly HashSet<SectorCoord> _pendingUploads = [];
     private readonly List<SectorCoord> _texturesToRetire = new(9);
-    private readonly BlockingCollection<SectorCompositionRequest> _compositionRequests = new();
-    private readonly ConcurrentQueue<SubmittedSectorComposition> _submittedCompositions = new();
     private readonly Stack<int> _freeSrvSlots;
-    private readonly AutoResetEvent _compositionOpportunity = new(false);
 
     private Dictionary<SectorCoord, TerrainSectorComposition> _wantedCompositions = new();
-    private Thread? _uploadThread;
     private int _retiringSrvSlotCount;
+    private long _requestSequence;
     private volatile bool _stopped;
 
     public Dx12SectorTextureCache(
@@ -41,20 +38,17 @@ internal sealed class Dx12SectorTextureCache : IDisposable
     {
         _maximumTextureCount = maximumTextureCount;
         _uploader = uploader;
-        _composer = new Dx12SectorComposer(device, uploader);
+        _compositionWorker = new Dx12SectorCompositionWorker(
+            device,
+            uploader,
+            maximumTextureCount,
+            IsWanted);
         _srvHeapStart = srvHeap.GetCPUDescriptorHandleForHeapStart();
         _descriptorSize = descriptorSize;
         _freeSrvSlots = new Stack<int>(maximumTextureCount * TexturesPerSector);
         for (var index = maximumTextureCount * TexturesPerSector - 1; index >= 0; index--)
             _freeSrvSlots.Push(index);
 
-        _uploadThread = new Thread(UploadWorkerLoop)
-        {
-            IsBackground = true,
-            Name = "Sacred GPU sector compositor",
-            Priority = ThreadPriority.BelowNormal
-        };
-        _uploadThread.Start();
     }
 
     public int Count => _textures.Count;
@@ -66,7 +60,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
     /// Gives the compositor one opportunity after foreground commands have been submitted.
     /// This prevents background GPU work from racing ahead while frames are being recorded.
     /// </summary>
-    public void OnForegroundFrameSubmitted() => _compositionOpportunity.Set();
+    public void OnForegroundFrameSubmitted() => _compositionWorker.OnForegroundFrameSubmitted();
 
     public void OnFrameRetired(int releasedSectorSlotCount)
     {
@@ -80,8 +74,11 @@ internal sealed class Dx12SectorTextureCache : IDisposable
 
     public void PrepareFrame(
         IReadOnlyList<TerrainSectorComposition> images,
+        Vector2 cameraWorldCenter,
+        Vector2 cameraMovementDirection,
         Dx12FrameContext frame)
     {
+        _compositionWorker.UpdateSchedule(cameraWorldCenter, cameraMovementDirection);
         UpdateWantedCompositions(images);
         RetireUnneededTextures(frame);
         CollectCompletedUploads(frame);
@@ -117,12 +114,9 @@ internal sealed class Dx12SectorTextureCache : IDisposable
 
         _stopped = true;
         Volatile.Write(ref _wantedCompositions, new Dictionary<SectorCoord, TerrainSectorComposition>());
-        _compositionRequests.CompleteAdding();
-        _compositionOpportunity.Set();
-        _uploadThread?.Join();
-        _uploadThread = null;
+        _compositionWorker.Stop();
 
-        while (_submittedCompositions.TryDequeue(out var composition))
+        while (_compositionWorker.TryDequeueCompleted(out var composition))
         {
             composition.Composed?.Dispose();
             _pendingUploads.Remove(composition.Coord);
@@ -149,14 +143,12 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         }
         _textures.Clear();
 
-        _compositionRequests.Dispose();
-        _compositionOpportunity.Dispose();
-        _composer.Dispose();
+        _compositionWorker.Dispose();
     }
 
     private void CollectCompletedUploads(Dx12FrameContext frame)
     {
-        while (_submittedCompositions.TryDequeue(out var composition))
+        while (_compositionWorker.TryDequeueCompleted(out var composition))
         {
             _pendingUploads.Remove(composition.Coord);
             if (!IsWanted(composition.Composition))
@@ -233,13 +225,15 @@ internal sealed class Dx12SectorTextureCache : IDisposable
             var blockedAreaDebugSlot = _freeSrvSlots.Pop();
             var terrainTopologyDebugSlot = _freeSrvSlots.Pop();
             _pendingUploads.Add(image.Coord);
-            if (_compositionRequests.TryAdd(new SectorCompositionRequest(
+            if (_compositionWorker.TryEnqueue(new SectorCompositionRequest(
                     image,
                     baseSlot,
                     liquidCoverSlot,
                     stairsDebugSlot,
                     blockedAreaDebugSlot,
-                    terrainTopologyDebugSlot)))
+                    terrainTopologyDebugSlot,
+                    _textures.ContainsKey(image.Coord),
+                    _requestSequence++)))
                 continue;
 
             _pendingUploads.Remove(image.Coord);
@@ -318,72 +312,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         _retiringSrvSlotCount += TexturesPerSector;
     }
 
-    private void UploadWorkerLoop()
-    {
-        foreach (var request in _compositionRequests.GetConsumingEnumerable())
-        {
-            if (!_stopped)
-                _compositionOpportunity.WaitOne();
-
-            _submittedCompositions.Enqueue(!_stopped && IsWanted(request.Composition)
-                ? Compose(request)
-                : Skip(request));
-        }
-    }
-
-    private SubmittedSectorComposition Compose(SectorCompositionRequest request)
-    {
-        try
-        {
-            var composed = _composer.Compose(request.Composition);
-            return new SubmittedSectorComposition(
-                request.Composition.Coord,
-                request.Composition,
-                composed,
-                request.BaseSrvSlot,
-                request.LiquidCoverSrvSlot,
-                request.StairsDebugSrvSlot,
-                request.BlockedAreaDebugSrvSlot,
-                request.TerrainTopologyDebugSrvSlot,
-                null);
-        }
-        catch (Exception exception)
-        {
-            return new SubmittedSectorComposition(
-                request.Composition.Coord,
-                request.Composition,
-                null,
-                request.BaseSrvSlot,
-                request.LiquidCoverSrvSlot,
-                request.StairsDebugSrvSlot,
-                request.BlockedAreaDebugSrvSlot,
-                request.TerrainTopologyDebugSrvSlot,
-                exception);
-        }
-        finally
-        {
-            // Compose waits for its private GPU queue fence, so its thousands of CPU-side
-            // tile references are no longer needed once this method returns.
-            request.Composition.ReleaseSourceTiles();
-        }
-    }
-
     private CpuDescriptorHandle SrvCpuHandle(int index) => _srvHeapStart + index * _descriptorSize;
-
-    private static SubmittedSectorComposition Skip(SectorCompositionRequest request)
-    {
-        request.Composition.ReleaseSourceTiles();
-        return new SubmittedSectorComposition(
-            request.Composition.Coord,
-            request.Composition,
-            null,
-            request.BaseSrvSlot,
-            request.LiquidCoverSrvSlot,
-            request.StairsDebugSrvSlot,
-            request.BlockedAreaDebugSrvSlot,
-            request.TerrainTopologyDebugSrvSlot,
-            null);
-    }
 
     private void ReleaseSrvSlots(SubmittedSectorComposition composition)
     {

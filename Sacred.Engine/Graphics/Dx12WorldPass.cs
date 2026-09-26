@@ -188,7 +188,11 @@ internal sealed class Dx12WorldPass : IDisposable
             _terrain.PrepareVisibleLiquidSprites(),
             _terrain.PrepareVisibleStaticSprites(particles, particleRevision),
             _terrain.VisibleWorldLights);
-        _sectorTextures.PrepareFrame(prepared.SectorImages, _graphics.CurrentFrame);
+        _sectorTextures.PrepareFrame(
+            prepared.SectorImages,
+            camera.WorldCenter,
+            camera.CameraSpeedUnitVector,
+            _graphics.CurrentFrame);
         return prepared;
     }
 

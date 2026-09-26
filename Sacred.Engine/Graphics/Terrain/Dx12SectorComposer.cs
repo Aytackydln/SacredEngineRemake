@@ -14,10 +14,12 @@ namespace Sacred.Engine.Graphics.Terrain;
 
 /// <summary>
 /// Rasterizes compact tile plans into persistent sector textures on a dedicated Direct3D queue.
-/// Composition is serialized, so transient descriptors and command resources can be reused safely.
+/// A small context pool keeps resource reuse fence-safe while allowing two submissions in flight.
 /// </summary>
 internal sealed class Dx12SectorComposer : IDisposable
 {
+    public const int MaximumInFlightCompositions = 2;
+
     private const int MaximumTileSheetCount = 4096;
     private const int VerticesPerTile = 6;
     private const uint HasSecondaryMaskFlag = 0x01;
@@ -35,6 +37,7 @@ internal sealed class Dx12SectorComposer : IDisposable
     private readonly ID3D12PipelineState _basePipeline;
     private readonly ID3D12PipelineState _coverPipeline;
     private readonly ID3D12PipelineState _spritePipeline;
+    private readonly Dx12SectorCompositionContext[] _contexts;
 
     private nint _fenceEvent;
     private ulong _fenceValue;
@@ -54,30 +57,33 @@ internal sealed class Dx12SectorComposer : IDisposable
         _basePipeline = pipeline.Base;
         _coverPipeline = pipeline.Cover;
         _spritePipeline = pipeline.Sprite;
+        _contexts = new Dx12SectorCompositionContext[MaximumInFlightCompositions];
+        for (var index = 0; index < _contexts.Length; index++)
+            _contexts[index] = new Dx12SectorCompositionContext(device);
     }
 
-    public Dx12ComposedSector Compose(TerrainSectorComposition composition)
+    public Submission Submit(TerrainSectorComposition composition)
     {
-        ID3D12CommandAllocator? commandAllocator = null;
-        ID3D12GraphicsCommandList? commandList = null;
-        ID3D12DescriptorHeap? rtvHeap = null;
-        ID3D12DescriptorHeap? sourceSrvHeap = null;
+        var context = GetAvailableContext();
+        var commandList = context.CommandList;
         ID3D12Resource? baseTexture = null;
         ID3D12Resource? coverTexture = null;
         ID3D12Resource? stairsDebugTexture = null;
         ID3D12Resource? blockedAreaDebugTexture = null;
         ID3D12Resource? terrainTopologyDebugTexture = null;
-        var transientResources = new List<ID3D12Resource>();
         var addedSourceNames = new List<string>();
         var addedSpriteSources = new List<StaticSpriteAsset>();
 
         try
         {
-            commandAllocator = _device.CreateCommandAllocator(CommandListType.Direct);
-            commandList = _device.CreateCommandList<ID3D12GraphicsCommandList>(
-                CommandListType.Direct,
-                commandAllocator,
-                null);
+            var maximumSourceDescriptorCount = checked((
+                composition.BaseTiles.Count +
+                composition.CoverTiles.Count +
+                composition.StairsDebugTiles.Count +
+                composition.BlockedAreaDebugTiles.Count +
+                composition.TerrainTopologyDebugTiles.Count +
+                composition.EmbeddedSprites.Count) * 2);
+            context.BeginRecording(maximumSourceDescriptorCount);
 
             baseTexture = CreateOutputTexture(composition.Width, composition.Height);
             coverTexture = CreateOutputTexture(composition.Width, composition.Height);
@@ -90,12 +96,7 @@ internal sealed class Dx12SectorComposer : IDisposable
             terrainTopologyDebugTexture = CreateOutputTexture(
                 composition.TerrainTopologyDebugWidth,
                 composition.TerrainTopologyDebugHeight);
-            rtvHeap = _device.CreateDescriptorHeap(new DescriptorHeapDescription(
-                DescriptorHeapType.RenderTargetView,
-                5,
-                DescriptorHeapFlags.None,
-                0));
-            var rtvStart = rtvHeap.GetCPUDescriptorHandleForHeapStart();
+            var rtvStart = context.RtvHeap.GetCPUDescriptorHandleForHeapStart();
             var rtvDescriptorSize = (int)_device.GetDescriptorHandleIncrementSize(DescriptorHeapType.RenderTargetView);
             var baseRtv = rtvStart;
             var coverRtv = rtvStart + rtvDescriptorSize;
@@ -112,42 +113,39 @@ internal sealed class Dx12SectorComposer : IDisposable
                 composition.BaseTiles,
                 false,
                 commandList,
-                transientResources,
+                context.TransientResources,
                 addedSourceNames);
             var coverDraws = CreateDraws(
                 composition.CoverTiles,
                 true,
                 commandList,
-                transientResources,
+                context.TransientResources,
                 addedSourceNames);
             var stairsDebugDraws = CreateDraws(
                 composition.StairsDebugTiles,
                 true,
                 commandList,
-                transientResources,
+                context.TransientResources,
                 addedSourceNames);
             var blockedAreaDebugDraws = CreateDraws(
                 composition.BlockedAreaDebugTiles,
                 true,
                 commandList,
-                transientResources,
+                context.TransientResources,
                 addedSourceNames);
             var terrainTopologyDebugDraws = CreateDraws(
                 composition.TerrainTopologyDebugTiles,
                 true,
                 commandList,
-                transientResources,
+                context.TransientResources,
                 addedSourceNames);
             var embeddedSpriteDraws = CreateEmbeddedSpriteDraws(
                 composition.EmbeddedSprites,
                 commandList,
-                transientResources,
+                context.TransientResources,
                 addedSpriteSources);
 
-            sourceSrvHeap = CreateSourceDescriptorHeap(
-                baseDraws.Length + coverDraws.Length + stairsDebugDraws.Length +
-                blockedAreaDebugDraws.Length + terrainTopologyDebugDraws.Length +
-                embeddedSpriteDraws.Length);
+            var sourceSrvHeap = context.SourceSrvHeap;
             var nextSourceDescriptor = 0;
             RecordTarget(
                 commandList,
@@ -158,7 +156,7 @@ internal sealed class Dx12SectorComposer : IDisposable
                 baseDraws,
                 embeddedSpriteDraws,
                 _basePipeline,
-                transientResources,
+                context.TransientResources,
                 sourceSrvHeap,
                 ref nextSourceDescriptor);
             RecordTarget(
@@ -170,7 +168,7 @@ internal sealed class Dx12SectorComposer : IDisposable
                 blockedAreaDebugDraws,
                 [],
                 _coverPipeline,
-                transientResources,
+                context.TransientResources,
                 sourceSrvHeap,
                 ref nextSourceDescriptor);
             RecordTarget(
@@ -182,7 +180,7 @@ internal sealed class Dx12SectorComposer : IDisposable
                 stairsDebugDraws,
                 [],
                 _coverPipeline,
-                transientResources,
+                context.TransientResources,
                 sourceSrvHeap,
                 ref nextSourceDescriptor);
             RecordTarget(
@@ -194,7 +192,7 @@ internal sealed class Dx12SectorComposer : IDisposable
                 terrainTopologyDebugDraws,
                 [],
                 _coverPipeline,
-                transientResources,
+                context.TransientResources,
                 sourceSrvHeap,
                 ref nextSourceDescriptor);
             RecordTarget(
@@ -206,7 +204,7 @@ internal sealed class Dx12SectorComposer : IDisposable
                 coverDraws,
                 [],
                 _coverPipeline,
-                transientResources,
+                context.TransientResources,
                 sourceSrvHeap,
                 ref nextSourceDescriptor);
 
@@ -214,21 +212,11 @@ internal sealed class Dx12SectorComposer : IDisposable
             _commandQueue.ExecuteCommandLists([commandList]);
             var fenceValue = ++_fenceValue;
             _commandQueue.Signal(_fence, fenceValue).CheckError();
-            WaitForFence(fenceValue);
+            context.FenceValue = fenceValue;
 
-            foreach (var resource in transientResources)
-                resource.Dispose();
-            transientResources.Clear();
-            commandList.Dispose();
-            commandList = null;
-            commandAllocator.Dispose();
-            commandAllocator = null;
-            rtvHeap.Dispose();
-            rtvHeap = null;
-            sourceSrvHeap.Dispose();
-            sourceSrvHeap = null;
-
-            var result = new Dx12ComposedSector(
+            var submission = new Submission(
+                context,
+                fenceValue,
                 baseTexture,
                 coverTexture,
                 stairsDebugTexture,
@@ -239,7 +227,7 @@ internal sealed class Dx12SectorComposer : IDisposable
             stairsDebugTexture = null;
             blockedAreaDebugTexture = null;
             terrainTopologyDebugTexture = null;
-            return result;
+            return submission;
         }
         catch
         {
@@ -261,23 +249,42 @@ internal sealed class Dx12SectorComposer : IDisposable
         }
         finally
         {
-            foreach (var resource in transientResources)
-                resource.Dispose();
+            if (context.FenceValue == 0)
+                context.ReleaseTransientResources();
             blockedAreaDebugTexture?.Dispose();
             terrainTopologyDebugTexture?.Dispose();
             stairsDebugTexture?.Dispose();
             coverTexture?.Dispose();
             baseTexture?.Dispose();
-            rtvHeap?.Dispose();
-            sourceSrvHeap?.Dispose();
-            commandList?.Dispose();
-            commandAllocator?.Dispose();
         }
+    }
+
+    public bool TryComplete(Submission submission, out Dx12ComposedSector? composed)
+    {
+        if (_fence.CompletedValue < submission.FenceValue)
+        {
+            composed = null;
+            return false;
+        }
+
+        composed = submission.TakeResult();
+        submission.Context.ReleaseTransientResources();
+        return true;
+    }
+
+    public Dx12ComposedSector Complete(Submission submission)
+    {
+        WaitForFence(submission.FenceValue);
+        var composed = submission.TakeResult();
+        submission.Context.ReleaseTransientResources();
+        return composed;
     }
 
     public void Dispose()
     {
         WaitForFence(_fenceValue);
+        foreach (var context in _contexts)
+            context.Dispose();
         foreach (var source in _sourceTextures.Values)
             source.Resource.Dispose();
         _sourceTextures.Clear();
@@ -296,6 +303,15 @@ internal sealed class Dx12SectorComposer : IDisposable
             Kernel32.CloseHandle(_fenceEvent);
             _fenceEvent = 0;
         }
+    }
+
+    private Dx12SectorCompositionContext GetAvailableContext()
+    {
+        foreach (var context in _contexts)
+            if (context.FenceValue == 0)
+                return context;
+
+        throw new InvalidOperationException("The sector compositor has no available command context.");
     }
 
     private GpuTerrainTileDraw[] CreateDraws(
@@ -571,13 +587,6 @@ internal sealed class Dx12SectorComposer : IDisposable
         Kernel32.WaitForSingleObject(_fenceEvent, uint.MaxValue);
     }
 
-    private ID3D12DescriptorHeap CreateSourceDescriptorHeap(int drawCount) =>
-        _device.CreateDescriptorHeap(new DescriptorHeapDescription(
-            DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView,
-            checked((uint)Math.Max(2, drawCount * 2)),
-            DescriptorHeapFlags.ShaderVisible,
-            0));
-
     private sealed record SourceTexture(ID3D12Resource Resource);
 
     private readonly record struct GpuTerrainTileDraw(
@@ -588,6 +597,50 @@ internal sealed class Dx12SectorComposer : IDisposable
     private readonly record struct GpuSectorSpriteDraw(
         GpuSectorSpriteInstance Instance,
         SourceTexture Source);
+
+    internal sealed class Submission(
+        Dx12SectorCompositionContext context,
+        ulong fenceValue,
+        ID3D12Resource baseTexture,
+        ID3D12Resource liquidCoverTexture,
+        ID3D12Resource stairsDebugTexture,
+        ID3D12Resource blockedAreaDebugTexture,
+        ID3D12Resource terrainTopologyDebugTexture)
+    {
+        private ID3D12Resource? _baseTexture = baseTexture;
+        private ID3D12Resource? _liquidCoverTexture = liquidCoverTexture;
+        private ID3D12Resource? _stairsDebugTexture = stairsDebugTexture;
+        private ID3D12Resource? _blockedAreaDebugTexture = blockedAreaDebugTexture;
+        private ID3D12Resource? _terrainTopologyDebugTexture = terrainTopologyDebugTexture;
+
+        public Dx12SectorCompositionContext Context { get; } = context;
+        public ulong FenceValue { get; } = fenceValue;
+
+        public Dx12ComposedSector TakeResult()
+        {
+            if (_baseTexture is null ||
+                _liquidCoverTexture is null ||
+                _stairsDebugTexture is null ||
+                _blockedAreaDebugTexture is null ||
+                _terrainTopologyDebugTexture is null)
+            {
+                throw new InvalidOperationException("The sector composition result was already collected.");
+            }
+
+            var result = new Dx12ComposedSector(
+                _baseTexture,
+                _liquidCoverTexture,
+                _stairsDebugTexture,
+                _blockedAreaDebugTexture,
+                _terrainTopologyDebugTexture);
+            _baseTexture = null;
+            _liquidCoverTexture = null;
+            _stairsDebugTexture = null;
+            _blockedAreaDebugTexture = null;
+            _terrainTopologyDebugTexture = null;
+            return result;
+        }
+    }
 }
 
 internal sealed record Dx12ComposedSector(
