@@ -28,6 +28,7 @@ internal sealed class InGameInputController
     private readonly Func<int> _viewportHeight;
     private readonly Func<Vector2, Vector2> _outputToViewport;
     private readonly Action<bool> _setHandCursor;
+    private readonly PostStairsMovementInputGate _postStairsMovementInput = new();
     private ElevationMovementTrace? _elevationTrace;
 
     public CollisionCheatMode CollisionMode { get; private set; }
@@ -83,6 +84,8 @@ internal sealed class InGameInputController
         if (_mapInput.Update(deltaSeconds))
             return;
 
+        var movementInput = _postStairsMovementInput.Update(_input);
+
         if (!uiWantsMouse && (_input.ConsumeXButtonCyclePressed() ||
             _gamepad.WasPressed(GamepadButtons.B)))
         {
@@ -116,6 +119,9 @@ internal sealed class InGameInputController
         }
         else
         {
+            if (!movementInput.Mouse)
+                _input.DiscardPointerMovementEvents();
+
             _clickToMove.Update(
                 _input,
                 _camera,
@@ -126,7 +132,8 @@ internal sealed class InGameInputController
                 _elevation,
                 CollisionMode,
                 _doors.TryToggleAt,
-                deltaSeconds);
+                deltaSeconds,
+                movementInput);
         }
 
         if ((!uiWantsMouse && _input.ConsumeRightMouseButtonPressed()) || _gamepad.WasPressed(GamepadButtons.X))
@@ -137,11 +144,13 @@ internal sealed class InGameInputController
             deltaSeconds,
             _collision,
             CollisionMode,
-            PlayerMovementSpeedMultiplier);
+            PlayerMovementSpeedMultiplier,
+            movementInput);
         var surfaceLevel = _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0;
         if (_stairs.Update(_camera, surfaceLevel, out var destinationSurfaceLevel))
         {
             _clickToMove.StopMoving();
+            _postStairsMovementInput.BlockUntilNewInput(_input);
             _indoors.Reset(_camera.WorldCenter, destinationSurfaceLevel);
         }
         else

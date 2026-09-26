@@ -97,7 +97,22 @@ public sealed class SacredCamera
         float dt,
         WorldCollisionResolver collision,
         CollisionCheatMode collisionMode = CollisionCheatMode.Walk,
-        float movementSpeedMultiplier = 1.0f)
+        float movementSpeedMultiplier = 1.0f) =>
+        UpdateFromInput(
+            input,
+            dt,
+            collision,
+            collisionMode,
+            movementSpeedMultiplier,
+            MovementInputAvailability.All);
+
+    internal void UpdateFromInput(
+        InputState input,
+        float dt,
+        WorldCollisionResolver collision,
+        CollisionCheatMode collisionMode,
+        float movementSpeedMultiplier,
+        MovementInputAvailability movementInput)
     {
         var previousWorldCenter = WorldCenter;
         var previousZoom = Zoom;
@@ -107,6 +122,7 @@ public sealed class SacredCamera
         var baseSpeed = (input.IsWalkModifierDown ? WalkingBaseSpeed : RunningBaseSpeed) * movementSpeedMultiplier;
         var delta = MovementDirection(
             input,
+            movementInput,
             out var joystickMovementScale,
             out var joystickRotationOnly);
         CurrentMovementSpeed = 0.0f;
@@ -274,6 +290,7 @@ public sealed class SacredCamera
 
     private static Vector2 MovementDirection(
         InputState input,
+        MovementInputAvailability movementInput,
         out float joystickMovementScale,
         out Vector2 joystickRotationOnly)
     {
@@ -281,16 +298,19 @@ public sealed class SacredCamera
         joystickRotationOnly = Vector2.Zero;
         var joystick = new Vector2((float)input.LeftJoystickX, -(float)input.LeftJoystickY);
         var joystickLengthSquared = joystick.LengthSquared();
-        if (joystickLengthSquared > JoystickDeadzone * JoystickDeadzone)
+        if (movementInput.Controller && joystickLengthSquared > JoystickDeadzone * JoystickDeadzone)
         {
             var joystickLength = MathF.Min(MathF.Sqrt(joystickLengthSquared), 1.0f);
             joystickMovementScale = ApplyMovementStickResponse(joystickLength);
             return Vector2.Transform(joystick / MathF.Sqrt(joystickLengthSquared), IsometricRotation);
         }
-        if (joystickLengthSquared >= JoystickRotationDeadzone * JoystickRotationDeadzone)
+        if (movementInput.Controller && joystickLengthSquared >= JoystickRotationDeadzone * JoystickRotationDeadzone)
             joystickRotationOnly = Vector2.Transform(joystick, IsometricRotation);
         
         var delta = Vector2.Zero;
+
+        if (!movementInput.Keyboard)
+            return delta;
 
         if (input.IsDown(VirtualKey.Left) || input.IsDown(VirtualKey.A))
         {

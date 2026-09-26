@@ -42,9 +42,34 @@ public sealed class ClickToMoveController
         WorldElevationSampler elevation,
         CollisionCheatMode collisionMode,
         Func<Vector2, bool> tryInteractAt,
-        float deltaSeconds)
+        float deltaSeconds) =>
+        Update(
+            input,
+            camera,
+            viewportWidth,
+            viewportHeight,
+            outputToViewport,
+            collision,
+            elevation,
+            collisionMode,
+            tryInteractAt,
+            deltaSeconds,
+            MovementInputAvailability.All);
+
+    internal void Update(
+        InputState input,
+        SacredCamera camera,
+        int viewportWidth,
+        int viewportHeight,
+        Func<Vector2, Vector2> outputToViewport,
+        WorldCollisionResolver collision,
+        WorldElevationSampler elevation,
+        CollisionCheatMode collisionMode,
+        Func<Vector2, bool> tryInteractAt,
+        float deltaSeconds,
+        MovementInputAvailability movementInput)
     {
-        if (HasManualMovementIntent(input))
+        if (HasManualMovementIntent(input, movementInput))
         {
             StopMoving();
             camera.StopMoving();
@@ -53,7 +78,7 @@ public sealed class ClickToMoveController
 
         AdvanceRoute(camera);
 
-        if (input.TryConsumeLeftClick(out var clickPosition))
+        if (movementInput.Mouse && input.TryConsumeLeftClick(out var clickPosition))
         {
             var worldTarget = GameActorElevation.ScreenToWorldOnSurface(
                 camera, elevation, outputToViewport(clickPosition), viewportWidth, viewportHeight);
@@ -68,7 +93,7 @@ public sealed class ClickToMoveController
             }
         }
 
-        if (input.IsLeftMouseButtonDown && _singleClickTarget.HasValue)
+        if (movementInput.Mouse && input.IsLeftMouseButtonDown && _singleClickTarget.HasValue)
             UpdateHeldClick(input, camera, collision, elevation, viewportWidth, viewportHeight, outputToViewport, collisionMode, deltaSeconds);
 
         if (input.ConsumeLeftMouseButtonReleased())
@@ -212,14 +237,18 @@ public sealed class ClickToMoveController
         return Vector2.DistanceSquared(previousTarget, target) >= worldDistance * worldDistance;
     }
 
-    private static bool HasManualMovementIntent(InputState input)
+    private static bool HasManualMovementIntent(
+        InputState input,
+        MovementInputAvailability movementInput)
     {
         var stick = new Vector2((float)input.LeftJoystickX, (float)input.LeftJoystickY);
-        return stick.LengthSquared() >= ControllerRotationDeadzone * ControllerRotationDeadzone ||
-               input.IsDown(VirtualKey.Left) || input.IsDown(VirtualKey.A) ||
-               input.IsDown(VirtualKey.Right) || input.IsDown(VirtualKey.D) ||
-               input.IsDown(VirtualKey.Up) || input.IsDown(VirtualKey.W) ||
-               input.IsDown(VirtualKey.Down) || input.IsDown(VirtualKey.S);
+        return (movementInput.Controller &&
+                stick.LengthSquared() >= ControllerRotationDeadzone * ControllerRotationDeadzone) ||
+               (movementInput.Keyboard &&
+                (input.IsDown(VirtualKey.Left) || input.IsDown(VirtualKey.A) ||
+                 input.IsDown(VirtualKey.Right) || input.IsDown(VirtualKey.D) ||
+                 input.IsDown(VirtualKey.Up) || input.IsDown(VirtualKey.W) ||
+                 input.IsDown(VirtualKey.Down) || input.IsDown(VirtualKey.S)));
     }
 
 }
