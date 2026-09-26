@@ -6,6 +6,8 @@ using Sacred.Engine;
 using SacredRemake;
 using Serilog;
 
+WindowsApplicationIdentity.Initialize();
+
 var terminalMode = args.Any(LaunchArguments.IsTerminalMode);
 if (terminalMode)
 {
@@ -66,14 +68,14 @@ try
 }
 catch (Exception e)
 {
-    Log.Fatal(e, "The game terminated unexpectedly.");
+    Log.Fatal(e, "The game terminated unexpectedly");
     LauncherError.Show(e.ToString(), terminalMode);
     await Console.In.ReadLineAsync();
 }
 
 if (terminalMode)
 {
-    Log.Information("Game exited.");
+    Log.Information("Game exited");
 }
 
 Log.CloseAndFlush();
