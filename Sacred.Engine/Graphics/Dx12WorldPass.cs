@@ -127,7 +127,8 @@ internal sealed class Dx12WorldPass : IDisposable
             _modelTextures,
             graphics.SrvHeap,
             graphics.SrvDescriptorSize,
-            Dx12DescriptorLayout.DebugOverlay);
+            Dx12DescriptorLayout.DebugOverlay,
+            Dx12DescriptorLayout.SurfaceLightMap);
         _debugOverlay = new Dx12DebugOverlay(
             graphics.CommandList,
             textureUploader,

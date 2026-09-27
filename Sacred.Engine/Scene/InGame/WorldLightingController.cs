@@ -74,7 +74,6 @@ public sealed class WorldLightingController
     public bool Update(
         float elapsedSeconds,
         SceneLighting lighting,
-        Vector3 focusPosition,
         WorldZone zone)
     {
         var previousPhase = GetCyclePhase();
@@ -91,7 +90,7 @@ public sealed class WorldLightingController
         if (zone == WorldZone.Cave)
         {
             ApplyProfile(1.0f, lighting);
-            ApplyCelestialLighting(lighting, focusPosition);
+            ApplyCelestialLighting(lighting);
             lighting.ShadowMode = SceneShadowMode.None;
             lighting.ShadowOpacity = 0.0f;
             lighting.OutdoorShadowOpacity = 0.0f;
@@ -99,12 +98,12 @@ public sealed class WorldLightingController
         else if (Mode == WorldLightingMode.PitchBlack)
         {
             ApplyPitchBlack(lighting);
-            ApplyCelestialLighting(lighting, focusPosition);
+            ApplyCelestialLighting(lighting);
         }
         else
         {
             ApplyProfile(GetNightBlend(), lighting);
-            ApplyCelestialLighting(lighting, focusPosition);
+            ApplyCelestialLighting(lighting);
             if (zone == WorldZone.Indoors)
             {
                 lighting.ShadowMode = SceneShadowMode.SoftContact;
@@ -197,15 +196,12 @@ public sealed class WorldLightingController
         lighting.NightBlend = blend;
     }
 
-    private void ApplyCelestialLighting(SceneLighting lighting, Vector3 focusPosition)
+    private void ApplyCelestialLighting(SceneLighting lighting)
     {
         // Sacred's billboard art and authored static-shadow atlas assume one fixed
         // projection. The lighting profile changes with time of day, while the sun
         // angles remain independently controlled by the debug settings.
-        var solar = SolarLightingCalculator.Calculate(
-            lighting.NightBlend,
-            focusPosition);
-        lighting.LightPosition = solar.LightPosition;
+        var solar = SolarLightingCalculator.Calculate(lighting.NightBlend);
         lighting.DirectionToLight = solar.DirectionToLight;
         lighting.DirectionToSun = solar.DirectionToSun;
         lighting.SunHeight = solar.SunHeight;

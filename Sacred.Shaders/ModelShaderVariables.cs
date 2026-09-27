@@ -105,7 +105,7 @@ public sealed class ModelShaderConstantsUpdater
 
     public unsafe void WriteSceneConstants(
         float* target,
-        Vector3 lightPosition,
+        Vector3 lightDirection,
         float specularIntensity,
         Vector3 cameraPosition,
         float shininess,
@@ -115,7 +115,7 @@ public sealed class ModelShaderConstantsUpdater
         WriteSceneConstants(
             target,
             new ModelShaderSceneConstants(
-                new Vector4(lightPosition, Math.Max(0.0f, specularIntensity)),
+                new Vector4(lightDirection, Math.Max(0.0f, specularIntensity)),
                 new Vector4(cameraPosition, Math.Max(1.0f, shininess)),
                 ambientColorAndIntensity with { W = Math.Max(0.0f, ambientColorAndIntensity.W) },
                 lightColorAndDiffuseIntensity with { W = Math.Max(0.0f, lightColorAndDiffuseIntensity.W) },
@@ -127,7 +127,7 @@ public sealed class ModelShaderConstantsUpdater
 
     public unsafe void WriteSceneConstants(float* target, ModelShaderSceneConstants constants)
     {
-        WriteVector4(constants.LightPositionAndSpecularStrength, target);
+        WriteVector4(constants.LightDirectionAndSpecularStrength, target);
         WriteVector4(constants.CameraPositionAndShininess, target + 4);
         WriteVector4(constants.AmbientColorAndIntensity, target + 8);
         WriteVector4(constants.LightColorAndDiffuseIntensity, target + 12);

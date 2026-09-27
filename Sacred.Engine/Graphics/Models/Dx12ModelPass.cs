@@ -20,16 +20,13 @@ internal sealed class Dx12ModelPass
 {
     private const float PainterDepthScale = 1.0f / 4096.0f;
     private const float PlayerDepthBias = 0.0005f;
-    // The model shader currently receives a light position. Keep it far enough
-    // away to represent the directional sun without making it camera-relative.
-    private const float DirectionalLightDistance = 1_000_000.0f;
-
     private readonly ID3D12GraphicsCommandList _commandList;
     private readonly Dx12ModelGeometryCache _geometryCache;
     private readonly Dx12ModelTextureCache _textureCache;
     private readonly GpuDescriptorHandle _srvHeapStart;
     private readonly int _descriptorSize;
     private readonly int _fallbackTextureSlot;
+    private readonly int _surfaceLightMapSlot;
     private readonly long _startTimestamp = Stopwatch.GetTimestamp();
     private readonly ModelRootConstantsUpdater _rootConstants = new(ModelShaderLayout.RootParameterCount);
     private readonly ModelDescriptorTableUpdater _descriptorTables = new(ModelShaderLayout.RootParameterCount);
@@ -59,7 +56,8 @@ internal sealed class Dx12ModelPass
         Dx12ModelTextureCache textureCache,
         ID3D12DescriptorHeap srvHeap,
         int descriptorSize,
-        int fallbackTextureSlot)
+        int fallbackTextureSlot,
+        int surfaceLightMapSlot)
     {
         _commandList = commandList;
         _geometryCache = geometryCache;
@@ -67,6 +65,7 @@ internal sealed class Dx12ModelPass
         _srvHeapStart = srvHeap.GetGPUDescriptorHandleForHeapStart();
         _descriptorSize = descriptorSize;
         _fallbackTextureSlot = fallbackTextureSlot;
+        _surfaceLightMapSlot = surfaceLightMapSlot;
         _shadowPass = new Dx12ModelShadowPass(
             commandList,
             geometryCache,
@@ -160,6 +159,9 @@ internal sealed class Dx12ModelPass
         _commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         _rootConstants.Reset();
         _descriptorTables.Reset();
+        SetDescriptorTableIfChanged(
+            ModelShaderLayout.SurfaceLightMapRootParameter,
+            SrvGpuHandle(_surfaceLightMapSlot));
 
         var sceneConstants = stackalloc float[ModelShaderLayout.SceneConstantsCount];
         WriteLighting(camera, lighting, display, sceneConstants);
@@ -402,16 +404,12 @@ internal sealed class Dx12ModelPass
         Dx12DisplayProfile display,
         float* target)
     {
-        // Celestial azimuth is authored in the model camera's axes. A point light
-        // placed beside the camera causes an object's normal response to vary as
-        // the player moves, so represent the sun by a stable distant position.
         var lightDirection = lighting.DirectionToLight.LengthSquared() > float.Epsilon
             ? Vector3.Normalize(lighting.DirectionToLight)
             : Vector3.UnitZ;
-        var modelLight = lightDirection * DirectionalLightDistance;
         _shaderConstants.WriteSceneConstants(
             target,
-            modelLight,
+            lightDirection,
             lighting.SpecularIntensity,
             camera.EyePosition,
             lighting.Shininess,
@@ -419,7 +417,7 @@ internal sealed class Dx12ModelPass
             new Vector4(lighting.LightColor, lighting.DiffuseIntensity),
             new Vector4(
                 display.ScenePaperWhiteNits,
-                display.UiPaperWhiteNits,
+                1.0f,
                 display.SunDiffuseNits,
                 display.SunSpecularNits));
     }

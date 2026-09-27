@@ -6,9 +6,13 @@ namespace SacredRemake;
 
 internal static class TerminalWindow
 {
+    private const uint AttachParentProcess = unchecked((uint)-1);
+
     internal static void Open()
     {
-        if (!AllocConsole())
+        if (GetConsoleWindow() == 0 &&
+            !AttachConsole(AttachParentProcess) &&
+            !AllocConsole())
         {
             return;
         }
@@ -21,4 +25,11 @@ internal static class TerminalWindow
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool AllocConsole();
+
+    [DllImport("kernel32.dll")]
+    private static extern nint GetConsoleWindow();
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool AttachConsole(uint processId);
 }

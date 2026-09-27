@@ -12,15 +12,16 @@ cbuffer ModelConstants : register(b0)
 
 cbuffer SceneConstants : register(b1)
 {
-    float4 light_position_and_specular_strength;
+    float4 light_direction_and_specular_strength;
     float4 camera_position_and_shininess;
     float4 ambient_color_and_intensity;
     float4 light_color_and_diffuse_intensity;
-    float4 hdr_display; // x: scene paper white, y: UI paper white, z: sun diffuse nits, w: sun specular nits
+    float4 hdr_display; // x: scene paper white, y: surface-light influence, z: sun diffuse nits, w: sun specular nits
 }
 
 Texture2D model_texture : register(t0);
 Texture2D model_overlay_texture : register(t1);
+Texture2D<float> surface_light_map : register(t2);
 SamplerState model_sampler : register(s0);
 
 static const float texture_mode_has_texture_threshold = 0.5f;
@@ -58,6 +59,25 @@ float3 safe_normalize(float3 value, float3 fallback)
 {
     float length_squared = dot(value, value);
     return length_squared > 0.000001f ? value * rsqrt(length_squared) : fallback;
+}
+
+float surface_light_at(float2 pixel_position)
+{
+    return surface_light_map.Load(int3(int2(pixel_position), 0)) * hdr_display.y;
+}
+
+float3 model_surface_lighting(float2 pixel_position)
+{
+    float3 ambient = ambient_color_and_intensity.rgb * ambient_color_and_intensity.w;
+    return min(ambient + surface_light_at(pixel_position), 1.0f);
+}
+
+float3 compose_sdr_model_lighting(float3 base_color, float3 surface_lighting, float3 diffuse, float3 specular)
+{
+    float3 lit_color = base_color * surface_lighting;
+    lit_color += saturate(base_color * diffuse) * (1.0f - lit_color);
+    lit_color += saturate(specular) * (1.0f - lit_color);
+    return lit_color;
 }
 
 bool has_texture()
@@ -210,11 +230,11 @@ float4 ps_sdr(vs_output input) : SV_Target
     }
 
     float3 normal = safe_normalize(input.normal, float3(0.0f, 0.0f, 1.0f));
-    float3 light_position = light_position_and_specular_strength.xyz;
     float3 camera_position = camera_position_and_shininess.xyz;
-    float3 light_vector = light_position - input.world_position;
     float3 view_vector = camera_position - input.world_position;
-    float3 light_direction = safe_normalize(light_vector, float3(0.0f, -0.7071f, 0.7071f));
+    float3 light_direction = safe_normalize(
+        light_direction_and_specular_strength.xyz,
+        float3(0.0f, -0.7071f, 0.7071f));
     float3 view_direction = safe_normalize(view_vector, float3(0.0f, -0.7071f, 0.7071f));
 
     float diffuse_amount = saturate(dot(normal, light_direction));
@@ -223,12 +243,14 @@ float4 ps_sdr(vs_output input) : SV_Target
         ? pow(saturate(dot(reflection_direction, view_direction)), max(camera_position_and_shininess.w, 1.0f))
         : 0.0f;
 
-    float3 ambient = ambient_color_and_intensity.rgb * ambient_color_and_intensity.w;
+    float3 surface_lighting = model_surface_lighting(input.position.xy);
     float3 diffuse = light_color_and_diffuse_intensity.rgb * (diffuse_amount * light_color_and_diffuse_intensity.w);
-    float3 specular = light_color_and_diffuse_intensity.rgb * (specular_amount * light_position_and_specular_strength.w);
-    float3 lit_color = base_color.rgb * (ambient + diffuse) + specular;
+    float specular_surface_light = max(surface_lighting.r, max(surface_lighting.g, surface_lighting.b));
+    float3 specular = light_color_and_diffuse_intensity.rgb *
+        (specular_amount * light_direction_and_specular_strength.w * specular_surface_light);
+    float3 lit_color = compose_sdr_model_lighting(base_color.rgb, surface_lighting, diffuse, specular);
 
-    return float4(saturate(lit_color) * base_color.a, base_color.a);
+    return float4(lit_color * base_color.a, base_color.a);
 }
 
 float4 ps_hdr(vs_output input) : SV_Target
@@ -248,7 +270,7 @@ float4 ps_hdr(vs_output input) : SV_Target
 
     float3 normal = safe_normalize(input.normal, float3(0.0f, 0.0f, 1.0f));
     float3 light_direction = safe_normalize(
-        light_position_and_specular_strength.xyz - input.world_position,
+        light_direction_and_specular_strength.xyz,
         float3(0.0f, -0.7071f, 0.7071f));
     float3 view_direction = safe_normalize(
         camera_position_and_shininess.xyz - input.world_position,
@@ -260,11 +282,12 @@ float4 ps_hdr(vs_output input) : SV_Target
         : 0.0f;
 
     float4 lerped = lerp(animated_overlay, base_color, base_color.a) * base_color.a;
-    float3 ambient = ambient_color_and_intensity.rgb * saturate(ambient_color_and_intensity.w);
+    float3 ambient = model_surface_lighting(input.position.xy);
     float3 diffuse = light_color_and_diffuse_intensity.rgb *
         (diffuse_amount * max(light_color_and_diffuse_intensity.w, 0.0f));
+    float specular_surface_light = max(ambient.r, max(ambient.g, ambient.b));
     float3 specular = light_color_and_diffuse_intensity.rgb *
-        (specular_amount * max(light_position_and_specular_strength.w, 0.0f));
+        (specular_amount * max(light_direction_and_specular_strength.w, 0.0f) * specular_surface_light);
     float3 hdr = SdrLitTextureToHdr10(
         lerped.rgb,
         ambient,

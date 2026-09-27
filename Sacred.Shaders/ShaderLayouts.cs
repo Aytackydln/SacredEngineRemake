@@ -2,18 +2,20 @@ namespace Sacred.Shaders;
 
 public static class ModelShaderLayout
 {
-    public const int RootParameterCount = 4;
+    public const int RootParameterCount = 5;
 
     public const int ModelConstantsRegister = 0; // HLSL: register(b0)
     public const int SceneConstantsRegister = 1; // HLSL: register(b1)
     public const int ModelTextureRegister = 0; // HLSL: register(t0)
     public const int ModelOverlayTextureRegister = 1; // HLSL: register(t1)
+    public const int SurfaceLightMapRegister = 2; // HLSL: register(t2)
     public const int ModelSamplerRegister = 0; // HLSL: register(s0)
 
     public const int ModelConstantsRootParameter = 0;
     public const int ModelTextureRootParameter = 1;
     public const int ModelOverlayTextureRootParameter = 2;
     public const int SceneConstantsRootParameter = 3;
+    public const int SurfaceLightMapRootParameter = 4;
 
     public const int ModelConstantsCount = ModelShaderModelConstants.FloatCount;
     public const int ModelBaseConstantsOffset = 0;

@@ -599,6 +599,9 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
         _commandList.SetDescriptorHeaps([_srvHeap]);
         _commandList.SetGraphicsRootSignature(_rootSignature);
         _commandList.SetPipelineState(_pipelineState);
+        _commandList.SetGraphicsRootDescriptorTable(
+            ModelShaderLayout.SurfaceLightMapRootParameter,
+            SrvGpuHandle(FallbackTextureSlot));
         _commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         _commandList.IASetVertexBuffers(0, 1, &vertexBufferView);
         _commandList.IASetIndexBuffer(&indexBufferView);
@@ -1263,16 +1266,18 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
     {
         var sceneRadius = Math.Max(GridCellWorldSize * 3.0f, _meshBounds.Radius * _modelScale * 2.0f);
         var distance = Math.Max(120.0f, sceneRadius * 3.25f);
+        var lightDirection = Vector3.Normalize(
+            new Vector3(-sceneRadius * 0.35f, distance * 0.55f, sceneRadius * 0.85f));
 
         _modelShaderConstants.WriteSceneConstants(
             target,
-            new Vector3(-sceneRadius * 0.35f, distance * 0.55f, sceneRadius * 0.85f),
+            lightDirection,
             specularIntensity: 0.10f,
             new Vector3(0.0f, distance, 0.0f),
             shininess: 16.0f,
             new Vector4(1.0f, 1.0f, 1.0f, 0.38f),
             new Vector4(1.0f, 0.96f, 0.88f, 0.82f),
-            new Vector4(203.0f, 203.0f, 300.0f, 80.0f));
+            new Vector4(203.0f, 0.0f, 300.0f, 80.0f));
     }
 
     private static bool IsFinite(Vector3 value)

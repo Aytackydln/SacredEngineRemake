@@ -248,7 +248,7 @@ internal sealed class InGameScene : IGameScene
         var zone = _scene.Indoor.ActiveGroup is null
             ? _worldStreamer.GetZone(_camera.WorldCenter)
             : WorldZone.Indoors;
-        _worldLighting.Update(0.0f, _scene.Lighting, new Vector3(_camera.WorldCenter, 0.0f), zone);
+        _worldLighting.Update(0.0f, _scene.Lighting, zone);
         _player.Initialize(_camera.WorldCenter);
     }
 

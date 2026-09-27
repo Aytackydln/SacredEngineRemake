@@ -41,8 +41,10 @@ internal sealed class FramePacingController : IDisposable
 
     public void WaitForFrameStart(CancellationToken cancellationToken)
     {
-        _renderer.PrepareFrame(cancellationToken);
+        // Do not consume DXGI's presentation slot while the CPU limiter is still waiting.
+        // If the two waits drift out of phase, doing that can serialize them and halve throughput.
         _clock.WaitForFrameStart(UsesCpuLimiter, cancellationToken);
+        _renderer.PrepareFrame(cancellationToken);
     }
 
     public float Tick() => _clock.Tick();

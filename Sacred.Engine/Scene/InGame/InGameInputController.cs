@@ -157,13 +157,10 @@ internal sealed class InGameInputController
         {
             _indoors.Update(_camera.WorldCenter);
         }
-        var lightingFocus = _scene.Models.Count > 0
-            ? _scene.Models[0].Position
-            : new Vector3(_camera.WorldCenter, 0.0f);
         var zone = _scene.Indoor.ActiveGroup is null
             ? _worldStreamer.GetZone(_camera.WorldCenter)
             : WorldZone.Indoors;
-        if (_worldLighting.Update(deltaSeconds, _scene.Lighting, lightingFocus, zone))
+        if (_worldLighting.Update(deltaSeconds, _scene.Lighting, zone))
             _updateWindowTitle();
         var terrain = _elevation.SampleOrZero(_camera.WorldCenter);
         _scene.Debug.ActorTerrainHeight = terrain.Height;

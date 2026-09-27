@@ -125,7 +125,6 @@ public sealed class SceneDebugState
 
 public sealed class SceneLighting
 {
-    public Vector3 LightPosition { get; set; } = new(0.0f, 250.0f, 650.0f);
     public Vector3 DirectionToLight { get; set; } = Vector3.UnitZ;
     public Vector3 DirectionToSun { get; set; } = Vector3.UnitZ;
     public Vector3 LightColor { get; set; } = new(1.0f, 0.93f, 0.82f);

@@ -35,7 +35,7 @@ public readonly struct ModelShaderModelConstants(
 
 [StructLayout(LayoutKind.Sequential)]
 public readonly struct ModelShaderSceneConstants(
-    Vector4 lightPositionAndSpecularStrength,
+    Vector4 lightDirectionAndSpecularStrength,
     Vector4 cameraPositionAndShininess,
     Vector4 ambientColorAndIntensity,
     Vector4 lightColorAndDiffuseIntensity,
@@ -43,7 +43,7 @@ public readonly struct ModelShaderSceneConstants(
 {
     public const int FloatCount = 20;
 
-    public readonly Vector4 LightPositionAndSpecularStrength = lightPositionAndSpecularStrength;
+    public readonly Vector4 LightDirectionAndSpecularStrength = lightDirectionAndSpecularStrength;
     public readonly Vector4 CameraPositionAndShininess = cameraPositionAndShininess;
     public readonly Vector4 AmbientColorAndIntensity = ambientColorAndIntensity;
     public readonly Vector4 LightColorAndDiffuseIntensity = lightColorAndDiffuseIntensity;

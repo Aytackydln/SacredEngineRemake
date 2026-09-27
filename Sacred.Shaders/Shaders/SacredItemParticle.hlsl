@@ -12,11 +12,11 @@ cbuffer ModelConstants : register(b0)
 
 cbuffer SceneConstants : register(b1)
 {
-    float4 light_position_and_specular_strength;
+    float4 light_direction_and_specular_strength;
     float4 camera_position_and_shininess;
     float4 ambient_color_and_intensity;
     float4 light_color_and_diffuse_intensity;
-    float4 hdr_display;
+    float4 hdr_display; // x: scene paper white, y: surface-light influence, z: sun diffuse nits, w: sun specular nits
 }
 
 Texture2D particle_texture : register(t0);

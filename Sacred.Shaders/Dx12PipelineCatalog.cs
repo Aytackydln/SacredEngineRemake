@@ -308,7 +308,8 @@ public static class Dx12PipelineCatalog
             new(new RootConstants(
                 ModelShaderLayout.SceneConstantsRegister,
                 0,
-                ModelShaderLayout.SceneConstantsCount), ShaderVisibility.All)
+                ModelShaderLayout.SceneConstantsCount), ShaderVisibility.All),
+            TextureTable(ModelShaderLayout.SurfaceLightMapRegister)
         };
 
         var depth = CreateLessEqualDepth();
