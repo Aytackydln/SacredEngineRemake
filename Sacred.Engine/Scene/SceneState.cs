@@ -131,7 +131,7 @@ public sealed class SceneLighting
     public Vector3 AmbientColor { get; set; } = new(0.76f, 0.84f, 1.0f);
     public float AmbientIntensity { get; set; } = 0.28f;
     public float DiffuseIntensity { get; set; } = 0.85f;
-    public float SpecularIntensity { get; set; } = 0.20f;
+    public float SpecularIntensity { get; set; } = 0.14f;
     public float Shininess { get; set; } = 24.0f;
     public Vector3 WorldSurfaceAmbientColour { get; set; } = Vector3.One;
     public float NightBlend { get; set; }

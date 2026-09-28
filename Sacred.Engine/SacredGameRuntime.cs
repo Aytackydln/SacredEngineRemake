@@ -144,6 +144,20 @@ internal sealed class SacredGameRuntime : IDisposable
             _renderer.SetAutoRenderResolution(autoResolution);
         }
 
+        if (_debugUiControls.RequestedAutoRenderResolutionRange is { } autoResolutionRange)
+        {
+            _debugUiControls.RequestedAutoRenderResolutionRange = null;
+            _renderer.SetAutoRenderResolutionRange(autoResolutionRange.Minimum, autoResolutionRange.Maximum);
+        }
+
+        if (_debugUiControls.RequestedAutoRenderResolutionStepSnapping is { } autoResolutionStepSnapping)
+        {
+            _debugUiControls.RequestedAutoRenderResolutionStepSnapping = null;
+            _renderer.SetAutoRenderResolutionStepSnapping(
+                autoResolutionStepSnapping.Enabled,
+                autoResolutionStepSnapping.StepPercentage);
+        }
+
         if (_debugUiControls.RequestedRenderScalingMode is { } renderScalingMode)
         {
             _debugUiControls.RequestedRenderScalingMode = null;
@@ -202,6 +216,14 @@ internal sealed class SacredGameRuntime : IDisposable
             _inGameScene?.PlayerMovementSpeedMultiplier ?? _initialSaveState.PlayerMovementSpeedMultiplier;
         _debugUiControls.RenderResolutionPercentage = (int)(_renderer.RenderResolutionPercentage * 100);
         _debugUiControls.AutoRenderResolution = _renderer.AutoRenderResolution;
+        _debugUiControls.AutoRenderResolutionMinimumPercentage =
+            _renderer.AutoRenderResolutionMinimumPercentage;
+        _debugUiControls.AutoRenderResolutionMaximumPercentage =
+            _renderer.AutoRenderResolutionMaximumPercentage;
+        _debugUiControls.AutoRenderResolutionStepSnapping =
+            _renderer.AutoRenderResolutionStepSnapping;
+        _debugUiControls.AutoRenderResolutionStepPercentage =
+            _renderer.AutoRenderResolutionStepPercentage;
         _debugUiControls.RenderScalingMode = _renderer.RenderScalingMode;
         _debugUiControls.Player = _inGameScene?.CreatePlayerDebugPanelState();
     }
@@ -224,6 +246,10 @@ internal sealed class SacredGameRuntime : IDisposable
             LowLatencyMode = _latency.Mode,
             RenderResolutionPercentage = (int)(_renderer.RenderResolutionPercentage * 100),
             AutoRenderResolution = _renderer.AutoRenderResolution,
+            AutoRenderResolutionMinimumPercentage = _renderer.AutoRenderResolutionMinimumPercentage,
+            AutoRenderResolutionMaximumPercentage = _renderer.AutoRenderResolutionMaximumPercentage,
+            AutoRenderResolutionStepSnapping = _renderer.AutoRenderResolutionStepSnapping,
+            AutoRenderResolutionStepPercentage = _renderer.AutoRenderResolutionStepPercentage,
             RenderScalingMode = _renderer.RenderScalingMode,
             GrannyBackend = _grannyBackend,
             WorldLightingMode = _inGameScene?.WorldLightingMode ?? _initialSaveState.WorldLightingMode,
@@ -281,8 +307,28 @@ internal sealed class SacredGameRuntime : IDisposable
             LowLatencyMode = Enum.IsDefined(state.LowLatencyMode)
                 ? state.LowLatencyMode
                 : LowLatencyMode.On,
-            RenderResolutionPercentage = Math.Clamp(state.RenderResolutionPercentage, 25, 200),
+            RenderResolutionPercentage = Math.Clamp(
+                state.RenderResolutionPercentage,
+                TileResolutionScaling.MinimumPercentage,
+                TileResolutionScaling.MaximumPercentage),
             AutoRenderResolution = state.AutoRenderResolution,
+            AutoRenderResolutionMinimumPercentage = Math.Clamp(
+                Math.Min(
+                    state.AutoRenderResolutionMinimumPercentage,
+                    state.AutoRenderResolutionMaximumPercentage),
+                TileResolutionScaling.MinimumPercentage,
+                TileResolutionScaling.MaximumPercentage),
+            AutoRenderResolutionMaximumPercentage = Math.Clamp(
+                Math.Max(
+                    state.AutoRenderResolutionMinimumPercentage,
+                    state.AutoRenderResolutionMaximumPercentage),
+                TileResolutionScaling.MinimumPercentage,
+                TileResolutionScaling.MaximumPercentage),
+            AutoRenderResolutionStepSnapping = state.AutoRenderResolutionStepSnapping,
+            AutoRenderResolutionStepPercentage = Math.Clamp(
+                state.AutoRenderResolutionStepPercentage,
+                TileResolutionScaling.MinimumStepPercentage,
+                TileResolutionScaling.MaximumStepPercentage),
             RenderScalingMode = Enum.IsDefined(state.RenderScalingMode)
                 ? state.RenderScalingMode
                 : RenderScalingMode.Bilinear,
@@ -387,7 +433,7 @@ internal sealed class SacredGameRuntime : IDisposable
         switch (command)
         {
             case HelpCheatCommand:
-                EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set particles <on|off>; set item-flags <hex>; set character next; set hdr <on|off>; set pacing <vrr|vsync|limit|manual>; set fps <30-1000>; set latency <off|on|boost>; set resolution <percentage|auto>; set autoscale <on|off>; set scaling <none|bilinear|fsr1|fsr2>; set granny <managed|native>.");
+                EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set particles <on|off>; set item-flags <hex>; set character next; set hdr <on|off>; set pacing <vrr|vsync|limit|manual>; set fps <30-1000>; set latency <off|on|boost>; set resolution <percentage|auto>; set autoscale <on|off>; set scaling <none|bilinear|fsr1|fsr2|fsr1motionadaptive>; set granny <managed|native>.");
                 return;
             case TeleportCheatCommand teleport:
                 if (_inGameScene is null)

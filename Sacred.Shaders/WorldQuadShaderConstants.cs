@@ -9,9 +9,9 @@ public readonly record struct WorldQuadShaderConstants(
     Vector3 AmbientColour,
     bool IsPremultipliedAlpha,
     float PaperWhiteNits,
-    Vector2 MotionVector = default,
+    Vector2 CameraMotionPixels = default,
     float HistoryWeight = 0.0f,
-    Vector2 Jitter = default)
+    float HistoryUvScale = 1.0f)
 {
     public const int FloatCount = 16;
 }
@@ -32,10 +32,12 @@ public sealed class WorldQuadShaderConstantsUpdater
         target[8] = Math.Max(0.0f, constants.AmbientColour.X);
         target[9] = Math.Max(0.0f, constants.AmbientColour.Y);
         target[10] = Math.Max(0.0f, constants.AmbientColour.Z);
-        target[11] = constants.Jitter.X;
-        target[12] = constants.MotionVector.X;
-        target[13] = constants.MotionVector.Y;
+        target[11] = float.IsFinite(constants.HistoryUvScale) && constants.HistoryUvScale > 0.0f
+            ? constants.HistoryUvScale
+            : 1.0f;
+        target[12] = constants.CameraMotionPixels.X;
+        target[13] = constants.CameraMotionPixels.Y;
         target[14] = Math.Clamp(constants.HistoryWeight, 0.0f, 1.0f);
-        target[15] = constants.Jitter.Y;
+        target[15] = 0.0f;
     }
 }

@@ -7,7 +7,7 @@ cbuffer ModelConstants : register(b0)
     row_major float4x4 view_projection;
     row_major float4x4 world;
     float4 model_color;
-    float4 texture_flags; // x: texture mode, y: painter depth, z: phase, w: elapsed seconds
+    float4 texture_flags; // x: texture mode, y: painter depth, z: phase
 }
 
 cbuffer SceneConstants : register(b1)
@@ -17,6 +17,7 @@ cbuffer SceneConstants : register(b1)
     float4 ambient_color_and_intensity;
     float4 light_color_and_diffuse_intensity;
     float4 hdr_display; // x: scene paper white, y: surface-light influence, z: sun diffuse nits, w: sun specular nits
+    float scene_elapsed_seconds;
 }
 
 Texture2D particle_texture : register(t0);
@@ -70,7 +71,7 @@ vs_output vs_main(vs_input input)
             // The weapon particles are emitted, rather than being a persistent glow
             // rigidly fixed to the weapon. A phase per quad keeps the short lives
             // staggered across the field.
-            float cycle = frac(texture_flags.w * 4.0f + particle_phase);
+            float cycle = frac(scene_elapsed_seconds * 4.0f + particle_phase);
             float pulse = saturate(sin(cycle * 3.14159265f));
             float angle = particle_phase * 6.2831853f;
             float3 drift = (right * cos(angle) + up * sin(angle)) * cycle * 0.9f;
@@ -100,14 +101,14 @@ float2 animated_tex_coord(float2 tex_coord)
 {
     if (texture_flags.x > 1.5f && texture_flags.x < 2.5f)
     {
-        float frame = fmod(floor(texture_flags.w * 12.0f), 16.0f);
+        float frame = fmod(floor(scene_elapsed_seconds * 12.0f), 16.0f);
         float2 cell = float2(fmod(frame, 4.0f), floor(frame / 4.0f));
         return (tex_coord + cell) * 0.25f;
     }
 
     if (texture_flags.x > 7.5f && texture_flags.x < 8.5f)
     {
-        float angle = texture_flags.w * 1.35f + texture_flags.z * 6.2831853f;
+        float angle = scene_elapsed_seconds * 1.35f + texture_flags.z * 6.2831853f;
         float sine = sin(angle);
         float cosine = cos(angle);
         float2 centered = tex_coord - 0.5f;
@@ -117,7 +118,7 @@ float2 animated_tex_coord(float2 tex_coord)
     }
 
     if (texture_flags.x > 3.5f && texture_flags.x < 4.5f)
-        tex_coord.x += sin(tex_coord.y * 11.0f + texture_flags.w * 7.0f) * 0.08f;
+        tex_coord.x += sin(tex_coord.y * 11.0f + scene_elapsed_seconds * 7.0f) * 0.08f;
     return tex_coord;
 }
 

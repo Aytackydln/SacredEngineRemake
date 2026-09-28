@@ -5,5 +5,6 @@ public enum RenderScalingMode
     None,
     Bilinear,
     Fsr1,
-    Fsr2
+    Fsr2,
+    Fsr1MotionAdaptive
 }

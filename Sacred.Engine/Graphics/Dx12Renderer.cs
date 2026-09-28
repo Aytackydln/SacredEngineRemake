@@ -29,6 +29,8 @@ namespace Sacred.Engine.Graphics;
 /// <summary>Orchestrates scene render passes over a shared Direct3D 12 device context.</summary>
 public sealed class Dx12Renderer : IDisposable
 {
+    private const float TemporalHistoryWeight = 0.35f;
+
     private readonly Stack<int> _unusedSectorSrvSlots = new();
     private readonly Stack<int> _unusedModelSrvSlots = new();
     private readonly Dx12DeviceContext _graphics;
@@ -54,6 +56,7 @@ public sealed class Dx12Renderer : IDisposable
     private ID3D12PipelineState _shadowOverlayPipeline = null!;
     private int _shaderReloadPending;
     private Vector2? _previousCameraCenter;
+    private float? _previousCameraViewportZoom;
 
     public Dx12Renderer(
         Win32Window window,
@@ -62,8 +65,12 @@ public sealed class Dx12Renderer : IDisposable
         bool hdrEnabled = false,
         HdrBrightnessSettings? hdrBrightnessSettings = null,
         int renderResolutionPercentage = 100,
-        RenderScalingMode renderScalingMode = RenderScalingMode.Bilinear,
-        bool autoRenderResolution = false)
+        RenderScalingMode renderScalingMode = RenderScalingMode.Fsr2,
+        bool autoRenderResolution = true,
+        int autoRenderResolutionMinimumPercentage = 75,
+        int autoRenderResolutionMaximumPercentage = TileResolutionScaling.MaximumPercentage,
+        bool autoRenderResolutionStepSnapping = true,
+        int autoRenderResolutionStepPercentage = TileResolutionScaling.DefaultStepPercentage)
     {
         _gameDirectory = gameDirectory;
         _screenshotWriter = new Dx12ScreenshotWriterQueue(gameDirectory);
@@ -88,6 +95,12 @@ public sealed class Dx12Renderer : IDisposable
             _graphics.SrvCpuHandle(Dx12DescriptorLayout.Fsr2History));
 
         SetRenderResolutionPercentage(renderResolutionPercentage);
+        SetAutoRenderResolutionRange(
+            autoRenderResolutionMinimumPercentage,
+            autoRenderResolutionMaximumPercentage);
+        SetAutoRenderResolutionStepSnapping(
+            autoRenderResolutionStepSnapping,
+            autoRenderResolutionStepPercentage);
         AutoRenderResolution = autoRenderResolution;
         RenderScalingMode = renderScalingMode;
         CreatePipeline();
@@ -103,7 +116,11 @@ public sealed class Dx12Renderer : IDisposable
     public int RenderHeight => _graphics.RenderHeight;
     public float RenderResolutionPercentage => _graphics.RenderResolutionPercentage;
     public bool AutoRenderResolution { get; private set; }
-    public RenderScalingMode RenderScalingMode { get; private set; } = RenderScalingMode.Bilinear;
+    public int AutoRenderResolutionMinimumPercentage { get; private set; }
+    public int AutoRenderResolutionMaximumPercentage { get; private set; }
+    public bool AutoRenderResolutionStepSnapping { get; private set; }
+    public int AutoRenderResolutionStepPercentage { get; private set; }
+    public RenderScalingMode RenderScalingMode { get; private set; }
     internal DebugUiControlState DebugUiControls => _debugUiControls;
     public bool WorldInitialized => _worldPass is not null;
     public WorldPreparationStatus LastWorldPreparationStatus =>
@@ -124,6 +141,29 @@ public sealed class Dx12Renderer : IDisposable
 
     public void SetAutoRenderResolution(bool enabled) => AutoRenderResolution = enabled;
 
+    public void SetAutoRenderResolutionRange(int minimumPercentage, int maximumPercentage)
+    {
+        minimumPercentage = Math.Clamp(
+            minimumPercentage,
+            TileResolutionScaling.MinimumPercentage,
+            TileResolutionScaling.MaximumPercentage);
+        maximumPercentage = Math.Clamp(
+            maximumPercentage,
+            TileResolutionScaling.MinimumPercentage,
+            TileResolutionScaling.MaximumPercentage);
+        AutoRenderResolutionMinimumPercentage = Math.Min(minimumPercentage, maximumPercentage);
+        AutoRenderResolutionMaximumPercentage = Math.Max(minimumPercentage, maximumPercentage);
+    }
+
+    public void SetAutoRenderResolutionStepSnapping(bool enabled, int stepPercentage)
+    {
+        AutoRenderResolutionStepSnapping = enabled;
+        AutoRenderResolutionStepPercentage = Math.Clamp(
+            stepPercentage,
+            TileResolutionScaling.MinimumStepPercentage,
+            TileResolutionScaling.MaximumStepPercentage);
+    }
+
     public void UpdateAutoRenderResolution(float zoom)
     {
         if (!AutoRenderResolution)
@@ -134,7 +174,13 @@ public sealed class Dx12Renderer : IDisposable
             return;
         }
 
-        var height = TileResolutionScaling.CalculateRenderHeight(zoom);
+        var height = TileResolutionScaling.CalculateRenderHeight(
+            zoom,
+            OutputHeight,
+            AutoRenderResolutionMinimumPercentage,
+            AutoRenderResolutionMaximumPercentage,
+            AutoRenderResolutionStepSnapping,
+            AutoRenderResolutionStepPercentage);
         var width = height * OutputWidth / OutputHeight;
         _graphics.SetRenderResolution(width, height);
     }
@@ -246,12 +292,13 @@ public sealed class Dx12Renderer : IDisposable
             _terrainLiquidCoverPipeline,
             _shadowOverlayPipeline);
         if (_graphics.UsesRenderScaling)
-            RecordUpscalePass(camera, frameId);
+            RecordUpscalePass(camera);
         else
             _fsr2History.Reset();
         worldPass.RecordUi(scene, _rootSignature, _terrainPipeline);
         SubmitAndPresent(verticalSyncEnabled, frameId);
         _previousCameraCenter = camera.WorldCenter;
+        _previousCameraViewportZoom = camera.GetViewportZoom(_graphics.OutputHeight);
         return ValueTask.CompletedTask;
     }
 
@@ -388,6 +435,7 @@ public sealed class Dx12Renderer : IDisposable
             DisposePipelineResources();
             CreateScreenPipeline(screenShaders);
             CreateUpscalePipeline(upscaleShaders);
+            _fsr2History.Reset();
             if (rendererShaders is null)
                 return;
 
@@ -485,7 +533,7 @@ public sealed class Dx12Renderer : IDisposable
             ResourceStates.Present);
     }
 
-    private void RecordUpscalePass(SacredCamera camera, ulong frameId)
+    private void RecordUpscalePass(SacredCamera camera)
     {
         _fsr2History.Ensure(
             _graphics.OutputWidth,
@@ -494,9 +542,11 @@ public sealed class Dx12Renderer : IDisposable
             _graphics.RenderHeight,
             _graphics.BackBufferFormat);
         var temporal = RenderScalingMode == RenderScalingMode.Fsr2;
-        var motionVector = temporal ? CalculateCameraMotion(camera) : Vector2.Zero;
-        var historyWeight = temporal && _fsr2History.IsValid ? 0.9f : 0.0f;
-        var jitter = temporal ? CalculateJitter(frameId) : Vector2.Zero;
+        var motionAware = temporal || RenderScalingMode == RenderScalingMode.Fsr1MotionAdaptive;
+        var reprojection = motionAware
+            ? CalculateCameraReprojection(camera)
+            : new CameraReprojection(Vector2.Zero, 1.0f);
+        var historyWeight = temporal && _fsr2History.IsValid ? TemporalHistoryWeight : 0.0f;
         Dx12TextureUploader.Transition(
             _graphics.CommandList,
             _graphics.CurrentBackBuffer,
@@ -514,9 +564,9 @@ public sealed class Dx12Renderer : IDisposable
             _graphics.DisplayProfile.UiPaperWhiteNits,
             _graphics.SceneColorSrvGpuHandle,
             RenderScalingMode,
-            motionVector,
+            reprojection.CameraMotionPixels,
             historyWeight,
-            jitter);
+            reprojection.HistoryUvScale);
         if (temporal)
             _fsr2History.Capture(_graphics.CurrentBackBuffer);
         else
@@ -530,40 +580,34 @@ public sealed class Dx12Renderer : IDisposable
         }
     }
 
-    private Vector2 CalculateCameraMotion(SacredCamera camera)
+    private CameraReprojection CalculateCameraReprojection(SacredCamera camera)
     {
-        if (_previousCameraCenter is not { } previousCenter)
-            return Vector2.Zero;
+        var currentViewportZoom = camera.GetViewportZoom(_graphics.OutputHeight);
+        if (_previousCameraCenter is not { } previousCenter ||
+            _previousCameraViewportZoom is not { } previousViewportZoom ||
+            !float.IsFinite(currentViewportZoom) || currentViewportZoom <= 0.0f ||
+            !float.IsFinite(previousViewportZoom) || previousViewportZoom <= 0.0f)
+        {
+            return new CameraReprojection(Vector2.Zero, 1.0f);
+        }
 
         var worldDelta = camera.WorldCenter - previousCenter;
-        var motion = IsometricProjection.WorldToIso(worldDelta) * camera.GetViewportZoom(_graphics.OutputHeight);
-        return float.IsFinite(motion.X) && float.IsFinite(motion.Y)
-            ? motion
-            : Vector2.Zero;
-    }
-
-    private static Vector2 CalculateJitter(ulong frameId) => new(
-        Halton((uint)(frameId % 8) + 1, 2) - 0.5f,
-        Halton((uint)(frameId % 8) + 1, 3) - 0.5f);
-
-    private static float Halton(uint index, uint basis)
-    {
-        var value = 0.0f;
-        var fraction = 1.0f;
-        while (index > 0)
-        {
-            fraction /= basis;
-            value += fraction * (index % basis);
-            index /= basis;
-        }
-        return value;
+        // World-center displacement becomes the current pixel's offset into the
+        // previous output after isometric projection and output-space scaling.
+        var cameraMotionPixels = IsometricProjection.WorldToIso(worldDelta) * previousViewportZoom;
+        return float.IsFinite(cameraMotionPixels.X) && float.IsFinite(cameraMotionPixels.Y)
+            ? new CameraReprojection(cameraMotionPixels, previousViewportZoom / currentViewportZoom)
+            : new CameraReprojection(Vector2.Zero, 1.0f);
     }
 
     private void ResetFsr2History()
     {
         _fsr2History.Reset();
         _previousCameraCenter = null;
+        _previousCameraViewportZoom = null;
     }
+
+    private readonly record struct CameraReprojection(Vector2 CameraMotionPixels, float HistoryUvScale);
 
     private void ReleaseRetiredResources(Dx12FrameContext frame)
     {

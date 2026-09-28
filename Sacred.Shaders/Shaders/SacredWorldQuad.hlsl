@@ -13,10 +13,10 @@ cbuffer QuadConstants : register(b0)
     float premultiplied_alpha;
     float paper_white_nits;
     float3 ambient_colour;
-    float jitter_x;
-    float2 motion_vector;
+    float history_uv_scale;
+    float2 camera_motion_pixels;
     float history_weight;
-    float jitter_y;
+    float temporal_padding;
 }
 
 struct vertex_output
@@ -24,6 +24,11 @@ struct vertex_output
     float4 position : SV_Position;
     float2 tex_coord : TEXCOORD0;
 };
+
+static const float fsr1_stationary_sharpening = 0.35f;
+static const float fsr1_moving_sharpening = 0.10f;
+static const float fsr1_full_motion_pixels = 12.0f;
+static const float temporal_reconstruction_smoothing = 0.12f;
 
 float surface_lighting(float2 pixel_position)
 {
@@ -83,7 +88,8 @@ float4 ps_hdr_screen(vertex_output input) : SV_Target
 }
 
 // ambient_colour.x selects the presentation filter: 0 point, 1 bilinear, 2 FSR 1-style
-// spatial reconstruction, 3 FSR 2-style temporal reconstruction.
+// spatial reconstruction, 3 FSR 2-style temporal reconstruction,
+// 4 spatial reconstruction with motion-adaptive sharpening.
 float4 sample_point(float2 uv)
 {
     uint width, height;
@@ -92,19 +98,32 @@ float4 sample_point(float2 uv)
     return texture0.Load(int3(pixel, 0));
 }
 
-float4 sample_fsr1(float2 uv)
+float4 sample_fsr1(float2 uv, float sharpening_strength)
 {
     uint width, height;
     texture0.GetDimensions(width, height);
     float2 texel = 1.0f / float2(width, height);
     float4 center = texture0.Sample(sampler0, uv);
-    float4 cross = texture0.Sample(sampler0, uv + float2(texel.x, 0)) +
+    float4 neighbor_average = (texture0.Sample(sampler0, uv + float2(texel.x, 0)) +
         texture0.Sample(sampler0, uv - float2(texel.x, 0)) +
         texture0.Sample(sampler0, uv + float2(0, texel.y)) +
-        texture0.Sample(sampler0, uv - float2(0, texel.y));
+        texture0.Sample(sampler0, uv - float2(0, texel.y))) * 0.25f;
     // Lightweight RCAS-style sharpening after bilinear reconstruction. It is spatial-only,
     // which is the FSR 1 property that lets this pass avoid velocity buffers entirely.
-    return center * 1.35f - cross * 0.0875f;
+    return center + (center - neighbor_average) * sharpening_strength;
+}
+
+float2 camera_velocity_pixels(float2 uv)
+{
+    float2 zoom_velocity_pixels =
+        (uv - 0.5f) * viewport_size * (history_uv_scale - 1.0f);
+    return camera_motion_pixels + zoom_velocity_pixels;
+}
+
+float motion_adaptive_fsr1_sharpening(float2 uv)
+{
+    float motion_amount = saturate(length(camera_velocity_pixels(uv)) / fsr1_full_motion_pixels);
+    return lerp(fsr1_stationary_sharpening, fsr1_moving_sharpening, motion_amount);
 }
 
 float4 sample_upscaled(float2 uv)
@@ -114,39 +133,40 @@ float4 sample_upscaled(float2 uv)
     if (ambient_colour.x < 1.5f)
         return texture0.Sample(sampler0, uv);
     if (ambient_colour.x < 2.5f)
-        return sample_fsr1(uv);
+        return sample_fsr1(uv, fsr1_stationary_sharpening);
+    if (ambient_colour.x >= 3.5f)
+        return sample_fsr1(uv, motion_adaptive_fsr1_sharpening(uv));
 
     uint width, height;
     texture0.GetDimensions(width, height);
     float2 texel = 1.0f / float2(width, height);
-    float2 jittered_uv = uv + float2(jitter_x, jitter_y) * texel;
-    float4 current = texture0.Sample(sampler0, jittered_uv);
+    float4 current = texture0.Sample(sampler0, uv);
 
-    float4 north = texture0.Sample(sampler0, jittered_uv - float2(0.0f, texel.y));
-    float4 south = texture0.Sample(sampler0, jittered_uv + float2(0.0f, texel.y));
-    float4 west = texture0.Sample(sampler0, jittered_uv - float2(texel.x, 0.0f));
-    float4 east = texture0.Sample(sampler0, jittered_uv + float2(texel.x, 0.0f));
+    float4 north = texture0.Sample(sampler0, uv - float2(0.0f, texel.y));
+    float4 south = texture0.Sample(sampler0, uv + float2(0.0f, texel.y));
+    float4 west = texture0.Sample(sampler0, uv - float2(texel.x, 0.0f));
+    float4 east = texture0.Sample(sampler0, uv + float2(texel.x, 0.0f));
     float4 neighborhood_min = min(current, min(min(north, south), min(west, east)));
     float4 neighborhood_max = max(current, max(max(north, south), max(west, east)));
+    float4 neighbor_average = (north + south + west + east) * 0.25f;
+    float4 reconstruction = lerp(current, neighbor_average, temporal_reconstruction_smoothing);
 
-    float2 history_uv = uv + motion_vector / viewport_size;
+    float2 history_uv = uv + camera_velocity_pixels(uv) / viewport_size;
     bool history_in_bounds = all(history_uv >= 0.0f) && all(history_uv <= 1.0f);
     float4 history = texture1.Sample(sampler0, history_uv);
     history = clamp(history, neighborhood_min, neighborhood_max);
 
-    float current_luma = dot(current.rgb, float3(0.2126f, 0.7152f, 0.0722f));
+    float current_luma = dot(reconstruction.rgb, float3(0.2126f, 0.7152f, 0.0722f));
     float history_luma = dot(history.rgb, float3(0.2126f, 0.7152f, 0.0722f));
     float relative_difference = abs(current_luma - history_luma) /
         max(max(current_luma, history_luma), 0.05f);
     float temporal_weight = history_in_bounds
         ? history_weight * saturate(1.0f - relative_difference * 1.5f)
         : 0.0f;
-    float4 temporal = lerp(current, history, temporal_weight);
-
-    // A restrained RCAS-like finish restores edges softened by temporal accumulation.
-    float4 cross_average = (north + south + west + east) * 0.25f;
-    float4 sharpened = temporal + (current - cross_average) * 0.12f;
-    return float4(max(sharpened.rgb, 0.0f), saturate(sharpened.a));
+    float4 temporal = lerp(reconstruction, history, temporal_weight);
+    // This value is captured as next frame's history. Sharpening here would feed back
+    // recursively; it belongs in a separate presentation pass after history capture.
+    return float4(max(temporal.rgb, 0.0f), saturate(temporal.a));
 }
 
 float4 ps_shadow(vertex_output input) : SV_Target

@@ -137,9 +137,9 @@ internal sealed class Dx12ScreenPass : IDisposable
         float paperWhiteNits,
         GpuDescriptorHandle sceneColor,
         RenderScalingMode scalingMode,
-        Vector2 motionVector,
+        Vector2 cameraMotionPixels,
         float historyWeight,
-        Vector2 jitter)
+        float historyUvScale)
     {
         _commandList.SetGraphicsRootSignature(rootSignature);
         _commandList.SetPipelineState(pipelineState);
@@ -148,7 +148,7 @@ internal sealed class Dx12ScreenPass : IDisposable
         _constants.Write(values, new WorldQuadShaderConstants(
             new Vector4(0, 0, outputWidth, outputHeight), new Vector2(outputWidth, outputHeight),
             new Vector3((float)scalingMode, 0, 0), false, paperWhiteNits,
-            motionVector, historyWeight, jitter));
+            cameraMotionPixels, historyWeight, historyUvScale));
         _commandList.SetGraphicsRoot32BitConstants(
             WorldQuadShaderLayout.RootConstantsRootParameter,
             WorldQuadShaderLayout.RootConstantsCount,

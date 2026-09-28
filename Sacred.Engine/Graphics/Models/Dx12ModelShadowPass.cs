@@ -142,7 +142,7 @@ internal sealed class Dx12ModelShadowPass
                 ModelShaderVariables.TextureModeNoTexture,
                 animationValue: 0.0f,
                 ShadowPainterDepth,
-                scaledAnimationTime: 0.0f);
+                animationTimeScale: 0.0f);
             SetConstants(constants);
             _commandList.DrawInstanced(6, 1, 0, 0);
         }
@@ -206,7 +206,7 @@ internal sealed class Dx12ModelShadowPass
             hasTexture ? ModelShaderVariables.TextureModeBaseTexture : ModelShaderVariables.TextureModeNoTexture,
             groundPlaneZ,
             ShadowPainterDepth,
-            scaledAnimationTime: 0.0f);
+            animationTimeScale: 0.0f);
 
     private unsafe void SetConstants(float* constants) =>
         _rootConstants.SetIfChanged(

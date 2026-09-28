@@ -21,10 +21,14 @@ public sealed record SacredGameSaveState
     public bool HdrEnabled { get; init; }
     public HdrBrightnessSettings HdrBrightness { get; init; } = HdrBrightnessSettings.Default;
     public FramePacingMode FramePacingMode { get; init; } = FramePacingMode.VariableRefreshRate;
-    public int ManualFrameRate { get; init; } = 60;
+    public int ManualFrameRate { get; init; } = 120;
     public LowLatencyMode LowLatencyMode { get; init; } = LowLatencyMode.On;
     public int RenderResolutionPercentage { get; init; } = 100;
-    public bool AutoRenderResolution { get; init; }
+    public bool AutoRenderResolution { get; init; } = true;
+    public int AutoRenderResolutionMinimumPercentage { get; init; } = TileResolutionScaling.DefaultMinimumPercentage;
+    public int AutoRenderResolutionMaximumPercentage { get; init; } = TileResolutionScaling.DefaultMaximumPercentage;
+    public bool AutoRenderResolutionStepSnapping { get; init; } = true;
+    public int AutoRenderResolutionStepPercentage { get; init; } = TileResolutionScaling.DefaultStepPercentage;
     public RenderScalingMode RenderScalingMode { get; init; } = RenderScalingMode.Bilinear;
     public GrnBackendKind GrannyBackend { get; init; } = GrnBackendKind.ManagedParser;
     public WorldLightingMode WorldLightingMode { get; init; } = WorldLightingMode.TimedDayNightCycle;

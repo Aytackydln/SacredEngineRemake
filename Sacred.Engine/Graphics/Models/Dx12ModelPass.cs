@@ -163,8 +163,9 @@ internal sealed class Dx12ModelPass
             ModelShaderLayout.SurfaceLightMapRootParameter,
             SrvGpuHandle(_surfaceLightMapSlot));
 
+        var elapsedSeconds = (float)Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds;
         var sceneConstants = stackalloc float[ModelShaderLayout.SceneConstantsCount];
-        WriteLighting(camera, lighting, display, sceneConstants);
+        WriteLighting(camera, lighting, display, elapsedSeconds, sceneConstants);
         SetRootConstantsIfChanged(
             ModelShaderLayout.SceneConstantsRootParameter,
             sceneConstants,
@@ -172,7 +173,6 @@ internal sealed class Dx12ModelPass
             0);
 
         var constants = stackalloc float[ModelShaderLayout.ModelConstantsCount];
-        var elapsedSeconds = (float)Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds;
         var viewProjection = camera.View * camera.Projection;
         foreach (var model in models)
         {
@@ -276,7 +276,7 @@ internal sealed class Dx12ModelPass
                                 animation.Mode == TextureAnimationMode.RadialSweepBlackKey,
                                 overlay: false),
                             modelGeometryDepth,
-                            animation.IsAnimated ? elapsedSeconds * animation.TimeScale : 0.0f);
+                            animation.IsAnimated ? animation.TimeScale : 0.0f);
                         SetRootConstantsIfChanged(
                             ModelShaderLayout.ModelConstantsRootParameter,
                             constants + ModelShaderLayout.TextureFlagsOffset,
@@ -293,7 +293,7 @@ internal sealed class Dx12ModelPass
                 }
             }
 
-            RecordEquipmentEffects(model, viewProjection, modelSceneDepth, elapsedSeconds, frameIndex, constants);
+            RecordEquipmentEffects(model, viewProjection, modelSceneDepth, frameIndex, constants);
         }
     }
 
@@ -301,7 +301,6 @@ internal sealed class Dx12ModelPass
         SceneModel model,
         Matrix4x4 viewProjection,
         float modelSceneDepth,
-        float elapsedSeconds,
         int frameIndex,
         float* constants)
     {
@@ -340,7 +339,7 @@ internal sealed class Dx12ModelPass
                 (float)surface.TextureMode,
                 modelSceneDepth,
                 surface.Phase,
-                elapsedSeconds);
+                animationTimeScale: 0.0f);
             SetRootConstantsIfChanged(
                 ModelShaderLayout.ModelConstantsRootParameter,
                 constants,
@@ -380,7 +379,7 @@ internal sealed class Dx12ModelPass
             ModelShaderVariables.TextureModeNoTexture,
             ModelShaderVariables.TextureAnimationNone,
             modelSceneDepth,
-            scaledAnimationTime: 0.0f);
+            animationTimeScale: 0.0f);
         SetRootConstantsIfChanged(
             ModelShaderLayout.ModelConstantsRootParameter,
             constants + ModelShaderLayout.TextureFlagsOffset,
@@ -402,6 +401,7 @@ internal sealed class Dx12ModelPass
         SacredCamera camera,
         SceneLighting lighting,
         Dx12DisplayProfile display,
+        float elapsedSeconds,
         float* target)
     {
         var lightDirection = lighting.DirectionToLight.LengthSquared() > float.Epsilon
@@ -419,7 +419,8 @@ internal sealed class Dx12ModelPass
                 display.ScenePaperWhiteNits,
                 1.0f,
                 display.SunDiffuseNits,
-                display.SunSpecularNits));
+                display.SunSpecularNits),
+            elapsedSeconds);
     }
 
     private static float CalculateSceneDepth(SacredCamera camera, SceneModel model)

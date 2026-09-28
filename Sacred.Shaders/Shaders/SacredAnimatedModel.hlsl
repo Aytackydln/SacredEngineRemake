@@ -7,7 +7,7 @@ cbuffer ModelConstants : register(b0)
     row_major float4x4 world_view_projection;
     row_major float4x4 world;
     float4 model_color;
-    float4 texture_flags; // x: texture mode, y: signed packed animation, z: painter depth/mode, w: scaled animation time
+    float4 texture_flags; // x: texture mode, y: signed packed animation, z: painter depth/mode, w: animation time scale
 }
 
 cbuffer SceneConstants : register(b1)
@@ -17,6 +17,7 @@ cbuffer SceneConstants : register(b1)
     float4 ambient_color_and_intensity;
     float4 light_color_and_diffuse_intensity;
     float4 hdr_display; // x: scene paper white, y: surface-light influence, z: sun diffuse nits, w: sun specular nits
+    float scene_elapsed_seconds;
 }
 
 Texture2D model_texture : register(t0);
@@ -91,11 +92,12 @@ bool has_base_texture_animation()
 
 float2 animated_tex_coord(float2 tex_coord)
 {
+    float animation_time = scene_elapsed_seconds * texture_flags.w;
     if (uses_scroll_black_key_animation())
     {
-        float y = tex_coord.y + texture_flags.w;
+        float y = tex_coord.y + animation_time;
         if (uses_clamped_scroll_animation())
-            return float2(saturate(tex_coord.x), tex_coord.y + frac(texture_flags.w));
+            return float2(saturate(tex_coord.x), tex_coord.y + frac(animation_time));
 
         return float2(saturate(tex_coord.x), frac(y));
     }
@@ -108,7 +110,8 @@ float animated_tex_alpha_scale(float2 tex_coord)
     if (!uses_clamped_scroll_animation())
         return 1.0f;
 
-    float y = tex_coord.y + frac(texture_flags.w);
+    float animation_time = scene_elapsed_seconds * texture_flags.w;
+    float y = tex_coord.y + frac(animation_time);
     return y >= 0.0f && y <= 1.0f ? 1.0f : 0.0f;
 }
 

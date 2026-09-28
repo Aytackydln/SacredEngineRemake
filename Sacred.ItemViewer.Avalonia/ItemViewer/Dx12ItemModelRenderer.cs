@@ -628,8 +628,7 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
             ModelShaderVariables.TextureModeNoTexture,
             ModelShaderVariables.TextureAnimationNone,
             ModelShaderLayout.PreserveProjectedDepth,
-            scaledAnimationTime: 0.0f);
-        var elapsedSeconds = (float)Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds;
+            animationTimeScale: 0.0f);
 
         for (var passIndex = 0; passIndex < 3; passIndex++)
         {
@@ -698,7 +697,7 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
                         animation.Mode == TextureAnimationMode.RadialSweepBlackKey,
                         overlay: false),
                     ModelShaderLayout.PreserveProjectedDepth,
-                    animation.IsAnimated ? elapsedSeconds * animation.TimeScale : 0.0f);
+                    animation.IsAnimated ? animation.TimeScale : 0.0f);
                 _commandList.SetGraphicsRoot32BitConstants(
                     ModelShaderLayout.ModelConstantsRootParameter,
                     ModelShaderLayout.ModelConstantsCount,
@@ -768,7 +767,7 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
                 (float)surface.TextureMode,
                 ModelShaderLayout.PreserveProjectedDepth,
                 surface.Phase,
-                elapsedSeconds);
+                animationTimeScale: 0.0f);
             _commandList.SetGraphicsRoot32BitConstants(
                 ModelShaderLayout.ModelConstantsRootParameter,
                 ModelShaderLayout.ModelConstantsCount,
@@ -828,7 +827,7 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
                 ModelShaderVariables.TextureModeNoTexture,
                 ModelShaderVariables.TextureAnimationNone,
                 painterDepth: 0.0f,
-                scaledAnimationTime: 0.0f);
+                animationTimeScale: 0.0f);
             _commandList.SetGraphicsRoot32BitConstants(
                 ModelShaderLayout.ModelConstantsRootParameter,
                 ModelShaderLayout.ModelConstantsCount,
@@ -864,7 +863,7 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
             ModelShaderVariables.TextureModeNoTexture,
             ModelShaderVariables.TextureAnimationNone,
             ModelShaderLayout.PreserveProjectedDepth,
-            scaledAnimationTime: 0.0f);
+            animationTimeScale: 0.0f);
         _commandList.SetGraphicsRoot32BitConstants(
             ModelShaderLayout.ModelConstantsRootParameter,
             ModelShaderLayout.ModelConstantsCount,
@@ -1277,7 +1276,8 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
             shininess: 16.0f,
             new Vector4(1.0f, 1.0f, 1.0f, 0.38f),
             new Vector4(1.0f, 0.96f, 0.88f, 0.82f),
-            new Vector4(203.0f, 0.0f, 300.0f, 80.0f));
+            new Vector4(203.0f, 0.0f, 300.0f, 80.0f),
+            (float)Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds);
     }
 
     private static bool IsFinite(Vector3 value)

@@ -26,7 +26,7 @@ public sealed class WorldLightingController
     private static readonly float DayDiffuseIntensity = 0.62f;
     private static readonly float NightDiffuseIntensity = 0.38f;
 
-    private static readonly float DaySpecularIntensity = 0.16f;
+    private static readonly float DaySpecularIntensity = 0.12f;
     private static readonly float NightSpecularIntensity = 0.0f;
 
     private static readonly Vector3 DayWorldSurfaceAmbientColour = Vector3.One;

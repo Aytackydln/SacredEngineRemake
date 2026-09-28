@@ -8,14 +8,14 @@ public readonly struct ModelShaderTextureFlags(
     float textureMode,
     float animationValue,
     float painterDepth,
-    float scaledAnimationTime)
+    float animationTimeScale)
 {
     public const int FloatCount = 4;
 
     public readonly float TextureMode = textureMode;
     public readonly float AnimationValue = animationValue;
     public readonly float PainterDepth = painterDepth;
-    public readonly float ScaledAnimationTime = scaledAnimationTime;
+    public readonly float AnimationTimeScale = animationTimeScale;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -39,13 +39,15 @@ public readonly struct ModelShaderSceneConstants(
     Vector4 cameraPositionAndShininess,
     Vector4 ambientColorAndIntensity,
     Vector4 lightColorAndDiffuseIntensity,
-    Vector4 hdrDisplay)
+    Vector4 hdrDisplay,
+    float elapsedSeconds)
 {
-    public const int FloatCount = 20;
+    public const int FloatCount = 21;
 
     public readonly Vector4 LightDirectionAndSpecularStrength = lightDirectionAndSpecularStrength;
     public readonly Vector4 CameraPositionAndShininess = cameraPositionAndShininess;
     public readonly Vector4 AmbientColorAndIntensity = ambientColorAndIntensity;
     public readonly Vector4 LightColorAndDiffuseIntensity = lightColorAndDiffuseIntensity;
     public readonly Vector4 HdrDisplay = hdrDisplay;
+    public readonly float ElapsedSeconds = elapsedSeconds;
 }

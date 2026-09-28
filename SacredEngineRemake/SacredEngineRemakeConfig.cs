@@ -36,6 +36,10 @@ internal static class SacredEngineRemakeConfig
     private const string LowLatencyKey = "LOW_LATENCY";
     private const string RenderResolutionPercentageKey = "RENDER_RESOLUTION_PERCENTAGE";
     private const string AutoRenderResolutionKey = "AUTO_RENDER_RESOLUTION";
+    private const string AutoRenderResolutionMinimumPercentageKey = "AUTO_RENDER_RESOLUTION_MINIMUM_PERCENTAGE";
+    private const string AutoRenderResolutionMaximumPercentageKey = "AUTO_RENDER_RESOLUTION_MAXIMUM_PERCENTAGE";
+    private const string AutoRenderResolutionStepSnappingKey = "AUTO_RENDER_RESOLUTION_STEP_SNAPPING";
+    private const string AutoRenderResolutionStepPercentageKey = "AUTO_RENDER_RESOLUTION_STEP_PERCENTAGE";
     private const string RenderScalingModeKey = "RENDER_SCALING_MODE";
     private const string GrannyBackendKey = "GRANNY_BACKEND";
     private const string WorldLightingKey = "WORLD_LIGHTING";
@@ -89,6 +93,19 @@ internal static class SacredEngineRemakeConfig
                 LowLatencyMode = ReadEnum(values, LowLatencyKey, LowLatencyMode.On),
                 RenderResolutionPercentage = ReadInteger(values, RenderResolutionPercentageKey, 100),
                 AutoRenderResolution = ReadBoolean(values, AutoRenderResolutionKey),
+                AutoRenderResolutionMinimumPercentage = ReadInteger(
+                    values,
+                    AutoRenderResolutionMinimumPercentageKey,
+                    TileResolutionScaling.MinimumPercentage),
+                AutoRenderResolutionMaximumPercentage = ReadInteger(
+                    values,
+                    AutoRenderResolutionMaximumPercentageKey,
+                    TileResolutionScaling.MaximumPercentage),
+                AutoRenderResolutionStepSnapping = ReadBoolean(values, AutoRenderResolutionStepSnappingKey),
+                AutoRenderResolutionStepPercentage = ReadInteger(
+                    values,
+                    AutoRenderResolutionStepPercentageKey,
+                    TileResolutionScaling.DefaultStepPercentage),
                 RenderScalingMode = ReadEnum(values, RenderScalingModeKey, RenderScalingMode.Bilinear),
                 GrannyBackend = ReadEnum(values, GrannyBackendKey, GrnBackendKind.ManagedParser),
                 WorldLightingMode = ReadEnum(values, WorldLightingKey, WorldLightingMode.TimedDayNightCycle),
@@ -169,6 +186,10 @@ internal static class SacredEngineRemakeConfig
             $"{LowLatencyKey} : {state.LowLatencyMode}",
             $"{RenderResolutionPercentageKey} : {state.RenderResolutionPercentage}",
             $"{AutoRenderResolutionKey} : {FormatBoolean(state.AutoRenderResolution)}",
+            $"{AutoRenderResolutionMinimumPercentageKey} : {state.AutoRenderResolutionMinimumPercentage}",
+            $"{AutoRenderResolutionMaximumPercentageKey} : {state.AutoRenderResolutionMaximumPercentage}",
+            $"{AutoRenderResolutionStepSnappingKey} : {FormatBoolean(state.AutoRenderResolutionStepSnapping)}",
+            $"{AutoRenderResolutionStepPercentageKey} : {state.AutoRenderResolutionStepPercentage}",
             $"{RenderScalingModeKey} : {state.RenderScalingMode}",
             $"{GrannyBackendKey} : {state.GrannyBackend}",
             $"{WorldLightingKey} : {state.WorldLightingMode}",

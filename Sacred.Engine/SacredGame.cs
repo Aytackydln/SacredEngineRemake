@@ -45,7 +45,11 @@ public sealed class SacredGame : IDisposable
             initialSaveState.HdrBrightness,
             initialSaveState.RenderResolutionPercentage,
             initialSaveState.RenderScalingMode,
-            initialSaveState.AutoRenderResolution);
+            initialSaveState.AutoRenderResolution,
+            initialSaveState.AutoRenderResolutionMinimumPercentage,
+            initialSaveState.AutoRenderResolutionMaximumPercentage,
+            initialSaveState.AutoRenderResolutionStepSnapping,
+            initialSaveState.AutoRenderResolutionStepPercentage);
         _framePacing = new FramePacingController(
             _renderer,
             _latency,

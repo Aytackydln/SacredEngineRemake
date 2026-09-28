@@ -71,7 +71,7 @@ public sealed class ModelShaderConstantsUpdater
                     ModelShaderVariables.TextureModeNoTexture,
                     ModelShaderVariables.TextureAnimationNone,
                     ModelShaderLayout.PreserveProjectedDepth,
-                    scaledAnimationTime: 0.0f)));
+                    animationTimeScale: 0.0f)));
 
     public unsafe void WriteModelBase(float* target, ModelShaderModelConstants constants)
     {
@@ -88,11 +88,11 @@ public sealed class ModelShaderConstantsUpdater
         float textureMode,
         float animationValue,
         float painterDepth,
-        float scaledAnimationTime)
+        float animationTimeScale)
     {
         WriteTextureFlags(
             target,
-            new ModelShaderTextureFlags(textureMode, animationValue, painterDepth, scaledAnimationTime));
+            new ModelShaderTextureFlags(textureMode, animationValue, painterDepth, animationTimeScale));
     }
 
     public unsafe void WriteTextureFlags(float* target, ModelShaderTextureFlags flags)
@@ -100,7 +100,7 @@ public sealed class ModelShaderConstantsUpdater
         target[0] = flags.TextureMode;
         target[1] = flags.AnimationValue;
         target[2] = flags.PainterDepth;
-        target[3] = flags.ScaledAnimationTime;
+        target[3] = flags.AnimationTimeScale;
     }
 
     public unsafe void WriteSceneConstants(
@@ -111,7 +111,8 @@ public sealed class ModelShaderConstantsUpdater
         float shininess,
         Vector4 ambientColorAndIntensity,
         Vector4 lightColorAndDiffuseIntensity,
-        Vector4 hdrDisplay) =>
+        Vector4 hdrDisplay,
+        float elapsedSeconds) =>
         WriteSceneConstants(
             target,
             new ModelShaderSceneConstants(
@@ -123,7 +124,8 @@ public sealed class ModelShaderConstantsUpdater
                     Math.Max(0.0f, hdrDisplay.X),
                     Math.Max(0.0f, hdrDisplay.Y),
                     Math.Max(0.0f, hdrDisplay.Z),
-                    Math.Max(0.0f, hdrDisplay.W))));
+                    Math.Max(0.0f, hdrDisplay.W)),
+                elapsedSeconds));
 
     public unsafe void WriteSceneConstants(float* target, ModelShaderSceneConstants constants)
     {
@@ -132,6 +134,7 @@ public sealed class ModelShaderConstantsUpdater
         WriteVector4(constants.AmbientColorAndIntensity, target + 8);
         WriteVector4(constants.LightColorAndDiffuseIntensity, target + 12);
         WriteVector4(constants.HdrDisplay, target + 16);
+        target[20] = constants.ElapsedSeconds;
     }
 
     private static unsafe void WriteMatrix(Matrix4x4 matrix, float* target)

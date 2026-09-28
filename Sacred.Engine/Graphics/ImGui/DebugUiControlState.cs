@@ -18,6 +18,10 @@ internal sealed class DebugUiControlState
     public float PlayerMovementSpeedMultiplier { get; set; } = 1.0f;
     public int RenderResolutionPercentage { get; set; } = 100;
     public bool AutoRenderResolution { get; set; }
+    public int AutoRenderResolutionMinimumPercentage { get; set; } = TileResolutionScaling.MinimumPercentage;
+    public int AutoRenderResolutionMaximumPercentage { get; set; } = TileResolutionScaling.MaximumPercentage;
+    public bool AutoRenderResolutionStepSnapping { get; set; }
+    public int AutoRenderResolutionStepPercentage { get; set; } = TileResolutionScaling.DefaultStepPercentage;
     public RenderScalingMode RenderScalingMode { get; set; } = RenderScalingMode.Bilinear;
     public PlayerDebugPanelState? Player { get; set; }
     public bool PlayerPanelVisible { get; set; }
@@ -33,6 +37,8 @@ internal sealed class DebugUiControlState
     public float? RequestedPlayerMovementSpeedMultiplier { get; set; }
     public int? RequestedRenderResolutionPercentage { get; set; }
     public bool? RequestedAutoRenderResolution { get; set; }
+    public (int Minimum, int Maximum)? RequestedAutoRenderResolutionRange { get; set; }
+    public (bool Enabled, int StepPercentage)? RequestedAutoRenderResolutionStepSnapping { get; set; }
     public RenderScalingMode? RequestedRenderScalingMode { get; set; }
     public int? RequestedPlayerEquipmentRemoval { get; set; }
     public int? RequestedPlayerItemSet { get; set; }

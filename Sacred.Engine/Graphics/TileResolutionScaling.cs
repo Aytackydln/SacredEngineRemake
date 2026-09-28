@@ -11,16 +11,41 @@ public static class TileResolutionScaling
 {
     public const int MinimumPercentage = 25;
     public const int MaximumPercentage = 300;
+    public const int MinimumStepPercentage = 1;
+    public const int MaximumStepPercentage = 100;
+    
+    public const int DefaultMinimumPercentage = 75;
+    public const int DefaultMaximumPercentage = 200;
+    public const int DefaultStepPercentage = 25;
 
     public const int TileHeight = IsometricProjection.StepHeight; // 48
     public const int ReferenceTileHeightCount = 16;
     public const int ReferenceResolutionY = TileHeight * ReferenceTileHeightCount; // 768
 
-    public static int CalculateRenderHeight(float zoom)
+    public static int CalculateRenderHeight(
+        float zoom,
+        int outputHeight,
+        int minimumPercentage,
+        int maximumPercentage,
+        bool snapToPercentageSteps,
+        int stepPercentage)
     {
-        if (!float.IsFinite(zoom) || zoom <= 0.0f)
-            return ReferenceResolutionY;
+        var desiredHeight = !float.IsFinite(zoom) || zoom <= 0.0f
+            ? ReferenceResolutionY
+            : Math.Max(1, (int)MathF.Round(ReferenceResolutionY / zoom));
+        if (snapToPercentageSteps)
+        {
+            stepPercentage = Math.Clamp(stepPercentage, MinimumStepPercentage, MaximumStepPercentage);
+            var desiredPercentage = desiredHeight * 100.0f / Math.Max(1, outputHeight);
+            var snappedPercentage = MathF.Round(
+                desiredPercentage / stepPercentage,
+                MidpointRounding.AwayFromZero) * stepPercentage;
+            desiredHeight = Math.Max(1, (int)MathF.Round(outputHeight * snappedPercentage / 100.0f));
+        }
 
-        return Math.Max(1, (int)MathF.Round(ReferenceResolutionY / zoom));
+        var minimumHeight = Math.Max(1, (int)MathF.Round(outputHeight * minimumPercentage / 100.0f));
+        var maximumHeight = Math.Max(minimumHeight, (int)MathF.Round(outputHeight * maximumPercentage / 100.0f));
+
+        return Math.Clamp(desiredHeight, minimumHeight, maximumHeight);
     }
 }

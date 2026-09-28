@@ -7,7 +7,7 @@ cbuffer ModelConstants : register(b0)
     row_major float4x4 world_view_projection;
     row_major float4x4 world;
     float4 model_color;
-    float4 texture_flags; // x: texture mode, y: packed overlay animation, z: painter depth/mode, w: scaled animation time
+    float4 texture_flags; // x: texture mode, y: packed overlay animation, z: painter depth/mode, w: animation time scale
 }
 
 cbuffer SceneConstants : register(b1)
@@ -17,6 +17,7 @@ cbuffer SceneConstants : register(b1)
     float4 ambient_color_and_intensity;
     float4 light_color_and_diffuse_intensity;
     float4 hdr_display; // x: scene paper white, y: surface-light influence, z: sun diffuse nits, w: sun specular nits
+    float scene_elapsed_seconds;
 }
 
 Texture2D model_texture : register(t0);
@@ -114,7 +115,7 @@ float2 animated_tex_coord(float2 tex_coord)
 {
     if (uses_scroll_black_key_animation())
     {
-        float y = tex_coord.y + texture_flags.w;
+        float y = tex_coord.y + scene_elapsed_seconds * texture_flags.w;
         return float2(saturate(tex_coord.x), frac(y));
     }
 
@@ -140,7 +141,7 @@ float4 spatial_sweep_effect(float4 effect_color, float3 local_position)
 {
     float radial_progress = saturate(
         length(local_position.xz - model_color.xy) * model_color.z);
-    float sweep_position = frac(texture_flags.w);
+    float sweep_position = frac(scene_elapsed_seconds * texture_flags.w);
     float glow = 1.0f - smoothstep(0.07f, 0.19f, abs(radial_progress - sweep_position));
     float alpha = saturate(effect_color.a + glow * 0.38f);
     float3 color = saturate(effect_color.rgb * (1.0f + glow * 1.9f));
@@ -156,7 +157,7 @@ float4 hdr_spatial_sweep_effect(float4 effect_color, float3 local_position)
 {
     float radial_progress = saturate(
         length(local_position.xz - model_color.xy) * model_color.z);
-    float sweep_position = frac(texture_flags.w);
+    float sweep_position = frac(scene_elapsed_seconds * texture_flags.w);
     float glow = 1.0f - smoothstep(0.07f, 0.19f, abs(radial_progress - sweep_position));
     float alpha = saturate(effect_color.a + glow * 0.38f);
     float3 color = saturate(effect_color.rgb * (1.0f + glow * 1.9f));
