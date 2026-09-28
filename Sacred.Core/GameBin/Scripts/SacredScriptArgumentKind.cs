@@ -6,6 +6,7 @@ public enum SacredScriptArgumentKind : byte
 {
     NullTerminatedString = 0x01,
     TypeId = 0x02,
+    Facing = 0x03,
     TilePosition = 0x04,
     WorldPosition = 0x20,
     /// <summary>Null-terminated object reference used by CreateObj instructions.</summary>

@@ -102,6 +102,12 @@ internal sealed class SacredGameRuntime : IDisposable
             _framePacing.SetMode(framePacingMode);
         }
 
+        if (_debugUiControls.RequestedManualFrameRate is { } manualFrameRate)
+        {
+            _debugUiControls.RequestedManualFrameRate = null;
+            _framePacing.SetManualFrameRate(manualFrameRate);
+        }
+
         if (_debugUiControls.RequestedLowLatencyMode is { } lowLatencyMode)
         {
             _debugUiControls.RequestedLowLatencyMode = null;
@@ -185,6 +191,7 @@ internal sealed class SacredGameRuntime : IDisposable
     {
         _debugUiControls.HdrEnabled = _renderer.IsHdrEnabled;
         _debugUiControls.FramePacingMode = _framePacing.Mode;
+        _debugUiControls.ManualFrameRate = _framePacing.ManualFrameRate;
         _debugUiControls.LowLatencyMode = _latency.Mode;
         _debugUiControls.WorldLightingMode =
             _inGameScene?.WorldLightingMode ?? _initialSaveState.WorldLightingMode;
@@ -193,7 +200,7 @@ internal sealed class SacredGameRuntime : IDisposable
         _debugUiControls.CollisionMode = _inGameScene?.CollisionMode ?? CollisionCheatMode.Walk;
         _debugUiControls.PlayerMovementSpeedMultiplier =
             _inGameScene?.PlayerMovementSpeedMultiplier ?? _initialSaveState.PlayerMovementSpeedMultiplier;
-        _debugUiControls.RenderResolutionPercentage = _renderer.RenderResolutionPercentage;
+        _debugUiControls.RenderResolutionPercentage = (int)(_renderer.RenderResolutionPercentage * 100);
         _debugUiControls.AutoRenderResolution = _renderer.AutoRenderResolution;
         _debugUiControls.RenderScalingMode = _renderer.RenderScalingMode;
         _debugUiControls.Player = _inGameScene?.CreatePlayerDebugPanelState();
@@ -213,8 +220,9 @@ internal sealed class SacredGameRuntime : IDisposable
             HdrEnabled = _renderer.IsHdrEnabled,
             HdrBrightness = _renderer.HdrBrightnessSettings,
             FramePacingMode = _framePacing.Mode,
+            ManualFrameRate = _framePacing.ManualFrameRate,
             LowLatencyMode = _latency.Mode,
-            RenderResolutionPercentage = _renderer.RenderResolutionPercentage,
+            RenderResolutionPercentage = (int)(_renderer.RenderResolutionPercentage * 100),
             AutoRenderResolution = _renderer.AutoRenderResolution,
             RenderScalingMode = _renderer.RenderScalingMode,
             GrannyBackend = _grannyBackend,
@@ -266,6 +274,10 @@ internal sealed class SacredGameRuntime : IDisposable
             FramePacingMode = Enum.IsDefined(state.FramePacingMode)
                 ? state.FramePacingMode
                 : FramePacingMode.VariableRefreshRate,
+            ManualFrameRate = Math.Clamp(
+                state.ManualFrameRate,
+                FramePacingController.MinimumManualFrameRate,
+                FramePacingController.MaximumManualFrameRate),
             LowLatencyMode = Enum.IsDefined(state.LowLatencyMode)
                 ? state.LowLatencyMode
                 : LowLatencyMode.On,
@@ -375,7 +387,7 @@ internal sealed class SacredGameRuntime : IDisposable
         switch (command)
         {
             case HelpCheatCommand:
-                EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set particles <on|off>; set item-flags <hex>; set character next; set hdr <on|off>; set pacing <vrr|vsync|limit>; set latency <off|on|boost>; set resolution <percentage|auto>; set autoscale <on|off>; set scaling <none|bilinear|fsr1|fsr2>; set granny <managed|native>.");
+                EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set particles <on|off>; set item-flags <hex>; set character next; set hdr <on|off>; set pacing <vrr|vsync|limit|manual>; set fps <30-1000>; set latency <off|on|boost>; set resolution <percentage|auto>; set autoscale <on|off>; set scaling <none|bilinear|fsr1|fsr2>; set granny <managed|native>.");
                 return;
             case TeleportCheatCommand teleport:
                 if (_inGameScene is null)
@@ -498,6 +510,10 @@ internal sealed class SacredGameRuntime : IDisposable
                 _framePacing.SetMode(pacingMode);
                 message = $"frame pacing set to {_framePacing.Status}";
                 return true;
+            case "fps" when int.TryParse(value, out var manualFrameRate):
+                _framePacing.SetManualFrameRate(manualFrameRate);
+                message = $"manual frame rate set to {_framePacing.ManualFrameRate} FPS";
+                return true;
             case "latency" when TryParseLowLatencyMode(value, out var latencyMode):
                 _framePacing.SetLowLatencyMode(latencyMode);
                 message = $"low latency set to {latencyMode}";
@@ -549,12 +565,14 @@ internal sealed class SacredGameRuntime : IDisposable
             "vrr" => FramePacingMode.VariableRefreshRate,
             "vsync" => FramePacingMode.VSync,
             "limit" or "limiter" => FramePacingMode.MonitorRefreshLimiter,
+            "manual" => FramePacingMode.Manual,
             _ => default
         };
         return value.Equals("vrr", StringComparison.OrdinalIgnoreCase) ||
                value.Equals("vsync", StringComparison.OrdinalIgnoreCase) ||
                value.Equals("limit", StringComparison.OrdinalIgnoreCase) ||
-               value.Equals("limiter", StringComparison.OrdinalIgnoreCase);
+               value.Equals("limiter", StringComparison.OrdinalIgnoreCase) ||
+               value.Equals("manual", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool TryParseLowLatencyMode(string value, out LowLatencyMode mode)

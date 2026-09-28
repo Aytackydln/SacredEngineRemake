@@ -86,7 +86,8 @@ public sealed class Dx12Renderer : IDisposable
             _graphics.Device,
             _graphics.CommandList,
             _graphics.SrvCpuHandle(Dx12DescriptorLayout.Fsr2History));
-        _graphics.SetRenderResolutionPercentage(renderResolutionPercentage);
+
+        SetRenderResolutionPercentage(renderResolutionPercentage);
         AutoRenderResolution = autoRenderResolution;
         RenderScalingMode = renderScalingMode;
         CreatePipeline();
@@ -100,7 +101,7 @@ public sealed class Dx12Renderer : IDisposable
     public int OutputHeight => _graphics.OutputHeight;
     public int RenderWidth => _graphics.RenderWidth;
     public int RenderHeight => _graphics.RenderHeight;
-    public int RenderResolutionPercentage => _graphics.RenderResolutionPercentage;
+    public float RenderResolutionPercentage => _graphics.RenderResolutionPercentage;
     public bool AutoRenderResolution { get; private set; }
     public RenderScalingMode RenderScalingMode { get; private set; } = RenderScalingMode.Bilinear;
     internal DebugUiControlState DebugUiControls => _debugUiControls;
@@ -115,7 +116,10 @@ public sealed class Dx12Renderer : IDisposable
     public void SetRenderResolutionPercentage(int percentage)
     {
         AutoRenderResolution = false;
-        _graphics.SetRenderResolutionPercentage(percentage);
+        var ratio = (float)percentage / 100;
+        var width = (int)(OutputWidth * ratio);
+        var height = (int)(OutputHeight * ratio);
+        _graphics.SetRenderResolution(width, height);
     }
 
     public void SetAutoRenderResolution(bool enabled) => AutoRenderResolution = enabled;
@@ -125,8 +129,14 @@ public sealed class Dx12Renderer : IDisposable
         if (!AutoRenderResolution)
             return;
 
-        var percentage = TileResolutionScaling.CalculateRenderResolutionPercentage(zoom);
-        _graphics.SetRenderResolutionPercentage(percentage);
+        if (OutputHeight == 0)
+        {
+            return;
+        }
+
+        var height = TileResolutionScaling.CalculateRenderHeight(zoom);
+        var width = height * OutputWidth / OutputHeight;
+        _graphics.SetRenderResolution(width, height);
     }
 
     public void SetRenderScalingMode(RenderScalingMode mode)

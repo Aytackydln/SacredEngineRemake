@@ -20,6 +20,23 @@ internal static class ImGuiSettingsPanel
             controls.FramePacingMode,
             value => controls.RequestedFramePacingMode = value,
             FormatFramePacingMode);
+        if (controls.FramePacingMode == FramePacingMode.Manual)
+        {
+            var manualFrameRate = controls.ManualFrameRate;
+            DearImGui.SetNextItemWidth(260.0f);
+            if (DearImGui.SliderInt(
+                    "Manual FPS",
+                    ref manualFrameRate,
+                    FramePacingController.MinimumManualFrameRate,
+                    FramePacingController.MaximumManualFrameRate,
+                    "%d FPS"))
+            {
+                controls.RequestedManualFrameRate = manualFrameRate;
+            }
+
+            if (DearImGui.IsItemDeactivatedAfterEdit())
+                EngineLog.WriteLine($"Debug input: manual frame rate set to {manualFrameRate} FPS");
+        }
         EnumCombo(
             "Low latency (F6)",
             controls.LowLatencyMode,
@@ -211,6 +228,7 @@ internal static class ImGuiSettingsPanel
         FramePacingMode.VariableRefreshRate => "Variable refresh rate",
         FramePacingMode.VSync => "VSync",
         FramePacingMode.MonitorRefreshLimiter => "Monitor refresh limiter",
+        FramePacingMode.Manual => "Manual",
         _ => mode.ToString()
     };
 

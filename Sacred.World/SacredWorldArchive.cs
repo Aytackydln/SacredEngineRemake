@@ -240,6 +240,8 @@ public sealed class SacredWorldArchive : IDisposable
                 0, 0, 0, 0, 0, 0, placement.WorldY, placement.WorldX, 0, worldObjects.Count)
                 {
                     PreciseWorldPosition = placement.PreciseWorldPosition,
+                    UsesTileCellPosition = placement.UsesTileCellPosition,
+                    ScriptFacingDegrees = placement.FacingDegrees,
                     ScriptSurfaceLevel = (byte)Math.Clamp(placement.WorldZ, 0, byte.MaxValue)
                 });
         }

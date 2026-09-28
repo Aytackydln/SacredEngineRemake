@@ -9,6 +9,7 @@ internal sealed class DebugUiControlState
 {
     public bool HdrEnabled { get; set; }
     public FramePacingMode FramePacingMode { get; set; }
+    public int ManualFrameRate { get; set; } = 60;
     public LowLatencyMode LowLatencyMode { get; set; }
     public WorldLightingMode WorldLightingMode { get; set; }
     public bool BorderlessFullscreen { get; set; }
@@ -23,6 +24,7 @@ internal sealed class DebugUiControlState
 
     public bool? RequestedHdrEnabled { get; set; }
     public FramePacingMode? RequestedFramePacingMode { get; set; }
+    public int? RequestedManualFrameRate { get; set; }
     public LowLatencyMode? RequestedLowLatencyMode { get; set; }
     public WorldLightingMode? RequestedWorldLightingMode { get; set; }
     public bool? RequestedBorderlessFullscreen { get; set; }

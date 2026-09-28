@@ -313,8 +313,11 @@ public static class Dx12PipelineCatalog
         };
 
         var depth = CreateLessEqualDepth();
-        var transparentModelDepth = depth;
-        transparentModelDepth.DepthWriteMask = DepthWriteMask.Zero;
+        // ARGB model textures are authored as cutouts. SacredModel discards uncovered
+        // texels, so covered fragments must still populate depth for the mesh to
+        // occlude itself. Only composited effects and particles skip depth writes.
+        var transparentEffectDepth = depth;
+        transparentEffectDepth.DepthWriteMask = DepthWriteMask.Zero;
         var particleDepth = depth;
         particleDepth.DepthWriteMask = DepthWriteMask.Zero;
         var particleBlend = CreateParticleBlend(options.HdrOutput);
@@ -329,13 +332,13 @@ public static class Dx12PipelineCatalog
             ModelPipeline(Dx12PipelineKind.StaticModel, shaders.ModelVertexShader, shaders.ModelPixelShader,
                 BlendDescription.AlphaBlend, RasterizerDescription.CullClockwise, depth),
             ModelPipeline(Dx12PipelineKind.TransparentModel, shaders.ModelVertexShader, shaders.ModelPixelShader,
-                BlendDescription.AlphaBlend, RasterizerDescription.CullClockwise, transparentModelDepth),
+                BlendDescription.AlphaBlend, RasterizerDescription.CullClockwise, depth),
             ModelPipeline(Dx12PipelineKind.AnimatedModel, shaders.AnimatedModelVertexShader, shaders.AnimatedModelPixelShader,
                 BlendDescription.AlphaBlend, RasterizerDescription.CullClockwise, depth),
             ModelPipeline(Dx12PipelineKind.EffectModel, shaders.EffectModelVertexShader, shaders.EffectModelPixelShader,
                 BlendDescription.AlphaBlend, RasterizerDescription.CullClockwise, depth),
             ModelPipeline(Dx12PipelineKind.TransparentEffectModel, shaders.EffectModelVertexShader, shaders.EffectModelPixelShader,
-                BlendDescription.AlphaBlend, RasterizerDescription.CullClockwise, transparentModelDepth),
+                BlendDescription.AlphaBlend, RasterizerDescription.CullClockwise, transparentEffectDepth),
             ModelPipeline(Dx12PipelineKind.TransparentItemParticle, shaders.ItemParticleVertexShader, shaders.ItemParticlePixelShader,
                 particleBlend, RasterizerDescription.CullNone, particleDepth),
             ModelPipeline(Dx12PipelineKind.ItemGlow, shaders.ItemGlowVertexShader, shaders.ItemGlowPixelShader,

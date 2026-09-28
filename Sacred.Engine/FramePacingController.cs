@@ -8,10 +8,15 @@ namespace Sacred.Engine;
 /// <summary>Owns presentation policy, the CPU limiter, and the latency backend's frame-rate contract.</summary>
 internal sealed class FramePacingController : IDisposable
 {
+    public const int MinimumManualFrameRate = 30;
+    public const int MaximumManualFrameRate = 1000;
+
     private readonly Dx12Renderer _renderer;
     private readonly LowLatencySystem _latency;
     private readonly HighResolutionFrameClock _clock;
+    private readonly uint _displayRefreshRateHz;
     private FramePacingMode _mode;
+    private int _manualFrameRate;
     private string _status;
 
     public FramePacingController(
@@ -19,12 +24,15 @@ internal sealed class FramePacingController : IDisposable
         LowLatencySystem latency,
         uint displayRefreshRateHz,
         FramePacingMode mode,
+        int manualFrameRate,
         LowLatencyMode lowLatencyMode)
     {
         _renderer = renderer;
         _latency = latency;
-        _clock = new HighResolutionFrameClock(displayRefreshRateHz);
+        _displayRefreshRateHz = displayRefreshRateHz;
         _mode = mode;
+        _manualFrameRate = NormalizeManualFrameRate(manualFrameRate);
+        _clock = new HighResolutionFrameClock(TargetFrameRateForMode(mode));
         _status = FormatStatus();
         SetLowLatencyMode(lowLatencyMode);
     }
@@ -32,6 +40,8 @@ internal sealed class FramePacingController : IDisposable
     public FramePacingMode Mode => _mode;
 
     public uint TargetFrameRate => _clock.TargetFrameRate;
+
+    public int ManualFrameRate => _manualFrameRate;
 
     public bool VerticalSyncEnabled =>
         _mode == FramePacingMode.VSync ||
@@ -59,6 +69,7 @@ internal sealed class FramePacingController : IDisposable
     {
         FramePacingMode.VariableRefreshRate => FramePacingMode.VSync,
         FramePacingMode.VSync => FramePacingMode.MonitorRefreshLimiter,
+        FramePacingMode.MonitorRefreshLimiter => FramePacingMode.Manual,
         _ => FramePacingMode.VariableRefreshRate
     });
 
@@ -68,8 +79,23 @@ internal sealed class FramePacingController : IDisposable
             return;
 
         _mode = mode;
+        _clock.SetTargetFrameRate(TargetFrameRateForMode(mode));
         _status = FormatStatus();
-        _clock.ResetPacing();
+        ApplyLatencyMode();
+    }
+
+    public void SetManualFrameRate(int frameRate)
+    {
+        var normalizedFrameRate = NormalizeManualFrameRate(frameRate);
+        if (_manualFrameRate == normalizedFrameRate)
+            return;
+
+        _manualFrameRate = normalizedFrameRate;
+        if (_mode != FramePacingMode.Manual)
+            return;
+
+        _clock.SetTargetFrameRate((uint)_manualFrameRate);
+        _status = FormatStatus();
         ApplyLatencyMode();
     }
 
@@ -81,12 +107,18 @@ internal sealed class FramePacingController : IDisposable
     public void Dispose() => _clock.Dispose();
 
     private bool UsesCpuLimiter =>
-        _mode == FramePacingMode.MonitorRefreshLimiter ||
+        _mode is FramePacingMode.MonitorRefreshLimiter or FramePacingMode.Manual ||
         (_mode == FramePacingMode.VariableRefreshRate && _renderer.VariableRefreshRateSupported);
 
     private uint LatencyMaximumFrameRate => VerticalSyncEnabled ? 0 : TargetFrameRate;
 
     private void ApplyLatencyMode() => _latency.SetMode(_latency.Mode, LatencyMaximumFrameRate);
+
+    private uint TargetFrameRateForMode(FramePacingMode mode) =>
+        mode == FramePacingMode.Manual ? (uint)_manualFrameRate : _displayRefreshRateHz;
+
+    private static int NormalizeManualFrameRate(int frameRate) =>
+        Math.Clamp(frameRate, MinimumManualFrameRate, MaximumManualFrameRate);
 
     private string FormatStatus() => _mode switch
     {
@@ -95,6 +127,7 @@ internal sealed class FramePacingController : IDisposable
             : "VRR unavailable, VSync fallback",
         FramePacingMode.VSync => "VSync",
         FramePacingMode.MonitorRefreshLimiter => $"{TargetFrameRate} FPS limiter",
+        FramePacingMode.Manual => $"Manual, {TargetFrameRate} FPS cap",
         _ => _mode.ToString()
     };
 }

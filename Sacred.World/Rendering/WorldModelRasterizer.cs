@@ -120,7 +120,8 @@ public sealed class WorldModelRasterizer(SacredWorldArchive world, IReadOnlyDict
         var mesh = geometry.Mesh;
         var origin = IsometricProjection.WorldToModel(WorldModelPose.TilePosition(placement));
         var camera = IsometricProjection.WorldToModel(center);
-        var localTransform = WorldModelPose.LocalTransform(angle, geometry.SourceOriginOffset);
+        var localTransform = WorldModelPose.LocalTransform(
+            angle, geometry.SourceOriginOffset, placement.ScriptFacingDegrees);
         // The visual pivot may be fractional, but the object is inserted into
         // the authored tile chain as one unit for painter ordering.
         var painterDepth = WorldPainterDepth.FromTile(placement.TileWorldX, placement.TileWorldY);
@@ -129,9 +130,12 @@ public sealed class WorldModelRasterizer(SacredWorldArchive world, IReadOnlyDict
         {
             var local = Vector3.Transform(mesh.Vertices[i].Position, localTransform);
             var position = new Vector3(origin.X + local.X, origin.Y + local.Y, local.Z);
+            var localPainterDepth = -(local.Y - local.Z) /
+                                    (IsometricProjection.StepHeight * 0.5f * MathF.Sqrt(2.0f));
             points[i] = new Point(width * .5f + (position.X - camera.X) * zoom,
                 height * .5f - ((position.Y - camera.Y) + position.Z) / MathF.Sqrt(2) * zoom,
                 position.Y - position.Z,
+                painterDepth + localPainterDepth,
                 mesh.Vertices[i].TexCoord);
         }
         for (var i = 0; i + 2 < mesh.Indices.Length; i += 3)
@@ -145,7 +149,7 @@ public sealed class WorldModelRasterizer(SacredWorldArchive world, IReadOnlyDict
                 if (i >= surface.IndexStart && i < surface.IndexStart + surface.IndexCount)
                 { texture = geometry.Textures[surfaceIndex]; break; }
             }
-            if (MathF.Abs(cross) > .01f) target.Add(new Triangle(a, b, c, painterDepth, texture));
+            if (MathF.Abs(cross) > .01f) target.Add(new Triangle(a, b, c, texture));
         }
     }
 
@@ -164,8 +168,10 @@ public sealed class WorldModelRasterizer(SacredWorldArchive world, IReadOnlyDict
             var w = 1 - u - v;
             if (u < 0 || v < 0 || w < 0) continue;
             var pixel = y * width + x;
-            if (occlusion is not null && occlusion[pixel] > triangle.PainterDepth) continue;
             var depth = triangle.A.Depth * u + triangle.B.Depth * v + triangle.C.Depth * w;
+            var painterDepth = triangle.A.PainterDepth * u + triangle.B.PainterDepth * v +
+                               triangle.C.PainterDepth * w;
+            if (occlusion is not null && occlusion[pixel] > painterDepth) continue;
             if (depth >= depths[pixel]) continue;
             var o = pixel * 4;
             if (triangle.Texture is { } texture)
@@ -183,8 +189,8 @@ public sealed class WorldModelRasterizer(SacredWorldArchive world, IReadOnlyDict
         }
     }
     private static float Edge(Point a, Point b, float x, float y) => (x - a.X) * (b.Y - a.Y) - (y - a.Y) * (b.X - a.X);
-    private readonly record struct Point(float X, float Y, float Depth, Vector2 Uv);
-    private readonly record struct Triangle(Point A, Point B, Point C, float PainterDepth, TextureAsset? Texture);
+    private readonly record struct Point(float X, float Y, float Depth, float PainterDepth, Vector2 Uv);
+    private readonly record struct Triangle(Point A, Point B, Point C, TextureAsset? Texture);
     private readonly record struct ModelGeometry(Mesh Mesh, Vector3 SourceOriginOffset, TextureAsset?[] Textures);
 }
 

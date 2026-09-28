@@ -12,4 +12,5 @@ public sealed record SacredScriptCreateObject(
     SacredScriptPosition? TilePosition,
     SacredScriptPosition? WorldPosition,
     short? HeightOffset,
-    string? SymbolicTilePosition = null);
+    string? SymbolicTilePosition = null,
+    ushort? FacingDegrees = null);

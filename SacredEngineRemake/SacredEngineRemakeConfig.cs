@@ -32,6 +32,7 @@ internal static class SacredEngineRemakeConfig
     private const string WindowedYKey = "WINDOWED_Y";
     private const string WindowedMaximizedKey = "WINDOWED_MAXIMIZED";
     private const string FramePacingKey = "FRAME_PACING";
+    private const string ManualFrameRateKey = "MANUAL_FRAME_RATE";
     private const string LowLatencyKey = "LOW_LATENCY";
     private const string RenderResolutionPercentageKey = "RENDER_RESOLUTION_PERCENTAGE";
     private const string AutoRenderResolutionKey = "AUTO_RENDER_RESOLUTION";
@@ -84,6 +85,7 @@ internal static class SacredEngineRemakeConfig
                         values, HdrUnlitSpriteKey, HdrBrightnessSettings.DefaultUnlitSpriteNits)
                 },
                 FramePacingMode = ReadEnum(values, FramePacingKey, FramePacingMode.VariableRefreshRate),
+                ManualFrameRate = ReadInteger(values, ManualFrameRateKey, 60),
                 LowLatencyMode = ReadEnum(values, LowLatencyKey, LowLatencyMode.On),
                 RenderResolutionPercentage = ReadInteger(values, RenderResolutionPercentageKey, 100),
                 AutoRenderResolution = ReadBoolean(values, AutoRenderResolutionKey),
@@ -163,6 +165,7 @@ internal static class SacredEngineRemakeConfig
             $"{HdrSunSpecularKey} : {FormatFloat(state.HdrBrightness.SunSpecularNits)}",
             $"{HdrUnlitSpriteKey} : {FormatFloat(state.HdrBrightness.UnlitSpriteNits)}",
             $"{FramePacingKey} : {state.FramePacingMode}",
+            $"{ManualFrameRateKey} : {state.ManualFrameRate}",
             $"{LowLatencyKey} : {state.LowLatencyMode}",
             $"{RenderResolutionPercentageKey} : {state.RenderResolutionPercentage}",
             $"{AutoRenderResolutionKey} : {FormatBoolean(state.AutoRenderResolution)}",

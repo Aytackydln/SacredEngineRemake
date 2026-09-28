@@ -25,6 +25,7 @@ public static partial class SacredScriptCreateObjectReader
         SacredScriptPosition? tile = null, world = null;
         string? symbolicTilePosition = null;
         short? height = null;
+        ushort? facingDegrees = null;
         var offset = 4;
         while (offset < data.Length)
         {
@@ -44,6 +45,11 @@ public static partial class SacredScriptCreateObjectReader
                     if (payload.Length < 4) return Truncated(offset, out diagnostic);
                     typeId = BinaryPrimitives.ReadUInt32LittleEndian(payload);
                     offset += SacredScriptTypeArgumentLayout.SerializedSize;
+                    break;
+                case SacredScriptArgumentKind.Facing:
+                    if (payload.Length < 2) return Truncated(offset, out diagnostic);
+                    facingDegrees = BinaryPrimitives.ReadUInt16LittleEndian(payload);
+                    offset += SacredScriptFacingArgumentLayout.SerializedSize;
                     break;
                 case SacredScriptArgumentKind.HeightOffset:
                     if (payload.Length < 4) return Truncated(offset, out diagnostic);
@@ -79,7 +85,7 @@ public static partial class SacredScriptCreateObjectReader
         if (!typeId.HasValue) return Fail("No literal type identifier.", out diagnostic);
         if (tile is null && world is null && symbolicTilePosition is not null)
             return Fail("Symbolic tile position requires a DefPos resolver.", out diagnostic);
-        creation = new SacredScriptCreateObject(name, typeId.Value, tile, world, height, symbolicTilePosition);
+        creation = new SacredScriptCreateObject(name, typeId.Value, tile, world, height, symbolicTilePosition, facingDegrees);
         return true;
     }
 
@@ -108,6 +114,7 @@ public static partial class SacredScriptCreateObjectReader
         uint? typeId = null;
         SacredScriptPosition? tile = null, world = null;
         string? symbolicTilePosition = null;
+        ushort? facingDegrees = null;
         var offset = 4;
         while (offset < data.Length)
         {
@@ -118,6 +125,10 @@ public static partial class SacredScriptCreateObjectReader
                 case SacredScriptArgumentKind.TypeId when payload.Length >= 4:
                     typeId = BinaryPrimitives.ReadUInt32LittleEndian(payload);
                     offset += SacredScriptTypeArgumentLayout.SerializedSize;
+                    continue;
+                case SacredScriptArgumentKind.Facing when payload.Length >= 2:
+                    facingDegrees = BinaryPrimitives.ReadUInt16LittleEndian(payload);
+                    offset += SacredScriptFacingArgumentLayout.SerializedSize;
                     continue;
                 case SacredScriptArgumentKind.NullTerminatedString or SacredScriptArgumentKind.ObjectReference:
                     var end = payload.IndexOf((byte)0);
@@ -151,7 +162,7 @@ public static partial class SacredScriptCreateObjectReader
 
         if (!typeId.HasValue || (tile is null && world is null && symbolicTilePosition is null))
             return false;
-        creation = new SacredScriptCreateObject(null, typeId.Value, tile, world, null, symbolicTilePosition);
+        creation = new SacredScriptCreateObject(null, typeId.Value, tile, world, null, symbolicTilePosition, facingDegrees);
         return true;
     }
 }

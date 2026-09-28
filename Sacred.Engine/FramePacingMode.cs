@@ -4,5 +4,6 @@ public enum FramePacingMode
 {
     VariableRefreshRate,
     VSync,
-    MonitorRefreshLimiter
+    MonitorRefreshLimiter,
+    Manual
 }

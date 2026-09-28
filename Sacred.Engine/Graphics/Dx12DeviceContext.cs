@@ -48,14 +48,11 @@ internal sealed class Dx12DeviceContext : IDisposable
     private nint _fenceEvent;
     private int _rtvDescriptorSize;
     private int _srvDescriptorSize;
-    private int _renderWidth;
-    private int _renderHeight;
-    private int _pendingRenderWidth;
-    private int _pendingRenderHeight;
-    private int _sceneWidth;
-    private int _sceneHeight;
-    private int _renderResolutionPercentage = 100;
-    private int _requestedRenderResolutionPercentage = 100;
+    private int _pendingOutputWidth;
+    private int _pendingOutputHeight;
+    private int _requestedRenderWidth = 1024;
+    private int _requestedRenderHeight = 768;
+    private bool _sceneResolutionChanged;
     private ulong _fenceValue;
     private Dx12SwapChainMode _requestedSwapChainMode;
     private SwapChainFlags _swapChainFlags;
@@ -89,11 +86,16 @@ internal sealed class Dx12DeviceContext : IDisposable
     public ID3D12DescriptorHeap SrvHeap => _srvHeap;
     public ID3D12DescriptorHeap[] ShaderVisibleDescriptorHeaps => _shaderVisibleDescriptorHeaps;
     public int SrvDescriptorSize => _srvDescriptorSize;
-    public int RenderWidth => _sceneWidth;
-    public int RenderHeight => _sceneHeight;
-    public int OutputWidth => _renderWidth;
-    public int OutputHeight => _renderHeight;
-    public int RenderResolutionPercentage => _renderResolutionPercentage;
+    public int RenderWidth { get; private set; } = 1024;
+
+    public int RenderHeight { get; private set; } = 768;
+
+    public int OutputWidth { get; private set; }
+
+    public int OutputHeight { get; private set; }
+
+    public float RenderResolutionPercentage { get; private set; } = 1;
+
     public bool VariableRefreshRateSupported => _allowTearing;
     public bool IsHdrEnabled => _swapChain is Dx12HdrSwapChain;
     public Format BackBufferFormat => _swapChain.BackBufferFormat;
@@ -106,8 +108,17 @@ internal sealed class Dx12DeviceContext : IDisposable
     public void SetHdrBrightnessSettings(HdrBrightnessSettings settings) =>
         _hdrBrightnessSettings = settings.Normalized();
 
-    public void SetRenderResolutionPercentage(int percentage) =>
-        _requestedRenderResolutionPercentage = Math.Clamp(percentage, 25, 300);
+    public void SetRenderResolution(int renderWidth, int renderHeight)
+    {
+        renderWidth = Math.Max(1, renderWidth);
+        renderHeight = Math.Max(1, renderHeight);
+        if (_requestedRenderWidth == renderWidth && _requestedRenderHeight == renderHeight)
+            return;
+
+        _requestedRenderWidth = renderWidth;
+        _requestedRenderHeight = renderHeight;
+        _sceneResolutionChanged = true;
+    }
 
     public Dx12FrameContext CurrentFrame =>
         _currentFrame ?? throw new InvalidOperationException("No Direct3D frame is being recorded.");
@@ -173,8 +184,8 @@ internal sealed class Dx12DeviceContext : IDisposable
                 _device,
                 _commandList,
                 CurrentBackBuffer,
-                _renderWidth,
-                _renderHeight,
+                OutputWidth,
+                OutputHeight,
                 BackBufferFormat,
                 _swapChain.ColorSpace)
             : null;
@@ -270,15 +281,15 @@ internal sealed class Dx12DeviceContext : IDisposable
 
     private void CreateSwapChain()
     {
-        _renderWidth = _window.ClientWidth;
-        _renderHeight = _window.ClientHeight;
+        OutputWidth = _window.ClientWidth;
+        OutputHeight = _window.ClientHeight;
         _swapChain = Dx12SwapChainFactory.Create(
             _requestedSwapChainMode,
             _factory,
             _commandQueue,
             _window.Hwnd,
-            _renderWidth,
-            _renderHeight,
+            OutputWidth,
+            OutputHeight,
             FrameCount,
             _swapChainFlags);
         _requestedSwapChainMode = IsHdrEnabled ? Dx12SwapChainMode.Hdr : Dx12SwapChainMode.Sdr;
@@ -313,8 +324,8 @@ internal sealed class Dx12DeviceContext : IDisposable
         var description = new ResourceDescription(
             ResourceDimension.Texture2D,
             0,
-            (ulong)Math.Max(1, _sceneWidth),
-            (uint)Math.Max(1, _sceneHeight),
+            (ulong)Math.Max(1, RenderWidth),
+            (uint)Math.Max(1, RenderHeight),
             1,
             1,
             DepthBufferFormat,
@@ -352,13 +363,8 @@ internal sealed class Dx12DeviceContext : IDisposable
 
     private void CreateSceneColor()
     {
-        _sceneWidth = CalculateSceneDimension(_renderWidth);
-        _sceneHeight = CalculateSceneDimension(_renderHeight);
-        if (_renderResolutionPercentage == 100)
-            return;
-
-        var description = new ResourceDescription(ResourceDimension.Texture2D, 0, (ulong)_sceneWidth,
-            (uint)_sceneHeight, 1, 1, BackBufferFormat, 1, 0, TextureLayout.Unknown,
+        var description = new ResourceDescription(ResourceDimension.Texture2D, 0, (ulong)RenderWidth, (uint)RenderHeight,
+            1, 1, BackBufferFormat, 1, 0, TextureLayout.Unknown,
             ResourceFlags.AllowRenderTarget);
         var clear = new ClearValue(BackBufferFormat, new Color4(0, 0, 0, 1));
         _sceneColor = _device.CreateCommittedResource(new HeapProperties(HeapType.Default, 0, 0), HeapFlags.None,
@@ -375,19 +381,22 @@ internal sealed class Dx12DeviceContext : IDisposable
 
     private void RecreateSceneColorIfNeeded(Action<Dx12FrameContext> releaseRetiredResources)
     {
-        if (_requestedRenderResolutionPercentage == _renderResolutionPercentage)
+        if (!_sceneResolutionChanged)
             return;
+
+        _sceneResolutionChanged = false;
+
         WaitForGpu(releaseRetiredResources);
         _depthBuffer?.Dispose();
         _depthBuffer = null;
         DisposeSceneColor();
-        _renderResolutionPercentage = _requestedRenderResolutionPercentage;
+
+        RenderWidth = _requestedRenderWidth;
+        RenderHeight = _requestedRenderHeight;
+        RenderResolutionPercentage = (float)RenderHeight / Math.Max(1, OutputHeight);
         CreateSceneColor();
         CreateDepthBuffer();
     }
-
-    private int CalculateSceneDimension(int outputDimension) =>
-        Math.Max(1, (int)MathF.Round(outputDimension * _renderResolutionPercentage / 100.0f));
 
     private void ResizeIfNeeded(Action<Dx12FrameContext> releaseRetiredResources)
     {
@@ -395,16 +404,14 @@ internal sealed class Dx12DeviceContext : IDisposable
         var height = _window.ClientHeight;
         if (width <= 0 || height <= 0)
             return;
-        if (width == _renderWidth && height == _renderHeight)
+        if (width == OutputWidth && height == OutputHeight)
         {
-            _pendingRenderWidth = 0;
-            _pendingRenderHeight = 0;
             return;
         }
-        if (width != _pendingRenderWidth || height != _pendingRenderHeight)
+        if (width != _pendingOutputWidth || height != _pendingOutputHeight)
         {
-            _pendingRenderWidth = width;
-            _pendingRenderHeight = height;
+            _pendingOutputWidth = width;
+            _pendingOutputHeight = height;
             _lastResizeRequestTimestamp = Stopwatch.GetTimestamp();
             return;
         }
@@ -414,11 +421,10 @@ internal sealed class Dx12DeviceContext : IDisposable
         WaitForGpu(releaseRetiredResources);
         DisposeBackBuffers();
         DisposeSceneColor();
-        _swapChain.ResizeBuffers(FrameCount, _pendingRenderWidth, _pendingRenderHeight, _swapChainFlags);
-        _renderWidth = _pendingRenderWidth;
-        _renderHeight = _pendingRenderHeight;
-        _pendingRenderWidth = 0;
-        _pendingRenderHeight = 0;
+        _swapChain.ResizeBuffers(FrameCount, _pendingOutputWidth, _pendingOutputHeight, _swapChainFlags);
+        OutputWidth = _pendingOutputWidth;
+        OutputHeight = _pendingOutputHeight;
+        RenderResolutionPercentage = (float)RenderHeight / _pendingOutputHeight;
         CreateBackBuffers();
         CreateSceneColor();
         CreateDepthBuffer();

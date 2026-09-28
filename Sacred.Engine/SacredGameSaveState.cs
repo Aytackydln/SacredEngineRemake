@@ -21,6 +21,7 @@ public sealed record SacredGameSaveState
     public bool HdrEnabled { get; init; }
     public HdrBrightnessSettings HdrBrightness { get; init; } = HdrBrightnessSettings.Default;
     public FramePacingMode FramePacingMode { get; init; } = FramePacingMode.VariableRefreshRate;
+    public int ManualFrameRate { get; init; } = 60;
     public LowLatencyMode LowLatencyMode { get; init; } = LowLatencyMode.On;
     public int RenderResolutionPercentage { get; init; } = 100;
     public bool AutoRenderResolution { get; init; }

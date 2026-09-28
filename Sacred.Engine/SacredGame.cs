@@ -51,6 +51,7 @@ public sealed class SacredGame : IDisposable
             _latency,
             _window.DisplayRefreshRateHz,
             initialSaveState.FramePacingMode,
+            initialSaveState.ManualFrameRate,
             initialSaveState.LowLatencyMode);
         _runtime = new SacredGameRuntime(
             gameDirectories,

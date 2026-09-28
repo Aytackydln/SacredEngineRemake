@@ -13,13 +13,12 @@ public sealed class HighResolutionFrameClock : IDisposable
 
     private readonly nint _timer;
     private long _last = Stopwatch.GetTimestamp();
-    private readonly long _targetFramePeriodTicks;
+    private long _targetFramePeriodTicks;
     private long _nextFrameTimestamp;
 
     public HighResolutionFrameClock(uint targetFrameRate)
     {
-        TargetFrameRate = Math.Clamp(targetFrameRate, 30u, 1000u);
-        _targetFramePeriodTicks = Math.Max(1, Stopwatch.Frequency / TargetFrameRate);
+        SetTargetFrameRate(targetFrameRate);
         _timer = Kernel32.CreateWaitableTimerEx(
             0,
             null,
@@ -38,7 +37,14 @@ public sealed class HighResolutionFrameClock : IDisposable
             throw new InvalidOperationException("Failed to create the frame pacing timer.");
     }
 
-    public uint TargetFrameRate { get; }
+    public uint TargetFrameRate { get; private set; }
+
+    public void SetTargetFrameRate(uint targetFrameRate)
+    {
+        TargetFrameRate = Math.Clamp(targetFrameRate, 30u, 1000u);
+        _targetFramePeriodTicks = Math.Max(1, Stopwatch.Frequency / TargetFrameRate);
+        ResetPacing();
+    }
 
     public float Tick()
     {

@@ -47,17 +47,40 @@ not be applied as depth corrections.
 
 ## Script-created 3D world models
 
-Doors and containers use their authored integer tile anchor for ordering and
-their precise script world position only as the visible mesh pivot. Their tile
-depth is the isometric X+Y scanline. A model occupies a narrow interval around
-that one painter slot so its own triangles retain their order without crossing
-adjacent static-object slots.
+Doors and containers use their authored integer tile anchor as the base painter
+depth and their precise or tile-centred position as the visible mesh pivot.
+Each mesh vertex then contributes its actual model-camera Y-Z depth. Confining
+the complete mesh to one narrow painter slot was incorrect: large objects could
+not cross the static-sprite slots occupied by their individual pixels.
 
-The bounded local-depth transform must stay strictly monotonic. Clamping every
-vertex to the ends of the interval collapses many barrel and chest vertices to
-identical depth and exposes triangle submission order as inside-out faces. The
-DX12 model shaders use `h * d / (abs(d) + h)`, where `h` is half a painter slot;
-this preserves face order while remaining inside the slot.
+The model-camera conversion is exact for the terrain projection. One X+Y tile
+diagonal is `24 * sqrt(2)` model units, and one normalized painter slot is
+`1 / 4096`. The DX12 model shaders therefore add
+`(localY - localZ) / (24 * sqrt(2) * 4096)` to the anchor depth. The terminal
+rasterizer uses the inverse conversion to compare every mesh pixel with the
+static-sprite depth mask. This retains authored whole-object ordering while
+allowing the near and far parts of a mesh to occlude independently.
 
 Characters and their attachments do not use the fixed world-object slot. They
 retain projected per-vertex depth and the existing character bias.
+
+### ARGB model cutouts
+
+Model textures with fractional alpha are cutout materials, not a request to
+disable depth writes for the whole mesh. `SacredModel.hlsl` discards samples
+below alpha `0.10`; every remaining fragment writes depth, including through
+the `TransparentModel` pipeline. This is required for mesh self-occlusion.
+With depth writes disabled, a later back triangle passes the unchanged depth
+test and blends over a front triangle, making the model appear inside out.
+
+The sampled affected textures demonstrate the common trigger:
+
+| Texture | Alpha 0 | Alpha 1-254 | Alpha 255 |
+|---|---:|---:|---:|
+| `CHEST_01.TGA` | 15,392 | 2,574 | 47,570 |
+| `COFFIN_04.TGA` | 15,404 | 2,867 | 47,265 |
+| `SHRINE_02.TGA` | 15,448 | 3,050 | 47,038 |
+
+Effect overlays and particles retain their non-writing depth state because
+they are composited layers. The model cutout fix is material-wide and has no
+model-name, texture-ID, or coordinate exception.

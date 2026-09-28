@@ -26,6 +26,12 @@ public readonly record struct StaticWorldObject(
     /// <summary>Full tile-space position from a compiled script's world-coordinate operand.</summary>
     public Vector2? PreciseWorldPosition { get; init; }
 
+    /// <summary>The compiled script supplied a tile cell rather than an exact world pivot.</summary>
+    public bool UsesTileCellPosition { get; init; }
+
+    /// <summary>Instance facing override from a compiled CreateObj operand.</summary>
+    public ushort? ScriptFacingDegrees { get; init; }
+
     /// <summary>Owning building anchor from the outdoor WLDX tile's 0x1C/0x1D offsets.</summary>
     public (int X, int Y)? IndoorAnchor { get; init; }
 

@@ -51,11 +51,14 @@ public sealed class WorldObjectScriptIndex
                     continue;
                 var precisePosition = creation.WorldPosition is { } world
                     ? new Vector2(world.X / WorldUnitsPerTile, world.Y / WorldUnitsPerTile)
-                    : new Vector2(position.Value.X, position.Value.Y);
+                    : (Vector2?)null;
                 placements.Add(new WorldObjectScriptPlacement(
                     sourceIndex * 0x04000000u + (uint)command.FileOffset,
                     creation.TypeId, position.Value.X, position.Value.Y, position.Value.Z)
-                    { PreciseWorldPosition = precisePosition });
+                    {
+                        PreciseWorldPosition = precisePosition,
+                        FacingDegrees = creation.FacingDegrees
+                    });
             }
             sourceIndex++;
         }
@@ -74,7 +77,13 @@ public sealed class WorldObjectScriptIndex
 
 public readonly record struct WorldObjectScriptPlacement(uint ScriptOffset, uint TypeId, int WorldX, int WorldY, int WorldZ)
 {
-    public Vector2 PreciseWorldPosition { get; init; }
+    /// <summary>Exact visual pivot from operand 0x20; absent when placement uses a tile cell.</summary>
+    public Vector2? PreciseWorldPosition { get; init; }
+
+    /// <summary>Instance facing override from compiled CreateObj operand 0x03.</summary>
+    public ushort? FacingDegrees { get; init; }
+
+    public bool UsesTileCellPosition => !PreciseWorldPosition.HasValue;
 }
 
 public readonly record struct WorldObjectScriptSource(string ScriptPath, string DefPosPath);

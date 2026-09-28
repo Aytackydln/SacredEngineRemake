@@ -281,7 +281,9 @@ internal sealed class DoorSceneController
             $"{label}: static {placement.StaticObject.StaticId}, item {placement.Item.ItemIndex}, {placement.Item.ModelName}",
             mesh,
             ModelPosition(placement),
-            new Vector3(0.0f, 0.0f, WorldModelPose.RotationRadians(placement.Item.ModelDesc.Angle3D)),
+            new Vector3(0.0f, 0.0f, WorldModelPose.RotationRadians(
+                placement.Item.ModelDesc.Angle3D,
+                placement.StaticObject.ScriptFacingDegrees)),
             WorldModelPose.Scale,
             textureAliases,
             sourceOriginOffset: sourceOriginOffset) { IsWorldObject = true };

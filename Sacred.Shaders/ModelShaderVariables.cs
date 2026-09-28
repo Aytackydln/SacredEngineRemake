@@ -13,7 +13,7 @@ public static class ModelShaderVariables
     public const float TextureAnimationRadialSweepBlackKey = 1.75f;
 
     // Values above one are outside the scene depth range. Model shaders decode
-    // them as a fixed painter slot without adding projected per-vertex depth.
+    // them as an authored painter anchor and add calibrated model-local depth.
     public const float FixedPainterDepthEncodingOffset = 2.0f;
 
     public static float EncodeFixedPainterDepth(float painterDepth) =>
