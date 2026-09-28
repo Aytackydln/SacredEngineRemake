@@ -17,7 +17,6 @@ namespace Sacred.Engine.Graphics.Minimap;
 /// <summary>Draws source minimap sector textures as independent, clipped GPU quads.</summary>
 internal sealed class Dx12MinimapPass : IDisposable
 {
-    private const int SectorRadius = 3;
     private const float MapBrightness = 0.72f;
 
     public const int DescriptorsPerFrame = Dx12MinimapFrameResources.DescriptorCount;
@@ -38,6 +37,7 @@ internal sealed class Dx12MinimapPass : IDisposable
     private Dx12MinimapFrameResources? _preparedFrame;
     private SectorCoord _preparedCenterSector;
     private Vector2 _preparedPlayerOffsetInTiles;
+    private float? _mapTextureAspectRatio;
     private bool _disposed;
 
     public Dx12MinimapPass(
@@ -67,6 +67,8 @@ internal sealed class Dx12MinimapPass : IDisposable
         Vector2 playerWorldPosition,
         string difficultyDisplayName,
         string regionDisplayName,
+        int renderWidth,
+        int renderHeight,
         Dx12FrameContext frameContext)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -90,15 +92,27 @@ internal sealed class Dx12MinimapPass : IDisposable
 
         _requestedCoords.Clear();
         var slotIndex = 0;
-        for (var deltaY = -SectorRadius; deltaY <= SectorRadius; deltaY++)
-        for (var deltaX = -SectorRadius; deltaX <= SectorRadius; deltaX++)
+        var horizontalSectorCount = CalculateHorizontalSectorCount(renderWidth, renderHeight);
+        var firstVerticalOffset = -Dx12MinimapFrameResources.LoadedVerticalSectorCount / 2;
+        var firstHorizontalOffset = 1 - horizontalSectorCount / 2;
+        for (var row = 0; row < Dx12MinimapFrameResources.LoadedVerticalSectorCount; row++)
+        for (var column = 0; column < horizontalSectorCount; column++)
         {
+            // Generate in the projected lattice so the loaded textures form a
+            // rectangle. Odd columns are staggered upward by half a texture;
+            // the outer rows and columns are clipped overscan for player motion.
+            var projectedX = firstHorizontalOffset + column;
+            var projectedY = (firstVerticalOffset + row) * 2 - (projectedX & 1);
+            var deltaX = (projectedX + projectedY) / 2;
+            var deltaY = (projectedY - projectedX) / 2;
             var coord = new SectorCoord(
                 centerSector.X + deltaX,
                 centerSector.Y + deltaY);
             _requestedCoords.Add(coord);
             var load = GetOrStartLoad(coord);
             var texture = load is { IsCompletedSuccessfully: true } ? load.Result : null;
+            if (texture is not null)
+                _mapTextureAspectRatio ??= (float)texture.Width / texture.Height;
             frame.PrepareMapTexture(
                 slotIndex,
                 coord,
@@ -109,6 +123,8 @@ internal sealed class Dx12MinimapPass : IDisposable
                 frameContext.TransientResources);
             slotIndex++;
         }
+
+        frame.ClearMapTextures(slotIndex);
 
         RemoveStaleCompletedLoads();
         _preparedFrame = frame;
@@ -164,26 +180,30 @@ internal sealed class Dx12MinimapPass : IDisposable
 
             var deltaX = coord.X - _preparedCenterSector.X;
             var deltaY = coord.Y - _preparedCenterSector.Y;
+            var zoom = panel.Height /
+                       (slot.Height * Dx12MinimapFrameResources.VerticelSectorLength);
+            var scaledWidth = slot.Width * zoom;
+            var scaledHeight = slot.Height * zoom;
 
             // The minimap files form the same staggered isometric lattice as the
             // world: X and Y neighbors are one image sideways and half an image
             // vertically; (1,1) neighbors form the straight vertical columns.
             var playerOffsetX =
                 (_preparedPlayerOffsetInTiles.X - _preparedPlayerOffsetInTiles.Y) *
-                slot.Width / Sector.TileCount;
+                scaledWidth / Sector.TileCount;
             var playerOffsetY =
                 (_preparedPlayerOffsetInTiles.X + _preparedPlayerOffsetInTiles.Y) *
-                slot.Height / (Sector.TileCount * 2.0f);
+                scaledHeight / (Sector.TileCount * 2.0f);
             // A minimap texture's horizontal world anchor is its right edge, not
             // its center. Account for that half-sector offset before centering
             // the player's projected position.
-            var drawX = panel.CenterX - slot.Width +
-                        (deltaX - deltaY) * slot.Width - playerOffsetX;
-            var drawY = panel.CenterY - slot.Height * 0.5f +
-                        (deltaX + deltaY) * slot.Height * 0.5f - playerOffsetY;
+            var drawX = panel.CenterX - scaledWidth +
+                        (deltaX - deltaY) * scaledWidth - playerOffsetX;
+            var drawY = panel.CenterY - scaledHeight * 0.5f +
+                        (deltaX + deltaY) * scaledHeight * 0.5f - playerOffsetY;
             RecordQuad(
                 GpuHandle(slot.SrvSlot),
-                new Vector4(drawX, drawY, slot.Width, slot.Height),
+                new Vector4(drawX, drawY, scaledWidth, scaledHeight),
                 MapBrightness,
                 renderWidth,
                 renderHeight,
@@ -294,6 +314,21 @@ internal sealed class Dx12MinimapPass : IDisposable
         var load = LoadTextureAsync(coord, textureName);
         _textureLoads.Add(coord, load);
         return load;
+    }
+
+    private int CalculateHorizontalSectorCount(int renderWidth, int renderHeight)
+    {
+        if (_mapTextureAspectRatio is not { } textureAspectRatio)
+            return Dx12MinimapFrameResources.LoadedVerticalSectorCount + 1;
+
+        var panel = MinimapPanelLayout.Calculate(renderWidth, renderHeight);
+        var scaledTextureWidth = textureAspectRatio * panel.Height /
+                                 Dx12MinimapFrameResources.VerticelSectorLength;
+        var visibleSectorCount = (int)MathF.Ceiling(panel.Width / scaledTextureWidth);
+        var loadedSectorCount = Math.Min(
+            visibleSectorCount + 2,
+            Dx12MinimapFrameResources.MaximumHorizontalSectorCount);
+        return loadedSectorCount + (loadedSectorCount & 1);
     }
 
     private async Task<TextureAsset?> LoadTextureAsync(SectorCoord coord, string textureName)

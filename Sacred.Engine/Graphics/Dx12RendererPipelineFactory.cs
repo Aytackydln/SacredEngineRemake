@@ -33,7 +33,11 @@ internal static class Dx12RendererPipelineFactory
             Dx12PipelineCatalog.CreateLightHalos(shaders),
             Dx12ShaderCompiler.CompileShader),
         Dx12PipelineFactory.Compile(
-            Dx12PipelineCatalog.CreateModels(shaders, new Dx12ModelPipelineOptions { HdrOutput = hdrOutput }),
+            Dx12PipelineCatalog.CreateModels(shaders, new Dx12ModelPipelineOptions
+            {
+                HdrOutput = hdrOutput,
+                SamplerAddressMode = TextureAddressMode.Wrap
+            }),
             Dx12ShaderCompiler.CompileShader),
         Dx12PipelineFactory.Compile(
             Dx12PipelineCatalog.CreateImGui(hdrOutput),

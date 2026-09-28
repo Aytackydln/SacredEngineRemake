@@ -166,29 +166,16 @@ float4 ps_sdr(vs_output input) : SV_Target
         }
     }
 
-    float alpha_cutoff = has_texture() ? 0.10f : 0.0f;
-    if (base_color.a < alpha_cutoff)
+    if (base_color.a < 0.10f)
         discard;
 
-    float3 normal = safe_normalize(input.normal, float3(0.0f, 0.0f, 1.0f));
-    float3 camera_position = camera_position_and_shininess.xyz;
-    float3 view_vector = camera_position - input.world_position;
-    float3 light_direction = safe_normalize(
-        light_direction_and_specular_strength.xyz,
-        float3(0.0f, -0.7071f, 0.7071f));
-    float3 view_direction = safe_normalize(view_vector, float3(0.0f, -0.7071f, 0.7071f));
-
-    float diffuse_amount = saturate(dot(normal, light_direction));
-    float3 reflection_direction = reflect(-light_direction, normal);
-    float specular_amount = diffuse_amount > 0.0f
-        ? pow(saturate(dot(reflection_direction, view_direction)), max(camera_position_and_shininess.w, 1.0f))
-        : 0.0f;
+    float3 normal = input.normal;
+    float3 light_direction = normalize(light_direction_and_specular_strength.xyz);
+    float diffuse_amount = dot(normal, light_direction);
 
     float3 surface_lighting = model_surface_lighting(input.position.xy);
     float3 diffuse = light_color_and_diffuse_intensity.rgb * (diffuse_amount * light_color_and_diffuse_intensity.w);
-    float specular_surface_light = max(surface_lighting.r, max(surface_lighting.g, surface_lighting.b));
-    float3 specular = light_color_and_diffuse_intensity.rgb *
-        (specular_amount * light_direction_and_specular_strength.w * specular_surface_light);
+    float3 specular = 0;
     float3 lit_color = compose_sdr_model_lighting(base_color.rgb, surface_lighting, diffuse, specular);
 
     return float4(lit_color, base_color.a);
@@ -207,29 +194,16 @@ float4 ps_hdr(vs_output input) : SV_Target
             base_color = apply_multitexture_fill(base_color, model_overlay_texture.Sample(model_sampler, input.tex_coord));
     }
 
-    float alpha_cutoff = has_texture() ? 0.10f : 0.0f;
-    if (base_color.a < alpha_cutoff)
+    if (base_color.a < 0.10f)
         discard;
 
-    float3 normal = safe_normalize(input.normal, float3(0.0f, 0.0f, 1.0f));
-    float3 light_direction = safe_normalize(
-        light_direction_and_specular_strength.xyz,
-        float3(0.0f, -0.7071f, 0.7071f));
-    float3 view_direction = safe_normalize(
-        camera_position_and_shininess.xyz - input.world_position,
-        float3(0.0f, -0.7071f, 0.7071f));
-    float diffuse_amount = saturate(dot(normal, light_direction));
-    float3 reflection_direction = reflect(-light_direction, normal);
-    float specular_amount = diffuse_amount > 0.0f
-        ? pow(saturate(dot(reflection_direction, view_direction)), max(camera_position_and_shininess.w, 1.0f))
-        : 0.0f;
+    float3 normal = input.normal;
+    float3 light_direction = normalize(light_direction_and_specular_strength.xyz);
+    float diffuse_amount = dot(normal, light_direction);
 
     float3 ambient = model_surface_lighting(input.position.xy);
-    float3 diffuse = light_color_and_diffuse_intensity.rgb *
-        (diffuse_amount * max(light_color_and_diffuse_intensity.w, 0.0f));
-    float specular_surface_light = max(ambient.r, max(ambient.g, ambient.b));
-    float3 specular = light_color_and_diffuse_intensity.rgb *
-        (specular_amount * max(light_direction_and_specular_strength.w, 0.0f) * specular_surface_light);
+    float3 diffuse = light_color_and_diffuse_intensity.rgb * (diffuse_amount * light_color_and_diffuse_intensity.w);
+    float3 specular = 0;
     float3 hdr = SdrLitTextureToHdr10(
         base_color.rgb,
         ambient,

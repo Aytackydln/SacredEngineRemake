@@ -17,17 +17,18 @@ public sealed class WorldLightingController
 {
     private static readonly Vector3 DayAmbientColor = new(1.00f, 1.00f, 0.95f);
     private static readonly Vector3 NightAmbientColor = new(0.83f, 0.86f, 1.0f);
+
     private static readonly float NightAmbientIntensity = 0.48f;
-    private static readonly float DayAmbientIntensity = 0.54f;
+    private static readonly float DayAmbientIntensity = 0.7f;
     
     private static readonly Vector3 DayLightColor = new(1.0f, 0.93f, 0.82f);
     private static readonly Vector3 NightLightColor = new(0.46f, 0.60f, 1f);
 
-    private static readonly float DayDiffuseIntensity = 0.62f;
-    private static readonly float NightDiffuseIntensity = 0.38f;
+    private static readonly float DayDiffuseIntensity = 0.75f;
+    private static readonly float NightDiffuseIntensity = 0.25f;
 
     private static readonly float DaySpecularIntensity = 0.12f;
-    private static readonly float NightSpecularIntensity = 0.0f;
+    private static readonly float NightSpecularIntensity = 0.40f;
 
     private static readonly Vector3 DayWorldSurfaceAmbientColour = Vector3.One;
     private static readonly Vector3 NightWorldSurfaceAmbientColour = new(0.48f, 0.49f, 0.52f);

@@ -243,6 +243,8 @@ internal sealed class Dx12WorldPass : IDisposable
                 camera.WorldCenter,
                 scene.Minimap.DifficultyDisplayName,
                 scene.Minimap.RegionDisplayName,
+                _graphics.RenderWidth,
+                _graphics.RenderHeight,
                 _graphics.CurrentFrame);
 
         var modelStats = _modelTextures.Stats;
@@ -317,6 +319,8 @@ internal sealed class Dx12WorldPass : IDisposable
                 overlay.TargetWorldPosition,
                 overlay.DifficultyDisplayName,
                 overlay.RegionDisplayName,
+                _graphics.RenderWidth,
+                _graphics.RenderHeight,
                 _graphics.CurrentFrame);
         }
         else if (overlay.TargetMarkerVisible)

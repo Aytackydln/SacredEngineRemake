@@ -10,7 +10,10 @@ namespace Sacred.Engine.Graphics.Minimap;
 /// <summary>Owns minimap textures whose descriptors are safe to update for one retired frame.</summary>
 internal sealed class Dx12MinimapFrameResources(int firstSrvSlot) : IDisposable
 {
-    public const int MapTextureCount = 49;
+    public const int VerticelSectorLength = 2;
+    public const int LoadedVerticalSectorCount = VerticelSectorLength + 2;
+    public const int MaximumHorizontalSectorCount = 64;
+    public const int MapTextureCount = LoadedVerticalSectorCount * MaximumHorizontalSectorCount;
     private const int BackgroundSlotOffset = MapTextureCount;
     private const int MarkerSlotOffset = BackgroundSlotOffset + 1;
     private const int LabelSlotOffset = MarkerSlotOffset + 1;
@@ -19,7 +22,6 @@ internal sealed class Dx12MinimapFrameResources(int firstSrvSlot) : IDisposable
     private static readonly byte[] BackgroundPixel = [0, 0, 0, 255];
     private static readonly byte[] MarkerPixel = [245, 226, 106, 255];
 
-    private readonly int _firstSrvSlot = firstSrvSlot;
     private ID3D12Resource? _background;
     private ID3D12Resource? _marker;
     private ID3D12Resource? _label;
@@ -37,7 +39,7 @@ internal sealed class Dx12MinimapFrameResources(int firstSrvSlot) : IDisposable
         ICollection<ID3D12Resource> transientResources)
     {
         _background ??= Upload(
-            commandList, uploader, cpuHandle(_firstSrvSlot + BackgroundSlotOffset), 1, 1,
+            commandList, uploader, cpuHandle(firstSrvSlot + BackgroundSlotOffset), 1, 1,
             BackgroundPixel, transientResources);
         PrepareMarkerTexture(commandList, uploader, cpuHandle, transientResources);
 
@@ -50,7 +52,7 @@ internal sealed class Dx12MinimapFrameResources(int firstSrvSlot) : IDisposable
         _label = Upload(
             commandList,
             uploader,
-            cpuHandle(_firstSrvSlot + LabelSlotOffset),
+            cpuHandle(firstSrvSlot + LabelSlotOffset),
             MinimapLabelRasterizer.Width,
             MinimapLabelRasterizer.Height,
             labelRasterizer.Rasterize(difficultyDisplayName, regionDisplayName),
@@ -66,7 +68,7 @@ internal sealed class Dx12MinimapFrameResources(int firstSrvSlot) : IDisposable
         _marker ??= Upload(
             commandList,
             uploader,
-            cpuHandle(_firstSrvSlot + MarkerSlotOffset),
+            cpuHandle(firstSrvSlot + MarkerSlotOffset),
             1,
             1,
             MarkerPixel,
@@ -89,14 +91,20 @@ internal sealed class Dx12MinimapFrameResources(int firstSrvSlot) : IDisposable
             cpuHandle(MapTextures[index].SrvSlot),
             transientResources);
 
+    public void ClearMapTextures(int firstIndex)
+    {
+        for (var index = firstIndex; index < MapTextures.Length; index++)
+            MapTextures[index].Clear();
+    }
+
     public GpuDescriptorHandle BackgroundGpuHandle(Func<int, GpuDescriptorHandle> gpuHandle) =>
-        gpuHandle(_firstSrvSlot + BackgroundSlotOffset);
+        gpuHandle(firstSrvSlot + BackgroundSlotOffset);
 
     public GpuDescriptorHandle MarkerGpuHandle(Func<int, GpuDescriptorHandle> gpuHandle) =>
-        gpuHandle(_firstSrvSlot + MarkerSlotOffset);
+        gpuHandle(firstSrvSlot + MarkerSlotOffset);
 
     public GpuDescriptorHandle LabelGpuHandle(Func<int, GpuDescriptorHandle> gpuHandle) =>
-        gpuHandle(_firstSrvSlot + LabelSlotOffset);
+        gpuHandle(firstSrvSlot + LabelSlotOffset);
 
     private static Dx12MinimapTextureSlot[] CreateMapSlots(int firstSrvSlot)
     {
@@ -170,7 +178,7 @@ internal sealed class Dx12MinimapTextureSlot(int srvSlot) : IDisposable
         Height = asset.Height;
     }
 
-    private void Clear()
+    public void Clear()
     {
         Texture?.Dispose();
         Texture = null;
