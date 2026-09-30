@@ -12,8 +12,6 @@ public sealed class WorldStaticSpriteProvider(
     MixedPakArchive mixed,
     IReadOnlyDictionary<ushort, ItemsPakEntry> items)
 {
-    private const int MiniObjectAnchorX = 48;
-
     private readonly Dictionary<SpriteKey, Task<WorldStaticSprite?>> _loads = [];
     private readonly Dictionary<string, Task<TextureAsset>> _textureLoads = new(StringComparer.OrdinalIgnoreCase);
 
@@ -145,11 +143,13 @@ public sealed class WorldStaticSpriteProvider(
         }
         if (source.SourceX + source.SourceSize > atlas.Width || source.SourceY + source.SourceSize > atlas.Height)
             return null;
+        // Native mini quads start at the stored projected position; there is
+        // no tile-half-width anchor (Gold 00630CAA..00630DC2).
         return new WorldStaticSprite(
             0,
             source.SourceSize,
             source.SourceSize,
-            MiniObjectAnchorX,
+            0,
             0,
             CopyRegion(atlas, source.SourceX, source.SourceY, source.SourceSize, source.SourceSize));
     }

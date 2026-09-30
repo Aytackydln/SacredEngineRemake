@@ -11,7 +11,7 @@ namespace Sacred.Engine.Graphics.Sprites;
 /// <summary>Records texture-grouped liquid and static-sprite instances.</summary>
 internal sealed class Dx12SpriteBatchRecorder
 {
-    private const float AlphaCutoff = 0.45f;
+    private const float AlphaCutoff = 64.0f / 255.0f;
     private const float PlayerOccluderOpacity = 0.48f;
     private static readonly int InstanceStride = Marshal.SizeOf<StaticSpriteInstance>();
 

@@ -265,6 +265,14 @@ internal sealed class Dx12SpritePass : IDisposable
                     SacredTextureChannelEncoding.Argb => _transparentParticleArgbPipeline,
                     _ => _transparentParticleRgbPipeline
                 }
+                : range.IsFrontLayer
+                    ? (range.IsUnlit, range.RequiresAlphaBlend) switch
+                    {
+                        (true, true) => _transparentUnlitStaticPipeline,
+                        (true, false) => _unlitStaticPipeline,
+                        (false, true) => _transparentStaticPipeline,
+                        _ => _staticPipeline
+                    }
                 : (range.IsUnlit, range.RequiresAlphaBlend, postModel) switch
                 {
                     (true, true, true) => _postModelTransparentUnlitStaticPipeline,

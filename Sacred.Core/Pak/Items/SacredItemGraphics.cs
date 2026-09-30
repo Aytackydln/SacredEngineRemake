@@ -35,7 +35,10 @@ public enum SacredItemGraphicFlags : ushort
     /// <summary>Observed unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
     Byte0040 = 0x0040,
 
-    /// <summary>Places the graphic in a front render layer.</summary>
+    /// <summary>
+    /// Selects the final ceiling queue (4), drawn above ordinary world scenery
+    /// and models. Native combined flags mask: 0x00800000.
+    /// </summary>
     FrontLayer = 0x0080,
 
     /// <summary>Observed unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
@@ -76,6 +79,11 @@ public enum SacredItemGraphicType : ushort
     
     OverWater = 0b0001,
     Model = 0b0010,
+    /// <summary>
+    /// Selects floor routing in the world queue builder: Floor (0) for instance
+    /// state 1 or flag 0x20, otherwise Floor2 (2). This is separate from the
+    /// high-word CastsStaticShadow bit.
+    /// </summary>
     Shadowable = 0b0100,
     MiniObject = 0b1000,
     LightMarker = 0b0001,

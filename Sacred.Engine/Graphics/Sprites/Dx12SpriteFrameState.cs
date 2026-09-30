@@ -90,6 +90,7 @@ internal readonly record struct StaticSpriteDrawRange(
     bool IsUnlit,
     bool RequiresAlphaBlend,
     bool IsPostModel,
+    bool IsFrontLayer,
     SacredTextureChannelEncoding? ParticleEncoding);
 
 internal readonly record struct LiquidSpriteDrawRange(

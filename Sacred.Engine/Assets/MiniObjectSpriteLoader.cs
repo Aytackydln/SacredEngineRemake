@@ -212,11 +212,13 @@ internal sealed class MiniObjectSpriteLoader
                 .CopyTo(rgba.AsSpan(y * key.SourceSize * 4, key.SourceSize * 4));
         }
 
+        // Static.pak stores the mini quad's top-left position, not a tile center.
+        // Gold 00630CAA..00630DC2 adds local (0,0)..(size,size) to that position.
         return new StaticSpriteAsset(
             0,
             key.SourceSize,
             key.SourceSize,
-            48,
+            0,
             0,
             rgba,
             retainPixelData: true);

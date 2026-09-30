@@ -241,6 +241,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                 {
                     IsAnimatedMiniObject = isAnimatedMiniObject,
                     IsMiniObject = item?.ModelDesc.UsesMiniObjectTexture == true,
+                    IsFrontLayer = item?.ModelDesc.IsFrontLayer == true,
                     RendersOverWater = item?.ModelDesc.GraphicType.HasFlag(
                         SacredItemGraphicType.OverWater) == true
                 });
@@ -255,7 +256,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
         }
 
         _visibleSprites.Sort(CompareSprites);
-        var promotedMiniObjectCount = TerrainEmbeddedMiniObjectVisibility.PromoteOccluded(
+        var promotedSpriteCount = TerrainEmbeddedSpriteVisibility.PromoteForLayering(
             _visibleSprites,
             sectors,
             _promotedEmbeddedObjectIds,
@@ -273,7 +274,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
             _visibleSprites,
             _visibleLights,
             _promotedEmbeddedObjectIds,
-            worldChanged || promotedMiniObjectCount > 0,
+            worldChanged || promotedSpriteCount > 0,
             true,
             candidateObjects,
             missingObjects);
@@ -331,13 +332,13 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
         int mixedLightEmitters,
         int surfaceLightSources,
         int transparencyCandidates,
-        int promotedMiniObjects)
+        int promotedEmbeddedSprites)
     {
         var summary = $"World effects ready: animated static sprites={animatedSprites}, " +
                       $"mixed light emitters={mixedLightEmitters}, " +
                       $"surface-light sources={surfaceLightSources}, " +
                       $"transparency candidates={transparencyCandidates}, " +
-                      $"occluded mini objects promoted={promotedMiniObjects}.";
+                      $"embedded sprites promoted={promotedEmbeddedSprites}.";
         if (summary == _lastParticleSummary)
             return;
 

@@ -7,10 +7,10 @@ using Sacred.World.Geometry;
 namespace Sacred.Engine.Rendering;
 
 /// <summary>
-/// Promotes baked mini objects whose authored draw order cannot be represented by
-/// the sector texture. Liquids and over-water scenery are drawn after that texture.
+/// Promotes baked sprites whose authored draw order cannot be represented by the
+/// sector texture. Liquids and over-water scenery are drawn after that texture.
 /// </summary>
-internal static class TerrainEmbeddedMiniObjectVisibility
+internal static class TerrainEmbeddedSpriteVisibility
 {
     private const float LiquidOffsetX = 2.0f;
     private const float LiquidOffsetY = 1.0f;
@@ -19,7 +19,7 @@ internal static class TerrainEmbeddedMiniObjectVisibility
     private const float OccluderCellWidth = 256.0f;
     private const float OccluderCellHeight = 128.0f;
 
-    public static int PromoteOccluded(
+    public static int PromoteForLayering(
         List<TerrainStaticSprite> sprites,
         IReadOnlyList<Sector> sectors,
         ISet<uint> promotedObjectIds,
@@ -32,7 +32,7 @@ internal static class TerrainEmbeddedMiniObjectVisibility
         for (var index = 0; index < sprites.Count; index++)
         {
             var sprite = sprites[index];
-            if (!sprite.IsEmbeddedInTerrain || !sprite.IsMiniObject)
+            if (!sprite.IsEmbeddedInTerrain)
                 continue;
 
             if (promotedObjectIds.Contains(sprite.StaticObjectId))
@@ -41,11 +41,17 @@ internal static class TerrainEmbeddedMiniObjectVisibility
                 continue;
             }
 
-            var bounds = SpriteBounds.From(sprite);
-            if (!IntersectsLiquid(bounds, activeLiquidTiles) &&
-                !IntersectsEarlierOverWaterSprite(sprite, bounds, overWaterBuckets))
+            if (!sprite.RendersOverWater)
             {
-                continue;
+                if (!sprite.IsMiniObject)
+                    continue;
+
+                var bounds = SpriteBounds.From(sprite);
+                if (!IntersectsLiquid(bounds, activeLiquidTiles) &&
+                    !IntersectsEarlierOverWaterSprite(sprite, bounds, overWaterBuckets))
+                {
+                    continue;
+                }
             }
 
             sprites[index] = sprite with { IsEmbeddedInTerrain = false };

@@ -198,6 +198,7 @@ internal sealed class Dx12SpriteInstanceBuilder
         var staticRangeIsUnlit = false;
         var staticRangeRequiresAlphaBlend = false;
         var staticRangeIsPostModel = false;
+        var staticRangeIsFrontLayer = false;
         SacredTextureChannelEncoding? staticRangeParticleEncoding = null;
         var shadowInstanceCount = 0;
         var legacyShadowDrawCallCount = 0;
@@ -302,11 +303,13 @@ internal sealed class Dx12SpriteInstanceBuilder
                     staticRangeIsUnlit = sprite.IsUnlit;
                     staticRangeRequiresAlphaBlend = requiresAlphaBlend;
                     staticRangeIsPostModel = isPostModel;
+                    staticRangeIsFrontLayer = sprite.IsFrontLayer;
                     staticRangeParticleEncoding = particleEncoding;
                 }
                 else if (staticRangeIsUnlit != sprite.IsUnlit ||
                          staticRangeRequiresAlphaBlend != requiresAlphaBlend ||
                          staticRangeIsPostModel != isPostModel ||
+                         staticRangeIsFrontLayer != sprite.IsFrontLayer ||
                          staticRangeParticleEncoding != particleEncoding)
                 {
                     staticRanges.Add(new StaticSpriteDrawRange(
@@ -315,11 +318,13 @@ internal sealed class Dx12SpriteInstanceBuilder
                         staticRangeIsUnlit,
                         staticRangeRequiresAlphaBlend,
                         staticRangeIsPostModel,
+                        staticRangeIsFrontLayer,
                         staticRangeParticleEncoding));
                     staticRangeStart = instanceCount;
                     staticRangeIsUnlit = sprite.IsUnlit;
                     staticRangeRequiresAlphaBlend = requiresAlphaBlend;
                     staticRangeIsPostModel = isPostModel;
+                    staticRangeIsFrontLayer = sprite.IsFrontLayer;
                     staticRangeParticleEncoding = particleEncoding;
                 }
                 if (sprite.StaticObjectId == highlightedStaticObjectId)
@@ -373,6 +378,7 @@ internal sealed class Dx12SpriteInstanceBuilder
                 staticRangeIsUnlit,
                 staticRangeRequiresAlphaBlend,
                 staticRangeIsPostModel,
+                staticRangeIsFrontLayer,
                 staticRangeParticleEncoding));
         }
 

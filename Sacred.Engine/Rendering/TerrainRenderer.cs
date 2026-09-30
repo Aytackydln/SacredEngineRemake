@@ -306,16 +306,18 @@ public readonly record struct TerrainStaticSprite(
     public uint ParticleBlendFlags { get; init; }
     /// <summary>Marks a file-authored mini-object animation such as a fixture flame.</summary>
     public bool IsAnimatedMiniObject { get; init; }
+    /// <summary>Draws after world models and ignores their depth, as authored by Items.pak.</summary>
+    public bool IsFrontLayer { get; init; }
     /// <summary>Sprites with fractional alpha must use alpha composition.</summary>
     public bool RequiresAlphaBlend =>
         IsParticleSprite || AllowsPlayerOcclusionFade || Sprite.HasTranslucentPixels;
 
     /// <summary>
-    /// Only player-aware scenery and particles belong after world models. Ordinary
-    /// source-alpha scenery participates in the same authored painter order as opaque scenery.
+    /// Front-layer scenery, player-aware scenery and particles belong after world
+    /// models. Ordinary source-alpha scenery retains its authored painter order.
     /// </summary>
     public bool RequiresPostModelPass =>
-        IsParticleSprite || AllowsPlayerOcclusionFade;
+        IsFrontLayer || IsParticleSprite || AllowsPlayerOcclusionFade;
 }
 
 public readonly record struct TerrainStaticShadow(

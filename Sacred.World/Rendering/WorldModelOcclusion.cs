@@ -30,6 +30,7 @@ internal static class WorldModelOcclusion
             if (item is null || obj.Flags.HasFlag(StaticObjectFlags.NightOnly) && item.Value.ModelDesc.StaticSpriteFrameCount <= 1) continue;
             var sprite = await sprites.LoadAsync(obj);
             if (sprite is null) continue;
+            var isFrontLayer = item.Value.ModelDesc.IsFrontLayer;
             var left = width * .5f + (obj.ProjectedX + 47.8f - sprite.AnchorX - centerIso.X) * zoom;
             var top = height * .5f + (obj.ProjectedY - .3f - sprite.AnchorY - centerIso.Y) * zoom;
             var depth = WorldPainterDepth.FromTile(obj.TileWorldX, obj.TileWorldY, obj.ChainDepth);
@@ -41,7 +42,9 @@ internal static class WorldModelOcclusion
                 if (sprite.Rgba[(sy * sprite.Width + sx) * 4 + 3] < 128) continue;
                 // Always-pass sprite rendering leaves the last submitted pixel's
                 // depth, even when it is smaller than the previous sprite's key.
-                depths[y * width + x] = depth;
+                // Ceiling sprites are submitted after models in the native world
+                // queues, so their opaque pixels reject every model fragment.
+                depths[y * width + x] = isFrontLayer ? float.PositiveInfinity : depth;
             }
         }
         return depths;

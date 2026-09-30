@@ -24,6 +24,10 @@ public enum StaticObjectFlags : uint
     AlternateSurface = 0x0000_0008,
     /// <summary>Unresolved flag bit used by Sacred.exe's normal-render exclusion test.</summary>
     Byte00000010 = 0x0000_0010,
+    /// <summary>
+    /// Uses the mini-object draw-entry path. Forces Floor for floor graphics;
+    /// otherwise preserves the ceiling/object queue. Not a general depth bias.
+    /// </summary>
     RearLayerBackground = 0x0000_0020,
     NightOnly = 0x0000_0040,
     /// <summary>Unresolved flag bit used by Sacred.exe's normal-render exclusion test.</summary>
@@ -34,7 +38,7 @@ public enum StaticObjectFlags : uint
     Byte00000200 = 0x0000_0200,
     /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
     Byte00000400 = 0x0000_0400,
-    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    /// <summary>Suppresses both separate and inline static shadows in the world queue builder.</summary>
     Byte00000800 = 0x0000_0800,
     /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
     Byte00001000 = 0x0000_1000,
@@ -109,14 +113,24 @@ public readonly record struct StaticObjectRecord
     [FieldOffset(0x08)]
     public readonly StaticObjectFlags Flags;
 
+    /// <summary>Static.pak +0x08 bit 0x800; checked by both native static-shadow enqueue paths.</summary>
+    public bool SuppressesStaticShadow => (Flags & StaticObjectFlags.Byte00000800) != 0;
+
     /// <summary>Native <c>sObjectWorldPosition</c> at the packed record offset 0x0C.</summary>
     [FieldOffset(0x0C)] public readonly WorldObjectPositionLayout Position;
 
     /// <summary>Owning sector identifier; aliases <see cref="Position"/>.SectorId.</summary>
     [FieldOffset(0x0C)] public readonly ushort SectorId;
-    /// <summary>Projected world X coordinate; aliases <see cref="Position"/>.X.</summary>
+    /// <summary>
+    /// Projected world X coordinate; aliases <see cref="Position"/>.X.
+    /// For nonanimated atlas mini-objects this is the quad's left edge, without
+    /// a tile-half-width subtraction (Gold 00630CAA..00630DC2).
+    /// </summary>
     [FieldOffset(0x0E)] public readonly int ProjectedX;
-    /// <summary>Projected world Y coordinate; aliases <see cref="Position"/>.Y.</summary>
+    /// <summary>
+    /// Projected world Y coordinate; aliases <see cref="Position"/>.Y.
+    /// For nonanimated atlas mini-objects this is the quad's top edge.
+    /// </summary>
     [FieldOffset(0x12)] public readonly int ProjectedY;
     /// <summary>Height level stored in the packed world position; aliases <see cref="Position"/>.ElevationTier.</summary>
     [FieldOffset(0x16)] public readonly byte ElevationTier;
@@ -202,7 +216,8 @@ public readonly record struct StaticObjectRecord
 
     /// <summary>
     /// Geometric height layer, scaled by 28 in Sacred's renderer. This is not
-    /// the visibility selector; surface visibility uses the state at 0x2B.
+    /// the visibility selector or the five-entry world render queue index;
+    /// surface visibility uses the state at 0x2B.
     /// </summary>
     [FieldOffset(0x33)]
     public readonly byte SurfaceRenderLayer;

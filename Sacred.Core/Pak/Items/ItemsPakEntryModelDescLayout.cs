@@ -112,7 +112,12 @@ public readonly struct ItemsPakEntryModelDescLayout
     [FieldOffset(46)]
     public readonly SacredItemCategory Category;
 
-    /// <summary>Authored descriptor layer (<c>cObjectShared::layer</c>).</summary>
+    /// <summary>
+    /// Authored byte <c>cObjectShared::layer</c>. The Demo world queue builder does
+    /// not read this field: it selects floor/shadow/floor2/object/ceiling queues
+    /// from graphic flags and Static.pak instance state. Its value must not be
+    /// treated as a render queue or a depth index without further evidence.
+    /// </summary>
     [FieldOffset(47)]
     public readonly byte Layer;
 
@@ -120,7 +125,11 @@ public readonly struct ItemsPakEntryModelDescLayout
     [FieldOffset(48)]
     public readonly byte StaticSpriteFrameDuration10Ms;
 
-    //TODO find out this
+    /// <summary>
+    /// Native <c>cObjectShared::gfxFileID</c>, an unsigned byte at offset 0x31.
+    /// Its runtime selection behavior has not yet been verified.
+    /// See docs/research/items-model-desc-continuation.md.
+    /// </summary>
     [FieldOffset(49)]
     public readonly byte GfxFileId;
 
@@ -215,6 +224,9 @@ public readonly struct ItemsPakEntryModelDescLayout
 
     public bool IsLightEmitting => GraphicFlags.HasFlag(SacredItemGraphicFlags.LightEmitting);
     public bool CastsStaticShadow => GraphicFlags.HasFlag(SacredItemGraphicFlags.CastsStaticShadow);
+
+    /// <summary>Draws in the final world-object layer, above ordinary scenery and models.</summary>
+    public bool IsFrontLayer => GraphicFlags.HasFlag(SacredItemGraphicFlags.FrontLayer);
 
     public bool SectorEmbeddable => GraphicType.HasFlag(SacredItemGraphicType.Shadowable) && !GraphicType.HasFlag(SacredItemGraphicType.OverWater);
 

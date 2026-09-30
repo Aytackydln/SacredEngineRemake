@@ -2,6 +2,12 @@
 
 ## Static sprites
 
+The [verified world render layers](demo-symbols/world-render-layers.md) are
+Floor, Shadows, Floor2, Objects, Ceiling (0..4). Queue precedence comes before
+the within-queue traversal below. Items.pak +0x2F is zero in every inspected
+Demo/Gold descriptor and does not select these queues. Some static shadows
+draw inline in Objects, rather than in Shadows; see the linked routing rules.
+
 Static sprite queues preserve the native isometric traversal: increasing X+Y,
 then increasing X (decreasing Y), then the Static.pak linked-list order. Sorting
 by map Y alone is incorrect. The earlier interpretation on this page matched
@@ -34,10 +40,18 @@ the window unfocused; the table/column and bridge overlaps match the reference.
 Opaque and ordinary source-alpha static sprites use an always-pass depth state.
 Their sorted submission order therefore determines the visible sprite, while
 the winning pixel still writes its X+Y tile depth for later 3D world-model
-occlusion. Fractional-alpha edges do not move scenery into the post-model pass;
-that pass is reserved for particles and player-aware fading. This also keeps
-indoor furniture above its floor art. Using map Y as the shared sprite/model
-depth instead hides the Waldburg gate behind both wall layers.
+occlusion. Fractional-alpha edges alone do not move scenery into the post-model
+pass; that pass is reserved for Front Layer sprites, particles and player-aware
+fading. This also keeps indoor furniture above its floor art. Using map Y as
+the shared sprite/model depth instead hides the Waldburg gate behind both wall
+layers.
+
+Items.pak `GraphicFlags.FrontLayer` selects the final Ceiling queue. These
+sprites draw after ordinary scenery and 3D world models, including when their
+texture needs alpha composition. Engine marks the resulting ranges explicitly
+so the post-model pass retains always-pass painter depth; the terminal model
+occlusion mask treats their covered pixels as final. This fixes the courtyard
+building near 3449,2556 and hanging heraldry near 2564,2017 without object IDs.
 
 Static.pak offsets 0x23 and 0x25 are the native `anchorOffX` and `anchorOffY`
 fields. They describe a multipart object's local tile offsets: subtracting them
