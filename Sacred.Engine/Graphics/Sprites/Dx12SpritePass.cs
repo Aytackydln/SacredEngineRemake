@@ -34,6 +34,10 @@ internal sealed class Dx12SpritePass : IDisposable
     private ID3D12PipelineState? _transparentParticleRgbPipeline;
     private ID3D12PipelineState? _transparentParticleArgbPipeline;
     private ID3D12PipelineState? _transparentParticleAlphaMaskPipeline;
+    private ID3D12PipelineState? _depthStaticPipeline;
+    private ID3D12PipelineState? _depthTransparentStaticPipeline;
+    private ID3D12PipelineState? _depthUnlitStaticPipeline;
+    private ID3D12PipelineState? _depthTransparentUnlitStaticPipeline;
     private bool _hdrOutput;
 
     public Dx12SpritePass(
@@ -80,6 +84,11 @@ internal sealed class Dx12SpritePass : IDisposable
     public void SetPipeline(Dx12CreatedPipelineGroup pipeline, bool hdrOutput)
     {
         _hdrOutput = hdrOutput;
+        _depthStaticPipeline = pipeline[Dx12PipelineKind.DepthStaticSprite];
+        _depthTransparentStaticPipeline = pipeline[Dx12PipelineKind.DepthTransparentStaticSprite];
+        _depthUnlitStaticPipeline = pipeline[Dx12PipelineKind.DepthUnlitStaticSprite];
+        _depthTransparentUnlitStaticPipeline = pipeline[Dx12PipelineKind.DepthTransparentUnlitStaticSprite];
+
         _rootSignature = pipeline.RootSignature;
         _staticShadowPipeline = pipeline[Dx12PipelineKind.StaticSpriteShadow];
         _staticPipeline = pipeline[Dx12PipelineKind.StaticSprite];
@@ -101,6 +110,14 @@ internal sealed class Dx12SpritePass : IDisposable
 
     public void DisposePipeline()
     {
+        _depthStaticPipeline?.Dispose();
+        _depthStaticPipeline = null;
+        _depthTransparentStaticPipeline?.Dispose();
+        _depthTransparentStaticPipeline = null;
+        _depthUnlitStaticPipeline?.Dispose();
+        _depthUnlitStaticPipeline = null;
+        _depthTransparentUnlitStaticPipeline?.Dispose();
+        _depthTransparentUnlitStaticPipeline = null;
         _batchRecorder.ClearRootSignature();
         _shadowPass.ClearPipeline();
         _staticShadowPipeline?.Dispose();
@@ -265,6 +282,16 @@ internal sealed class Dx12SpritePass : IDisposable
                     SacredTextureChannelEncoding.Argb => _transparentParticleArgbPipeline,
                     _ => _transparentParticleRgbPipeline
                 }
+                : range.UsesSpriteDepth
+                    ? (range.IsUnlit, range.RequiresAlphaBlend) switch
+                    {
+                        (true, true) => _depthTransparentUnlitStaticPipeline,
+                        (true, false) => _depthUnlitStaticPipeline,
+                        (false, true) => _depthTransparentStaticPipeline,
+                        _ => _depthStaticPipeline
+                    }
+                : range.ParticleEncoding is not null
+                    ? range.IsUnlit ? _postModelTransparentUnlitStaticPipeline : _postModelTransparentStaticPipeline
                 : range.IsFrontLayer
                     ? (range.IsUnlit, range.RequiresAlphaBlend) switch
                     {

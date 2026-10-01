@@ -39,7 +39,7 @@ float liquid_corner_alpha(float2 uv, float4 corner_alpha)
                              bottom_weight * corner_alpha.w;
     }
 
-    return saturate(interpolated_alpha);
+    return interpolated_alpha;
 }
 
 int positive_remainder(int value, int divisor)

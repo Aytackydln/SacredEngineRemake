@@ -15,13 +15,17 @@ public static class WorldStaticRenderRouting
     /// Neither descriptor.Layer nor instance.SurfaceRenderLayer is a queue index.
     /// </summary>
     public static WorldRenderLayer GetSpriteLayer(
-        in ItemsPakEntryModelDescLayout descriptor, in StaticObjectRecord instance)
+        in ItemsPakEntryModelDescLayout descriptor, in StaticObjectRecord instance) =>
+        GetSpriteLayer(descriptor, instance.Flags, instance.TriggerState);
+
+    public static WorldRenderLayer GetSpriteLayer(
+        in ItemsPakEntryModelDescLayout descriptor, StaticObjectFlags flags, ushort triggerState)
     {
         if (descriptor.IsFrontLayer)
             return WorldRenderLayer.Ceiling;
 
         if ((descriptor.GraphicType & SacredItemGraphicType.Shadowable) != 0)
-            return (instance.Flags & StaticObjectFlags.RearLayerBackground) != 0 || instance.TriggerState == 1
+            return (flags & StaticObjectFlags.RearLayerBackground) != 0 || triggerState == 1
                 ? WorldRenderLayer.Floor
                 : WorldRenderLayer.Floor2;
 

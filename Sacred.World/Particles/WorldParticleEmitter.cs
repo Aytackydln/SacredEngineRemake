@@ -63,17 +63,26 @@ internal sealed class WorldParticleEmitter
             var local = particle.Position;
             var ground = IsometricProjection.IsoToWorld(_projection.Project(new Vector3(local.X, local.Y, 0)));
             var color = WorldParticleAppearance.Color(_placement.Definition.Draw!, particle.Parameters, particle.Fade);
+            var height = ((_placement.Creation.HeightOffset ?? 0) + local.Z) *
+                         _projection.HeightFactor * _projection.VerticalScale;
+            var depthAnchor = _placement.Creation.TilePosition is { } tile
+                ? new Vector2(tile.X, tile.Y)
+                : new Vector2(_placement.WorldX, _placement.WorldY);
             output.Add(new WorldParticle(
                 _placement.ScriptOffset,
                 _sprite,
                 _placement.WorldX + ground.X,
                 _placement.WorldY + ground.Y,
-                ((_placement.Creation.HeightOffset ?? 0) + local.Z) * _projection.HeightFactor * _projection.VerticalScale,
+                height,
                 2 * particle.Size * _projection.HorizontalScale,
                 (color >> 24) / InitialFade,
                 particle.DrawOrder)
             {
                 Color = color,
+                // Native pitch has cot(pitch)=2. Screen-space height therefore
+                // contributes half as much camera depth as ground displacement.
+                PainterDepthKey = WorldPainterDepth.FromWorld(depthAnchor + ground) +
+                                  height / IsometricProjection.StepWidth,
                 AtlasCell = _placement.Definition.Draw!.UsesRandomAtlasCell ? particle.AtlasCell :
                     Math.Clamp((int)((InitialFade - particle.Fade) * _sprite.FrameCount / 256), 0, _sprite.FrameCount - 1),
                 Rotation = particle.Rotation,

@@ -19,6 +19,7 @@ public sealed class WorldParticleSystem
     private SacredParticleCatalogue _catalogue;
     private float _worldUnitsPerTile;
     private VisibleWorld? _visibleWorld;
+    private IndoorTileGroup? _activeIndoorGroup;
     private int _lastLoggedEmitterCount = -1;
 
     public bool Enabled { get; set; } = true;
@@ -56,7 +57,7 @@ public sealed class WorldParticleSystem
         Console.WriteLine($"World particle quality set to {_catalogue.Quality}.");
     }
 
-    public void Update(float deltaSeconds, VisibleWorld visibleWorld)
+    public void Update(float deltaSeconds, VisibleWorld visibleWorld, IndoorTileGroup? activeIndoorGroup = null)
     {
         ArgumentNullException.ThrowIfNull(visibleWorld);
         if (!Enabled)
@@ -72,9 +73,10 @@ public sealed class WorldParticleSystem
             return;
         }
 
-        if (!ReferenceEquals(_visibleWorld, visibleWorld))
+        if (!ReferenceEquals(_visibleWorld, visibleWorld) || _activeIndoorGroup?.Id != activeIndoorGroup?.Id)
         {
             _visibleWorld = visibleWorld;
+            _activeIndoorGroup = activeIndoorGroup;
             SelectVisibleEmitters(visibleWorld);
         }
 
@@ -89,11 +91,14 @@ public sealed class WorldParticleSystem
     private void SelectVisibleEmitters(VisibleWorld visibleWorld)
     {
         _neededEmitters.Clear();
+        var groups = visibleWorld.Sectors.SelectMany(static sector => sector.IndoorTileGroups.Groups)
+            .DistinctBy(static group => group.Id).ToArray();
         foreach (var sector in visibleWorld.Sectors)
         foreach (var placement in _script.GetPlacements(sector.Coord))
         {
             if (placement.Definition.Status != SacredParticleDefinitionStatus.Decoded ||
-                placement.Definition.Draw is null)
+                placement.Definition.Draw is null ||
+                !WorldParticleSurfaceVisibility.IsVisible(placement, groups, _activeIndoorGroup))
             {
                 continue;
             }

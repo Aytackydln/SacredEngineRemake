@@ -227,6 +227,23 @@ public static class Dx12PipelineCatalog
                 usesDepthBuffer: false)
         };
 
+        pipelines.Add(Pipeline(
+            Dx12PipelineKind.DepthStaticSprite, shaders.StaticSpriteVertexShader, shaders.StaticSpritePixelShader,
+            CreatePremultipliedBlend(), RasterizerDescription.CullNone,
+            CreateLessEqualDepth(), usesDepthBuffer: true));
+        pipelines.Add(Pipeline(
+            Dx12PipelineKind.DepthTransparentStaticSprite, shaders.StaticSpriteVertexShader, shaders.TransparentStaticSpritePixelShader,
+            CreatePremultipliedBlend(), RasterizerDescription.CullNone,
+            CreateLessEqualDepth(), usesDepthBuffer: true));
+        pipelines.Add(Pipeline(
+            Dx12PipelineKind.DepthUnlitStaticSprite, shaders.StaticSpriteVertexShader, shaders.UnlitStaticSpritePixelShader,
+            CreatePremultipliedBlend(), RasterizerDescription.CullNone,
+            CreateLessEqualDepth(), usesDepthBuffer: true));
+        pipelines.Add(Pipeline(
+            Dx12PipelineKind.DepthTransparentUnlitStaticSprite, shaders.StaticSpriteVertexShader, shaders.TransparentUnlitStaticSpritePixelShader,
+            CreatePremultipliedBlend(), RasterizerDescription.CullNone,
+            CreateLessEqualDepth(), usesDepthBuffer: true));
+
         if (hdrOutput)
         {
             var transparentDepth = CreateTransparentSpriteDepth();
@@ -445,6 +462,7 @@ public static class Dx12PipelineCatalog
     {
         var depth = DepthStencilDescription.Default;
         depth.DepthFunc = ComparisonFunction.Always;
+        depth.DepthWriteMask = DepthWriteMask.Zero;
         return depth;
     }
 

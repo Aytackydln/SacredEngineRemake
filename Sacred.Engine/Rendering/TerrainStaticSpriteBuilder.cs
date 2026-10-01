@@ -241,6 +241,8 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                 {
                     IsAnimatedMiniObject = isAnimatedMiniObject,
                     IsMiniObject = item?.ModelDesc.UsesMiniObjectTexture == true,
+                    UsesSpriteDepth = item?.ModelDesc.GraphicType.HasFlag(SacredItemGraphicType.UsesSpriteDepth) == true,
+                    HeightLevel = staticObject.HeightLevelId,
                     IsFrontLayer = item?.ModelDesc.IsFrontLayer == true,
                     RendersOverWater = item?.ModelDesc.GraphicType.HasFlag(
                         SacredItemGraphicType.OverWater) == true
@@ -348,8 +350,8 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
 
     private static int CompareSprites(TerrainStaticSprite left, TerrainStaticSprite right)
     {
-        // Only player-aware art belongs after models. Source-alpha scenery such as
-        // a lamp flame must retain its file-authored order relative to the lamp.
+        // Ceiling art follows the Objects queue. Alpha composition and player
+        // fading do not move ordinary scenery out of its authored tile order.
         var postModel = left.RequiresPostModelPass.CompareTo(right.RequiresPostModelPass);
         if (postModel != 0)
             return postModel;
@@ -364,16 +366,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
     private int EngineQueueIndex(StaticWorldObject staticObject)
     {
         var item = assets.GetItem(staticObject.TypeId);
-        var graphicFlags = item?.ModelDesc.GraphicFlags ?? SacredItemGraphicFlags.None;
-        var category = item?.ModelDesc.Category ?? SacredItemCategory.Unspecified;
-        if (category == SacredItemCategory.Effect)
-        {
-            if (graphicFlags.HasFlag(SacredItemGraphicFlags.FrontLayer))
-                return 4;
-            return 3;
-        }
-
-        return graphicFlags.HasFlag(SacredItemGraphicFlags.FrontLayer) ? 4 : 3;
+        return item is { } entry ? WorldStaticDrawOrder.QueueIndex(entry.ModelDesc, staticObject) : 3;
     }
 }
 

@@ -1,4 +1,5 @@
 using Sacred.Core.Pak.Items;
+using Sacred.Core.World;
 using Sacred.Core.World.Sector;
 
 namespace Sacred.World.Geometry;
@@ -8,6 +9,14 @@ public static class WorldStaticDrawOrder
 {
     public static int QueueIndex(SacredItemGraphicFlags flags) =>
         flags.HasFlag(SacredItemGraphicFlags.FrontLayer) ? 4 : 3;
+
+    public static int QueueIndex(in ItemsPakEntryModelDescLayout descriptor, StaticWorldObject instance) =>
+        (int)WorldStaticRenderRouting.GetSpriteLayer(descriptor, instance.Flags,
+            unchecked((ushort)instance.SurfaceRenderLayer));
+
+    /// <summary>Exact queue-local tile/chain key for software occlusion, without float ties.</summary>
+    public static long TileKey(int x, int y, int chainDepth) =>
+        ((long)(x + y) << 32) + ((long)x << 16) + Math.Clamp(chainDepth, 0, ushort.MaxValue);
 
     public static int Compare(StaticWorldObject left, StaticWorldObject right) =>
         Compare(left.TileWorldX, left.TileWorldY, left.ChainDepth, left.InsertionOrder,

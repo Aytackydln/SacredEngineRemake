@@ -194,11 +194,13 @@ internal sealed class Dx12SpriteInstanceBuilder
         int? highlightedStaticInstance = null;
         var highlightedStaticIsUnlit = false;
         var staticRanges = new List<StaticSpriteDrawRange>();
+        var submissions = new List<StaticSpriteSubmission>();
         var staticRangeStart = -1;
         var staticRangeIsUnlit = false;
         var staticRangeRequiresAlphaBlend = false;
         var staticRangeIsPostModel = false;
         var staticRangeIsFrontLayer = false;
+        var staticRangeUsesSpriteDepth = false;
         SacredTextureChannelEncoding? staticRangeParticleEncoding = null;
         var shadowInstanceCount = 0;
         var legacyShadowDrawCallCount = 0;
@@ -304,12 +306,14 @@ internal sealed class Dx12SpriteInstanceBuilder
                     staticRangeRequiresAlphaBlend = requiresAlphaBlend;
                     staticRangeIsPostModel = isPostModel;
                     staticRangeIsFrontLayer = sprite.IsFrontLayer;
+                    staticRangeUsesSpriteDepth = sprite.UsesSpriteDepth;
                     staticRangeParticleEncoding = particleEncoding;
                 }
                 else if (staticRangeIsUnlit != sprite.IsUnlit ||
                          staticRangeRequiresAlphaBlend != requiresAlphaBlend ||
                          staticRangeIsPostModel != isPostModel ||
                          staticRangeIsFrontLayer != sprite.IsFrontLayer ||
+                         staticRangeUsesSpriteDepth != sprite.UsesSpriteDepth ||
                          staticRangeParticleEncoding != particleEncoding)
                 {
                     staticRanges.Add(new StaticSpriteDrawRange(
@@ -319,12 +323,13 @@ internal sealed class Dx12SpriteInstanceBuilder
                         staticRangeRequiresAlphaBlend,
                         staticRangeIsPostModel,
                         staticRangeIsFrontLayer,
-                        staticRangeParticleEncoding));
+                        staticRangeParticleEncoding) { UsesSpriteDepth = staticRangeUsesSpriteDepth });
                     staticRangeStart = instanceCount;
                     staticRangeIsUnlit = sprite.IsUnlit;
                     staticRangeRequiresAlphaBlend = requiresAlphaBlend;
                     staticRangeIsPostModel = isPostModel;
                     staticRangeIsFrontLayer = sprite.IsFrontLayer;
+                    staticRangeUsesSpriteDepth = sprite.UsesSpriteDepth;
                     staticRangeParticleEncoding = particleEncoding;
                 }
                 if (sprite.StaticObjectId == highlightedStaticObjectId)
@@ -332,6 +337,7 @@ internal sealed class Dx12SpriteInstanceBuilder
                     highlightedStaticInstance = instanceCount;
                     highlightedStaticIsUnlit = sprite.IsUnlit;
                 }
+                submissions.Add(new StaticSpriteSubmission(instanceCount, sprite));
                 instances[instanceCount++] = new StaticSpriteInstance(
                     drawPosition.X,
                     drawPosition.Y,
@@ -351,7 +357,8 @@ internal sealed class Dx12SpriteInstanceBuilder
                     sprite.IsParticleSprite ? (sprite.ParticleColor & 255) / 255.0f : sprite.Opacity,
                     sprite.Opacity,
                     (uint)sprite.Sprite.AtlasColumns,
-                    (uint)sprite.Sprite.AtlasRows) { ParticleRotation = sprite.ParticleRotation };
+                    (uint)sprite.Sprite.AtlasRows) { ParticleRotation = sprite.ParticleRotation,
+                        DepthSpan = sprite.UsesSpriteDepth ? -sprite.RenderHeight / (24f * 4096f) : 0f };
             }
 
             if (shadowVisible)
@@ -379,7 +386,7 @@ internal sealed class Dx12SpriteInstanceBuilder
                 staticRangeRequiresAlphaBlend,
                 staticRangeIsPostModel,
                 staticRangeIsFrontLayer,
-                staticRangeParticleEncoding));
+                staticRangeParticleEncoding) { UsesSpriteDepth = staticRangeUsesSpriteDepth });
         }
 
         var batch = new WorldSpriteBatch(
@@ -394,7 +401,7 @@ internal sealed class Dx12SpriteInstanceBuilder
             highlightedStaticInstance,
             highlightedStaticIsUnlit,
             staticRanges,
-            playerOcclusion);
+            playerOcclusion) { Submissions = submissions };
         state.Remember(
             spriteRevision,
             _textureCache.ResidencyRevision,
@@ -434,7 +441,9 @@ internal sealed class Dx12SpriteInstanceBuilder
 
     private static float CalculateSceneDepth(SacredCamera camera, TerrainStaticSprite sprite)
     {
-        var depthKey = WorldPainterDepth.FromTile(
+        var depthKey = sprite.UsesSpriteDepth
+            ? WorldSpriteDepth.FromIsoY(sprite.IsoY, sprite.HeightLevel)
+            : sprite.ParticleDepthKey ?? WorldPainterDepth.FromTile(
             sprite.TileWorldX,
             sprite.TileWorldY,
             sprite.ChainDepth);

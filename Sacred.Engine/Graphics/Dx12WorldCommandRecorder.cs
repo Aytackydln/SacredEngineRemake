@@ -36,6 +36,7 @@ internal sealed class Dx12WorldCommandRecorder
     private readonly Dx12LightHaloPass _lightHalos;
     private readonly List<TerrainWorldLight> _frameWorldLights = new(65);
     private readonly Dx12ModelPass _models;
+    private readonly Dx12WorldPainterPass _worldPainter;
     private readonly Dx12DebugOverlay _debugOverlay;
     private readonly Dx12ImGuiRenderer _imgui;
     private readonly Dx12MinimapPass _minimap;
@@ -66,6 +67,7 @@ internal sealed class Dx12WorldCommandRecorder
         _playerOcclusionMap = playerOcclusionMap;
         _lightHalos = lightHalos;
         _models = models;
+        _worldPainter = new Dx12WorldPainterPass(sprites, models);
         _debugOverlay = debugOverlay;
         _imgui = imgui;
         _minimap = minimap;
@@ -238,17 +240,8 @@ internal sealed class Dx12WorldCommandRecorder
             renderHeight);
         _commandList.OMSetRenderTargets(renderTarget, depthStencil);
         _commandList.ClearDepthStencilView(depthStencil, ClearFlags.Depth, 1.0f, 0, 0, []);
-        // Static scenery keeps animated mini-object details in painter order,
-        // including flames behind their fixture. Foreground translucent props
-        // and player-aware fading effects remain for the post-model pass.
-        _sprites.RecordOpaqueStatic(
-            spriteBatch,
-            scene.Lighting.WorldSurfaceAmbientColour,
-            displayProfile.ScenePaperWhiteNits,
-            displayProfile.UnlitSpriteNits,
-            frame,
-            renderWidth,
-            renderHeight);
+        // Sprites and models share the native tile traversal below. Ordinary
+        // scenery paints in that order without changing the model depth buffer.
         if (scene.Debug.StairsMapVisible)
         {
             RecordStairsDebug(
@@ -283,7 +276,7 @@ internal sealed class Dx12WorldCommandRecorder
             _commandList.ClearDepthStencilView(depthStencil, ClearFlags.Depth, 1.0f, 0, 0, []);
         }
 
-        _models.Record(camera, scene.Models, scene.Lighting, displayProfile, frame.Index);
+        _worldPainter.Record(spriteBatch, camera, scene, displayProfile, frame, renderWidth, renderHeight);
         _sprites.RecordTransparentStatic(
             spriteBatch,
             scene.Lighting.WorldSurfaceAmbientColour,

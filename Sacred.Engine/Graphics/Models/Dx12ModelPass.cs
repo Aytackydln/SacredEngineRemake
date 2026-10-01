@@ -188,7 +188,9 @@ internal sealed class Dx12ModelPass
             var worldViewProjection = world * viewProjection;
             var modelSceneDepth = CalculateSceneDepth(camera, model);
             var modelGeometryDepth = model.IsWorldObject
-                ? ModelShaderVariables.EncodeFixedPainterDepth(modelSceneDepth)
+                ? ModelShaderVariables.EncodeFixedPainterDepth(0.5f +
+                    (world.M42 - IsometricProjection.WorldToModel(camera.WorldCenter).Y - world.M43) /
+                    (24f * MathF.Sqrt(2f) * 4096f))
                 : modelSceneDepth;
             var defaultModelColor = ModelShaderVariables.ColorFromName(model.Name);
             _shaderConstants.WriteModelBase(

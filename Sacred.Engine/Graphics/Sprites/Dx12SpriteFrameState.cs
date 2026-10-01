@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Core.World.Sector;
+using Sacred.Engine.Rendering;
 
 namespace Sacred.Engine.Graphics.Sprites;
 
@@ -82,7 +83,10 @@ internal readonly record struct WorldSpriteBatch(
     PlayerOcclusionProbe PlayerOcclusion)
 {
     public static WorldSpriteBatch Empty => new(0, 0, 0, 0, 0, 0, Vector2.Zero, 0, null, false, null, default);
+    public IReadOnlyList<StaticSpriteSubmission>? Submissions { get; init; }
 }
+
+internal readonly record struct StaticSpriteSubmission(int Instance, TerrainStaticSprite Sprite);
 
 internal readonly record struct StaticSpriteDrawRange(
     int StartInstance,
@@ -91,7 +95,10 @@ internal readonly record struct StaticSpriteDrawRange(
     bool RequiresAlphaBlend,
     bool IsPostModel,
     bool IsFrontLayer,
-    SacredTextureChannelEncoding? ParticleEncoding);
+    SacredTextureChannelEncoding? ParticleEncoding)
+{
+    public bool UsesSpriteDepth { get; init; }
+}
 
 internal readonly record struct LiquidSpriteDrawRange(
     SectorCoord Coord,

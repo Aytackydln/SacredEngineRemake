@@ -86,7 +86,8 @@ internal sealed class InGameScene : IGameScene
     internal WorldLightingMode WorldLightingMode => _worldLighting.Mode;
     internal SacredParticleQuality ParticleQuality => _particles.Quality;
     internal Vector2 PlayerWorldPosition => _camera.WorldCenter;
-    internal bool WorldStreamingSettled => _worldStreamer.VisibleWorld.LoadingSectors == 0;
+    internal bool WorldStreamingSettled => _worldStreamer.VisibleWorld.LoadingSectors == 0 &&
+        Renderer.LastWorldPreparationStatus.IsReady && !_doors.HasPendingLoads;
 
     internal void SetWorldLightingMode(WorldLightingMode mode) => _worldLighting.SetMode(mode);
 
@@ -173,12 +174,24 @@ internal sealed class InGameScene : IGameScene
                 _player.PlayAttack();
                 message = "playing attack animation";
                 return true;
+            case "facing" when float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture,
+                out var facingDegrees) && float.IsFinite(facingDegrees):
+                var facingRadians = facingDegrees * (MathF.PI / 180.0f);
+                _camera.RotateToward(new Vector2(MathF.Cos(facingRadians), MathF.Sin(facingRadians)));
+                EngineLog.WriteLine($"Debug input: character facing set to {facingDegrees:F1} degrees.");
+                message = $"character facing set to {facingDegrees:F1} degrees";
+                return true;
             case "particles" when TryParseBoolean(value, out var particlesEnabled):
                 _particles.Enabled = particlesEnabled;
                 message = $"world particles {(particlesEnabled ? "enabled" : "disabled")}";
                 return true;
+            case "door" when value.Equals("toggle", StringComparison.OrdinalIgnoreCase):
+                var toggled = _doors.TryToggleAt(_camera.WorldCenter);
+                message = toggled ? "nearest door toggled" : "no loaded animated door within interaction distance";
+                EngineLog.WriteLine($"Debug input: {message}.");
+                return true;
             default:
-                message = "Unknown in-game option. Use overlays <on|off>, debug-panel <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, collision <walk|fly|noclip>, noclip <on|off>, tessellation <on|off>, particles <on|off>, item-flags <hex>, character <next|index>, zoom <0.25..3>, or animation attack.";
+                message = "Unknown in-game option. Use overlays <on|off>, debug-panel <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, collision <walk|fly|noclip>, noclip <on|off>, tessellation <on|off>, particles <on|off>, item-flags <hex>, character <next|index>, zoom <0.25..3>, facing <degrees>, door toggle, or animation attack.";
                 return false;
         }
     }
@@ -205,7 +218,7 @@ internal sealed class InGameScene : IGameScene
         _inputController.Update(deltaSeconds);
         Renderer.UpdateAutoRenderResolution(_camera.Zoom);
         _doors.Update(_worldStreamer.VisibleWorld, _camera.WorldCenter, deltaSeconds, _scene.Indoor.ActiveGroup);
-        _particles.Update(deltaSeconds, _worldStreamer.VisibleWorld);
+        _particles.Update(deltaSeconds, _worldStreamer.VisibleWorld, _scene.Indoor.ActiveGroup);
         UpdateRegionDisplayName();
     }
 

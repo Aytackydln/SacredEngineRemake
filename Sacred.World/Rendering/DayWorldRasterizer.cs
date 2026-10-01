@@ -159,7 +159,7 @@ public sealed class DayWorldRasterizer(
             if (screenFootX < -512 || screenFootX > width + 512 || screenFootY < -512 || screenFootY > height + 512)
                 continue;
             draws.Add(new StaticDraw(
-                EngineQueueIndex(item.ModelDesc.GraphicFlags, item.ModelDesc.Category),
+                WorldStaticDrawOrder.QueueIndex(item.ModelDesc, staticObject),
                 item,
                 staticObject,
                 footX,
@@ -238,17 +238,6 @@ public sealed class DayWorldRasterizer(
         {
             return null;
         }
-    }
-
-    private static int EngineQueueIndex(SacredItemGraphicFlags graphicFlags, SacredItemCategory category)
-    {
-        if (category == SacredItemCategory.Effect)
-        {
-            if (graphicFlags.HasFlag(SacredItemGraphicFlags.FrontLayer))
-                return 4;
-            return 3;
-        }
-        return graphicFlags.HasFlag(SacredItemGraphicFlags.FrontLayer) ? 4 : 3;
     }
 
     private static int CompareStaticDraws(StaticDraw left, StaticDraw right)

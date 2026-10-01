@@ -298,12 +298,16 @@ public readonly record struct TerrainStaticSprite(
 {
     /// <summary>Identifies an atlas-backed mini object from the Items.pak graphic type.</summary>
     public bool IsMiniObject { get; init; }
+    public bool UsesSpriteDepth { get; init; }
+    public byte HeightLevel { get; init; }
     /// <summary>Identifies scenery authored to render after the water pass.</summary>
     public bool RendersOverWater { get; init; }
     public uint ParticleColor { get; init; } = uint.MaxValue;
     public int ParticleAtlasCell { get; init; }
     public float ParticleRotation { get; init; }
     public uint ParticleBlendFlags { get; init; }
+    /// <summary>Continuous camera depth for a moving particle, before normalization.</summary>
+    public float? ParticleDepthKey { get; init; }
     /// <summary>Marks a file-authored mini-object animation such as a fixture flame.</summary>
     public bool IsAnimatedMiniObject { get; init; }
     /// <summary>Draws after world models and ignores their depth, as authored by Items.pak.</summary>
@@ -313,11 +317,11 @@ public readonly record struct TerrainStaticSprite(
         IsParticleSprite || AllowsPlayerOcclusionFade || Sprite.HasTranslucentPixels;
 
     /// <summary>
-    /// Front-layer scenery, player-aware scenery and particles belong after world
-    /// models. Ordinary source-alpha scenery retains its authored painter order.
+    /// Ceiling art is deferred. Player-aware scenery retains its authored queue;
+    /// its shader can reveal the player using the prepared occlusion map.
     /// </summary>
     public bool RequiresPostModelPass =>
-        IsFrontLayer || IsParticleSprite || AllowsPlayerOcclusionFade;
+        IsFrontLayer;
 }
 
 public readonly record struct TerrainStaticShadow(

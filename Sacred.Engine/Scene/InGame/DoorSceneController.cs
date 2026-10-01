@@ -69,6 +69,17 @@ internal sealed class DoorSceneController
 
     public bool IsDoorAt(Vector2 worldPosition) => FindInteractiveAt(worldPosition) is not null;
 
+    public bool HasPendingLoads
+    {
+        get
+        {
+            if (_loads.Count > 0) return true;
+            foreach (var id in _desiredModels.Keys)
+                if (!_models.ContainsKey(id) && !_failedLoads.Contains(id)) return true;
+            return false;
+        }
+    }
+
     public bool TryToggleAt(Vector2 worldPosition)
     {
         var placement = FindInteractiveAt(worldPosition);

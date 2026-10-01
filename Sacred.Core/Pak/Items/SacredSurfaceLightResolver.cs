@@ -39,6 +39,7 @@ public static class SacredSurfaceLightResolver
             ["Candle 6"] = Warm(radius: 440),
             ["Candelabra 1"] = Warm(radius: 600),
             ["DUN_light_1"] = Cold(radius: 600),
+            ["DUN_torch1"] = Warm(radius: 440),
             ["DUN_torch2"] = Warm(radius: 440),
             ["CandleWall01"] = Warm(radius: 440),
             ["3S_FIRE"] = Warm(radius: 440),

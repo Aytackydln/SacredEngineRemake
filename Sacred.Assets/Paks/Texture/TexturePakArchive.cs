@@ -115,7 +115,7 @@ public sealed class TexturePakArchive : IDisposable
         var archive = indexedRecord.Archive;
         var record = indexedRecord.Record;
         var payloadOffset = record.Offset + TexturePakDecoder.TextureHeaderSize;
-        var payload = new byte[record.Size];
+        var payload = new byte[indexedRecord.PayloadSize];
         await ReadExactlyAtAsync(
                 archive.Stream.SafeFileHandle,
                 payload,
@@ -156,6 +156,8 @@ public sealed class TexturePakArchive : IDisposable
         header.ValidateSignature();
         var count = TexturePakDecoder.ReadEntryCount(header.EntryCount, stream.Length);
         var descriptors = PakDataHelpers.ReadEntryDescriptors(stream, count, Path.GetFileName(archive.Path));
+        var offsets = descriptors.Where(static entry => entry.Offset > 0)
+            .Select(static entry => (long)entry.Offset).Distinct().Order().ToArray();
 
         for (var i = 0; i < count; i++)
         {
@@ -176,6 +178,16 @@ public sealed class TexturePakArchive : IDisposable
             if (string.IsNullOrWhiteSpace(name))
                 continue;
 
+            // Zlib entries can retain the unpacked size in both size fields.
+            // The stream ends at the next entry, rather than at that size.
+            var nextIndex = Array.BinarySearch(offsets, (long)offset) + 1;
+            var entryEnd = nextIndex < offsets.Length ? Math.Min(offsets[nextIndex], stream.Length) : stream.Length;
+            var payloadSize = textureHeader.StorageFormat == SacredTextureStorageFormat.ZlibArgb4444
+                ? checked((int)(entryEnd - offset - TexturePakDecoder.TextureHeaderSize))
+                : (int)size;
+            if (payloadSize <= 0)
+                continue;
+
             var indexedRecord = new IndexedTexturePakRecord(
                 archive,
                 new TexturePakRecord(
@@ -184,7 +196,7 @@ public sealed class TexturePakArchive : IDisposable
                     (int)size,
                     textureHeader.Width,
                     textureHeader.Height,
-                    (byte)textureHeader.StorageFormat));
+                    (byte)textureHeader.StorageFormat), payloadSize);
 
             _recordsByEntryId.TryAdd((uint)i, indexedRecord);
             AddLookupNames(indexedRecord);
@@ -308,5 +320,5 @@ public sealed class TexturePakArchive : IDisposable
         public void Dispose() => Stream.Dispose();
     }
 
-    private readonly record struct IndexedTexturePakRecord(PakStream Archive, TexturePakRecord Record);
+    private readonly record struct IndexedTexturePakRecord(PakStream Archive, TexturePakRecord Record, int PayloadSize);
 }

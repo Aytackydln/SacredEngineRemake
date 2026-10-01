@@ -35,8 +35,9 @@ public readonly struct TexturePakEntryHeaderLayout
     public readonly SacredTextureStorageFormat StorageFormat;
 
     /// <summary>
-    /// Encoded pixel payload size, repeated from the entry descriptor. The Demo
-    /// calls this <c>RLEsize</c>, although Gold primarily stores zlib payloads.
+    /// Native <c>RLEsize</c>, repeated from the entry descriptor. For zlib storage
+    /// this can contain the unpacked pixel size; the compressed stream is bounded
+    /// by the next archive entry, not necessarily by this value.
     /// </summary>
     [FieldOffset(0x25)]
     public readonly uint EncodedSize;

@@ -17,6 +17,7 @@ struct SpriteInstance
     uint atlas_columns;
     uint atlas_rows;
     float particle_rotation;
+    float depth_span;
 };
 
 StructuredBuffer<SpriteInstance> instances : register(t0);
@@ -42,7 +43,7 @@ struct vertex_output
 {
     float4 position : SV_Position;
     float2 tex_coord : TEXCOORD0;
-    nointerpolation float depth : TEXCOORD1;
+    float depth : TEXCOORD1;
     nointerpolation uint frame_count : TEXCOORD2;
     nointerpolation uint texture_variant : TEXCOORD3;
     nointerpolation uint transpose_texture : TEXCOORD4;
@@ -91,9 +92,10 @@ vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_Instan
     );
 
     vertex_output output;
-    output.position = float4(clip, instance.depth, 1.0f);
+    float depth = instance.depth + uv.y * instance.depth_span;
+    output.position = float4(clip, depth, 1.0f);
     output.tex_coord = uv;
-    output.depth = instance.depth;
+    output.depth = depth;
     output.frame_count = instance.frame_count;
     output.texture_variant = instance.texture_variant;
     output.transpose_texture = instance.transpose_texture;

@@ -93,6 +93,13 @@ public enum SacredItemGraphicType : ushort
     /// This bit is authored on mixed sprites such as trees, roofs, walls, and arches.
     /// </summary>
     AllowsTransparency = 0b1_0000,
+
+    /// <summary>
+    /// Enables sprite depth testing and writes. Native renderObjects tests
+    /// combined mask 0x00000200 and computes corner depth from screen Y and
+    /// Static.pak's geometric height. Separate from GraphicFlags.Byte0200.
+    /// </summary>
+    UsesSpriteDepth = 0b10_0000_0000,
 }
 
 /// <summary>

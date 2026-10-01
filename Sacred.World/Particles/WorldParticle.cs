@@ -19,4 +19,6 @@ public readonly record struct WorldParticle(
     public float RenderHeight { get; init; }
     public bool Additive { get; init; }
     public bool SourceColorOnly { get; init; }
+    /// <summary>Camera-depth key relative to the emitter's authored tile, including live motion and height.</summary>
+    public float? PainterDepthKey { get; init; }
 }

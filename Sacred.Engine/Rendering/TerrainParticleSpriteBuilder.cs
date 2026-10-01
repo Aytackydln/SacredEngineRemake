@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using Sacred.Engine.Assets;
 using Sacred.World.Geometry;
 using Sacred.World.Particles;
@@ -65,13 +66,16 @@ internal sealed class TerrainParticleSpriteBuilder(AssetManager assets)
                 ParticleColor = particle.Color,
                 ParticleAtlasCell = particle.AtlasCell,
                 ParticleRotation = particle.Rotation,
+                ParticleDepthKey = particle.PainterDepthKey ?? WorldPainterDepth.FromWorld(new Vector2(
+                    particle.WorldX, particle.WorldY)) + particle.Height / IsometricProjection.StepWidth,
                 ParticleBlendFlags = (particle.Additive ? 2u : 0u) | (particle.SourceColorOnly ? 4u : 0u)
             });
         }
 
         _sprites.Sort(static (left, right) =>
         {
-            var depth = left.TileDepth.CompareTo(right.TileDepth);
+            var depth = left.ParticleDepthKey.GetValueOrDefault(left.TileDepth)
+                .CompareTo(right.ParticleDepthKey.GetValueOrDefault(right.TileDepth));
             if (depth != 0)
                 return depth;
             var y = left.TileWorldY.CompareTo(right.TileWorldY);

@@ -10,9 +10,9 @@ namespace Sacred.World.Geometry;
 public static class WorldPainterDepth
 {
     public static float FromTile(int worldX, int worldY, int chainDepth = 0) =>
-        worldX + worldY + worldY * 0.001f + worldX * 0.000001f + chainDepth * 0.0000001f;
+        worldX + worldY;
 
     public static float FromWorld(Vector2 worldPosition) =>
-        worldPosition.X + worldPosition.Y + worldPosition.Y * 0.001f;
+        worldPosition.X + worldPosition.Y;
 
 }
