@@ -13,10 +13,11 @@ public sealed class TexturePakArchive : IDisposable
 
     private readonly PakStream[] _archives;
     private readonly Dictionary<string, IndexedTexturePakRecord> _recordsByName = new(StringComparer.OrdinalIgnoreCase);
+    private readonly UnpackedTextureIndex _unpackedTextures;
     private readonly Dictionary<uint, IndexedTexturePakRecord> _recordsByEntryId = new();
     private bool _disposed;
 
-    private TexturePakArchive(string[] paths)
+    private TexturePakArchive(string pakDirectory, string[] paths)
     {
         var archives = new List<PakStream>(paths.Length);
         try
@@ -27,6 +28,7 @@ public sealed class TexturePakArchive : IDisposable
             _archives = archives.ToArray();
             foreach (var archive in _archives)
                 Index(archive);
+            _unpackedTextures = new UnpackedTextureIndex(pakDirectory);
         }
         catch
         {
@@ -53,19 +55,28 @@ public sealed class TexturePakArchive : IDisposable
         if (paths.Length == 0)
             throw new FileNotFoundException($"No texture*.pak files were found in '{pakDirectory}'.");
 
-        return new TexturePakArchive(paths);
+        return new TexturePakArchive(pakDirectory, paths);
     }
 
-    public async Task<TextureAsset> LoadTextureAsync(string textureName, CancellationToken cancellationToken = default)
+    public Task<TextureAsset> LoadTextureAsync(string textureName, CancellationToken cancellationToken = default)
     {
+        if (_unpackedTextures.TryFind(textureName, out var file))
+            return LoadUnpackedTextureAsync(file, textureName, cancellationToken);
+
         if (!TryFindTexture(textureName, out var indexedRecord))
             throw new FileNotFoundException($"Texture '{textureName}' was not found in: {string.Join(", ", _archives.Select(static archive => Path.GetFileName(archive.Path)))}.");
 
-        return await LoadTextureAsync(indexedRecord, cancellationToken).ConfigureAwait(false);
+        return LoadTextureAsync(indexedRecord, cancellationToken);
     }
 
     public bool TryResolveTextureName(string textureName, out string resolvedName)
     {
+        if (_unpackedTextures.TryFind(textureName, out var file))
+        {
+            resolvedName = TryFindTexture(textureName, out var packed) ? packed.Record.Name : file.Name;
+            return true;
+        }
+
         if (TryFindTexture(textureName, out var indexedRecord))
         {
             resolvedName = indexedRecord.Record.Name;
@@ -105,6 +116,9 @@ public sealed class TexturePakArchive : IDisposable
         if (!_recordsByEntryId.TryGetValue(entryId, out var indexedRecord))
             throw new FileNotFoundException($"Texture entry #{entryId} was not found in: {string.Join(", ", _archives.Select(static archive => Path.GetFileName(archive.Path)))}.");
 
+        if (_unpackedTextures.TryFind(indexedRecord.Record.Name, out var file))
+            return LoadUnpackedTextureAsync(file, indexedRecord.Record.Name, cancellationToken);
+
         return LoadTextureAsync(indexedRecord, cancellationToken);
     }
 
@@ -116,14 +130,40 @@ public sealed class TexturePakArchive : IDisposable
         var record = indexedRecord.Record;
         var payloadOffset = record.Offset + TexturePakDecoder.TextureHeaderSize;
         var payload = new byte[indexedRecord.PayloadSize];
-        await ReadExactlyAtAsync(
-                archive.Stream.SafeFileHandle,
-                payload,
-                payloadOffset,
-                cancellationToken)
-            .ConfigureAwait(false);
+        await archive.StreamLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await ReadExactlyAtAsync(
+                    archive.Stream.SafeFileHandle,
+                    payload,
+                    payloadOffset,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            archive.StreamLock.Release();
+        }
 
         return TexturePakDecoder.Decode(record, payload);
+    }
+
+    private async Task<TextureAsset> LoadUnpackedTextureAsync(
+        UnpackedTextureFile file, string textureName, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var bytes = await File.ReadAllBytesAsync(file.Path, cancellationToken).ConfigureAwait(false);
+            var name = TryFindTexture(textureName, out var packed) ? packed.Record.Name : file.Name;
+            return TgaTextureDecoder.Decode(name, bytes);
+        }
+        catch (IOException error) when (error is FileNotFoundException or DirectoryNotFoundException)
+        {
+            // A deletion can precede the debounced index refresh. Use the archive during that interval.
+            if (TryFindTexture(textureName, out var packed))
+                return await LoadTextureAsync(packed, cancellationToken).ConfigureAwait(false);
+            throw;
+        }
     }
 
     private static async Task ReadExactlyAtAsync(
@@ -308,6 +348,7 @@ public sealed class TexturePakArchive : IDisposable
             return;
 
         _disposed = true;
+        _unpackedTextures.Dispose();
         foreach (var archive in _archives)
             archive.Dispose();
     }
@@ -316,8 +357,13 @@ public sealed class TexturePakArchive : IDisposable
     {
         public string Path { get; } = path;
         public FileStream Stream { get; } = stream;
+        public SemaphoreSlim StreamLock { get; } = new(1, 1);
 
-        public void Dispose() => Stream.Dispose();
+        public void Dispose()
+        {
+            Stream.Dispose();
+            StreamLock.Dispose();
+        }
     }
 
     private readonly record struct IndexedTexturePakRecord(PakStream Archive, TexturePakRecord Record, int PayloadSize);
