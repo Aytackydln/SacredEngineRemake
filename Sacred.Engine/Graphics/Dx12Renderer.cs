@@ -64,7 +64,7 @@ public sealed partial class Dx12Renderer : IDisposable
         bool hdrEnabled = false,
         HdrBrightnessSettings? hdrBrightnessSettings = null,
         int renderResolutionPercentage = 100,
-        RenderScalingMode renderScalingMode = RenderScalingMode.Fsr2,
+        RenderScalingMode renderScalingMode = RenderScalingMode.Fsr2Lanczos2,
         bool autoRenderResolution = true,
         int autoRenderResolutionMinimumPercentage = 75,
         int autoRenderResolutionMaximumPercentage = TileResolutionScaling.MaximumPercentage,
