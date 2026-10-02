@@ -31,6 +31,8 @@ public sealed class SacredCamera
     private float _viewportZoom;
     private Vector2? _movementTarget;
 
+    internal Action<Vector2, Vector2>? ManualMovementSegment { get; set; }
+
     public Vector2 CameraSpeedUnitVector { get; private set; } = Vector2.Zero;
     public Vector2 CharacterFacingUnitVector { get; private set; } = Vector2.Zero;
     public float CurrentMovementSpeed { get; private set; }
@@ -275,6 +277,8 @@ public sealed class SacredCamera
         {
             CollisionCheatMode.NoClip => intendedEnd,
             CollisionCheatMode.Fly => collision.ResolveFlightMovement(start, intendedEnd),
+            _ when _movementTarget is null && ManualMovementSegment is { } onSegment =>
+                collision.ResolveMovement(start, intendedEnd, onSegment),
             _ => collision.ResolveMovement(start, intendedEnd)
         };
         var actualDelta = resolved - start;

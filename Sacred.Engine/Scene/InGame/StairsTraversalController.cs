@@ -1,13 +1,23 @@
-using System;
 using System.Numerics;
 using Sacred.Core.World.Stairs;
 
 namespace Sacred.Engine.Scene.InGame;
 
-/// <summary>Applies linked stairs transitions and keeps the arrival tile disarmed until it is left.</summary>
+/// <summary>Applies linked stairs transitions and keeps arrival stairs disarmed until fully cleared.</summary>
 internal sealed class StairsTraversalController(SacredStairsMap stairsMap)
 {
-    private StairsArrivalTile? _blockedArrivalTile;
+    private StairsArrivalGuard? _arrivalGuard;
+    private WorldStairsLink? _movementLink;
+
+    public void ObserveMovement(Vector2 start, Vector2 end, byte surfaceLevel)
+    {
+        if (_movementLink is not null)
+            return;
+
+        if (StairsMovementShortcut.TryFindLink(stairsMap, start, end, surfaceLevel,
+                position => _arrivalGuard?.BlocksTile(position, surfaceLevel) == true, out var link))
+            _movementLink = link;
+    }
 
     public bool IsStairsAt(Vector2 worldPosition, byte surfaceLevel) =>
         stairsMap.TryGetLink(
@@ -19,42 +29,31 @@ internal sealed class StairsTraversalController(SacredStairsMap stairsMap)
     public bool Update(SacredCamera camera, byte surfaceLevel, out byte destinationSurfaceLevel)
     {
         destinationSurfaceLevel = surfaceLevel;
+        var movementLink = _movementLink;
+        _movementLink = null;
         var actorPosition = camera.WorldCenter;
-        if (_blockedArrivalTile is { } blockedArrivalTile)
-        {
-            if (blockedArrivalTile.Contains(actorPosition, surfaceLevel))
-            {
-                return false;
-            }
+        if (_arrivalGuard is { } arrivalGuard && !arrivalGuard.IsTouching(actorPosition, surfaceLevel))
+            _arrivalGuard = null;
 
-            _blockedArrivalTile = null;
-        }
+        if (movementLink is null && _arrivalGuard?.BlocksTile(actorPosition, surfaceLevel) == true)
+            return false;
 
-        if (!stairsMap.TryGetLink(
+        if (movementLink is null && !stairsMap.TryGetLink(
                 actorPosition.X,
                 actorPosition.Y,
                 surfaceLevel,
-                out var link))
+                out movementLink))
         {
             return false;
         }
 
-        var destination = link.Destination;
-        destinationSurfaceLevel = link.TargetZone.Anchor.Metadata;
-        _blockedArrivalTile = StairsArrivalTile.From(destination, destinationSurfaceLevel);
+        var destination = movementLink.Destination;
+        destinationSurfaceLevel = movementLink.TargetZone.Anchor.Metadata;
+        _arrivalGuard = new StairsArrivalGuard(movementLink);
         camera.StopMoving();
         camera.CenterOnTile(destination.X, destination.Y);
+        EngineLog.WriteLine($"Stairs transition: {actorPosition.X:0.##},{actorPosition.Y:0.##} level {surfaceLevel} -> {destination.X:0.##},{destination.Y:0.##} level {destinationSurfaceLevel}");
         return true;
     }
 
-    private readonly record struct StairsArrivalTile(int X, int Y, byte SurfaceLevel)
-    {
-        public static StairsArrivalTile From(WorldStairsDestination destination, byte surfaceLevel) =>
-            new((int)MathF.Floor(destination.X), (int)MathF.Floor(destination.Y), surfaceLevel);
-
-        public bool Contains(Vector2 worldPosition, byte surfaceLevel) =>
-            SurfaceLevel == surfaceLevel &&
-            X == (int)MathF.Floor(worldPosition.X) &&
-            Y == (int)MathF.Floor(worldPosition.Y);
-    }
 }

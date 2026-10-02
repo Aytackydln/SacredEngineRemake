@@ -35,6 +35,13 @@ public sealed class WorldCollisionResolver(
         return ResolveMovement(start, intendedEnd, IsMovementBlockedFromCache);
     }
 
+    /// <summary>Reports each travelled segment, including sliding along blockers.</summary>
+    public Vector2 ResolveMovement(Vector2 start, Vector2 intendedEnd, Action<Vector2, Vector2> onSegment)
+    {
+        RefreshSectorIndex();
+        return ResolveMovement(start, intendedEnd, IsMovementBlockedFromCache, onSegment);
+    }
+
     /// <summary>
     /// Resolves movement for flying actors. Movement Blocker A and missing streamed tiles
     /// remain solid; other authored ground blockers are passable.
@@ -50,6 +57,13 @@ public sealed class WorldCollisionResolver(
         Vector2 start,
         Vector2 intendedEnd,
         Func<int, int, bool> isBlocked)
+        => ResolveMovement(start, intendedEnd, isBlocked, null);
+
+    private Vector2 ResolveMovement(
+        Vector2 start,
+        Vector2 intendedEnd,
+        Func<int, int, bool> isBlocked,
+        Action<Vector2, Vector2>? onSegment)
     {
 
         var position = start;
@@ -62,11 +76,13 @@ public sealed class WorldCollisionResolver(
 
             if (!TryFindFirstHit(position, remaining, isBlocked, out var hit))
             {
+                onSegment?.Invoke(position, position + remaining);
                 position += remaining;
                 break;
             }
 
             var safeTime = MathF.Max(0.0f, hit.Time - ContactSkin / remainingLength);
+            onSegment?.Invoke(position, position + remaining * safeTime);
             position += remaining * safeTime;
 
             var residual = remaining * (1.0f - safeTime);

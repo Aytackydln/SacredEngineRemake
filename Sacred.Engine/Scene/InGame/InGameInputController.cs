@@ -71,6 +71,8 @@ internal sealed class InGameInputController
         _viewportHeight = viewportHeight;
         _outputToViewport = outputToViewport;
         _setHandCursor = setHandCursor;
+        _camera.ManualMovementSegment = (start, end) =>
+            _stairs.ObserveMovement(start, end, _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0);
     }
 
     public void Update(float deltaSeconds)

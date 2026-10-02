@@ -195,9 +195,9 @@ public sealed class ClickToMoveController
         var pathFinder = new WorldClickPathFinder(collision);
         if (!pathFinder.TryFindRoute(camera.WorldCenter, target, camera.Zoom, out var route))
         {
-            StopMoving();
-            camera.StopMoving();
-            camera.RotateToward(direction);
+            _route.Clear();
+            _routeTarget = target;
+            camera.MoveTo(target);
             return;
         }
 
