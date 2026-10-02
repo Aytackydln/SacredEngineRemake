@@ -60,7 +60,31 @@ internal sealed class WorldParticleEmitter
     }
 
     public bool CanEmit => _parameterSets.Length > 0;
-    public ParticleSimulationMode SimulationMode { get; set; } = ParticleSimulationMode.CpuSimd;
+    private ParticleSimulationMode _simulationMode = ParticleSimulationMode.CpuSimd;
+    public ParticleSimulationMode SimulationMode
+    {
+        get => _simulationMode;
+        set
+        {
+            if (value != ParticleSimulationMode.Gpu)
+                foreach (var batch in _batches) batch.RestoreCpu();
+            _simulationMode = value;
+        }
+    }
+    public IParticleGpuBackend? GpuBackend
+    {
+        set { foreach (var batch in _batches) batch.GpuBackend = value; }
+    }
+    public void CollectGpuBatches(List<WorldGpuParticleBatch> output)
+    {
+        var origin = _origin ?? new Vector2(_placement.WorldX, _placement.WorldY);
+        var depthAnchor = _origin ?? (_placement.Creation.TilePosition is { } tile
+            ? new Vector2(tile.X, tile.Y) : origin);
+        foreach (var batch in _batches)
+            if (batch.Gpu is { } gpu)
+                output.Add(new(gpu, _placement.Definition, _sprite, _projection, origin, depthAnchor,
+                    _heightOffset ?? _placement.Creation.HeightOffset ?? 0));
+    }
     public int ParticleCount => _particleCount;
 
     public void SetOrigin(Vector2 origin, float heightOffset)
@@ -113,43 +137,46 @@ internal sealed class WorldParticleEmitter
         if (emitting && _placement.Definition.Halo is { } halo) AddHalo(halo, output);
 
         foreach (var batch in _batches)
-        for (var index = 0; index < batch.Count; index++)
         {
-            var particle = batch[index];
-            var parameters = batch.Parameters;
-            if (particle.Fade <= 0 || particle.Size <= 0) continue;
-            var local = particle.Position;
-            var ground = IsometricProjection.IsoToWorld(_projection.Project(new Vector3(local.X, local.Y, 0)));
-            var color = WorldParticleAppearance.Color(_placement.Definition.Draw!, parameters, particle.Fade);
-            var height = ((_heightOffset ?? _placement.Creation.HeightOffset ?? 0) + local.Z) *
-                         _projection.HeightFactor * _projection.VerticalScale;
-            var depthAnchor = _origin ?? (_placement.Creation.TilePosition is { } tile
-                ? new Vector2(tile.X, tile.Y)
-                : new Vector2(_placement.WorldX, _placement.WorldY));
-            var origin = _origin ?? new Vector2(_placement.WorldX, _placement.WorldY);
-            output.Add(new WorldParticle(
-                _placement.ScriptOffset,
-                _sprite,
-                origin.X + ground.X,
-                origin.Y + ground.Y,
-                height,
-                2 * particle.Size * _projection.HorizontalScale,
-                (color >> 24) / InitialFade,
-                particle.DrawOrder)
+            if (batch.Gpu is not null) continue;
+            for (var index = 0; index < batch.Count; index++)
             {
-                Color = color,
-                // Native pitch has cot(pitch)=2. Screen-space height therefore
-                // contributes half as much camera depth as ground displacement.
-                PainterDepthKey = WorldPainterDepth.FromWorld(depthAnchor + ground) +
-                                  height / IsometricProjection.StepWidth,
-                AtlasCell = _placement.Definition.Draw!.UsesRandomAtlasCell ? particle.AtlasCell :
-                    Math.Clamp((int)((InitialFade - particle.Fade) * _sprite.FrameCount / 256), 0, _sprite.FrameCount - 1),
-                Rotation = particle.Rotation,
-                Additive = _placement.Definition.EmissionMode == 2 ? parameters.Index == 0 :
-                    (_placement.Definition.Draw.RawFlags & 1) != 0,
-                SourceColorOnly = (_placement.Definition.Draw.RawFlags & 0x10) != 0,
-                RenderHeight = 2 * particle.Size * _projection.VerticalScale
-            });
+                var particle = batch[index];
+                var parameters = batch.Parameters;
+                if (particle.Fade <= 0 || particle.Size <= 0) continue;
+                var local = particle.Position;
+                var ground = IsometricProjection.IsoToWorld(_projection.Project(new Vector3(local.X, local.Y, 0)));
+                var color = WorldParticleAppearance.Color(_placement.Definition.Draw!, parameters, particle.Fade);
+                var height = ((_heightOffset ?? _placement.Creation.HeightOffset ?? 0) + local.Z) *
+                             _projection.HeightFactor * _projection.VerticalScale;
+                var depthAnchor = _origin ?? (_placement.Creation.TilePosition is { } tile
+                    ? new Vector2(tile.X, tile.Y)
+                    : new Vector2(_placement.WorldX, _placement.WorldY));
+                var origin = _origin ?? new Vector2(_placement.WorldX, _placement.WorldY);
+                output.Add(new WorldParticle(
+                    _placement.ScriptOffset,
+                    _sprite,
+                    origin.X + ground.X,
+                    origin.Y + ground.Y,
+                    height,
+                    2 * particle.Size * _projection.HorizontalScale,
+                    (color >> 24) / InitialFade,
+                    particle.DrawOrder)
+                {
+                    Color = color,
+                    // Native pitch has cot(pitch)=2. Screen-space height therefore
+                    // contributes half as much camera depth as ground displacement.
+                    PainterDepthKey = WorldPainterDepth.FromWorld(depthAnchor + ground) +
+                                      height / IsometricProjection.StepWidth,
+                    AtlasCell = _placement.Definition.Draw!.UsesRandomAtlasCell ? particle.AtlasCell :
+                        Math.Clamp((int)((InitialFade - particle.Fade) * _sprite.FrameCount / 256), 0, _sprite.FrameCount - 1),
+                    Rotation = particle.Rotation,
+                    Additive = _placement.Definition.EmissionMode == 2 ? parameters.Index == 0 :
+                        (_placement.Definition.Draw.RawFlags & 1) != 0,
+                    SourceColorOnly = (_placement.Definition.Draw.RawFlags & 0x10) != 0,
+                    RenderHeight = 2 * particle.Size * _projection.VerticalScale
+                });
+            }
         }
     }
 

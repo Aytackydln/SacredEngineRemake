@@ -9,6 +9,7 @@ using Sacred.Engine.Graphics.Frames;
 using Sacred.Engine.Rendering;
 using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
+using Sacred.Granny.Diagnostics;
 using Sacred.Shaders;
 using Sacred.World.Geometry;
 using Vortice.Direct3D12;
@@ -338,6 +339,7 @@ internal sealed class Dx12SpriteInstanceBuilder
                     highlightedStaticIsUnlit = sprite.IsUnlit;
                 }
                 submissions.Add(new StaticSpriteSubmission(instanceCount, sprite));
+                if (sprite.IsParticleSprite) AnimationPerformance.RecordParticleUpload(SpriteInstanceStride);
                 instances[instanceCount++] = new StaticSpriteInstance(
                     drawPosition.X,
                     drawPosition.Y,

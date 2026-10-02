@@ -23,9 +23,13 @@ public sealed class WorldParticleSystem
     private IndoorTileGroup? _activeIndoorGroup;
     private int _lastLoggedEmitterCount = -1;
 
+    private readonly List<WorldGpuParticleBatch> _gpuBatches = [];
+    public IReadOnlyList<WorldGpuParticleBatch> GpuBatches => _gpuBatches;
+    public IParticleGpuBackend? GpuBackend { get; set; }
     public bool Enabled { get; set; } = true;
     public SacredParticleQuality Quality => _catalogue.Quality;
-    public ParticleSimulationMode SimulationMode { get; private set; } = ParticleSimulationMode.CpuSimd;
+    public ParticleSimulationMode SimulationMode { get; private set; } = ParticleSimulationMode.Auto;
+    public ParticleSimulationMode SelectedSimulationMode { get; private set; } = ParticleSimulationMode.CpuSimd;
     public IReadOnlyList<WorldParticle> Particles => _particles;
     public int ActiveEmitterCount => _emitters.Count;
     public ulong Revision { get; private set; }
@@ -57,6 +61,7 @@ public sealed class WorldParticleSystem
         _visibleWorld = null;
         _emitters.Clear();
         _particles.Clear();
+        _gpuBatches.Clear();
         Effects.Clear();
         Revision++;
         Console.WriteLine($"World particle quality set to {_catalogue.Quality}.");
@@ -66,14 +71,34 @@ public sealed class WorldParticleSystem
     {
         if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode));
         SimulationMode = mode;
-        foreach (var emitter in _emitters.Values) emitter.SimulationMode = mode;
-        Console.WriteLine($"World particle simulation set to {mode}; SIMD accelerated: {Vector.IsHardwareAccelerated}.");
+        SelectSimulationBackend(forceLog: true);
+    }
+
+    private void SelectSimulationBackend(bool forceLog = false)
+    {
+        var gpuRequested = SimulationMode is ParticleSimulationMode.Auto or ParticleSimulationMode.Gpu;
+        var selected = gpuRequested
+            ? GpuBackend is { IsAvailable: true } ? ParticleSimulationMode.Gpu : ParticleSimulationMode.CpuSimd
+            : SimulationMode;
+        var changed = selected != SelectedSimulationMode;
+        if (changed)
+        {
+            Effects.SetSimulationMode(selected);
+            foreach (var emitter in _emitters.Values) emitter.SimulationMode = selected;
+            SelectedSimulationMode = selected;
+        }
+        if (changed || forceLog)
+            Console.WriteLine($"World particle backend: requested {SimulationMode}; selected {selected}; " +
+                $"{(selected == ParticleSimulationMode.CpuSimd && gpuRequested ? "GPU renderer/pipelines unavailable; " : string.Empty)}SIMD accelerated: {Vector.IsHardwareAccelerated}.");
     }
 
     public void Update(float deltaSeconds, VisibleWorld visibleWorld, IndoorTileGroup? activeIndoorGroup = null,
         Vector2 selfPosition = default, float selfHeight = 0)
     {
         ArgumentNullException.ThrowIfNull(visibleWorld);
+        SelectSimulationBackend();
+        _gpuBatches.Clear();
+        Effects.GpuBackend = GpuBackend;
         if (!Enabled)
         {
             _visibleWorld = null;
@@ -99,9 +124,14 @@ public sealed class WorldParticleSystem
         var hadParticles = _particles.Count > 0;
         _particles.Clear();
         foreach (var emitter in _emitters.Values)
+        {
+            emitter.GpuBackend = GpuBackend;
             emitter.Update(step, _particles);
-        Effects.Update(step, selfPosition, selfHeight, SimulationMode, _particles);
-        if (hadParticles || _emitters.Count > 0 || _particles.Count > 0)
+            emitter.CollectGpuBatches(_gpuBatches);
+        }
+        Effects.Update(step, selfPosition, selfHeight, SelectedSimulationMode, _particles);
+        Effects.CollectGpuBatches(_gpuBatches);
+        if (hadParticles || _emitters.Count > 0 || _particles.Count > 0 || _gpuBatches.Count > 0)
             Revision++;
     }
 
@@ -125,7 +155,7 @@ public sealed class WorldParticleSystem
                 continue;
 
             var emitter = new WorldParticleEmitter(placement, _worldUnitsPerTile, _catalogue.Projection);
-            emitter.SimulationMode = SimulationMode;
+            emitter.SimulationMode = SelectedSimulationMode;
             if (emitter.CanEmit)
                 _emitters.Add(placement.ScriptOffset, emitter);
         }

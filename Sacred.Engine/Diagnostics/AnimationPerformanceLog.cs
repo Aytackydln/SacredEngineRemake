@@ -34,7 +34,7 @@ internal sealed class AnimationPerformanceLog
         var cpu = AnimationPerformance.CaptureAndReset();
         var cpuStages = string.Join(", ", Enum.GetValues<AnimationCpuStage>().Select(stage =>
             $"{stage} {cpu.Milliseconds[(int)stage] / _frames:0.000} ms/frame ({cpu.Calls[(int)stage]} calls)"));
-        EngineLog.WriteLine($"Animation CPU: {cpuStages}; vertex uploads {cpu.UploadedVertexBytes / (double)_frames:0} bytes/frame; palette uploads {cpu.UploadedPaletteBytes / (double)_frames:0} bytes/frame; {_frames} frames.");
+        EngineLog.WriteLine($"Animation CPU: {cpuStages}; vertex uploads {cpu.UploadedVertexBytes / (double)_frames:0} bytes/frame; palette uploads {cpu.UploadedPaletteBytes / (double)_frames:0} bytes/frame; particle uploads {cpu.UploadedParticleBytes / (double)_frames:0} bytes/frame; {_frames} frames.");
         if (ReadGpuTimings?.Invoke() is { } gpu)
         {
             var stages = string.Join(", ", Enum.GetValues<AnimationGpuStage>().Select(stage =>

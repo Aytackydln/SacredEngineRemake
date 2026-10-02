@@ -16,7 +16,7 @@ internal sealed class DebugUiControlState
     public WorldLightingMode WorldLightingMode { get; set; }
     public bool BorderlessFullscreen { get; set; }
     public SacredParticleQuality ParticleQuality { get; set; }
-    public ParticleSimulationMode ParticleSimulation { get; set; }
+    public ParticleSimulationMode ParticleSimulation { get; set; } = ParticleSimulationMode.Auto;
     public SkinningMode SkinningMode { get; set; }
     public SkinningMode? RequestedSkinningMode { get; set; }
     public CollisionCheatMode CollisionMode { get; set; }

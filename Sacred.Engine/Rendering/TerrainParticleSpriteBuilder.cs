@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Sacred.Engine.Assets;
+using Sacred.Granny.Diagnostics;
 using Sacred.World.Geometry;
 using Sacred.World.Particles;
 
@@ -18,6 +19,7 @@ internal sealed class TerrainParticleSpriteBuilder(AssetManager assets)
 
     public void Prepare(IReadOnlyList<WorldParticle> particles)
     {
+        using var scope = AnimationPerformance.Measure(AnimationCpuStage.ParticlePreparation);
         _sprites.Clear();
         var requestsPending = false;
 

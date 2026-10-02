@@ -8,6 +8,7 @@ using Sacred.Engine.Graphics.ImGui;
 using Sacred.Engine.Graphics.Lighting;
 using Sacred.Engine.Graphics.Minimap;
 using Sacred.Engine.Graphics.Models;
+using Sacred.Engine.Graphics.Particles;
 using Sacred.Engine.Graphics.Skinning;
 using Sacred.Engine.Graphics.Sprites;
 using Sacred.Engine.Graphics.Terrain;
@@ -16,6 +17,7 @@ using Sacred.Engine.Platform;
 using Sacred.Engine.Rendering;
 using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
+using Sacred.Particles;
 using Sacred.Shaders;
 using Sacred.World;
 using Sacred.World.Particles;
@@ -41,6 +43,9 @@ internal sealed class Dx12WorldPass : IDisposable
     public SkinningMode SkinningMode { get => _skinning.Mode; set => _skinning.Mode = value; }
     private readonly Dx12ModelPass _models;
     private readonly Dx12SpritePass _sprites;
+    private readonly Dx12GpuParticlePass _gpuParticles;
+    public IParticleGpuBackend ParticleGpuBackend => _gpuParticles;
+    public string ParticleGpuStatus => _gpuParticles.Status;
     private readonly Dx12SurfaceLightMapPass _surfaceLights;
     private readonly Dx12ShadowMap _shadowMap;
     private readonly Dx12PlayerOcclusionMapPass _playerOcclusionMap;
@@ -108,6 +113,7 @@ internal sealed class Dx12WorldPass : IDisposable
             _surfaceLights.ShaderResourceHandle,
             _playerOcclusionMap.ShaderResourceHandle,
             Dx12DeviceContext.FrameCount);
+        _gpuParticles = new(graphics.Device,textureUploader,assets,_sprites,() => graphics.WaitForGpu(ReleaseRetiredResources));
         _lightHalos = new Dx12LightHaloPass(
             graphics.Device,
             graphics.CommandList,
@@ -180,6 +186,7 @@ internal sealed class Dx12WorldPass : IDisposable
             _debugOverlay,
             _imgui,
             _minimap);
+        _commandRecorder.GpuParticles = _gpuParticles;
         _worldUi = new Dx12WorldUiPass(graphics, _commandRecorder, _minimap, _debugOverlay, _imgui, _debugPanel);
     }
 
@@ -228,10 +235,11 @@ internal sealed class Dx12WorldPass : IDisposable
         ulong particleRevision = 0)
     {
         camera.SetViewportSize(_graphics.RenderWidth, _graphics.RenderHeight);
+        scene.CpuParticleInputs = particles ?? Array.Empty<WorldParticle>();
         var prepared = new Dx12PreparedWorldFrame(
             _terrain.PrepareVisibleWorld(world, scene.Indoor.ActiveGroup),
             _terrain.PrepareVisibleLiquidSprites(),
-            _terrain.PrepareVisibleStaticSprites(particles, particleRevision),
+            _terrain.PrepareVisibleStaticSprites(scene.GpuParticlesEnabled ? Array.Empty<WorldParticle>() : particles, particleRevision),
             _terrain.VisibleWorldLights);
         _terrain.PreparePreloadedWorld(world);
         _sectorTextures.PrepareFrame(
@@ -279,6 +287,8 @@ internal sealed class Dx12WorldPass : IDisposable
             _graphics.CurrentFrame,
             _terrain.WorldSpriteRevision);
         _lightHalos.PrepareTexture(prepared.WorldLights, _graphics.CurrentFrame);
+        _gpuParticles.Prepare(_graphics.CommandList,scene.GpuParticleBatches,scene.CpuParticleInputs,scene.GpuParticlesEnabled,
+            camera,_graphics.CurrentFrame,_graphics.RenderWidth,_graphics.RenderHeight,_graphics.GpuAnimationTimings);
         if (scene.Minimap.IsVisible)
             _minimap.Prepare(
                 camera.WorldCenter,
@@ -369,6 +379,7 @@ internal sealed class Dx12WorldPass : IDisposable
             _skinningFailure = $"skeletal pipeline creation failed: {error.Message}";
             EngineLog.WriteLine($"Skinning fallback: {_skinningFailure}");
         }
+        _gpuParticles.CreatePipelines(hdrOutput,_graphics.BackBufferFormat,Dx12DeviceContext.DepthBufferFormat);
         _imgui.SetPipeline(imgui);
     }
 
@@ -377,6 +388,7 @@ internal sealed class Dx12WorldPass : IDisposable
         _terrainDebug.DisposePipeline();
         _models.DisposePipeline();
         _skinDraw.DisposePipelines();
+        _gpuParticles.DisposePipelines();
         _sprites.DisposePipeline();
         _lightHalos.DisposePipeline();
         _surfaceLights.DisposePipeline();
@@ -417,6 +429,7 @@ internal sealed class Dx12WorldPass : IDisposable
         _modelGeometry.Dispose();
         _skinPreparation.Dispose();
         _skinDraw.Dispose();
+        _gpuParticles.Dispose();
         _modelTextures.Dispose();
         _sprites.Dispose();
         _surfaceLights.Dispose();

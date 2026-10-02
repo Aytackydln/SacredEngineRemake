@@ -59,7 +59,7 @@ internal static class ImGuiSettingsPanel
             value => controls.RequestedSkinningMode = value, mode => mode.ToString());
         EnumCombo("Particle simulation", controls.ParticleSimulation,
             value => controls.RequestedParticleSimulation = value,
-            mode => mode == ParticleSimulationMode.CpuSimd ? "CPU (SIMD)" : "CPU (scalar)");
+            mode => mode switch { ParticleSimulationMode.Auto => "Auto (prefer GPU)", ParticleSimulationMode.CpuSimd => "CPU (SIMD)", ParticleSimulationMode.Gpu => "GPU", _ => "CPU (scalar)" });
         Checkbox("Auto resolution (1:1 tiles)", controls.AutoRenderResolution,
             value =>
             {

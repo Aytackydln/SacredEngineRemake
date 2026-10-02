@@ -7,12 +7,17 @@ using Sacred.Core.World.Pathing;
 using Sacred.Core.World.Sector;
 using Sacred.Granny.Animation;
 using Sacred.Granny.Meshes;
+using Sacred.World.Particles;
 
 namespace Sacred.Engine.Scene;
 
 public sealed class SceneState
 {
     private readonly List<SceneModel> _models = new(capacity: 32);
+
+    public bool GpuParticlesEnabled { get; set; }
+    public IReadOnlyList<WorldGpuParticleBatch> GpuParticleBatches { get; set; } = Array.Empty<WorldGpuParticleBatch>();
+    public IReadOnlyList<WorldParticle> CpuParticleInputs { get; set; } = Array.Empty<WorldParticle>();
 
     public IReadOnlyList<SceneModel> Models => _models;
     public SceneLighting Lighting { get; } = new();

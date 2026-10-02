@@ -8,9 +8,11 @@ public static class DxilShaderCompiler
 {
     public static ReadOnlyMemory<byte> Compile(Dx12ShaderSource shader)
     {
+        var arguments = new List<string> { shader.Name, "-E", shader.EntryPoint, "-T", shader.Target, "-HV", "2018", "-O3" };
+        if (shader.StrictFloat) arguments.Add("-Gis");
         using var result = DxcCompiler.Compile(
             Encoding.UTF8.GetString(shader.ReadAllBytes()),
-            [shader.Name, "-E", shader.EntryPoint, "-T", shader.Target, "-HV", "2018", "-O3"]);
+            arguments.ToArray());
         if (result.GetStatus().Failure)
             throw new InvalidOperationException(
                 $"Failed to compile {shader.Name}/{shader.EntryPoint} ({shader.Target}): {result.GetErrors()}");

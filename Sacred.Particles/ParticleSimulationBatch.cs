@@ -11,7 +11,20 @@ public sealed class ParticleSimulationBatch
     private bool _hasDeadBirths;
 
     public SacredParticleParameterSet Parameters { get; }
-    public int Count { get; private set; }
+    private int _count;
+    private ParticleGroundCollision? _gpuCollision;
+    private IParticleGpuBackend? _gpuBackend;
+    public int Count => Gpu?.Count ?? _count;
+    public ParticleGpuBatch? Gpu { get; private set; }
+    public IParticleGpuBackend? GpuBackend
+    {
+        get => _gpuBackend;
+        set
+        {
+            if (!ReferenceEquals(value, _gpuBackend)) RestoreCpu();
+            _gpuBackend = value;
+        }
+    }
     public int Capacity => X.Length;
 
     public ParticleSimulationBatch(SacredParticleParameterSet parameters, int capacity)
@@ -32,6 +45,7 @@ public sealed class ParticleSimulationBatch
         {
             ArgumentOutOfRangeException.ThrowIfNegative(index);
             ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, Count);
+            if (Gpu is not null) throw new InvalidOperationException("GPU particle state requires an explicit CPU snapshot.");
             return new ParticleSimulationState
             {
                 Position = new(X[index], Y[index], Z[index]),
@@ -45,8 +59,9 @@ public sealed class ParticleSimulationBatch
 
     public void Add(ParticleSimulationState particle)
     {
+        if (Gpu is not null) { Gpu.Add(particle); return; }
         if (Count == Capacity) throw new InvalidOperationException("Particle batch capacity exceeded.");
-        var index = Count++;
+        var index = _count++;
         X[index] = particle.Position.X; Y[index] = particle.Position.Y; Z[index] = particle.Position.Z;
         Vx[index] = particle.Velocity.X; Vy[index] = particle.Velocity.Y; Vz[index] = particle.Velocity.Z;
         Gravity[index] = particle.Gravity; Size[index] = particle.Size; Fade[index] = particle.Fade;
@@ -63,10 +78,40 @@ public sealed class ParticleSimulationBatch
             throw new ArgumentOutOfRangeException(nameof(deltaSeconds));
         if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode));
         if (!Enum.IsDefined(collision)) throw new ArgumentOutOfRangeException(nameof(collision));
+        if (mode == ParticleSimulationMode.Auto)
+            mode = GpuBackend is { IsAvailable: true } ? ParticleSimulationMode.Gpu : ParticleSimulationMode.CpuSimd;
+        if (mode == ParticleSimulationMode.Gpu && GpuBackend is { IsAvailable: true })
+        {
+            // Native emitters keep this fixed. Explicit tool changes need fresh vertical lifetime state.
+            if (Gpu is not null && _gpuCollision != collision) RestoreCpu();
+            if (Gpu is null)
+            {
+                var initial = new ParticleSimulationState[_count];
+                for (var i = 0; i < initial.Length; i++) initial[i] = this[i];
+                Gpu = new(Parameters, Capacity);
+                _gpuCollision = collision;
+                foreach (var particle in initial) Gpu.Add(particle);
+                _count = 0;
+            }
+            Gpu.Update(deltaSeconds, gravityDirection, collision, groundHeight);
+            return;
+        }
+        RestoreCpu();
+        if (mode == ParticleSimulationMode.Gpu) mode = ParticleSimulationMode.CpuSimd;
         // Native movement skips particles already dead at the start of a frame.
         if (_hasDeadBirths) Compact();
         ParticleCpuSimulation.Update(this, deltaSeconds, gravityDirection, mode, collision, groundHeight);
         Compact();
+    }
+
+    public void RestoreCpu()
+    {
+        if (Gpu is null) return;
+        var snapshot = (GpuBackend ?? throw new InvalidOperationException("GPU particle snapshot backend unavailable.")).Snapshot(Gpu);
+        Gpu = null;
+        _gpuCollision = null;
+        _count = 0;
+        foreach (var particle in snapshot) Add(particle);
     }
 
     // Stable, linear compaction preserves birth ordering and avoids repeated List.RemoveAt shifts.
@@ -86,7 +131,7 @@ public sealed class ParticleSimulationBatch
             }
             write++;
         }
-        Count = write;
+        _count = write;
         _hasDeadBirths = false;
     }
 }

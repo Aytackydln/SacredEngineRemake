@@ -23,6 +23,7 @@ public sealed class Dx12ShaderSource
     public string EntryPoint { get; }
 
     public string Target { get; }
+    public bool StrictFloat { get; init; }
 
     public byte[] ReadAllBytes()
     {

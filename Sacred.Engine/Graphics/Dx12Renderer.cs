@@ -16,6 +16,7 @@ using Sacred.Engine.Platform;
 using Sacred.Engine.Rendering;
 using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
+using Sacred.Particles;
 using Sacred.Shaders;
 using Sacred.World;
 using Sacred.World.Particles;
@@ -126,6 +127,8 @@ public sealed partial class Dx12Renderer : IDisposable
     internal DebugUiControlState DebugUiControls => _debugUiControls;
     public bool WorldInitialized => _worldPass is not null;
     public void SetSkinPreparation(bool enabled) => GetWorldPass().SkinPreparationEnabled = enabled;
+    public IParticleGpuBackend ParticleGpuBackend => GetWorldPass().ParticleGpuBackend;
+    public string ParticleGpuStatus => _worldPass?.ParticleGpuStatus ?? "world not initialized";
     public string SkinningStatus => _worldPass?.SkinningStatus ?? "world not initialized";
     public SkinningMode SkinningMode => _worldPass?.SkinningMode ?? SkinningMode.Auto;
     public void SetSkinningMode(SkinningMode mode) => GetWorldPass().SkinningMode = mode;

@@ -1,8 +1,10 @@
 namespace Sacred.Particles;
 
-/// <summary>CPU simulation choices; SIMD falls back to scalar on unsupported hardware.</summary>
+/// <summary>Auto prefers a ready GPU renderer; CPU SIMD retains its scalar fallback.</summary>
 public enum ParticleSimulationMode
 {
     CpuSimd,
-    CpuScalar
+    CpuScalar,
+    Gpu,
+    Auto
 }

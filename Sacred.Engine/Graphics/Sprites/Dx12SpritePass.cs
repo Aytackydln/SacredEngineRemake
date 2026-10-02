@@ -77,6 +77,8 @@ internal sealed class Dx12SpritePass : IDisposable
         _instances = new Dx12SpriteInstanceBuilder(device, _textureCache, frameCount);
     }
 
+    public bool TryGetParticleTexture(StaticSpriteAsset sprite,out uint slot) => _textureCache.TryGetParticleSlot(sprite,out slot);
+
     public int CandidateLiquidSpriteCount => _instances.CandidateLiquidSpriteCount;
     public int VisibleLiquidSpriteCount => _instances.VisibleLiquidSpriteCount;
     public int CandidateStaticSpriteCount => _instances.CandidateStaticSpriteCount;

@@ -103,6 +103,25 @@ internal sealed class PlayerParticleEffectsController(WorldParticleSystem partic
         message = string.Empty;
         switch (option.ToLowerInvariant())
         {
+            case "particle-crowd":
+                if (!int.TryParse(value, out var count) || count is < 0 or > 64)
+                {
+                    message = "Use set particle-crowd <0..64>.";
+                    return true;
+                }
+                particles.Effects.Clear();
+                var stress = particles.Catalogue.Definitions.Where(d =>
+                    d.Status == SacredParticleDefinitionStatus.Decoded && d.Draw is not null &&
+                    !d.OneTime && d.ModelBurstCount == 0 &&
+                    d.ParameterSets.Any(p => p.Emission.EmissionInterval > 0))
+                    .OrderByDescending(d => d.Capacity).FirstOrDefault();
+                if (stress is null) { message = "No decoded continuous particle effect available."; return true; }
+                for (var i = 0; i < count; i++)
+                    particles.Effects.Start(particles.Catalogue, stress.TypeId, false, true,
+                        position + new Vector2((i % 8 - 3.5f) * .6f, (i / 8 - 3.5f) * .6f),
+                        0, emissionSeconds: 600, selfHeight: SelfHeight);
+                message = $"particle crowd {count}: {stress.TypeName}, decoded capacity {stress.Capacity}";
+                return true;
             case "particle-follow":
                 if (value is "on" or "off")
                 {

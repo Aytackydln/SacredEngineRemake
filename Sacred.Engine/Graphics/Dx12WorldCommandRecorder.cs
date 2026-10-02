@@ -6,6 +6,7 @@ using Sacred.Engine.Graphics.ImGui;
 using Sacred.Engine.Graphics.Lighting;
 using Sacred.Engine.Graphics.Minimap;
 using Sacred.Engine.Graphics.Models;
+using Sacred.Engine.Graphics.Particles;
 using Sacred.Engine.Graphics.Sprites;
 using Sacred.Engine.Graphics.Swapchain;
 using Sacred.Engine.Graphics.Terrain;
@@ -24,6 +25,7 @@ namespace Sacred.Engine.Graphics;
 /// <summary>Records the ordered world-rendering passes into one Direct3D 12 command list.</summary>
 internal sealed class Dx12WorldCommandRecorder
 {
+    public Dx12GpuParticlePass? GpuParticles { get; set; }
     private const float MinimumHighlightNits = 1000.0f;
     private readonly ID3D12GraphicsCommandList _commandList;
     private readonly GpuDescriptorHandle _srvHeapStart;
@@ -266,6 +268,8 @@ internal sealed class Dx12WorldCommandRecorder
 
         // Light halos are screen-space overlays in Sacred and must remain above depth-tested art.
         _commandList.OMSetRenderTargets(renderTarget, null);
+        GpuParticles?.Draw(_commandList,displayProfile,renderWidth,renderHeight,_models.GpuTimings!);
+
         _lightHalos.Record(
             lightHaloInstanceCount,
             scene.Lighting.NightBlend,

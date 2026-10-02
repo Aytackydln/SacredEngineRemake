@@ -317,7 +317,7 @@ internal sealed class SacredGameRuntime : IDisposable
                 ? state.ParticleQuality
                 : SacredParticleQuality.High,
             ParticleSimulation = Enum.IsDefined(state.ParticleSimulation)
-                ? state.ParticleSimulation : ParticleSimulationMode.CpuSimd,
+                ? state.ParticleSimulation : ParticleSimulationMode.Auto,
             HdrBrightness = (state.HdrBrightness ?? HdrBrightnessSettings.Default).Normalized(),
             FramePacingMode = Enum.IsDefined(state.FramePacingMode)
                 ? state.FramePacingMode
@@ -458,8 +458,8 @@ internal sealed class SacredGameRuntime : IDisposable
                 EngineLog.WriteLine("Timing cheats: set frame-log <on|off> reports frame pacing; set animation-log <on|off> reports CPU animation stages, upload bytes and completed GPU model/shadow timestamps every two seconds.");
                 EngineLog.WriteLine("GPU preparation cheat: set skin-preparation <on|off> prepares resources independently of model skinning selection.");
                 EngineLog.WriteLine("Model skinning: set skinning <auto|cpu|gpu> (default Auto); set gpu-skinning <on|off> aliases Gpu/Cpu. GPU requests fall back to CPU while unavailable. set skin-crowd <0..128> adds independent asset-driven poses; set skin-stats show reports resource bytes; set shader-reload now; set quit now.");
-                EngineLog.WriteLine("Particle cheats: set player-panel <on|off>; set particle-panel <on|off|play|toggles>; set particle-list <all|filter>; set particle-target <self|x,y>; set particle-follow <on|off>; set particle-play <FX name>; set particle-enable <FX name>; set particle-disable <FX name>; set particle-model <on|off>; set particle-stop all.");
-                EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set particles <on|off>; set particle-simulation <CpuSimd|CpuScalar>; set item-flags <hex>; set character next; set facing <degrees>; set door toggle; set hdr <on|off>; set pacing <vrr|vsync|limit|manual>; set fps <30-1000>; set latency <off|on|boost>; set resolution <percentage|auto>; set autoscale <on|off>; set scaling <none|bilinear|fsr1|fsr2|fsr1motionadaptive>; set granny <managed|native>.");
+                EngineLog.WriteLine("Particle cheats: set player-panel <on|off>; set particle-panel <on|off|play|toggles>; set particle-list <all|filter>; set particle-target <self|x,y>; set particle-follow <on|off>; set particle-play <FX name>; set particle-enable <FX name>; set particle-disable <FX name>; set particle-model <on|off>; set particle-stop all; set particle-crowd <0..64> creates asset-driven stress previews.");
+                EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set particles <on|off>; set particle-simulation <Auto|CpuSimd|CpuScalar|Gpu>; set particle-stats show; set item-flags <hex>; set character next; set facing <degrees>; set door toggle; set hdr <on|off>; set pacing <vrr|vsync|limit|manual>; set fps <30-1000>; set latency <off|on|boost>; set resolution <percentage|auto>; set autoscale <on|off>; set scaling <none|bilinear|fsr1|fsr2|fsr1motionadaptive>; set granny <managed|native>.");
                 return;
             case TeleportCheatCommand teleport:
                 if (_inGameScene is null)
@@ -610,6 +610,9 @@ internal sealed class SacredGameRuntime : IDisposable
             case "quit":
                 _window.RequestQuit();
                 message = "shutdown requested";
+                return true;
+            case "particle-stats":
+                message = _renderer.ParticleGpuStatus;
                 return true;
             case "skin-stats":
                 message = _renderer.SkinningStatus;

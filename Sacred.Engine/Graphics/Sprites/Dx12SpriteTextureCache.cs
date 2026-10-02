@@ -116,6 +116,14 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
         _scanReady = true;
     }
 
+    public bool TryGetParticleSlot(StaticSpriteAsset source,out uint slot)
+    {
+        RequestStatic(source);
+        var found=TryGetStaticSlot(source,out slot);
+        if(found) slot+=(uint)_firstSrvSlot;
+        return found;
+    }
+
     private bool RequestStatic(StaticSpriteAsset source)
     {
         if (_staticTextures.ContainsKey(source) || _failedStaticUploads.Contains(source)) return true;

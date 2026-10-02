@@ -10,6 +10,7 @@ using Sacred.Engine.Assets;
 using Sacred.Engine.Graphics;
 using Sacred.Engine.Graphics.ImGui;
 using Sacred.Engine.Platform;
+using Sacred.Granny.Diagnostics;
 using Sacred.Particles;
 using Sacred.World;
 using Sacred.World.Particles;
@@ -50,6 +51,7 @@ internal sealed class InGameScene : IGameScene
         _saveState = saveState;
         _worldStreamer = new WorldStreamer(resources.WorldArchive);
         _particles = new WorldParticleSystem(resources.WorldArchive.ParticleScript, saveState.ParticleQuality);
+        _particles.GpuBackend = renderer.ParticleGpuBackend;
         _particles.SetSimulationMode(saveState.ParticleSimulation);
         _playerParticles = new PlayerParticleEffectsController(_particles, _scene, new WorldElevationSampler(_worldStreamer));
         _camera = SacredCamera.CreateDefault(window.ClientWidth, window.ClientHeight);
@@ -201,7 +203,7 @@ internal sealed class InGameScene : IGameScene
                 return true;
             case "particle-simulation" when Enum.TryParse<ParticleSimulationMode>(value, true, out var simulation) && Enum.IsDefined(simulation):
                 _particles.SetSimulationMode(simulation);
-                message = $"particle simulation set to {simulation}";
+                message = $"particle simulation requested {_particles.SimulationMode}; selected {_particles.SelectedSimulationMode}";
                 return true;
             case "door" when value.Equals("toggle", StringComparison.OrdinalIgnoreCase):
                 var toggled = _doors.TryToggleAt(_camera.WorldCenter);
@@ -209,7 +211,7 @@ internal sealed class InGameScene : IGameScene
                 EngineLog.WriteLine($"Debug input: {message}.");
                 return true;
             default:
-                message = "Unknown in-game option. Use overlays <on|off>, debug-panel <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, collision <walk|fly|noclip>, noclip <on|off>, tessellation <on|off>, particles <on|off>, particle-simulation <CpuSimd|CpuScalar>, item-flags <hex>, character <next|index>, zoom <0.25..3>, facing <degrees>, door toggle, or animation attack.";
+                message = "Unknown in-game option. Use overlays <on|off>, debug-panel <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, collision <walk|fly|noclip>, noclip <on|off>, tessellation <on|off>, particles <on|off>, particle-simulation <Auto|CpuSimd|CpuScalar|Gpu>, item-flags <hex>, character <next|index>, zoom <0.25..3>, facing <degrees>, door toggle, or animation attack.";
                 return false;
         }
     }
@@ -238,8 +240,11 @@ internal sealed class InGameScene : IGameScene
         _doors.Update(_worldStreamer.VisibleWorld, _camera.WorldCenter, deltaSeconds, _scene.Indoor.ActiveGroup);
         _debugCrowd.Update(_scene, deltaSeconds);
         _playerParticles.Update();
+        using (AnimationPerformance.Measure(AnimationCpuStage.Particles))
         _particles.Update(deltaSeconds, _worldStreamer.VisibleWorld, _scene.Indoor.ActiveGroup,
             _camera.WorldCenter, _playerParticles.SelfHeight);
+        _scene.GpuParticlesEnabled = _particles.SelectedSimulationMode == ParticleSimulationMode.Gpu;
+        _scene.GpuParticleBatches = _particles.GpuBatches;
         UpdateRegionDisplayName();
     }
 

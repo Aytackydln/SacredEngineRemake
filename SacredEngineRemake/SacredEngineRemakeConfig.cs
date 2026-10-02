@@ -114,7 +114,7 @@ internal static class SacredEngineRemakeConfig
                 BlockedTilesVisible = ReadBoolean(values, BlockedTilesKey),
                 PlayerMovementSpeedMultiplier = ReadFiniteFloat(values, PlayerMovementSpeedKey, 1.0f),
                 ParticleQuality = ReadEnum(values, ParticleQualityKey, SacredParticleQuality.High),
-                ParticleSimulation = ReadEnum(values, ParticleSimulationKey, ParticleSimulationMode.CpuSimd),
+                ParticleSimulation = ReadEnum(values, ParticleSimulationKey, ParticleSimulationMode.Auto),
                 CharacterName = ReadString(values, CharacterKey),
                 LastLocation = location
             };

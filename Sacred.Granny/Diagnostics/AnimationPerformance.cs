@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 namespace Sacred.Granny.Diagnostics;
 
-public enum AnimationCpuStage { Sampling, Palettes, Skinning, Bounds, Effects, VertexUpload, PaletteUpload, SurfaceQueries, ParticleSeeds }
+public enum AnimationCpuStage { Sampling, Palettes, Skinning, Bounds, Effects, VertexUpload, PaletteUpload, SurfaceQueries, ParticleSeeds, Particles, ParticlePreparation, ParticleGpuPreparation }
 
 /// <summary>Optional renderer-independent counters. Disabled scopes do not read the clock.</summary>
 public static class AnimationPerformance
@@ -11,6 +11,7 @@ public static class AnimationPerformance
     private static readonly long[] Calls = new long[Ticks.Length];
     private static long _uploadedBytes;
     private static long _paletteBytes;
+    private static long _particleBytes;
     public static bool Enabled { get; set; }
 
     public static Scope Measure(AnimationCpuStage stage) => Enabled ? new(stage, Stopwatch.GetTimestamp()) : default;
@@ -18,6 +19,7 @@ public static class AnimationPerformance
     {
         if (Enabled) Interlocked.Add(ref _uploadedBytes, bytes);
     }
+    public static void RecordParticleUpload(int bytes) { if (Enabled) Interlocked.Add(ref _particleBytes,bytes); }
     public static void RecordPaletteUpload(int bytes) { if (Enabled) Interlocked.Add(ref _paletteBytes, bytes); }
 
     public static AnimationPerformanceSnapshot CaptureAndReset()
@@ -30,7 +32,7 @@ public static class AnimationPerformance
             calls[i] = Interlocked.Exchange(ref Calls[i], 0);
         }
         return new(milliseconds, calls, Interlocked.Exchange(ref _uploadedBytes, 0))
-        { UploadedPaletteBytes = Interlocked.Exchange(ref _paletteBytes, 0) };
+        { UploadedPaletteBytes = Interlocked.Exchange(ref _paletteBytes, 0), UploadedParticleBytes = Interlocked.Exchange(ref _particleBytes,0) };
     }
 
     public readonly struct Scope(AnimationCpuStage stage, long start) : IDisposable
@@ -45,4 +47,4 @@ public static class AnimationPerformance
 }
 
 public sealed record AnimationPerformanceSnapshot(double[] Milliseconds, long[] Calls, long UploadedVertexBytes)
-{ public long UploadedPaletteBytes { get; init; } }
+{ public long UploadedPaletteBytes { get; init; } public long UploadedParticleBytes { get; init; } }

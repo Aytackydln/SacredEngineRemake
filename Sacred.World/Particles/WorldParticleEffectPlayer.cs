@@ -12,6 +12,16 @@ public sealed class WorldParticleEffectPlayer
     private readonly List<Playback> _playing = [];
     private int _nextId = -1;
 
+    public IParticleGpuBackend? GpuBackend { get; set; }
+    internal void CollectGpuBatches(List<WorldGpuParticleBatch> output)
+    {
+        for (var i = _playing.Count - 1; i >= 0; i--) _playing[i].Emitter.CollectGpuBatches(output);
+    }
+    internal void SetSimulationMode(ParticleSimulationMode mode)
+    {
+        foreach (var playback in _playing) playback.Emitter.SimulationMode = mode;
+    }
+
     public int ActiveCount => _playing.Count;
     public bool IsEnabled(uint typeId, bool selfTarget, int? eventPreset = null) =>
         _playing.Any(p => p.TypeId == typeId && p.EventPreset == eventPreset && p.SelfTarget == selfTarget && p.Looping);
@@ -64,6 +74,7 @@ public sealed class WorldParticleEffectPlayer
             var playback = _playing[i];
             if (playback.FollowSelf)
                 playback.Emitter.SetOrigin(selfPosition, selfHeight + playback.HeightOffset);
+            playback.Emitter.GpuBackend = GpuBackend;
             playback.Emitter.SimulationMode = mode;
             var emitting = playback.Looping || playback.Remaining > 0;
             playback.Emitter.Update(step, output, emitting);
