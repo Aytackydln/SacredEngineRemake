@@ -46,9 +46,9 @@
     <Optimize>true</Optimize>
     <ReadyToRun>true</ReadyToRun>
     <ReadyToRunComposite>true</ReadyToRunComposite>
-    <StripSymbols>true</StripSymbols>
+    <StripSymbols>false</StripSymbols>
     <Aot>true</Aot>
     <OptimizationPreference>Speed</OptimizationPreference>
-    <StackTraceSupport>false</StackTraceSupport>
+    <StackTraceSupport>true</StackTraceSupport>
   </PropertyGroup>
 </Project>

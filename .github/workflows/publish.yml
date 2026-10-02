@@ -29,7 +29,7 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       # ==================== SacredEngineRemake ====================
-      - name: Publish Project1
+      - name: Publish SacredEngineRemake
         shell: bash
         run: |
           dotnet publish SacredEngineRemake/SacredEngineRemake.csproj \
@@ -39,10 +39,14 @@ jobs:
             -p:PublishSingleFile=true \
             -p:SelfContained=true \
             -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:StackTraceSupport=true \
+            -p:DebugSymbols=true \
+            -p:DebugType=portable \
+            -p:StripSymbols=false \
             -r win-x64
 
       # ==================== Sacred.ItemViewer.Avalonia ====================
-      - name: Publish Project2
+      - name: Publish Sacred.ItemViewer.Avalonia
         shell: bash
         run: |
           dotnet publish Sacred.ItemViewer.Avalonia/Sacred.ItemViewer.Avalonia.csproj \
@@ -52,7 +56,35 @@ jobs:
             -p:PublishSingleFile=true \
             -p:SelfContained=true \
             -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:StackTraceSupport=true \
+            -p:DebugSymbols=true \
+            -p:DebugType=portable \
+            -p:StripSymbols=false \
             -r win-x64
+
+      # ==================== Sacred.World.Renderer.Terminal ====================
+      - name: Publish Sacred.World.Renderer.Terminal
+        shell: bash
+        run: |
+          dotnet publish Sacred.World.Renderer.Terminal/Sacred.World.Renderer.Terminal.csproj \
+            --configuration Release \
+            --output ./publish/Sacred.World.Renderer.Terminal \
+            -p:Version=${{ env.VERSION }} \
+            -p:PublishSingleFile=true \
+            -p:SelfContained=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:StackTraceSupport=true \
+            -p:DebugSymbols=true \
+            -p:DebugType=portable \
+            -p:StripSymbols=false \
+            -r win-x64
+
+      - name: Package debug symbols
+        shell: pwsh
+        run: |
+          foreach ($project in @('SacredEngineRemake', 'Sacred.ItemViewer.Avalonia', 'Sacred.World.Renderer.Terminal')) {
+            Compress-Archive -Path "./publish/$project/*.pdb" -DestinationPath "./publish/$project-symbols.zip"
+          }
 
       # Attach to GitHub Release (if triggered by tag)
       - name: Release
@@ -63,5 +95,11 @@ jobs:
           files: |
             ./publish/SacredEngineRemake/SacredEngineRemake.exe
             ./publish/Sacred.ItemViewer.Avalonia/Sacred.ItemViewer.Avalonia.exe
+            ./publish/Sacred.World.Renderer.Terminal/Sacred.World.Renderer.Terminal.exe
+            ./publish/SacredEngineRemake/cimgui.dll
+            ./publish/SacredEngineRemake-symbols.zip
+            ./publish/Sacred.ItemViewer.Avalonia-symbols.zip
+            ./publish/Sacred.World.Renderer.Terminal-symbols.zip
+          fail_on_unmatched_files: true
           tag_name: ${{ github.ref_name }}
           allow_override: true
