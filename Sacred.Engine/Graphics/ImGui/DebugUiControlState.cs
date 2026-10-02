@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Scene.InGame;
 using Sacred.Particles;
@@ -14,6 +15,7 @@ internal sealed class DebugUiControlState
     public WorldLightingMode WorldLightingMode { get; set; }
     public bool BorderlessFullscreen { get; set; }
     public SacredParticleQuality ParticleQuality { get; set; }
+    public ParticleSimulationMode ParticleSimulation { get; set; }
     public CollisionCheatMode CollisionMode { get; set; }
     public float PlayerMovementSpeedMultiplier { get; set; } = 1.0f;
     public int RenderResolutionPercentage { get; set; } = 100;
@@ -25,6 +27,10 @@ internal sealed class DebugUiControlState
     public RenderScalingMode RenderScalingMode { get; set; } = RenderScalingMode.Bilinear;
     public PlayerDebugPanelState? Player { get; set; }
     public bool PlayerPanelVisible { get; set; }
+    public PlayerParticlePanelState? PlayerParticles { get; set; }
+    public bool? RequestedParticlePanelOpen { get; set; }
+    public bool? RequestedParticlePreviewMode { get; set; }
+    public Queue<PlayerParticleRequest> ParticleRequests { get; } = new();
 
     public bool? RequestedHdrEnabled { get; set; }
     public FramePacingMode? RequestedFramePacingMode { get; set; }
@@ -33,6 +39,7 @@ internal sealed class DebugUiControlState
     public WorldLightingMode? RequestedWorldLightingMode { get; set; }
     public bool? RequestedBorderlessFullscreen { get; set; }
     public SacredParticleQuality? RequestedParticleQuality { get; set; }
+    public ParticleSimulationMode? RequestedParticleSimulation { get; set; }
     public CollisionCheatMode? RequestedCollisionMode { get; set; }
     public float? RequestedPlayerMovementSpeedMultiplier { get; set; }
     public int? RequestedRenderResolutionPercentage { get; set; }

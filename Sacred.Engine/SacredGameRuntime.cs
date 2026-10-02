@@ -89,6 +89,11 @@ internal sealed class SacredGameRuntime : IDisposable
 
     private void ApplyDebugUiRequests()
     {
+        if (_debugUiControls.RequestedParticleSimulation is { } particleSimulation)
+        {
+            _debugUiControls.RequestedParticleSimulation = null;
+            _inGameScene?.SetParticleSimulation(particleSimulation);
+        }
         if (_debugUiControls.RequestedHdrEnabled is { } hdrEnabled)
         {
             _debugUiControls.RequestedHdrEnabled = null;
@@ -194,6 +199,9 @@ internal sealed class SacredGameRuntime : IDisposable
             _inGameScene?.SelectPlayerCharacter(characterEntryId);
         }
 
+        while (_debugUiControls.ParticleRequests.TryDequeue(out var particleRequest))
+            _inGameScene?.ExecutePlayerParticleRequest(particleRequest);
+
         if (_debugUiControls.ScreenshotRequested)
         {
             _debugUiControls.ScreenshotRequested = false;
@@ -211,6 +219,7 @@ internal sealed class SacredGameRuntime : IDisposable
             _inGameScene?.WorldLightingMode ?? _initialSaveState.WorldLightingMode;
         _debugUiControls.BorderlessFullscreen = _window.IsBorderlessFullscreen;
         _debugUiControls.ParticleQuality = _inGameScene?.ParticleQuality ?? _initialSaveState.ParticleQuality;
+        _debugUiControls.ParticleSimulation = _inGameScene?.ParticleSimulation ?? _initialSaveState.ParticleSimulation;
         _debugUiControls.CollisionMode = _inGameScene?.CollisionMode ?? CollisionCheatMode.Walk;
         _debugUiControls.PlayerMovementSpeedMultiplier =
             _inGameScene?.PlayerMovementSpeedMultiplier ?? _initialSaveState.PlayerMovementSpeedMultiplier;
@@ -226,6 +235,7 @@ internal sealed class SacredGameRuntime : IDisposable
             _renderer.AutoRenderResolutionStepPercentage;
         _debugUiControls.RenderScalingMode = _renderer.RenderScalingMode;
         _debugUiControls.Player = _inGameScene?.CreatePlayerDebugPanelState();
+        _debugUiControls.PlayerParticles = _inGameScene?.CreatePlayerParticlePanelState();
     }
 
     public SacredGameSaveState CaptureSaveState()
@@ -258,6 +268,7 @@ internal sealed class SacredGameRuntime : IDisposable
             PlayerMovementSpeedMultiplier =
                 _inGameScene?.PlayerMovementSpeedMultiplier ?? _initialSaveState.PlayerMovementSpeedMultiplier,
             ParticleQuality = _inGameScene?.ParticleQuality ?? _initialSaveState.ParticleQuality,
+            ParticleSimulation = _inGameScene?.ParticleSimulation ?? _initialSaveState.ParticleSimulation,
             CharacterName = _inGameScene?.SelectedCharacterName ?? _initialSaveState.CharacterName,
             LastLocation = _inGameScene?.PlayerWorldPosition ?? _initialSaveState.LastLocation
         };
@@ -296,6 +307,8 @@ internal sealed class SacredGameRuntime : IDisposable
             ParticleQuality = Enum.IsDefined(state.ParticleQuality)
                 ? state.ParticleQuality
                 : SacredParticleQuality.High,
+            ParticleSimulation = Enum.IsDefined(state.ParticleSimulation)
+                ? state.ParticleSimulation : ParticleSimulationMode.CpuSimd,
             HdrBrightness = (state.HdrBrightness ?? HdrBrightnessSettings.Default).Normalized(),
             FramePacingMode = Enum.IsDefined(state.FramePacingMode)
                 ? state.FramePacingMode
@@ -433,7 +446,8 @@ internal sealed class SacredGameRuntime : IDisposable
         switch (command)
         {
             case HelpCheatCommand:
-                EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set particles <on|off>; set item-flags <hex>; set character next; set facing <degrees>; set door toggle; set hdr <on|off>; set pacing <vrr|vsync|limit|manual>; set fps <30-1000>; set latency <off|on|boost>; set resolution <percentage|auto>; set autoscale <on|off>; set scaling <none|bilinear|fsr1|fsr2|fsr1motionadaptive>; set granny <managed|native>.");
+                EngineLog.WriteLine("Particle cheats: set player-panel <on|off>; set particle-panel <on|off|play|toggles>; set particle-list <all|filter>; set particle-target <self|x,y>; set particle-follow <on|off>; set particle-play <FX name>; set particle-enable <FX name>; set particle-disable <FX name>; set particle-model <on|off>; set particle-stop all.");
+                EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set particles <on|off>; set particle-simulation <CpuSimd|CpuScalar>; set item-flags <hex>; set character next; set facing <degrees>; set door toggle; set hdr <on|off>; set pacing <vrr|vsync|limit|manual>; set fps <30-1000>; set latency <off|on|boost>; set resolution <percentage|auto>; set autoscale <on|off>; set scaling <none|bilinear|fsr1|fsr2|fsr1motionadaptive>; set granny <managed|native>.");
                 return;
             case TeleportCheatCommand teleport:
                 if (_inGameScene is null)
@@ -547,6 +561,21 @@ internal sealed class SacredGameRuntime : IDisposable
     {
         switch (option.ToLowerInvariant())
         {
+            case "particle-panel" when value is "play" or "toggles":
+                _debugUiControls.PlayerPanelVisible = true;
+                _debugUiControls.RequestedParticlePanelOpen = true;
+                _debugUiControls.RequestedParticlePreviewMode = value == "play";
+                message = $"particle panel showing {value}";
+                return true;
+            case "player-panel" when TryParseBoolean(value, out var playerPanel):
+                _debugUiControls.PlayerPanelVisible = playerPanel;
+                message = $"player panel {(playerPanel ? "visible" : "hidden")}";
+                return true;
+            case "particle-panel" when TryParseBoolean(value, out var particlePanel):
+                _debugUiControls.PlayerPanelVisible = true;
+                _debugUiControls.RequestedParticlePanelOpen = particlePanel;
+                message = $"particle panel {(particlePanel ? "opened" : "closed")}";
+                return true;
             case "hdr" when TryParseBoolean(value, out var hdrEnabled):
                 if (_renderer.IsHdrEnabled != hdrEnabled)
                     _renderer.ToggleHdr();

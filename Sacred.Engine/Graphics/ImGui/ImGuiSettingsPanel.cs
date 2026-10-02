@@ -55,6 +55,9 @@ internal static class ImGuiSettingsPanel
             controls.ParticleQuality,
             value => controls.RequestedParticleQuality = value,
             FormatParticleQuality);
+        EnumCombo("Particle simulation", controls.ParticleSimulation,
+            value => controls.RequestedParticleSimulation = value,
+            mode => mode == ParticleSimulationMode.CpuSimd ? "CPU (SIMD)" : "CPU (scalar)");
         Checkbox("Auto resolution (1:1 tiles)", controls.AutoRenderResolution,
             value =>
             {

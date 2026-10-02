@@ -47,6 +47,7 @@ internal static class SacredEngineRemakeConfig
     private const string BlockedTilesKey = "BLOCKED_TILES";
     private const string PlayerMovementSpeedKey = "PLAYER_MOVEMENT_SPEED";
     private const string ParticleQualityKey = "PARTICLE_QUALITY";
+    private const string ParticleSimulationKey = "PARTICLE_SIMULATION";
     private const string CharacterKey = "CHARACTER";
     private const string LocationXKey = "LOCATION_X";
     private const string LocationYKey = "LOCATION_Y";
@@ -113,6 +114,7 @@ internal static class SacredEngineRemakeConfig
                 BlockedTilesVisible = ReadBoolean(values, BlockedTilesKey),
                 PlayerMovementSpeedMultiplier = ReadFiniteFloat(values, PlayerMovementSpeedKey, 1.0f),
                 ParticleQuality = ReadEnum(values, ParticleQualityKey, SacredParticleQuality.High),
+                ParticleSimulation = ReadEnum(values, ParticleSimulationKey, ParticleSimulationMode.CpuSimd),
                 CharacterName = ReadString(values, CharacterKey),
                 LastLocation = location
             };
@@ -197,6 +199,7 @@ internal static class SacredEngineRemakeConfig
             $"{BlockedTilesKey} : {FormatBoolean(state.BlockedTilesVisible)}",
             $"{PlayerMovementSpeedKey} : {FormatFloat(state.PlayerMovementSpeedMultiplier)}",
             $"{ParticleQualityKey} : {state.ParticleQuality}",
+            $"{ParticleSimulationKey} : {state.ParticleSimulation}",
             $"{CharacterKey} : {SanitizeLineValue(state.CharacterName)}",
             $"{LocationXKey} : {FormatLocationComponent(state.LastLocation?.X)}",
             $"{LocationYKey} : {FormatLocationComponent(state.LastLocation?.Y)}"

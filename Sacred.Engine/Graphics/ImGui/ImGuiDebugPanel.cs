@@ -22,6 +22,7 @@ internal sealed class ImGuiDebugPanel(
 {
     private static readonly Vector4 PropertyColour = new(0.94f, 0.55f, 0.20f, 0.95f);
     private static readonly Vector4 EntranceColour = new(1.00f, 1.00f, 1.00f, 0.95f);
+    private readonly ImGuiPlayerParticlesPanel _playerParticles = new();
 
     public void Build(
         SacredCamera camera,
@@ -100,6 +101,7 @@ internal sealed class ImGuiDebugPanel(
 
         DearImGui.PushFont(renderer.BodyFont);
         DearImGui.Text($"Character: {player.CharacterName}");
+        _playerParticles.Draw(controls);
         DearImGui.Separator();
         if (DearImGui.CollapsingHeader("Character presets", ImGuiTreeNodeFlags.DefaultOpen))
         {

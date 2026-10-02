@@ -26,8 +26,24 @@ internal static class NativePresetReader
     public static IReadOnlyList<SacredParticleParameterSet> Read(SacredExecutableImage image, NativeCode code,
         NativeParticleFamily family, int preset, SacredParticleQuality quality, CancellationToken cancellationToken)
     {
+        var memory = Evaluate(image, code, family, preset, quality, cancellationToken);
+        return ReadParameters(memory, family);
+    }
+
+    internal static PresetMemory Evaluate(SacredExecutableImage image, NativeCode code,
+        NativeParticleFamily family, int preset, SacredParticleQuality quality, CancellationToken cancellationToken)
+    {
         var memory = new PresetMemory(image, family.ObjectSize, quality);
-        var machine = new X86Machine(code, memory);
+        uint? environment = null;
+        if (family.SampleDefaultEnvironment)
+        {
+            environment = memory.BaseAddress + 0x18000;
+            memory.Write(environment.Value + 0x68, 4, image.UInt32(0x418F8A));
+            memory.Write(environment.Value + 0x6C, 4, 0);
+            memory.Write(environment.Value + 0x70, 4, 0);
+            memory.Write(environment.Value + 0x74, 4, image.UInt32(0x418F83));
+        }
+        var machine = new X86Machine(code, memory) { EnvironmentAddress = environment };
         var obj = memory.BaseAddress;
         var argument = obj + 0x10000;
         var stack = obj + 0x1F000;
@@ -35,15 +51,29 @@ internal static class NativePresetReader
         // Explicit empty live-particle vector; initialization resets this vector after setting parameters.
         memory.Write(obj + 0x68, 4, obj + 0x8000);
         memory.Write(obj + 0x6C, 4, obj + 0x8000);
-        memory.Write(argument + 0x38, 4, (uint)preset);
+        if (family.InitialFlags is { } flags) memory.Write(obj + 0x7C, 4, flags);
+        memory.Write(argument + (uint)family.SelectorOffset, 4, (uint)preset);
+        if (family.EventColor is { } color) memory.Write(argument + 0x38, 4, color);
         memory.Write(stack, 4, stop);
         memory.Write(stack + 4, 4, argument);
         machine.Registers.Set(Register.ESP, stack);
         machine.Registers.Set(Register.ECX, obj);
-        machine.Run(family.Initializer, stop, cancellationToken);
+        if (family.ActorLookup is { } lookup)
+        {
+            // This omitted region resolves identity/geometry without parameter writes.
+            // Playback supplies the real mesh. Evaluation stops before any stack epilogue
+            // that would consume arguments discarded with a native lookup call.
+            machine.Run(family.Initializer, lookup.Start, cancellationToken);
+            machine.Run(lookup.End, family.InitializerEnd ?? stop, cancellationToken);
+        }
+        else machine.Run(family.Initializer, family.InitializerEnd ?? stop, cancellationToken);
         if (memory.ReadUninitializedObject)
             throw new NotSupportedException("Initializer depends on unrecovered constructor state.");
+        return memory;
+    }
 
+    internal static IReadOnlyList<SacredParticleParameterSet> ReadParameters(PresetMemory memory, NativeParticleFamily family)
+    {
         var sets = new List<SacredParticleParameterSet>();
         for (var i = 0; i < family.ParameterSlotCount; i++)
         {
@@ -64,7 +94,7 @@ internal static class NativePresetReader
 
     private static IReadOnlyList<uint> ReadColors(PresetMemory memory, NativeParticleFamily family, int index)
     {
-        var offset = family.MotionOffset -
+        var offset = family.ColorOffset ?? family.MotionOffset -
                      (family.ParameterSlotCount - index) * SacredParticleColorTableLayout.SerializedSize;
         var size = memory.IsWritten(offset, SacredParticleColorTableLayout.SerializedSize)
             ? SacredParticleColorTableLayout.SerializedSize

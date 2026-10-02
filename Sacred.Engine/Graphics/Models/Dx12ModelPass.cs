@@ -320,6 +320,8 @@ internal sealed class Dx12ModelPass
 
         foreach (var surface in effects.Surfaces)
         {
+            if (model.DisabledEquipmentEffects?.Contains((surface.TextureName, surface.TextureMode)) == true)
+                continue;
             var texture = _textureCache.Get(surface.TextureName);
             if (texture is null || surface.IndexCount <= 0 || surface.IndexStart >= mesh.IndexCount)
                 continue;

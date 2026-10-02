@@ -21,6 +21,8 @@ public static class SacredParticleCatalogueReader
         var image = SacredExecutableImage.Load(executablePath);
         var reader = new NativeDefinitionReader(image, options);
         var definitions = new List<SacredParticleDefinition>();
+        var events = new List<SacredParticleDefinition>();
+        var code = new NativeCode(image);
         for (var index = 0; index < SacredGoldExecutableProfile.TypeTableCount; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -28,14 +30,18 @@ public static class SacredParticleCatalogueReader
             var typeId = image.UInt32(address);
             var name = image.String(address + 4, SacredExecutableTypeNameLayout.NameLength);
             if (!name.StartsWith("TYPE_FX_", StringComparison.Ordinal)) continue;
-            definitions.Add(reader.Read(typeId, name, address, cancellationToken));
+            var definition = reader.Read(typeId, name, address, cancellationToken);
+            definitions.Add(definition);
+            events.AddRange(NativeGenericEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeChangelingEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeParticleEventReader.Read(image, code, definition, options.Quality, cancellationToken));
         }
         var catalogue = new SacredParticleCatalogue(image.ExecutableSha256, image.CodeSha256, options.Quality,
-            image.Single(SacredGoldExecutableProfile.WorldUnitsPerTileAddress), definitions)
+            image.Single(SacredGoldExecutableProfile.WorldUnitsPerTileAddress), definitions, events)
         {
             Projection = NativeProjectionReader.Read(image)
         };
-        options.Log?.Invoke($"[particles] Catalogue loaded: {definitions.Count} FX types, {catalogue.DecodedCount} decoded, " +
+        options.Log?.Invoke($"[particles] Catalogue loaded: {definitions.Count} FX types, {catalogue.DecodedCount} decoded script presets, {events.Count} decoded event variants, " +
                             $"{definitions.Count - catalogue.DecodedCount} pending mappings; quality={options.Quality}; {timer.ElapsedMilliseconds} ms.");
         return catalogue;
     }

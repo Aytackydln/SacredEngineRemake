@@ -54,18 +54,23 @@ from loading particle definitions.
 
 ## Coverage and remaining work
 
-The embedded catalogue contains **210 `TYPE_FX_` entries**, including **14 fully
-decoded definitions** in the smoke and dwarf-magic families. Low, medium and high
-quality each contain 27 written parameter sets. Texture names, draw flags,
-factory addresses and class-local preset numbers come from the executable;
-generated numeric IDs are extracted data, not manually authored dispatch rules.
+The embedded catalogue contains **210 `TYPE_FX_` entries**, with **15 decoded
+script presets** in the smoke, dwarf-magic and Magic Prison families, plus
+**thirteen decoded native event variants** of PuzzleSolved, PuzzleSolved_v, Generic and Changeling,
+including the confirmed level-up burst. `EventDefinitions` and
+`TryGetEventDefinition(typeId, subtype, out definition)` expose event variants
+without assigning invented IDs. Native bursts carry authored initial particle
+records or a native actor-mesh seed count and lifetime parameters; continuous
+systems carry emission parameters. Mesh bursts require the current posed model.
+Texture names, draw arguments, capacities and birth/integration order come from
+the executable. The Magic Prison preset also includes its native halo draw.
 
-The other 195 entries have unsupported families. One additional geyser
-initializer needs an external CRT/random routine and remains unsupported.
-Unsupported definitions do not contain fabricated parameter blocks. Unknown
-bytes in the recovered Core layouts remain explicitly unmapped. Native time
-units, complete draw-flag semantics and the simulation/rendering loop still need
-work before these definitions can reproduce the original effects in the world.
+There are 195 script entries still pending mappings, including the geyser
+initializer and families needing actor/event input. Unsupported definitions
+contain no invented parameter blocks. Recovered serialized state bytes are
+mapped in the layout classes; padding remains explicitly unknown.
+See [additional native effects](../docs/research/particle-definitions/expanded-native-effects.md)
+for addresses, payload mappings and independent native validation.
 
 The current profile supports the verified Sacred Gold native code hash
 `ee60108ce8147721717df1632c47b89c2b445a0255922219fa14a5980feadf37`.

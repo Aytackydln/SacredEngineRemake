@@ -12,8 +12,10 @@ public sealed class SacredParticleCatalogue
     private static readonly Lazy<SacredParticleCatalogue> Medium = new(EmbeddedParticleCatalogueMedium.Create);
     private static readonly Lazy<SacredParticleCatalogue> High = new(EmbeddedParticleCatalogueHigh.Create);
     private readonly FrozenDictionary<uint, SacredParticleDefinition> _definitions;
+    private readonly FrozenDictionary<(uint TypeId, int Preset), SacredParticleDefinition> _events;
 
     public IReadOnlyCollection<SacredParticleDefinition> Definitions => _definitions.Values;
+    public IReadOnlyCollection<SacredParticleDefinition> EventDefinitions => _events.Values;
     public string ExecutableSha256 { get; }
     public string NativeCodeSha256 { get; }
     public SacredParticleQuality Quality { get; }
@@ -22,9 +24,11 @@ public sealed class SacredParticleCatalogue
     public SacredParticleProjection Projection { get; internal init; } = new(1, 1, 1, 1, 0);
 
     internal SacredParticleCatalogue(string executableHash, string codeHash, SacredParticleQuality quality,
-        float worldUnitsPerTile, IEnumerable<SacredParticleDefinition> definitions)
+        float worldUnitsPerTile, IEnumerable<SacredParticleDefinition> definitions,
+        IEnumerable<SacredParticleDefinition>? events = null)
     {
         _definitions = definitions.ToFrozenDictionary(d => d.TypeId);
+        _events = (events ?? []).ToFrozenDictionary(d => (d.TypeId, d.Preset!.Value));
         ExecutableSha256 = executableHash;
         NativeCodeSha256 = codeHash;
         Quality = quality;
@@ -42,4 +46,6 @@ public sealed class SacredParticleCatalogue
 
     public bool TryGetDefinition(uint scriptTypeId, [NotNullWhen(true)] out SacredParticleDefinition? definition) =>
         _definitions.TryGetValue(scriptTypeId, out definition);
+    public bool TryGetEventDefinition(uint typeId, int preset, [NotNullWhen(true)] out SacredParticleDefinition? definition) =>
+        _events.TryGetValue((typeId, preset), out definition);
 }

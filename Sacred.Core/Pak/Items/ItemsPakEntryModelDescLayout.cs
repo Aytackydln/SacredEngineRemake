@@ -69,7 +69,10 @@ public readonly struct ItemsPakEntryModelDescLayout
     [FieldOffset(16)]
     public readonly uint MixedBaseGroupId;
 
-    /// <summary>Authored blocking radius (<c>cObjectShared::blockRadius</c>).</summary>
+    /// <summary>Authored blocking radius (<c>cObjectShared::blockRadius</c>).
+    /// Gold 0x428CE0 reads this field for a valid item and substitutes 50 when
+    /// the stored radius is zero. Generic FX subtype 6 uses that result to scale
+    /// mesh-seeded particle size, gravity and size change (0x7972B0..0x797302).</summary>
     [FieldOffset(20)]
     public readonly uint BlockRadius;
 

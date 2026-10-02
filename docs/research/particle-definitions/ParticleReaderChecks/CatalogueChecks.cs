@@ -23,7 +23,7 @@ internal static class CatalogueChecks
             var quality = (SacredParticleQuality)reference.GetProperty("quality").GetByte();
             var embedded = SacredParticleCatalogue.LoadEmbedded(quality);
             Check(ReferenceEquals(embedded, SacredParticleCatalogue.LoadEmbedded(quality)), "embedded catalogue is cached");
-            Check(embedded.Definitions.Count == 210 && embedded.DecodedCount == 14, $"catalogue coverage ({quality})");
+            Check(embedded.Definitions.Count == 210 && embedded.DecodedCount == 15 && embedded.EventDefinitions.Count == 13, $"catalogue coverage ({quality})");
             Check(embedded.NativeCodeSha256 == document.RootElement.GetProperty("text_sha256").GetString(), "reference code identity");
             Check(!embedded.TryGetDefinition(uint.MaxValue, out _), "unknown ID absent");
             Check(embedded.Definitions.Where(e => e.Status != SacredParticleDefinitionStatus.Decoded).All(e => e.ParameterSets.Count == 0),
@@ -58,13 +58,20 @@ internal static class CatalogueChecks
                       Math.Abs(embedded.Projection.HorizontalScale - 1024f / 534) < 0.000001f &&
                       Math.Abs(embedded.Projection.VerticalScale - 768f / 400) < 0.000001f,
                     "reference projection and default wind operands");
-                foreach (var entry in freshlyRead.Definitions)
+                foreach (var entry in freshlyRead.Definitions.Concat(freshlyRead.EventDefinitions))
                 {
-                    Check(embedded.TryGetDefinition(entry.TypeId, out var saved), "fresh entry embedded");
+                    SacredParticleDefinition? saved;
+                    Check(entry.IsEventPreset
+                        ? embedded.TryGetEventDefinition(entry.TypeId, entry.Preset!.Value, out saved)
+                        : embedded.TryGetDefinition(entry.TypeId, out saved), "fresh entry embedded");
                     Check(saved!.TypeName == entry.TypeName && saved.Preset == entry.Preset && saved.Status == entry.Status &&
                           saved.Diagnostic == entry.Diagnostic && saved.FactoryAddress == entry.FactoryAddress &&
                           saved.TypeRecordAddress == entry.TypeRecordAddress && saved.NativeClass == entry.NativeClass &&
-                          saved.Draw == entry.Draw && saved.EmissionMode == entry.EmissionMode && saved.UsesWind == entry.UsesWind &&
+                          saved.Draw == entry.Draw && saved.Halo == entry.Halo && saved.Capacity == entry.Capacity &&
+                          saved.GroundCollision == entry.GroundCollision && saved.OneTime == entry.OneTime && saved.IsEventPreset == entry.IsEventPreset &&
+                          saved.DisplayName == entry.DisplayName && saved.ModelBurstCount == entry.ModelBurstCount &&
+                          saved.InitialParticles.SequenceEqual(entry.InitialParticles) &&
+                          saved.EmitBeforeMovement == entry.EmitBeforeMovement && saved.EmissionMode == entry.EmissionMode && saved.UsesWind == entry.UsesWind &&
                           saved.TextureBindings.SequenceEqual(entry.TextureBindings), "fresh metadata matches embedded");
                     Check(saved.ParameterSets.Count == entry.ParameterSets.Count, "fresh slot count matches embedded");
                     foreach (var set in entry.ParameterSets)

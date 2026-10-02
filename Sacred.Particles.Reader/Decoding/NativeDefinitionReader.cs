@@ -36,13 +36,15 @@ internal sealed class NativeDefinitionReader(SacredExecutableImage image, Sacred
             }
             result = result with { TextureBindings = bindings };
             var draw = NativeTextureReader.ReadDraw(image, _code, family, result.Preset!.Value, bindings);
-            result = result with { Draw = draw };
+            result = result with { Draw = draw, Halo = NativeTextureReader.ReadHalo(_code, family, bindings) };
             var parameters = NativePresetReader.Read(image, _code, family, result.Preset.Value, options.Quality, cancellationToken);
             return result with
             {
                 Status = SacredParticleDefinitionStatus.Decoded, Diagnostic = null, ParameterSets = parameters,
                 EmissionMode = NativeSimulationReader.ReadMode(image, _code, family, result.Preset.Value),
-                UsesWind = family.ParameterSlotCount > 1
+                EmitBeforeMovement = family.EmitBeforeMovement,
+                UsesWind = family.ParameterSlotCount > 1,
+                Capacity = NativeParticleCapacityReader.Read(_code, factory)
             };
         }
         catch (Exception exception) when (exception is NotSupportedException or InvalidDataException)

@@ -1,3 +1,4 @@
+using System.Numerics;
 using Sacred.Core.World.Sector;
 using Sacred.Particles;
 
@@ -24,9 +25,12 @@ public sealed class WorldParticleSystem
 
     public bool Enabled { get; set; } = true;
     public SacredParticleQuality Quality => _catalogue.Quality;
+    public ParticleSimulationMode SimulationMode { get; private set; } = ParticleSimulationMode.CpuSimd;
     public IReadOnlyList<WorldParticle> Particles => _particles;
     public int ActiveEmitterCount => _emitters.Count;
     public ulong Revision { get; private set; }
+    public SacredParticleCatalogue Catalogue => _catalogue;
+    public WorldParticleEffectPlayer Effects { get; } = new();
 
     public WorldParticleSystem(
         WorldParticleScriptIndex script,
@@ -53,20 +57,31 @@ public sealed class WorldParticleSystem
         _visibleWorld = null;
         _emitters.Clear();
         _particles.Clear();
+        Effects.Clear();
         Revision++;
         Console.WriteLine($"World particle quality set to {_catalogue.Quality}.");
     }
 
-    public void Update(float deltaSeconds, VisibleWorld visibleWorld, IndoorTileGroup? activeIndoorGroup = null)
+    public void SetSimulationMode(ParticleSimulationMode mode)
+    {
+        if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode));
+        SimulationMode = mode;
+        foreach (var emitter in _emitters.Values) emitter.SimulationMode = mode;
+        Console.WriteLine($"World particle simulation set to {mode}; SIMD accelerated: {Vector.IsHardwareAccelerated}.");
+    }
+
+    public void Update(float deltaSeconds, VisibleWorld visibleWorld, IndoorTileGroup? activeIndoorGroup = null,
+        Vector2 selfPosition = default, float selfHeight = 0)
     {
         ArgumentNullException.ThrowIfNull(visibleWorld);
         if (!Enabled)
         {
             _visibleWorld = null;
-            if (_emitters.Count > 0 || _particles.Count > 0)
+            if (_emitters.Count > 0 || _particles.Count > 0 || Effects.ActiveCount > 0)
             {
                 _emitters.Clear();
                 _particles.Clear();
+                Effects.Clear();
                 Revision++;
                 LogEmitterCount();
             }
@@ -80,11 +95,13 @@ public sealed class WorldParticleSystem
             SelectVisibleEmitters(visibleWorld);
         }
 
-        var step = Math.Clamp(deltaSeconds, 0.0f, MaximumUpdateStepSeconds);
+        var step = float.IsFinite(deltaSeconds) ? Math.Clamp(deltaSeconds, 0.0f, MaximumUpdateStepSeconds) : 0;
+        var hadParticles = _particles.Count > 0;
         _particles.Clear();
         foreach (var emitter in _emitters.Values)
             emitter.Update(step, _particles);
-        if (_emitters.Count > 0 || _particles.Count > 0)
+        Effects.Update(step, selfPosition, selfHeight, SimulationMode, _particles);
+        if (hadParticles || _emitters.Count > 0 || _particles.Count > 0)
             Revision++;
     }
 
@@ -108,6 +125,7 @@ public sealed class WorldParticleSystem
                 continue;
 
             var emitter = new WorldParticleEmitter(placement, _worldUnitsPerTile, _catalogue.Projection);
+            emitter.SimulationMode = SimulationMode;
             if (emitter.CanEmit)
                 _emitters.Add(placement.ScriptOffset, emitter);
         }

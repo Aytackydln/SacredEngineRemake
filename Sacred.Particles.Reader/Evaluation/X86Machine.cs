@@ -10,6 +10,7 @@ internal sealed class X86Machine
     private readonly X87Evaluator _floatingPoint;
     public X86Registers Registers { get; } = new();
     public PresetMemory Memory { get; }
+    public uint? EnvironmentAddress { get; init; }
     public uint InstructionPointer { get; set; }
 
     public X86Machine(NativeCode code, PresetMemory memory)
@@ -88,6 +89,21 @@ internal sealed class X86Machine
             case Mnemonic.Pop: Write(Pop()); break;
             case Mnemonic.Call:
                 var target = Read(0);
+                // Pure singleton lookup, supplied only when the decoder has explicitly
+                // initialized the environment from verified constructor operands.
+                if (target == 0x417E70 && EnvironmentAddress is { } environment)
+                {
+                    Registers.Set(Register.EAX, environment);
+                    break;
+                }
+                // Verified CRT _ftol: consume ST0, return the signed 64-bit truncation in EDX:EAX.
+                if (target == 0x84A1F4)
+                {
+                    var integer = _floatingPoint.TruncateAndPop();
+                    Registers.Set(Register.EAX, unchecked((uint)integer));
+                    Registers.Set(Register.EDX, unchecked((uint)(integer >> 32)));
+                    break;
+                }
                 Push(InstructionPointer);
                 InstructionPointer = target;
                 break;

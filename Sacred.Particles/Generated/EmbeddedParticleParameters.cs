@@ -6,6 +6,8 @@ namespace Sacred.Particles.Generated;
 /// <summary>Decodes the original little-endian parameter bytes embedded in generated C#.</summary>
 internal static class EmbeddedParticleParameters
 {
+    internal static IReadOnlyList<SacredNativeParticleLayout> ReadParticles(string hex) =>
+        Array.AsReadOnly(MemoryMarshal.Cast<byte, SacredNativeParticleLayout>(Convert.FromHexString(hex)).ToArray());
     internal static IReadOnlyList<uint> ReadColors(string hex) =>
         Array.AsReadOnly(MemoryMarshal.Cast<byte, uint>(Convert.FromHexString(hex)).ToArray());
 

@@ -1,11 +1,15 @@
 # Particle catalogue
 
+The shared simulator defaults to CPU SIMD with a scalar fallback. The
+[execution settings, native ground collision and verification](../docs/research/particle-definitions/cpu-simd-simulation.md)
+document the runtime path and the requirements for a future GPU simulation backend.
+
 The world runtime now uses the [native offset, motion and color mappings](../docs/research/particle-definitions/runtime-motion-color.md),
 including fade-indexed RGBA tables, wind, random half-ranges and native atlas/blend selection.
 
 `SacredParticleCatalogue.LoadEmbedded()` loads the generated Sacred Gold FX
 catalogue directly from this assembly. It contains 210 type entries, with complete
-parameters for 14 definitions across low, medium and high quality. Unsupported
+parameters for 15 script presets and thirteen event variants across low, medium and high quality. Unsupported
 entries retain metadata and diagnostics. Loading requires no `Sacred.exe` or
 instruction decoder at runtime.
 
@@ -56,3 +60,11 @@ describe boundaries/interiors and do not select particle effects.
 (1,127 candle/torch records), and flags `0x68`, layers 2/4/8 (1,312
 surface-switched animated mini-object records). The added `0x08` is the surface-switch flag;
 it is not an item-level particle or halo classification.
+
+## Additional decoded events
+
+The embedded catalogue now supplies 15 script presets and thirteen native one-time
+event variants. Magic Prison includes its halo and native update order;
+PuzzleSolved_v event subtypes 2/3 provide authored seed particles. Eleven
+actor-mesh bursts include the confirmed Generic subtype 2 level-up effect. See
+[native byte mappings and validation](../docs/research/particle-definitions/expanded-native-effects.md).

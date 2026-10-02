@@ -14,6 +14,12 @@ internal sealed class X87Evaluator(PresetMemory memory, X86Operands operands)
     {
         switch (instruction.Mnemonic)
         {
+            case Mnemonic.Fsin: _stack[0] = Math.Sin(Top.ToDouble()); break;
+            case Mnemonic.Fcos: _stack[0] = Math.Cos(Top.ToDouble()); break;
+            case Mnemonic.Fxch:
+                var index = instruction.OpCount == 0 ? 1 : StackIndex(instruction.Op0Register);
+                (_stack[0], _stack[index]) = (_stack[index], _stack[0]);
+                break;
             case Mnemonic.Fld: Push(Read(instruction, 0)); break;
             case Mnemonic.Fild:
                 var size = instruction.MemorySize.GetSize();
@@ -43,6 +49,12 @@ internal sealed class X87Evaluator(PresetMemory memory, X86Operands operands)
             default: return false;
         }
         return true;
+    }
+    public long TruncateAndPop()
+    {
+        var value = Top.ToInteger(3);
+        Pop();
+        return checked((long)value);
     }
 
     private X87Number Top => _stack.Count > 0 ? _stack[0] : throw new InvalidDataException("Native floating-point stack underflow.");

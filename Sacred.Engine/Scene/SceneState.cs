@@ -8,6 +8,7 @@ using Sacred.Core.World.Pathing;
 using Sacred.Core.World.Sector;
 using Sacred.Granny.Meshes;
 using Sacred.Inventory.Effects;
+using Sacred.Particles;
 using Sacred.World.Geometry;
 
 namespace Sacred.Engine.Scene;
@@ -225,6 +226,7 @@ public sealed class SceneModel
     public Vector3 VisualCenter => Vector3.Transform(_localBoundsCenter, _transform);
     public IReadOnlyDictionary<string, ModelTextureReference>? TextureAliases { get; }
     public EquipmentEffectScene? EquipmentEffects { get; }
+    public IReadOnlySet<(string TextureName, ParticleTextureMode Mode)>? DisabledEquipmentEffects { get; internal set; }
     public Matrix4x4 Transform => _transform;
 
     /// <summary>Adapts an authored model camera to the scene camera after model facing.</summary>

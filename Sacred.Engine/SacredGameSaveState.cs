@@ -36,6 +36,7 @@ public sealed record SacredGameSaveState
     public bool BlockedTilesVisible { get; init; }
     public float PlayerMovementSpeedMultiplier { get; init; } = 1.0f;
     public SacredParticleQuality ParticleQuality { get; init; } = SacredParticleQuality.High;
+    public ParticleSimulationMode ParticleSimulation { get; init; } = ParticleSimulationMode.CpuSimd;
     public string? CharacterName { get; init; }
     public Vector2? LastLocation { get; init; }
 }

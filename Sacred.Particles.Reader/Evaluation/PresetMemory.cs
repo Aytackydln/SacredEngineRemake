@@ -51,6 +51,7 @@ internal sealed class PresetMemory(SacredExecutableImage image, int objectSize, 
         for (var i = offset; i < Math.Min(offset + size, _written.Length); i++) _written[i] = true;
     }
 
-    public bool IsWritten(int offset, int size) => _written.AsSpan(offset, size).IndexOf(false) < 0;
+    public bool IsWritten(int offset, int size) => offset >= 0 && size >= 0 && offset <= _written.Length - size &&
+        _written.AsSpan(offset, size).IndexOf(false) < 0;
     public ReadOnlySpan<byte> ObjectBytes(int offset, int size) => _scratch.AsSpan(offset, size);
 }

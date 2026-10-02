@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../../Sacred.World/Sacred.World.csproj" />
+    <Compile Include="../../../../Sacred.World/Particles/WorldParticleEmitter.cs" Link="WorldParticleEmitter.cs" />
+    <Compile Include="../../../../Sacred.World/Particles/WorldParticleAppearance.cs" Link="WorldParticleAppearance.cs" />
+  </ItemGroup>
+</Project>

@@ -19,16 +19,27 @@ internal static class ParticleCatalogueSourceWriter
         source.AppendLine("    {");
         source.AppendLine($"        catalogue = new({CSharpLiteral.String(catalogue.ExecutableSha256)}, {CSharpLiteral.String(catalogue.NativeCodeSha256)}, SacredParticleQuality.{catalogue.Quality}, {catalogue.WorldUnitsPerTile.ToString("R", CultureInfo.InvariantCulture)}f,");
         source.AppendLine("        [");
-        foreach (var entry in catalogue.Definitions.OrderBy(d => d.TypeId))
+        void Entries(IEnumerable<SacredParticleDefinition> entries)
         {
-            var bindings = ReadOnlyArray("SacredParticleTextureBinding", entry.TextureBindings.Select(b =>
-                $"new({CSharpLiteral.UInt32(b.NativeHandleOffset)}, {CSharpLiteral.String(b.TextureName)})"));
-            var draw = entry.Draw is { } d
-                ? $"new SacredParticleDrawDefinition({CSharpLiteral.String(d.TextureName)}, {CSharpLiteral.UInt32(d.RawFlags)}, {CSharpLiteral.UInt32(d.NativeAddress)}) {{ AtlasSide = {d.AtlasSide} }}" : "null";
-            var parameters = ReadOnlyArray("SacredParticleParameterSet", entry.ParameterSets.Select(p =>
-                $"EmbeddedParticleParameters.Read({p.Index}, \"{Hex(p.Emission)}\", \"{Hex(p.Motion)}\") with {{ Colors = EmbeddedParticleParameters.ReadColors(\"{Convert.ToHexStringLower(MemoryMarshal.AsBytes(p.Colors.ToArray().AsSpan()))}\") }}"));
-            source.AppendLine($"            new({CSharpLiteral.UInt32(entry.TypeId)}, {CSharpLiteral.String(entry.TypeName)}, {CSharpLiteral.UInt32(entry.TypeRecordAddress)}, {CSharpLiteral.UInt32(entry.FactoryAddress)}, {CSharpLiteral.String(entry.NativeClass)}, {CSharpLiteral.Int32(entry.Preset)}, SacredParticleDefinitionStatus.{entry.Status}, {CSharpLiteral.String(entry.Diagnostic)}, {bindings}, {draw}, {parameters}) {{ EmissionMode = {entry.EmissionMode}, UsesWind = {(entry.UsesWind ? "true" : "false")} }},");
+            foreach (var entry in entries.OrderBy(d => d.TypeId).ThenBy(d => d.Preset))
+            {
+                var bindings = ReadOnlyArray("SacredParticleTextureBinding", entry.TextureBindings.Select(b =>
+                    $"new({CSharpLiteral.UInt32(b.NativeHandleOffset)}, {CSharpLiteral.String(b.TextureName)})"));
+                var draw = entry.Draw is { } d
+                    ? $"new SacredParticleDrawDefinition({CSharpLiteral.String(d.TextureName)}, {CSharpLiteral.UInt32(d.RawFlags)}, {CSharpLiteral.UInt32(d.NativeAddress)}) {{ AtlasSide = {d.AtlasSide} }}" : "null";
+                var parameters = ReadOnlyArray("SacredParticleParameterSet", entry.ParameterSets.Select(p =>
+                    $"EmbeddedParticleParameters.Read({p.Index}, \"{Hex(p.Emission)}\", \"{Hex(p.Motion)}\") with {{ Colors = EmbeddedParticleParameters.ReadColors(\"{Convert.ToHexStringLower(MemoryMarshal.AsBytes(p.Colors.ToArray().AsSpan()))}\") }}"));
+                var halo = entry.Halo is { } h
+                    ? $", Halo = new({CSharpLiteral.String(h.TextureName)}, {Float(h.HalfSize)}, {CSharpLiteral.UInt32(h.Color)}, {CSharpLiteral.UInt32(h.NativeAddress)})" : string.Empty;
+                var particles = entry.InitialParticles.Count == 0 ? string.Empty :
+                    $", InitialParticles = EmbeddedParticleParameters.ReadParticles(\"{Convert.ToHexStringLower(MemoryMarshal.AsBytes(entry.InitialParticles.ToArray().AsSpan()))}\")";
+                source.AppendLine($"            new({CSharpLiteral.UInt32(entry.TypeId)}, {CSharpLiteral.String(entry.TypeName)}, {CSharpLiteral.UInt32(entry.TypeRecordAddress)}, {CSharpLiteral.UInt32(entry.FactoryAddress)}, {CSharpLiteral.String(entry.NativeClass)}, {CSharpLiteral.Int32(entry.Preset)}, SacredParticleDefinitionStatus.{entry.Status}, {CSharpLiteral.String(entry.Diagnostic)}, {bindings}, {draw}, {parameters}) {{ DisplayName = {CSharpLiteral.String(entry.DisplayName)}, EmissionMode = {entry.EmissionMode}, UsesWind = {(entry.UsesWind ? "true" : "false")}, EmitBeforeMovement = {(entry.EmitBeforeMovement ? "true" : "false")}, Capacity = {entry.Capacity}, GroundCollision = ParticleGroundCollision.{entry.GroundCollision}, ModelBurstCount = {entry.ModelBurstCount}, IsEventPreset = {(entry.IsEventPreset ? "true" : "false")}, OneTime = {(entry.OneTime ? "true" : "false")}{particles}{halo} }},");
+            }
         }
+        Entries(catalogue.Definitions);
+        source.AppendLine("        ],");
+        source.AppendLine("        [");
+        Entries(catalogue.EventDefinitions);
         var projection = catalogue.Projection;
         source.AppendLine("        ])");
         source.AppendLine($"        {{ Projection = new({Float(projection.HorizontalScale)}, {Float(projection.VerticalScale)}, {Float(projection.GroundDepthFactor)}, {Float(projection.HeightFactor)}, {Float(projection.DefaultWind)}) }};");

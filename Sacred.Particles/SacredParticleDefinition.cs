@@ -45,7 +45,23 @@ public sealed record SacredParticleDefinition(
     SacredParticleDrawDefinition? Draw,
     IReadOnlyList<SacredParticleParameterSet> ParameterSets)
 {
+    public string? DisplayName { get; init; }
+    /// <summary>Native stdCreationFromActor vertex limit; zero means no actor mesh input.</summary>
+    public int ModelBurstCount { get; init; }
+    public SacredParticleHaloDefinition? Halo { get; init; }
+    /// <summary>Preset is an event subtype rather than a script creation selector.</summary>
+    public bool IsEventPreset { get; init; }
+    /// <summary>Native initialization seeds a finite burst without subsequent emission.</summary>
+    public bool OneTime { get; init; }
+    /// <summary>Maximum particle vector count requested by the native factory.</summary>
+    public int Capacity { get; init; } = 200;
+    public IReadOnlyList<SacredNativeParticleLayout> InitialParticles { get; init; } = [];
     /// <summary>0x7687F0 selection mode: 1 single, 2 80/20, 3 inverse-interval weights.</summary>
     public int EmissionMode { get; init; } = 1;
+    /// <summary>Whether the native update generates births before integrating existing particles.</summary>
+    public bool EmitBeforeMovement { get; init; } = true;
     public bool UsesWind { get; init; }
+    /// <summary>Selected by the native movement routine, not by texture or item IDs.
+    /// Decoded smoke/dwarf-magic use stdMovement and therefore have no ground collision.</summary>
+    public ParticleGroundCollision GroundCollision { get; init; }
 }

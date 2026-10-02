@@ -21,6 +21,7 @@ internal sealed class InGameScene : IGameScene
     private readonly AssetManager _assets;
     private readonly WorldStreamer _worldStreamer;
     private readonly WorldParticleSystem _particles;
+    private readonly PlayerParticleEffectsController _playerParticles;
     private readonly SacredCamera _camera;
     private readonly SceneState _scene = new();
     private readonly PlayerCharacterController _player;
@@ -48,6 +49,8 @@ internal sealed class InGameScene : IGameScene
         _saveState = saveState;
         _worldStreamer = new WorldStreamer(resources.WorldArchive);
         _particles = new WorldParticleSystem(resources.WorldArchive.ParticleScript, saveState.ParticleQuality);
+        _particles.SetSimulationMode(saveState.ParticleSimulation);
+        _playerParticles = new PlayerParticleEffectsController(_particles, _scene, new WorldElevationSampler(_worldStreamer));
         _camera = SacredCamera.CreateDefault(window.ClientWidth, window.ClientHeight);
         _player = new PlayerCharacterController(_assets, _scene, saveState.CharacterName);
         _doors = new DoorSceneController(_assets, _scene);
@@ -85,6 +88,7 @@ internal sealed class InGameScene : IGameScene
     internal float PlayerMovementSpeedMultiplier => _inputController.PlayerMovementSpeedMultiplier;
     internal WorldLightingMode WorldLightingMode => _worldLighting.Mode;
     internal SacredParticleQuality ParticleQuality => _particles.Quality;
+    internal ParticleSimulationMode ParticleSimulation => _particles.SimulationMode;
     internal Vector2 PlayerWorldPosition => _camera.WorldCenter;
     internal bool WorldStreamingSettled => _worldStreamer.VisibleWorld.LoadingSectors == 0 &&
         Renderer.LastWorldPreparationStatus.IsReady && !_doors.HasPendingLoads;
@@ -92,6 +96,7 @@ internal sealed class InGameScene : IGameScene
     internal void SetWorldLightingMode(WorldLightingMode mode) => _worldLighting.SetMode(mode);
 
     internal void SetParticleQuality(SacredParticleQuality quality) => _particles.SetQuality(quality);
+    internal void SetParticleSimulation(ParticleSimulationMode mode) => _particles.SetSimulationMode(mode);
 
     internal void SetCollisionMode(CollisionCheatMode mode) => _inputController.SetCollisionMode(mode);
 
@@ -102,6 +107,9 @@ internal sealed class InGameScene : IGameScene
         SetCollisionMode(enabled ? CollisionCheatMode.NoClip : CollisionCheatMode.Walk);
 
     internal PlayerDebugPanelState CreatePlayerDebugPanelState() => _player.CreateDebugPanelState();
+    internal PlayerParticlePanelState CreatePlayerParticlePanelState() => _playerParticles.CreateState(_camera.WorldCenter);
+    internal bool ExecutePlayerParticleRequest(PlayerParticleRequest request) =>
+        _playerParticles.Execute(request, _camera.WorldCenter);
 
     internal bool RemovePlayerEquipment(int slotIndex) => _player.RemoveEquipment(slotIndex);
 
@@ -119,6 +127,7 @@ internal sealed class InGameScene : IGameScene
 
     internal bool TrySetCheatOption(string option, string value, out string message)
     {
+        if (_playerParticles.TrySetCheatOption(option, value, _camera.WorldCenter, out message)) return true;
         switch (option.ToLowerInvariant())
         {
             case "overlays" or "debug-overlay" when TryParseBoolean(value, out var overlaysVisible):
@@ -185,13 +194,17 @@ internal sealed class InGameScene : IGameScene
                 _particles.Enabled = particlesEnabled;
                 message = $"world particles {(particlesEnabled ? "enabled" : "disabled")}";
                 return true;
+            case "particle-simulation" when Enum.TryParse<ParticleSimulationMode>(value, true, out var simulation) && Enum.IsDefined(simulation):
+                _particles.SetSimulationMode(simulation);
+                message = $"particle simulation set to {simulation}";
+                return true;
             case "door" when value.Equals("toggle", StringComparison.OrdinalIgnoreCase):
                 var toggled = _doors.TryToggleAt(_camera.WorldCenter);
                 message = toggled ? "nearest door toggled" : "no loaded animated door within interaction distance";
                 EngineLog.WriteLine($"Debug input: {message}.");
                 return true;
             default:
-                message = "Unknown in-game option. Use overlays <on|off>, debug-panel <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, collision <walk|fly|noclip>, noclip <on|off>, tessellation <on|off>, particles <on|off>, item-flags <hex>, character <next|index>, zoom <0.25..3>, facing <degrees>, door toggle, or animation attack.";
+                message = "Unknown in-game option. Use overlays <on|off>, debug-panel <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, collision <walk|fly|noclip>, noclip <on|off>, tessellation <on|off>, particles <on|off>, particle-simulation <CpuSimd|CpuScalar>, item-flags <hex>, character <next|index>, zoom <0.25..3>, facing <degrees>, door toggle, or animation attack.";
                 return false;
         }
     }
@@ -218,7 +231,9 @@ internal sealed class InGameScene : IGameScene
         _inputController.Update(deltaSeconds);
         Renderer.UpdateAutoRenderResolution(_camera.Zoom);
         _doors.Update(_worldStreamer.VisibleWorld, _camera.WorldCenter, deltaSeconds, _scene.Indoor.ActiveGroup);
-        _particles.Update(deltaSeconds, _worldStreamer.VisibleWorld, _scene.Indoor.ActiveGroup);
+        _playerParticles.Update();
+        _particles.Update(deltaSeconds, _worldStreamer.VisibleWorld, _scene.Indoor.ActiveGroup,
+            _camera.WorldCenter, _playerParticles.SelfHeight);
         UpdateRegionDisplayName();
     }
 
