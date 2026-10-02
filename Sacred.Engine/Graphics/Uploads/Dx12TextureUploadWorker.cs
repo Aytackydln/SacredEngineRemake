@@ -55,12 +55,18 @@ internal sealed class Dx12TextureUploadWorker : IDisposable
         out TextureUploadTicket ticket)
     {
         ticket = null!;
-        if (_stopped || PendingCount >= MaximumPendingUploads)
-            return false;
+        if (_stopped) return false;
         if (width <= 0 || height <= 0 || pixels.LongLength < checked((long)width * height * 4))
             throw new ArgumentException($"Invalid source pixels for texture {name} ({width}x{height}).");
+        // Terrain preparation and the frame thread both produce requests.
+        // Reserve capacity atomically so their combined queue remains bounded.
+        while (true)
+        {
+            var pending = PendingCount;
+            if (pending >= MaximumPendingUploads) return false;
+            if (Interlocked.CompareExchange(ref _pending, pending + 1, pending) == pending) break;
+        }
         ticket = new TextureUploadTicket(name, width, height, pixels, releaseSource);
-        Interlocked.Increment(ref _pending);
         _requests.Enqueue(ticket);
         return true;
     }

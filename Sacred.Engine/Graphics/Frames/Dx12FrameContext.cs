@@ -13,6 +13,7 @@ internal sealed class Dx12FrameContext : IDisposable
     private readonly List<ID3D12Resource> _retiredResources = new(64);
     private readonly List<int> _retiredSectorSrvSlots = new(8);
     private readonly List<int> _retiredModelSrvSlots = new(8);
+    private readonly List<Action> _retirementActions = new(8);
 
     private ID3D12Resource? _spriteInstanceBuffer;
     private nint _spriteInstanceBufferMapped;
@@ -47,12 +48,15 @@ internal sealed class Dx12FrameContext : IDisposable
 
     public void RetireResource(ID3D12Resource resource) => _retiredResources.Add(resource);
 
+    public void RetireAfterFence(Action release) => _retirementActions.Add(release);
+
     public void RetireSectorSrvSlot(int slot) => _retiredSectorSrvSlots.Add(slot);
 
     public void RetireModelSrvSlot(int slot) => _retiredModelSrvSlots.Add(slot);
 
     public int ReleaseRetiredResources(Stack<int> freeSectorSrvSlots, Stack<int> freeModelSrvSlots)
     {
+        ReleaseRetirementActions();
         foreach (var resource in _retiredResources)
             resource.Dispose();
         _retiredResources.Clear();
@@ -153,6 +157,7 @@ internal sealed class Dx12FrameContext : IDisposable
 
     public void Dispose()
     {
+        ReleaseRetirementActions();
         DisposeSpriteInstanceBuffer();
         DisposeInstanceBuffer(
             ref _staticShadowInstanceBuffer,
@@ -168,6 +173,12 @@ internal sealed class Dx12FrameContext : IDisposable
         _retiredResources.Clear();
 
         CommandAllocator.Dispose();
+    }
+
+    private void ReleaseRetirementActions()
+    {
+        foreach (var release in _retirementActions) release();
+        _retirementActions.Clear();
     }
 
     private void DisposeSpriteInstanceBuffer()

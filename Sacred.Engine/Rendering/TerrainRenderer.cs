@@ -19,12 +19,13 @@ public sealed class TerrainRenderer : IDisposable
     private readonly List<TerrainSectorComposition> _preloadedSectorImages = new(3);
     private bool _cacheInvalidated;
     private readonly TerrainLiquidSpriteBuilder _liquidSpriteBuilder;
-    private readonly TerrainStaticSpriteBuilder _staticSpriteBuilder;
+    private readonly TerrainStaticPreparationWorker _staticSpriteBuilder;
     private readonly TerrainParticleSpriteBuilder _particleSpriteBuilder;
     private readonly PrioritizedAssetLoadScheduler _sectorBuildScheduler =
         new("Sacred sector builder");
     private readonly Dictionary<SectorCoord, TerrainSectorComposition> _sectorCache = new();
     private readonly Dictionary<SectorCoord, Task<TerrainSectorComposition>> _sectorBuildTasks = new();
+    private readonly Dictionary<SectorCoord, Sector> _sectorBuildRequests = new();
     private readonly List<TerrainSectorComposition> _visibleSectorImages = new(9);
     private readonly List<Sector> _candidateSectors = new(9);
     private readonly List<TerrainStaticSprite> _visibleWorldSprites = new(1536);
@@ -34,7 +35,6 @@ public sealed class TerrainRenderer : IDisposable
     private VisibleWorld? _preparedWorld;
     private IndoorTileGroup? _activeIndoorGroup;
     private bool _worldChangedThisFrame;
-    private bool _indoorChangedThisFrame;
     private bool _sectorCompositionsChangedThisFrame;
     private ulong _preparedParticleRevision = ulong.MaxValue;
 
@@ -53,7 +53,7 @@ public sealed class TerrainRenderer : IDisposable
         _sectorCompositionBuilder = new SectorCompositionBuilder(assets);
         _prefetchPreparation = new TerrainPrefetchPreparation(assets);
         _liquidSpriteBuilder = new TerrainLiquidSpriteBuilder(assets);
-        _staticSpriteBuilder = new TerrainStaticSpriteBuilder(assets);
+        _staticSpriteBuilder = new TerrainStaticPreparationWorker(assets);
         _particleSpriteBuilder = new TerrainParticleSpriteBuilder(assets);
     }
 
@@ -61,14 +61,11 @@ public sealed class TerrainRenderer : IDisposable
         VisibleWorld world,
         IndoorTileGroup? activeIndoorGroup = null)
     {
-        var previousIndoorGroup = _activeIndoorGroup;
-        var indoorChanged = previousIndoorGroup?.Id != activeIndoorGroup?.Id;
         var worldChanged = _cacheInvalidated || !SameVisibleSectors(_preparedWorld, world);
         _cacheInvalidated = false;
         _preparedWorld = world;
         _activeIndoorGroup = activeIndoorGroup;
         _worldChangedThisFrame = worldChanged;
-        _indoorChangedThisFrame = indoorChanged;
         if (worldChanged)
         {
             _preparedWorld = world;
@@ -141,10 +138,7 @@ public sealed class TerrainRenderer : IDisposable
     {
         var preparation = _staticSpriteBuilder.Prepare(
             _candidateSectors,
-            _worldChangedThisFrame,
-            _indoorChangedThisFrame,
-            _activeIndoorGroup,
-            true);
+            _activeIndoorGroup);
         if (preparation.PromotionsChanged || _sectorCompositionsChangedThisFrame)
         {
             for (var index = _visibleSectorImages.Count - 1; index >= 0; index--)
@@ -270,11 +264,10 @@ public sealed class TerrainRenderer : IDisposable
         if (_sectorCache.TryGetValue(sector.Coord, out var cached))
             return cached;
 
-        if (!_sectorBuildTasks.ContainsKey(sector.Coord) && CountPendingSectorBuilds() < MaxConcurrentSectorImageBuilds)
+        if (!_sectorBuildTasks.ContainsKey(sector.Coord) && !_sectorBuildRequests.ContainsKey(sector.Coord) &&
+            CountPendingSectorBuilds() < MaxConcurrentSectorImageBuilds)
         {
-            _sectorBuildTasks[sector.Coord] = _sectorBuildScheduler.Schedule(
-                AssetLoadPriority.Background,
-                () => _sectorCompositionBuilder.BuildAsync(sector));
+            _sectorBuildRequests.Add(sector.Coord, sector);
         }
 
         return null;
@@ -282,12 +275,22 @@ public sealed class TerrainRenderer : IDisposable
 
     private int CountPendingSectorBuilds()
     {
-        var count = 0;
+        var count = _sectorBuildRequests.Count;
         foreach (var task in _sectorBuildTasks.Values)
             if (!task.IsCompleted)
                 count++;
 
         return count;
+    }
+
+    public void OnForegroundFrameSubmitted()
+    {
+        _staticSpriteBuilder.OnForegroundFrameSubmitted();
+        _prefetchPreparation.OnForegroundFrameSubmitted();
+        foreach (var (coord, sector) in _sectorBuildRequests)
+            _sectorBuildTasks[coord] = _sectorBuildScheduler.Schedule(
+                AssetLoadPriority.Background, () => _sectorCompositionBuilder.BuildAsync(sector));
+        _sectorBuildRequests.Clear();
     }
 
     public void PreparePreloadedWorld(VisibleWorld world)
@@ -328,6 +331,7 @@ public sealed class TerrainRenderer : IDisposable
 
     public void StopBackgroundWork()
     {
+        _staticSpriteBuilder.Dispose();
         _prefetchPreparation.Dispose();
         _sectorBuildScheduler.Dispose();
     }

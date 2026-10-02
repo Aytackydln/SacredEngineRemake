@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -112,6 +113,7 @@ public sealed partial class Dx12Renderer : IDisposable
     public bool IsHdrEnabled => _graphics.IsHdrEnabled;
     internal FrameTimingLog FrameTiming { get; } = new();
     internal double LastPresentMilliseconds => _graphics.LastPresentMilliseconds;
+    internal double LastStreamingDispatchMilliseconds { get; private set; }
     public HdrBrightnessSettings HdrBrightnessSettings => _graphics.HdrBrightnessSettings;
     public int OutputWidth => _graphics.OutputWidth;
     public int OutputHeight => _graphics.OutputHeight;
@@ -356,7 +358,10 @@ public sealed partial class Dx12Renderer : IDisposable
             verticalSyncEnabled,
             frameId,
             captureScreenshot);
+        var dispatchStart = FrameTiming.Enabled ? Stopwatch.GetTimestamp() : 0;
         _worldPass?.OnForegroundFrameSubmitted();
+        LastStreamingDispatchMilliseconds = dispatchStart == 0 ? 0 :
+            Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds;
         if (screenshot is null)
             return;
 

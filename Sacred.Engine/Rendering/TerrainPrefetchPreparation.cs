@@ -14,6 +14,7 @@ internal sealed class TerrainPrefetchPreparation(AssetManager assets) : IDisposa
     private VisibleWorld? _requestedWorld;
     private VisibleWorld? _readyWorld;
     private IReadOnlySet<uint>? _promotions;
+    private VisibleWorld? _pendingWorld;
 
     public IReadOnlySet<uint>? Prepare(VisibleWorld world)
     {
@@ -28,20 +29,25 @@ internal sealed class TerrainPrefetchPreparation(AssetManager assets) : IDisposa
             _task = null;
         }
         if (ReferenceEquals(_readyWorld, world)) return _promotions;
-        if (_task is null && world.LoadingPreloadedSectors == 0 && world.PrefetchCenterSector is { } center && world.PreloadedSectors.Count > 0)
-        {
-            var sectors = new List<Sector>(9);
-            foreach (var sector in world.Sectors)
-                if (Math.Abs(sector.Coord.X - center.X) <= 1 && Math.Abs(sector.Coord.Y - center.Y) <= 1) sectors.Add(sector);
-            sectors.AddRange(world.PreloadedSectors);
-            _requestedWorld = world;
-            _task = Task.Run(() =>
-            {
-                var result = _sprites.Prepare(sectors, true, true, null, true);
-                return new PrefetchResult(!_sprites.HasPendingAssetRequests, new HashSet<uint>(result.PromotedEmbeddedObjectIds));
-            });
-        }
+        if (_task is null && world.LoadingPreloadedSectors == 0 && world.PrefetchCenterSector is not null && world.PreloadedSectors.Count > 0)
+            _pendingWorld = world;
         return null;
+    }
+
+    public void OnForegroundFrameSubmitted()
+    {
+        if (_task is not null || _pendingWorld is not { PrefetchCenterSector: { } center } world) return;
+        _pendingWorld = null;
+        var sectors = new List<Sector>(9);
+        foreach (var sector in world.Sectors)
+            if (Math.Abs(sector.Coord.X - center.X) <= 1 && Math.Abs(sector.Coord.Y - center.Y) <= 1) sectors.Add(sector);
+        sectors.AddRange(world.PreloadedSectors);
+        _requestedWorld = world;
+        _task = Task.Run(() =>
+        {
+            var result = _sprites.Prepare(sectors, true, true, null, true);
+            return new PrefetchResult(!_sprites.HasPendingAssetRequests, new HashSet<uint>(result.PromotedEmbeddedObjectIds));
+        });
     }
 
     public void Dispose() => _task?.GetAwaiter().GetResult();

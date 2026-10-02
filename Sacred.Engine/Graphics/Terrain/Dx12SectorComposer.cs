@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
-using Sacred.Assets.Paks.Texture;
 using Sacred.Engine.Extern;
+using Sacred.Engine.Graphics.Uploads;
 using Sacred.Engine.Rendering;
 using Vortice.Direct3D12;
 using Vortice.DXGI;
@@ -16,18 +16,15 @@ internal sealed class Dx12SectorComposer : IDisposable
 {
     public const int MaximumInFlightCompositions = 2;
 
-    private const int MaximumTileSheetCount = 4096;
     private const uint HasSecondaryMaskFlag = 0x01;
     private const uint PremultipliedOutputFlag = 0x02;
     private const Format OutputFormat = Format.R8G8B8A8_UNorm;
 
     private readonly ID3D12Device _device;
-    private readonly Dx12TextureUploader _uploader;
+    private readonly Dx12SectorTargetPool _targets;
     private readonly ID3D12CommandQueue _commandQueue;
     private readonly ID3D12Fence _fence;
-    private readonly Dictionary<string, SourceTexture> _sourceTextures = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<StaticSpriteAsset, SourceTexture> _spriteSourceTextures =
-        new(ReferenceEqualityComparer.Instance);
+    private readonly Dx12SectorSourceTextureCache _sources;
     private readonly ID3D12RootSignature _rootSignature;
     private readonly ID3D12PipelineState _basePipeline;
     private readonly ID3D12PipelineState _coverPipeline;
@@ -38,10 +35,11 @@ internal sealed class Dx12SectorComposer : IDisposable
     private nint _fenceEvent;
     private ulong _fenceValue;
 
-    public Dx12SectorComposer(ID3D12Device device, Dx12TextureUploader uploader)
+    public Dx12SectorComposer(ID3D12Device device, Dx12TextureUploader uploader, Dx12SectorTargetPool targets, Dx12TextureUploadWorker uploads)
     {
         _device = device;
-        _uploader = uploader;
+        _targets = targets;
+        _sources = new Dx12SectorSourceTextureCache(uploads);
         _commandQueue = device.CreateCommandQueue(CommandListType.Direct);
         _fence = device.CreateFence(0, FenceFlags.None);
         _fenceEvent = Kernel32.CreateEventA(IntPtr.Zero, false, false, null);
@@ -62,14 +60,14 @@ internal sealed class Dx12SectorComposer : IDisposable
             _contexts[index] = new Dx12SectorCompositionContext(device);
     }
 
+    public bool PrepareSources(TerrainSectorComposition composition) => _sources.Prepare(composition);
+
     public Submission Submit(TerrainSectorComposition composition)
     {
         var context = GetAvailableContext();
         var commandList = context.CommandList;
         ID3D12Resource? baseTexture = null;
         ID3D12Resource? coverTexture = null;
-        var addedSourceNames = new List<string>();
-        var addedSpriteSources = new List<StaticSpriteAsset>();
 
         try
         {
@@ -79,8 +77,20 @@ internal sealed class Dx12SectorComposer : IDisposable
                 composition.EmbeddedSprites.Count) * 2);
             context.BeginRecording(maximumSourceDescriptorCount);
 
-            baseTexture = CreateOutputTexture(composition.Width, composition.Height);
-            coverTexture = CreateOutputTexture(composition.Width, composition.Height);
+            if (_targets.TryRent(composition.Width, composition.Height) is { } reused)
+            {
+                baseTexture = reused.BaseTexture;
+                coverTexture = reused.LiquidCoverTexture;
+                Dx12TextureUploader.Transition(commandList, baseTexture,
+                    ResourceStates.PixelShaderResource, ResourceStates.RenderTarget);
+                Dx12TextureUploader.Transition(commandList, coverTexture,
+                    ResourceStates.PixelShaderResource, ResourceStates.RenderTarget);
+            }
+            else
+            {
+                baseTexture = CreateOutputTexture(composition.Width, composition.Height);
+                coverTexture = CreateOutputTexture(composition.Width, composition.Height);
+            }
             var rtvStart = context.RtvHeap.GetCPUDescriptorHandleForHeapStart();
             var rtvDescriptorSize = (int)_device.GetDescriptorHandleIncrementSize(DescriptorHeapType.RenderTargetView);
             var baseRtv = rtvStart;
@@ -91,20 +101,14 @@ internal sealed class Dx12SectorComposer : IDisposable
             var baseDraws = CreateDraws(
                 composition.BaseTiles,
                 false,
-                commandList,
-                context.TransientResources,
-                addedSourceNames);
+                commandList);
             var coverDraws = CreateDraws(
                 composition.CoverTiles,
                 true,
-                commandList,
-                context.TransientResources,
-                addedSourceNames);
+                commandList);
             var embeddedSpriteDraws = CreateEmbeddedSpriteDraws(
                 composition.EmbeddedSprites,
-                commandList,
-                context.TransientResources,
-                addedSpriteSources);
+                commandList);
 
             var sourceSrvHeap = context.SourceSrvHeap;
             var nextSourceDescriptor = 0;
@@ -135,6 +139,7 @@ internal sealed class Dx12SectorComposer : IDisposable
 
             commandList.Close();
             _commandQueue.ExecuteCommandLists([commandList]);
+            _sources.CommitRecordedTransitions();
             var fenceValue = ++_fenceValue;
             _commandQueue.Signal(_fence, fenceValue).CheckError();
             context.FenceValue = fenceValue;
@@ -150,19 +155,7 @@ internal sealed class Dx12SectorComposer : IDisposable
         }
         catch
         {
-            // A source descriptor allocated by a failed composition must not remain discoverable.
-            // Slots are intentionally not reused; this avoids aliasing any descriptor that may have
-            // reached the GPU before an execution or fence failure was reported.
-            foreach (var name in addedSourceNames)
-            {
-                if (_sourceTextures.Remove(name, out var source))
-                    source.Resource.Dispose();
-            }
-            foreach (var sprite in addedSpriteSources)
-            {
-                if (_spriteSourceTextures.Remove(sprite, out var source))
-                    source.Resource.Dispose();
-            }
+            _sources.ResetRecordedTransitions();
 
             throw;
         }
@@ -201,12 +194,7 @@ internal sealed class Dx12SectorComposer : IDisposable
         WaitForFence(_fenceValue);
         foreach (var context in _contexts)
             context.Dispose();
-        foreach (var source in _sourceTextures.Values)
-            source.Resource.Dispose();
-        _sourceTextures.Clear();
-        foreach (var source in _spriteSourceTextures.Values)
-            source.Resource.Dispose();
-        _spriteSourceTextures.Clear();
+        _sources.Dispose();
 
         _spritePipeline.Dispose();
         _coverPipeline.Dispose();
@@ -234,28 +222,18 @@ internal sealed class Dx12SectorComposer : IDisposable
     private GpuTerrainTileDraw[] CreateDraws(
         IReadOnlyList<TerrainCompositionTile> tiles,
         bool premultipliedOutput,
-        ID3D12GraphicsCommandList commandList,
-        ICollection<ID3D12Resource> transientResources,
-        ICollection<string> addedSourceNames)
+        ID3D12GraphicsCommandList commandList)
     {
         var draws = new GpuTerrainTileDraw[tiles.Count];
         for (var index = 0; index < tiles.Count; index++)
         {
             var tile = tiles[index];
-            var primary = EnsureSourceTexture(
-                tile.Primary.Texture,
-                commandList,
-                transientResources,
-                addedSourceNames);
+            var primary = _sources.Get(tile.Primary.Texture, commandList);
             var secondary = primary;
             var flags = premultipliedOutput ? PremultipliedOutputFlag : 0u;
             if (tile.Secondary is { } secondaryTile)
             {
-                secondary = EnsureSourceTexture(
-                    secondaryTile.Texture,
-                    commandList,
-                    transientResources,
-                    addedSourceNames);
+                secondary = _sources.Get(secondaryTile.Texture, commandList);
                 flags |= HasSecondaryMaskFlag;
             }
 
@@ -280,9 +258,7 @@ internal sealed class Dx12SectorComposer : IDisposable
 
     private GpuSectorSpriteDraw[] CreateEmbeddedSpriteDraws(
         IReadOnlyList<TerrainEmbeddedSprite> sprites,
-        ID3D12GraphicsCommandList commandList,
-        ICollection<ID3D12Resource> transientResources,
-        ICollection<StaticSpriteAsset> addedSpriteSources)
+        ID3D12GraphicsCommandList commandList)
     {
         var draws = new GpuSectorSpriteDraw[sprites.Count];
         for (var index = 0; index < sprites.Count; index++)
@@ -290,74 +266,10 @@ internal sealed class Dx12SectorComposer : IDisposable
             var sprite = sprites[index];
             draws[index] = new GpuSectorSpriteDraw(
                 new GpuSectorSpriteInstance(sprite),
-                EnsureSourceTexture(sprite.Sprite, commandList, transientResources, addedSpriteSources));
+                _sources.Get(sprite.Sprite, commandList));
         }
 
         return draws;
-    }
-
-    private SourceTexture EnsureSourceTexture(
-        TextureAsset texture,
-        ID3D12GraphicsCommandList commandList,
-        ICollection<ID3D12Resource> transientResources,
-        ICollection<string> addedSourceNames)
-    {
-        if (_sourceTextures.TryGetValue(texture.Name, out var cached))
-            return cached;
-        if (_sourceTextures.Count >= MaximumTileSheetCount)
-            throw new InvalidOperationException($"The terrain tile-sheet cache exhausted its {MaximumTileSheetCount} textures.");
-
-        ID3D12Resource? resource = null;
-        try
-        {
-            resource = _uploader.UploadRgbaTexture(
-                commandList,
-                texture.Width,
-                texture.Height,
-                texture.Rgba8,
-                transientResources);
-            var source = new SourceTexture(resource);
-            _sourceTextures.Add(texture.Name, source);
-            addedSourceNames.Add(texture.Name);
-            return source;
-        }
-        catch
-        {
-            resource?.Dispose();
-            throw;
-        }
-    }
-
-    private SourceTexture EnsureSourceTexture(
-        StaticSpriteAsset sprite,
-        ID3D12GraphicsCommandList commandList,
-        ICollection<ID3D12Resource> transientResources,
-        ICollection<StaticSpriteAsset> addedSources)
-    {
-        if (_spriteSourceTextures.TryGetValue(sprite, out var cached))
-            return cached;
-
-        ID3D12Resource? resource = null;
-        try
-        {
-            resource = _uploader.UploadRgbaTexture(
-                commandList,
-                sprite.AtlasWidth,
-                sprite.AtlasHeight,
-                sprite.Rgba,
-                transientResources);
-            var source = new SourceTexture(resource);
-            _spriteSourceTextures.Add(sprite, source);
-            addedSources.Add(sprite);
-            // A shared sprite can be baked into the exterior and later uploaded
-            // for an active elevated indoor surface.
-            return source;
-        }
-        catch
-        {
-            resource?.Dispose();
-            throw;
-        }
     }
 
     private ID3D12Resource CreateOutputTexture(int width, int height)

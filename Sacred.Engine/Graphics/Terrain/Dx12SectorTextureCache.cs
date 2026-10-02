@@ -4,6 +4,7 @@ using System.Numerics;
 using System.Threading;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Graphics.Frames;
+using Sacred.Engine.Graphics.Uploads;
 using Sacred.Engine.Rendering;
 using Vortice.Direct3D12;
 
@@ -34,6 +35,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
     public Dx12SectorTextureCache(
         ID3D12Device device,
         Dx12TextureUploader uploader,
+        Dx12TextureUploadWorker uploads,
         ID3D12DescriptorHeap srvHeap,
         int descriptorSize,
         int maximumTextureCount,
@@ -45,6 +47,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         _compositionWorker = new Dx12SectorCompositionWorker(
             device,
             uploader,
+            uploads,
             maximumTextureCount,
             IsWanted);
         _srvHeapStart = srvHeap.GetCPUDescriptorHandleForHeapStart();
@@ -159,7 +162,7 @@ internal sealed class Dx12SectorTextureCache : IDisposable
             _pendingUploads.Remove(composition.Coord);
             if (!IsWanted(composition.Composition))
             {
-                composition.Composed?.Dispose();
+                if (composition.Composed is { } obsolete) _compositionWorker.RecycleTargets(obsolete);
                 _invalidateComposition(composition.Composition);
                 ReleaseSrvSlots(composition);
                 continue;
@@ -285,8 +288,8 @@ internal sealed class Dx12SectorTextureCache : IDisposable
     private void Retire(SectorTexture texture, Dx12FrameContext frame)
     {
         _invalidateComposition(texture.Composition);
-        frame.RetireResource(texture.BaseResource);
-        frame.RetireResource(texture.LiquidCoverResource);
+        var targets = new Dx12ComposedSector(texture.BaseResource, texture.LiquidCoverResource);
+        frame.RetireAfterFence(() => _compositionWorker.RecycleTargets(targets));
         frame.RetireSectorSrvSlot(texture.BaseSrvSlot);
         frame.RetireSectorSrvSlot(texture.LiquidCoverSrvSlot);
         _retiringSrvSlotCount += TexturesPerSector;

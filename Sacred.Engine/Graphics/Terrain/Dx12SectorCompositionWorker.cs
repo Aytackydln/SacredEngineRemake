@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
+using Sacred.Engine.Graphics.Uploads;
 using Sacred.Engine.Rendering;
 using Vortice.Direct3D12;
 
@@ -12,6 +13,7 @@ namespace Sacred.Engine.Graphics.Terrain;
 internal sealed class Dx12SectorCompositionWorker : IDisposable
 {
     private readonly Dx12SectorComposer _composer;
+    private readonly Dx12SectorTargetPool _targets = new();
     private readonly SectorCompositionRequestQueue _requests;
     private readonly ConcurrentQueue<SubmittedSectorComposition> _completed = new();
     private readonly List<InFlightSectorComposition> _inFlight =
@@ -20,14 +22,16 @@ internal sealed class Dx12SectorCompositionWorker : IDisposable
     private readonly Func<TerrainSectorComposition, bool> _isWanted;
     private Thread? _thread;
     private volatile bool _stopped;
+    private SectorCompositionRequest? _preparing;
 
     public Dx12SectorCompositionWorker(
         ID3D12Device device,
         Dx12TextureUploader uploader,
+        Dx12TextureUploadWorker uploads,
         int queueCapacity,
         Func<TerrainSectorComposition, bool> isWanted)
     {
-        _composer = new Dx12SectorComposer(device, uploader);
+        _composer = new Dx12SectorComposer(device, uploader, _targets, uploads);
         _requests = new SectorCompositionRequestQueue(queueCapacity);
         _isWanted = isWanted;
         _thread = new Thread(WorkerLoop)
@@ -49,6 +53,8 @@ internal sealed class Dx12SectorCompositionWorker : IDisposable
 
     public void OnForegroundFrameSubmitted() => _compositionOpportunity.Set();
 
+    public void RecycleTargets(Dx12ComposedSector targets) => _targets.Return(targets);
+
     public void Stop()
     {
         if (_stopped)
@@ -65,6 +71,7 @@ internal sealed class Dx12SectorCompositionWorker : IDisposable
         Stop();
         _compositionOpportunity.Dispose();
         _composer.Dispose();
+        _targets.Dispose();
     }
 
     private void WorkerLoop()
@@ -72,6 +79,7 @@ internal sealed class Dx12SectorCompositionWorker : IDisposable
         while (true)
         {
             _compositionOpportunity.WaitOne();
+            _targets.CollectReturned();
             CollectFinishedCompositions();
 
             foreach (var obsolete in _requests.RemoveWhere(
@@ -82,17 +90,37 @@ internal sealed class Dx12SectorCompositionWorker : IDisposable
 
             if (_stopped)
             {
+                if (_preparing is { } abandoned) _completed.Enqueue(Skip(abandoned));
+                _preparing = null;
                 CompleteInFlightCompositions();
                 return;
             }
 
-            if (_inFlight.Count >= Dx12SectorComposer.MaximumInFlightCompositions ||
-                !_requests.TryDequeue(request => _isWanted(request.Composition), out var request))
+            if (_preparing is { } obsoleteRequest && !_isWanted(obsoleteRequest.Composition))
+            {
+                _completed.Enqueue(Skip(obsoleteRequest));
+                _preparing = null;
+            }
+            if (_inFlight.Count >= Dx12SectorComposer.MaximumInFlightCompositions)
             {
                 continue;
             }
-
-            Submit(request);
+            if (_preparing is null)
+            {
+                if (!_requests.TryDequeue(request => _isWanted(request.Composition), out var request)) continue;
+                _preparing = request;
+            }
+            try
+            {
+                if (!_composer.PrepareSources(_preparing.Composition)) continue;
+                Submit(_preparing);
+            }
+            catch (Exception exception)
+            {
+                _preparing.Composition.ReleaseSourceTiles();
+                _completed.Enqueue(Failed(_preparing, exception));
+            }
+            _preparing = null;
         }
     }
 

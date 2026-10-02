@@ -83,6 +83,7 @@ internal sealed class Dx12WorldPass : IDisposable
         _sectorTextures = new Dx12SectorTextureCache(
             graphics.Device,
             textureUploader,
+            _textureUploads,
             graphics.SrvHeap,
             graphics.SrvDescriptorSize,
             Dx12DescriptorLayout.MaximumSectorTextures,
@@ -404,6 +405,7 @@ internal sealed class Dx12WorldPass : IDisposable
 
     public void OnForegroundFrameSubmitted()
     {
+        _terrain.OnForegroundFrameSubmitted();
         _textureUploads.OnForegroundFrameSubmitted();
         _sectorTextures.OnForegroundFrameSubmitted();
     }
