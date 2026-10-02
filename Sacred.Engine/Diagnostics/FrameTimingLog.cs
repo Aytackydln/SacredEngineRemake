@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 
 namespace Sacred.Engine.Diagnostics;
@@ -12,6 +14,7 @@ internal sealed class FrameTimingLog
     private double _update;
     private double _present;
     private bool _enabled;
+    private readonly List<double> _activeTimes = [];
 
     public bool Enabled
     {
@@ -20,6 +23,7 @@ internal sealed class FrameTimingLog
         {
             _enabled = value;
             _start = 0;
+            _activeTimes.Clear();
             _count = 0;
             _wait = _update = _present = 0;
         }
@@ -31,6 +35,7 @@ internal sealed class FrameTimingLog
         if (!Enabled)
         {
             _start = 0;
+            _activeTimes.Clear();
             _count = 0;
             _wait = _update = _present = 0;
             return;
@@ -42,11 +47,16 @@ internal sealed class FrameTimingLog
         _wait += wait;
         _update += update;
         _present += present;
+        _activeTimes.Add(update + present);
         var elapsed = Stopwatch.GetElapsedTime(_start).TotalSeconds;
         if (elapsed < 2)
             return;
 
-        EngineLog.WriteLine($"Frame timing: {_count / elapsed:0.0} FPS; wait {_wait / _count:0.00} ms; update/render {_update / _count:0.00} ms; present {_present / _count:0.00} ms; {context}");
+        _activeTimes.Sort();
+        var median = _activeTimes[_activeTimes.Count / 2];
+        var tail = _activeTimes[Math.Min(_activeTimes.Count - 1, (int)(_activeTimes.Count * .95))];
+        EngineLog.WriteLine($"Frame timing: {_count / elapsed:0.0} FPS; wait {_wait / _count:0.00} ms; update/render {_update / _count:0.00} ms; present {_present / _count:0.00} ms; active median {median:0.000} ms; p95 {tail:0.000} ms; {context}");
+        _activeTimes.Clear();
         _start = 0;
         _count = 0;
         _wait = _update = _present = 0;

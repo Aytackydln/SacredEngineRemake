@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 using Sacred.Granny.Animation;
 using Sacred.Granny.Meshes;
 
@@ -33,6 +34,9 @@ public sealed class SceneModelGeometry
 
     /// <summary>Explicit on-demand CPU snapshot for tools, not an implicit draw-time fallback.</summary>
     public Mesh MaterializeCpuMesh() => Animation?.MaterializeCpuMesh() ?? _mesh;
+    public bool TryGetRadialSweep(MeshSurface surface, out Vector4 parameters) => Animation is { } animation
+        ? animation.TryGetRadialSweep(surface, out parameters)
+        : MeshSurfaceRadialSweep.TryCalculate(_mesh, surface, out parameters);
 
     internal bool UsesCpuMesh(Mesh mesh) => Kind != SceneModelGeometryKind.GpuSkinned &&
         (Animation is { } animation

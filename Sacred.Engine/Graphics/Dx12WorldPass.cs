@@ -36,7 +36,9 @@ internal sealed class Dx12WorldPass : IDisposable
     private readonly Dx12SkinPreparationCache _skinPreparation;
     private readonly Dx12SkinDrawBindings _skinDraw;
     public bool SkinPreparationEnabled { get; set; }
-    public bool GpuSkinningEnabled { get; set; }
+    private readonly SkinningBackendSelection _skinning = new();
+    private string? _skinningFailure;
+    public SkinningMode SkinningMode { get => _skinning.Mode; set => _skinning.Mode = value; }
     private readonly Dx12ModelPass _models;
     private readonly Dx12SpritePass _sprites;
     private readonly Dx12SurfaceLightMapPass _surfaceLights;
@@ -181,6 +183,10 @@ internal sealed class Dx12WorldPass : IDisposable
         _worldUi = new Dx12WorldUiPass(graphics, _commandRecorder, _minimap, _debugOverlay, _imgui, _debugPanel);
     }
 
+    public string SkinningStatus => $"mode {SkinningMode}; animated models GPU {_skinning.GpuModelCount}, CPU {_skinning.CpuModelCount}; pipelines {(_skinDraw.IsReady ? "ready" : "unavailable")}; " +
+        $"GPU sources {_skinPreparation.SourceCount}, instances {_skinPreparation.InstanceCount}, source bytes {_skinPreparation.SourceBytes}, palette bytes {_skinPreparation.PaletteBytes}; " +
+        $"CPU/static/equipment geometry bytes {_modelGeometry.ResidentBytes}; failure {_skinningFailure ?? "none"}";
+
     public WorldPreparationStatus LastPreparationStatus { get; private set; } =
         WorldPreparationStatus.NotStarted;
 
@@ -241,10 +247,7 @@ internal sealed class Dx12WorldPass : IDisposable
         WorldPreloadRequest request,
         Dx12PreparedWorldFrame prepared)
     {
-        SelectSkinning(request.Scene);
-        var modelGeometryReady = _modelGeometry.Prepare(request.Scene.Models);
-        _skinPreparation.Prepare(SkinPreparationEnabled || GpuSkinningEnabled ? request.Scene.Models : Array.Empty<SceneModel>(), _graphics.CurrentFrame);
-        modelGeometryReady &= SkinSourcesReady(request.Scene);
+        var modelGeometryReady = PrepareModels(request.Scene);
         _modelTextures.PrepareFrame(request.Scene, _graphics.CurrentFrame);
         _sprites.PrepareTextures(
             prepared.LiquidSprites,
@@ -268,10 +271,7 @@ internal sealed class Dx12WorldPass : IDisposable
         ID3D12PipelineState liquidCoverPipeline,
         ID3D12PipelineState shadowOverlayPipeline)
     {
-        SelectSkinning(scene);
-        var modelGeometryReady = _modelGeometry.Prepare(scene.Models);
-        _skinPreparation.Prepare(SkinPreparationEnabled || GpuSkinningEnabled ? scene.Models : Array.Empty<SceneModel>(), _graphics.CurrentFrame);
-        modelGeometryReady &= SkinSourcesReady(scene);
+        var modelGeometryReady = PrepareModels(scene);
         _modelTextures.PrepareFrame(scene, _graphics.CurrentFrame);
         _sprites.PrepareTextures(
             prepared.LiquidSprites,
@@ -357,7 +357,18 @@ internal sealed class Dx12WorldPass : IDisposable
         _sprites.SetPipeline(staticSprites, hdrOutput);
         _lightHalos.SetPipeline(lightHalos);
         _models.SetPipeline(models, hdrOutput);
-        _skinDraw.CreatePipelines(hdrOutput, _graphics.BackBufferFormat, Dx12DeviceContext.DepthBufferFormat);
+        try
+        {
+            _skinDraw.CreatePipelines(hdrOutput, _graphics.BackBufferFormat, Dx12DeviceContext.DepthBufferFormat);
+            _skinningFailure = null;
+            EngineLog.WriteLine("GPU skinning pipeline gate passed: all skeletal variants created for the active device/output.");
+        }
+        catch (Exception error)
+        {
+            _skinDraw.DisposePipelines();
+            _skinningFailure = $"skeletal pipeline creation failed: {error.Message}";
+            EngineLog.WriteLine($"Skinning fallback: {_skinningFailure}");
+        }
         _imgui.SetPipeline(imgui);
     }
 
@@ -416,24 +427,24 @@ internal sealed class Dx12WorldPass : IDisposable
         _textureUploads.Dispose();
     }
 
-    private void SelectSkinning(SceneState scene)
+    private bool PrepareModels(SceneState scene)
     {
-        for (var i = 0; i < scene.Models.Count; i++)
+        var prepareGpu = _skinningFailure is null && _skinDraw.IsReady &&
+            (SkinPreparationEnabled || SkinningMode != SkinningMode.Cpu);
+        try
         {
-            var geometry = scene.Models[i].Geometry;
-            if (geometry.Animation is not { } animation) continue;
-            var desired = GpuSkinningEnabled ? SceneModelGeometryKind.GpuSkinned : SceneModelGeometryKind.CpuDeformed;
-            if (geometry.Kind != desired) scene.SetModelGeometry(i, GpuSkinningEnabled
-                ? SceneModelGeometry.ForGpuSkinning(animation) : SceneModelGeometry.ForCpuSkinning(animation));
+            _skinPreparation.Prepare(prepareGpu ? scene.Models : Array.Empty<SceneModel>(), _graphics.CurrentFrame);
         }
-    }
-
-    private bool SkinSourcesReady(SceneState scene)
-    {
-        foreach (var model in scene.Models)
-            if (model.Geometry.Kind == SceneModelGeometryKind.GpuSkinned && model.Geometry.BindMesh.Indices.Length > 0 &&
-                model.Geometry.BindMesh.Vertices.Length > 0 && !_skinPreparation.TryGet(model.Geometry, _graphics.CurrentFrame.Index, out _, out _)) return false;
-        return true;
+        catch (Exception error)
+        {
+            _skinningFailure = $"GPU resource preparation failed: {error.Message}";
+            EngineLog.WriteLine($"Skinning fallback: {_skinningFailure}");
+        }
+        _skinning.Apply(scene, _skinDraw.IsReady && _skinningFailure is null, _skinningFailure,
+            geometry => _skinPreparation.TryGet(geometry, _graphics.CurrentFrame.Index, out _, out _),
+            _skinPreparation.HasFailed, EngineLog.WriteLine);
+        _modelGeometry.RetireUnused(scene.Models, _graphics.CurrentFrame);
+        return _modelGeometry.Prepare(scene.Models);
     }
 
     private void UpdatePreparationStatus(

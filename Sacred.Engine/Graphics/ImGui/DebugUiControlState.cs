@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Sacred.Engine.Graphics.Skinning;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Scene.InGame;
 using Sacred.Particles;
@@ -16,6 +17,8 @@ internal sealed class DebugUiControlState
     public bool BorderlessFullscreen { get; set; }
     public SacredParticleQuality ParticleQuality { get; set; }
     public ParticleSimulationMode ParticleSimulation { get; set; }
+    public SkinningMode SkinningMode { get; set; }
+    public SkinningMode? RequestedSkinningMode { get; set; }
     public CollisionCheatMode CollisionMode { get; set; }
     public float PlayerMovementSpeedMultiplier { get; set; } = 1.0f;
     public int RenderResolutionPercentage { get; set; } = 100;

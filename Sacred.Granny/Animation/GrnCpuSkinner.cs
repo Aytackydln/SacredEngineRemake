@@ -40,4 +40,21 @@ public static class GrnCpuSkinner
         projectedNormal = projectedNormal.LengthSquared() > 0.000001f ? Vector3.Normalize(projectedNormal) : Vector3.UnitZ;
         return template with { Position = data.Projection.Project(rawPosition), Normal = projectedNormal };
     }
+
+    /// <summary>Position-only query for material parameters and particle seeds.</summary>
+    public static Vector3 TransformPosition(GrnPose pose, int index)
+    {
+        if (!pose.IsEvaluated) throw new InvalidOperationException("Evaluate a pose before querying vertices.");
+        var vertex = pose.Data.Vertices[index];
+        var transforms = vertex.UsesRigidBoneTransform ? pose.RigidSkinTransforms : pose.SkinTransforms;
+        var position = Vector3.Zero;
+        var totalWeight = 0f;
+        foreach (var influence in pose.Data.Influences.Slice(vertex.InfluenceOffset, vertex.InfluenceCount))
+        {
+            if ((uint)influence.BoneIndex >= (uint)transforms.Length || !float.IsFinite(influence.Weight) || influence.Weight <= 0) continue;
+            position += Vector3.Transform(vertex.BindPosition, transforms[influence.BoneIndex]) * influence.Weight;
+            totalWeight += influence.Weight;
+        }
+        return pose.Data.Projection.Project(totalWeight > .000001f ? position / totalWeight : vertex.BindPosition);
+    }
 }

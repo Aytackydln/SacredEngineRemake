@@ -15,6 +15,7 @@ internal sealed class Dx12SkinDrawBindings : IDisposable
     private readonly Dx12TextureUploader _uploader;
     private readonly ID3D12Resource?[] _sceneBuffers = new ID3D12Resource[Dx12DeviceContext.FrameCount];
     private Dx12CreatedPipelineGroup? _pipelines;
+    public bool IsReady => _pipelines is not null;
     public Dx12SkinDrawBindings(Dx12SkinPreparationCache cache, ID3D12Device device, Dx12TextureUploader uploader)
     { _cache = cache; _device = device; _uploader = uploader; }
     public ID3D12RootSignature Root => _pipelines!.RootSignature;

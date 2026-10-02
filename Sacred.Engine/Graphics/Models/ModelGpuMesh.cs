@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using Sacred.Engine.Graphics.Frames;
 using Sacred.Granny.Diagnostics;
 using Sacred.Granny.Meshes;
 using Vortice.Direct3D12;
@@ -67,6 +68,15 @@ internal sealed class ModelGpuMesh(
         Dx12TextureUploader.UpdateUploadBuffer(VertexBuffers[frameIndex], bytes);
         VertexRevisions[frameIndex] = mesh.VertexRevision;
         AnimationPerformance.RecordVertexUpload(bytes.Length);
+    }
+
+    public void Retire(Dx12FrameContext frame)
+    {
+        if (_dynamicVertices)
+            foreach (var buffer in VertexBuffers) frame.RetireResource(buffer);
+        else frame.RetireResource(VertexBuffers[0]);
+        if (_retiredStaticVertices is not null) frame.RetireResource(_retiredStaticVertices);
+        frame.RetireResource(IndexBuffer);
     }
 
     public void Dispose()

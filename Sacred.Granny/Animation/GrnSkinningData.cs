@@ -11,9 +11,11 @@ public sealed class GrnSkinningData
     private readonly Matrix4x4[] _inverseBind;
     private readonly Matrix4x4[] _inverseRigidBind;
     private readonly Dictionary<string, int> _bonesByName = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Lazy<GrnSkinBounds> _bounds;
 
     internal GrnSkinningData(GrnMeshSkin skin)
     {
+        _bounds = new(() => new GrnSkinBounds(this));
         _bones = (GrnBone[])skin.Skeleton.Bones.Clone();
         _vertices = new GrnSkinningVertex[skin.Vertices.Length];
         var influences = new List<GrnSkinInfluence>();
@@ -40,6 +42,7 @@ public sealed class GrnSkinningData
     public ReadOnlySpan<GrnSkinningVertex> Vertices => _vertices;
     public ReadOnlySpan<GrnSkinInfluence> Influences => _influences;
     public GrnMeshProjection Projection { get; }
+    public GrnSkinBounds Bounds => _bounds.Value;
     public bool TryFindBone(string name, out int index) => _bonesByName.TryGetValue(name, out index);
     internal Matrix4x4 GetInverseBindTransform(int index) => _inverseBind[index];
     internal Matrix4x4 GetInverseRigidBindTransform(int index) => _inverseRigidBind[index];

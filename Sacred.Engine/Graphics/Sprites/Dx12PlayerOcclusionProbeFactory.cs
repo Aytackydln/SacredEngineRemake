@@ -21,7 +21,7 @@ internal static class Dx12PlayerOcclusionProbeFactory
             return default;
 
         var clip = Vector4.Transform(
-            new Vector4(playerModel.VisualCenter, 1.0f),
+            new Vector4(playerModel.OcclusionProbeCenter, 1.0f),
             camera.View * camera.Projection);
         var inverseW = MathF.Abs(clip.W) > float.Epsilon ? 1.0f / clip.W : 1.0f;
         var screenPosition = new Vector2(

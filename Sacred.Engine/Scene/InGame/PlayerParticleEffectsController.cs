@@ -95,17 +95,7 @@ internal sealed class PlayerParticleEffectsController(WorldParticleSystem partic
         if (!request.SelfTarget || request.EventPreset is not { } preset ||
             !particles.Catalogue.TryGetEventDefinition(request.TypeId, preset, out var definition) ||
             definition.ModelBurstCount == 0 || scene.Models.FirstOrDefault() is not { } model) return null;
-        var projection = particles.Catalogue.Projection;
-        var origin = model.RenderPosition;
-        // Convert the posed mesh from the remake's 45-degree model camera to the
-        // native Cartesian particle coordinates, preserving its projected silhouette.
-        return model.Geometry.MaterializeCpuMesh().Vertices.Select(vertex =>
-        {
-            var position = Vector3.Transform(vertex.Position, model.Transform) - origin;
-            return new Vector3(position.X / projection.HorizontalScale,
-                -position.Y / (MathF.Sqrt(2) * projection.GroundDepthFactor * projection.VerticalScale),
-                position.Z / (MathF.Sqrt(2) * projection.HeightFactor * projection.VerticalScale));
-        }).ToArray();
+        return new ModelParticleSeedVertices(model, particles.Catalogue.Projection);
     }
 
     public bool TrySetCheatOption(string option, string value, Vector2 position, out string message)

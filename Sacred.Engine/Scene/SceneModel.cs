@@ -12,11 +12,12 @@ using Sacred.World.Geometry;
 namespace Sacred.Engine.Scene;
 
 /// <summary>A mutable scene instance with a transform cached for the render hot path.</summary>
-public sealed class SceneModel
+public sealed class SceneModel : ISceneModelBounds
 {
     private Matrix4x4 _transform;
     private readonly Vector3 _localBoundsCenter;
     private readonly float _localBoundsRadius;
+    private readonly SceneModelBounds _bounds;
     private Vector3 _modelOffset;
     private Matrix4x4 _modelProjection = Matrix4x4.Identity;
     // GRN extraction centers mesh vertices; world props retain their authored pivot here.
@@ -48,6 +49,7 @@ public sealed class SceneModel
         // Gold TypeManager::getBlockRadius (0x428CE0) substitutes 50 for zero.
         GroundShadowRadius = blockRadius == 0 ? 50.0f : blockRadius;
         (_localBoundsCenter, _localBoundsRadius) = CalculateBounds(mesh);
+        _bounds = new(_localBoundsCenter);
         RebuildTransform();
     }
 
@@ -66,9 +68,9 @@ public sealed class SceneModel
     public Vector2 GroundShadowHalfExtents => new(
         GroundShadowRadius * Scale * MathF.Abs(_modelProjection.M11),
         GroundShadowRadius * Scale * MathF.Abs(_modelProjection.M22));
-    /// <summary>Initial mesh-sphere radius used by the renderer's early visibility test.</summary>
-    public float WorldBoundsRadius => _localBoundsRadius * Scale * MathF.Max(
-        MathF.Abs(_modelProjection.M11), MathF.Max(MathF.Abs(_modelProjection.M22), MathF.Abs(_modelProjection.M33)));
+    public SceneBoundsSnapshot VisibilityBounds => _bounds.Get(Geometry.Pose, _transform, _localBoundsRadius * Scale * MathF.Max(
+        MathF.Abs(_modelProjection.M11), MathF.Max(MathF.Abs(_modelProjection.M22), MathF.Abs(_modelProjection.M33))));
+    public float WorldBoundsRadius => VisibilityBounds.Radius;
     public float GroundPlaneZ { get; private set; }
     /// <summary>Absolute model-camera position derived from the gameplay tile anchor.</summary>
     public Vector3 RenderPosition
@@ -79,11 +81,14 @@ public sealed class SceneModel
             return new Vector3(modelWorld, Position.Z);
         }
     }
-    public Vector3 VisualCenter => Vector3.Transform(_localBoundsCenter, _transform);
+    public Vector3 VisualCenter => VisibilityBounds.Center;
+    /// <summary>Stable body probe anchor, independent of conservative animated visibility envelopes.</summary>
+    public Vector3 OcclusionProbeCenter => Vector3.Transform(_localBoundsCenter, _transform);
     public IReadOnlyDictionary<string, ModelTextureReference>? TextureAliases { get; }
     public EquipmentEffectScene? EquipmentEffects { get; }
     public IReadOnlySet<(string TextureName, ParticleTextureMode Mode)>? DisabledEquipmentEffects { get; internal set; }
     public Matrix4x4 Transform => _transform;
+    public Matrix4x4 ModelProjection => _modelProjection;
 
     /// <summary>Adapts an authored model camera to the scene camera after model facing.</summary>
     public void SetModelProjection(Matrix4x4 projection)

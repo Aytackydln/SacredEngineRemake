@@ -28,8 +28,12 @@ internal sealed class Dx12SkinPreparationCache : IDisposable
     { _copies = new(device, uploader); _uploader = uploader; _frameCount = frameCount; _schedule = schedule; }
     public int SourceCount => _sources.Count;
     public int InstanceCount => _instances.Count;
+    public long PaletteBytes => _instances.Values.Sum(instance =>
+        Enumerable.Range(0, _frameCount).Sum(slot => instance.Buffer(slot) is { } buffer ? checked((long)buffer.Description.Width) : 0L));
     public long SourceBytes => _sources.Values.Sum(s => s.ByteCount);
     public long UploadedPaletteBytes { get; private set; }
+    public bool HasFailed(SceneModelGeometry geometry) => geometry.Animation is { } animation &&
+        _failed.Contains(new(animation.BindMesh, animation.Pose.Data));
 
     // Called once after AcquireFrame's existing fence wait, before any surface/shadow draws.
     public void Prepare(IReadOnlyList<SceneModel> models, Dx12FrameContext retiredFrame)

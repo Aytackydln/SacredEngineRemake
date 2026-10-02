@@ -384,6 +384,8 @@ public sealed class Win32Window : IDisposable
             RememberWindowedBounds();
     }
 
+    public void RequestQuit() => _quitRequested = true;
+
     public void Dispose()
     {
         if (_disposed) return;

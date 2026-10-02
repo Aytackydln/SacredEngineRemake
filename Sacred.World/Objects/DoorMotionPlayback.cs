@@ -30,11 +30,12 @@ public sealed class DoorMotionPlayback
     private bool _materializeCpuVertices = true;
     public bool MaterializeCpuVertices
     {
-        get => _materializeCpuVertices;
+        get => _animatedMesh?.MaterializeCpuVertices ?? _materializeCpuVertices;
         set
         {
             if (value && _usesAnimation && _animatedMesh!.Pose.IsEvaluated) _animatedMesh.MaterializeCpuMesh();
             _materializeCpuVertices = value;
+            if (_animatedMesh is not null) _animatedMesh.MaterializeCpuVertices = value;
         }
     }
     public bool CanReset => _skin is not null && _close is not null;
@@ -56,6 +57,7 @@ public sealed class DoorMotionPlayback
 
         _clip = clip;
         _animatedMesh ??= new GrnAnimatedMesh(_sourceMesh, _skin, clip);
+        if (!_materializeCpuVertices) _animatedMesh.MaterializeCpuVertices = false;
         _animatedMesh.SetAnimation(clip);
         _usesAnimation = true;
         _timeSeconds = applyImmediately ? clip.DurationSeconds : 0.0f;

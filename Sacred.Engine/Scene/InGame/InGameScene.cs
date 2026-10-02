@@ -18,6 +18,7 @@ namespace Sacred.Engine.Scene.InGame;
 
 internal sealed class InGameScene : IGameScene
 {
+    private readonly AnimatedModelDebugCrowd _debugCrowd = new();
     private readonly AssetManager _assets;
     private readonly WorldStreamer _worldStreamer;
     private readonly WorldParticleSystem _particles;
@@ -168,6 +169,10 @@ internal sealed class InGameScene : IGameScene
                 _scene.Debug.VisibleItemGraphicFlags = itemFlags;
                 message = $"Items.pak graphic flag overlay set to 0x{(ushort)itemFlags:X4}";
                 return true;
+            case "skin-crowd" when int.TryParse(value, out var crowdCount) && crowdCount >= 0 && crowdCount <= 128:
+                _debugCrowd.Count = crowdCount;
+                message = $"independent animated debug instances: {crowdCount}";
+                return true;
             case "character" when value.Equals("next", StringComparison.OrdinalIgnoreCase):
                 _player.CycleModel();
                 message = "loading next character";
@@ -231,6 +236,7 @@ internal sealed class InGameScene : IGameScene
         _inputController.Update(deltaSeconds);
         Renderer.UpdateAutoRenderResolution(_camera.Zoom);
         _doors.Update(_worldStreamer.VisibleWorld, _camera.WorldCenter, deltaSeconds, _scene.Indoor.ActiveGroup);
+        _debugCrowd.Update(_scene, deltaSeconds);
         _playerParticles.Update();
         _particles.Update(deltaSeconds, _worldStreamer.VisibleWorld, _scene.Indoor.ActiveGroup,
             _camera.WorldCenter, _playerParticles.SelfHeight);

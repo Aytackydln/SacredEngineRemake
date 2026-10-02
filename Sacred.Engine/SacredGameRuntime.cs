@@ -6,6 +6,7 @@ using Sacred.Engine.Assets;
 using Sacred.Engine.Cheats;
 using Sacred.Engine.Graphics;
 using Sacred.Engine.Graphics.ImGui;
+using Sacred.Engine.Graphics.Skinning;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Platform;
 using Sacred.Engine.Scene;
@@ -90,6 +91,12 @@ internal sealed class SacredGameRuntime : IDisposable
 
     private void ApplyDebugUiRequests()
     {
+        if (_debugUiControls.RequestedSkinningMode is { } skinningMode)
+        {
+            _debugUiControls.RequestedSkinningMode = null;
+            if (_renderer.WorldInitialized) _renderer.SetSkinningMode(skinningMode);
+            EngineLog.WriteLine($"Debug input: model skinning {skinningMode}");
+        }
         if (_debugUiControls.RequestedParticleSimulation is { } particleSimulation)
         {
             _debugUiControls.RequestedParticleSimulation = null;
@@ -221,6 +228,7 @@ internal sealed class SacredGameRuntime : IDisposable
         _debugUiControls.BorderlessFullscreen = _window.IsBorderlessFullscreen;
         _debugUiControls.ParticleQuality = _inGameScene?.ParticleQuality ?? _initialSaveState.ParticleQuality;
         _debugUiControls.ParticleSimulation = _inGameScene?.ParticleSimulation ?? _initialSaveState.ParticleSimulation;
+        _debugUiControls.SkinningMode = _renderer.SkinningMode;
         _debugUiControls.CollisionMode = _inGameScene?.CollisionMode ?? CollisionCheatMode.Walk;
         _debugUiControls.PlayerMovementSpeedMultiplier =
             _inGameScene?.PlayerMovementSpeedMultiplier ?? _initialSaveState.PlayerMovementSpeedMultiplier;
@@ -448,8 +456,8 @@ internal sealed class SacredGameRuntime : IDisposable
         {
             case HelpCheatCommand:
                 EngineLog.WriteLine("Timing cheats: set frame-log <on|off> reports frame pacing; set animation-log <on|off> reports CPU animation stages, upload bytes and completed GPU model/shadow timestamps every two seconds.");
-                EngineLog.WriteLine("GPU preparation cheat: set skin-preparation <on|off> prepares shared bind/influence buffers and per-instance palettes while CPU drawing remains active.");
-                EngineLog.WriteLine("GPU drawing cheat: set gpu-skinning <on|off> selects skeletal model and shadow shaders; CPU pose materialization remains enabled until consumer cleanup.");
+                EngineLog.WriteLine("GPU preparation cheat: set skin-preparation <on|off> prepares resources independently of model skinning selection.");
+                EngineLog.WriteLine("Model skinning: set skinning <auto|cpu|gpu> (default Auto); set gpu-skinning <on|off> aliases Gpu/Cpu. GPU requests fall back to CPU while unavailable. set skin-crowd <0..128> adds independent asset-driven poses; set skin-stats show reports resource bytes; set shader-reload now; set quit now.");
                 EngineLog.WriteLine("Particle cheats: set player-panel <on|off>; set particle-panel <on|off|play|toggles>; set particle-list <all|filter>; set particle-target <self|x,y>; set particle-follow <on|off>; set particle-play <FX name>; set particle-enable <FX name>; set particle-disable <FX name>; set particle-model <on|off>; set particle-stop all.");
                 EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set particles <on|off>; set particle-simulation <CpuSimd|CpuScalar>; set item-flags <hex>; set character next; set facing <degrees>; set door toggle; set hdr <on|off>; set pacing <vrr|vsync|limit|manual>; set fps <30-1000>; set latency <off|on|boost>; set resolution <percentage|auto>; set autoscale <on|off>; set scaling <none|bilinear|fsr1|fsr2|fsr1motionadaptive>; set granny <managed|native>.");
                 return;
@@ -597,12 +605,28 @@ internal sealed class SacredGameRuntime : IDisposable
             case "skin-preparation" when TryParseBoolean(value, out var skinPreparation):
                 if (!_renderer.WorldInitialized) { message = "skin preparation requires a loaded world"; return false; }
                 _renderer.SetSkinPreparation(skinPreparation);
-                message = $"GPU skin preparation {(skinPreparation ? "enabled" : "disabled")}; CPU drawing remains active";
+                message = $"GPU skin preparation {(skinPreparation ? "enabled" : "disabled")}; independent of model skinning selection";
+                return true;
+            case "quit":
+                _window.RequestQuit();
+                message = "shutdown requested";
+                return true;
+            case "skin-stats":
+                message = _renderer.SkinningStatus;
+                return true;
+            case "shader-reload":
+                _renderer.ReloadShaders();
+                message = "shader reload requested";
+                return true;
+            case "skinning" when Enum.TryParse<SkinningMode>(value, true, out var skinningMode) && Enum.IsDefined(skinningMode):
+                if (!_renderer.WorldInitialized) { message = "model skinning requires a loaded world"; return false; }
+                _renderer.SetSkinningMode(skinningMode);
+                message = $"model skinning set to {skinningMode}; GPU requests fall back to CPU until ready";
                 return true;
             case "gpu-skinning" when TryParseBoolean(value, out var gpuSkinning):
                 if (!_renderer.WorldInitialized) { message = "GPU skinning requires a loaded world"; return false; }
                 _renderer.SetGpuSkinning(gpuSkinning);
-                message = $"GPU skeletal drawing {(gpuSkinning ? "enabled" : "disabled")}; CPU pose materialization remains enabled";
+                message = gpuSkinning ? "GPU skeletal drawing requested; pose-only playback when ready" : "CPU skeletal drawing requested; current poses prepared before drawing";
                 return true;
             case "pacing" when TryParseFramePacing(value, out var pacingMode):
                 _framePacing.SetMode(pacingMode);

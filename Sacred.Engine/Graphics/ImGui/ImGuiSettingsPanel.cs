@@ -55,6 +55,8 @@ internal static class ImGuiSettingsPanel
             controls.ParticleQuality,
             value => controls.RequestedParticleQuality = value,
             FormatParticleQuality);
+        EnumCombo("Model skinning", controls.SkinningMode,
+            value => controls.RequestedSkinningMode = value, mode => mode.ToString());
         EnumCombo("Particle simulation", controls.ParticleSimulation,
             value => controls.RequestedParticleSimulation = value,
             mode => mode == ParticleSimulationMode.CpuSimd ? "CPU (SIMD)" : "CPU (scalar)");

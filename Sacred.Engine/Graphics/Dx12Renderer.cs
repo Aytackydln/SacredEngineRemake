@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,6 +8,7 @@ using Sacred.Engine.Assets;
 using Sacred.Engine.Graphics.Frames;
 using Sacred.Engine.Graphics.ImGui;
 using Sacred.Engine.Graphics.Lighting;
+using Sacred.Engine.Graphics.Skinning;
 using Sacred.Engine.Graphics.Sprites;
 using Sacred.Engine.Graphics.Swapchain;
 using Sacred.Engine.Latency;
@@ -126,7 +126,10 @@ public sealed partial class Dx12Renderer : IDisposable
     internal DebugUiControlState DebugUiControls => _debugUiControls;
     public bool WorldInitialized => _worldPass is not null;
     public void SetSkinPreparation(bool enabled) => GetWorldPass().SkinPreparationEnabled = enabled;
-    public void SetGpuSkinning(bool enabled) => GetWorldPass().GpuSkinningEnabled = enabled;
+    public string SkinningStatus => _worldPass?.SkinningStatus ?? "world not initialized";
+    public SkinningMode SkinningMode => _worldPass?.SkinningMode ?? SkinningMode.Auto;
+    public void SetSkinningMode(SkinningMode mode) => GetWorldPass().SkinningMode = mode;
+    public void SetGpuSkinning(bool enabled) => SetSkinningMode(enabled ? SkinningMode.Gpu : SkinningMode.Cpu);
     public WorldPreparationStatus LastWorldPreparationStatus =>
         _worldPass?.LastPreparationStatus ?? WorldPreparationStatus.NotStarted;
 
@@ -421,6 +424,8 @@ public sealed partial class Dx12Renderer : IDisposable
         _shadowOverlayPipeline = terrain[Dx12PipelineKind.ShadowOverlay];
     }
 
+    public void ReloadShaders() => RequestShaderReload();
+
     private void RequestShaderReload() => Interlocked.Exchange(ref _shaderReloadPending, 1);
 
     private void ReloadShadersIfRequested()
@@ -444,11 +449,11 @@ public sealed partial class Dx12Renderer : IDisposable
                 return;
 
             CreateWorldPipeline(rendererShaders);
-            Trace.WriteLine("Reloaded Direct3D 12 shaders after Hot Reload update.");
+            EngineLog.WriteLine("Reloaded Direct3D 12 shaders.");
         }
         catch (Exception exception)
         {
-            Trace.WriteLine($"Shader reload failed; keeping the existing pipelines. {exception}");
+            EngineLog.WriteLine($"Shader reload failed: {exception}");
         }
     }
 

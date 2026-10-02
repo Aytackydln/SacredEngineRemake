@@ -59,11 +59,12 @@ internal sealed class CharacterAnimationState
     private bool _materializeCpuVertices = true;
     public bool MaterializeCpuVertices
     {
-        get => _materializeCpuVertices;
+        get => _animatedMesh?.MaterializeCpuVertices ?? _materializeCpuVertices;
         set
         {
             if (value && _animatedMesh?.Pose.IsEvaluated == true) _animatedMesh.MaterializeCpuMesh();
             _materializeCpuVertices = value;
+            if (_animatedMesh is not null) _animatedMesh.MaterializeCpuVertices = value;
         }
     }
 

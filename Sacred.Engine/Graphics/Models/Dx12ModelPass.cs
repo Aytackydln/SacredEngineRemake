@@ -8,7 +8,6 @@ using Sacred.Engine.Graphics.Skinning;
 using Sacred.Engine.Graphics.Swapchain;
 using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
-using Sacred.Granny.Meshes;
 using Sacred.Shaders;
 using Sacred.World.Geometry;
 using Vortice.Direct3D;
@@ -255,7 +254,7 @@ internal sealed class Dx12ModelPass
                             Dx12PipelineKind.TransparentEffectModel => _transparentEffectPipeline!, Dx12PipelineKind.TransparentModel => _transparentModelPipeline!, _ => _staticPipeline });
 
                         var modelColor = animation.Mode == TextureAnimationMode.RadialSweepBlackKey &&
-                                         MeshSurfaceRadialSweep.TryCalculate(model.Geometry.MaterializeCpuMesh(), surface, out var radialSweep)
+                                         model.Geometry.TryGetRadialSweep(surface, out var radialSweep)
                             ? radialSweep
                             : defaultModelColor;
                         _shaderConstants.WriteModelColor(constants + 32, modelColor);

@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Sacred.Engine.Assets;
+using Sacred.Engine.Graphics.Frames;
 using Sacred.Engine.Graphics.Uploads;
 using Sacred.Engine.Scene;
 using Sacred.Granny.Meshes;
@@ -33,6 +35,9 @@ internal sealed class Dx12ModelGeometryCache : IDisposable
         _frameCount = frameCount;
     }
 
+    public long ResidentBytes => _meshes.Values.Sum(mesh =>
+        mesh.VertexBuffers.Distinct().Sum(buffer => checked((long)buffer.Description.Width)) + checked((long)mesh.IndexBuffer.Description.Width));
+
     public bool Prepare(IReadOnlyList<SceneModel> models)
     {
         CollectCompletedLoads();
@@ -45,6 +50,28 @@ internal sealed class Dx12ModelGeometryCache : IDisposable
         }
 
         return ready;
+    }
+
+    public void RetireUnused(IReadOnlyList<SceneModel> models, Dx12FrameContext frame)
+    {
+        var active = new HashSet<Mesh>(ReferenceEqualityComparer.Instance);
+        foreach (var model in models)
+        {
+            if (model.Geometry.Kind != SceneModelGeometryKind.GpuSkinned) active.Add(model.Mesh);
+            if (model.EquipmentEffects is { } effects) active.Add(effects.Mesh);
+        }
+        foreach (var mesh in _meshes.Keys.Where(mesh => !active.Contains(mesh)).ToArray())
+        {
+            _meshes[mesh].Retire(frame);
+            _meshes.Remove(mesh);
+        }
+        foreach (var mesh in _loads.Keys.Where(mesh => !active.Contains(mesh) && _loads[mesh].IsCompleted).ToArray())
+        {
+            // Completed copies that were never published have no graphics consumer.
+            if (_loads[mesh].IsCompletedSuccessfully) _loads[mesh].Result.Dispose();
+            _loads.Remove(mesh);
+        }
+        _failedMeshes.RemoveWhere(mesh => !active.Contains(mesh));
     }
 
     public bool TryGetOrRequest(Mesh mesh, int frameIndex, out ModelGpuMesh gpuMesh)
