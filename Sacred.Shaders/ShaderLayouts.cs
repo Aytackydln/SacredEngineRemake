@@ -30,6 +30,7 @@ public static class ModelShaderLayout
 public static class StaticSpriteShaderLayout
 {
     public const int SceneConstantsCount = StaticSpriteSceneConstants.FloatCount;
+    public const int FirstTextureDescriptorConstantsOffset = 11;
 
     public const int SceneConstantsRegister = 0; // HLSL: register(b0)
     public const int InstanceBufferRegister = 0; // HLSL: register(t0)

@@ -29,7 +29,7 @@ internal static class Dx12SectorCompositionPipeline
                 ShaderVisibility.Pixel)
         };
         var rootDescription = new RootSignatureDescription(
-            RootSignatureFlags.AllowInputAssemblerInputLayout,
+            RootSignatureFlags.AllowInputAssemblerInputLayout | RootSignatureFlags.ConstantBufferViewShaderResourceViewUnorderedAccessViewHeapDirectlyIndexed,
             rootParameters,
             []);
         var rootSignature = device.CreateRootSignature(in rootDescription, RootSignatureVersion.Version1);
@@ -83,7 +83,7 @@ internal sealed record Dx12SectorCompositionPipelines(
     ID3D12PipelineState Sprite);
 
 [StructLayout(LayoutKind.Sequential)]
-internal readonly struct GpuTerrainTileInstance
+internal struct GpuTerrainTileInstance
 {
     public GpuTerrainTileInstance(
         float destinationX,
@@ -124,8 +124,8 @@ internal readonly struct GpuTerrainTileInstance
     public readonly float PrimarySourceY;
     public readonly float SecondarySourceX;
     public readonly float SecondarySourceY;
-    public readonly uint PrimaryTextureIndex;
-    public readonly uint SecondaryTextureIndex;
+    public uint PrimaryTextureIndex;
+    public uint SecondaryTextureIndex;
     public readonly uint Flags;
     public readonly uint PackedBakedLight;
     public readonly float VisualElevationSouthWest;

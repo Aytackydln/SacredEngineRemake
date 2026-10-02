@@ -275,10 +275,11 @@ internal sealed partial class Dx12DeviceContext : IDisposable
         if (_allowTearing)
             _swapChainFlags |= SwapChainFlags.AllowTearing;
 
-        // This is a minimum, not a cap on the device's available features. Requiring
-        // 12.2 rejects older D3D12 runtimes and GPUs even though the engine uses the
-        // feature-level 11 shader/resource baseline.
+        // Shader model and resource binding capabilities are checked separately
+        // from feature level; SM6.6 does not require feature level 12.2.
         _device = D3D12CreateDevice<ID3D12Device>(null, MinimumFeatureLevel);
+        Dx12ShaderRequirements.Validate(_device, directlyIndexedTextures: true);
+        EngineLog.WriteLine("Direct3D 12 ready: DXC/DXIL, Shader Model 6.6, directly indexed textures.");
         _commandQueue = _device.CreateCommandQueue(CommandListType.Direct);
         _latency.AttachD3D12(_device.NativePointer, _commandQueue.NativePointer);
     }

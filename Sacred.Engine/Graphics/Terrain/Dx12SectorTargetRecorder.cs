@@ -37,9 +37,33 @@ internal sealed class Dx12SectorTargetRecorder(
 
         if (draws.Length != 0)
         {
+            // Descriptors belong to this fence-protected context. Reuse a sheet's
+            // descriptor across all tiles without changing their painter order.
+            var descriptors = new Dictionary<SourceTexture, uint>();
+            var sourceCpuStart = sourceSrvHeap.GetCPUDescriptorHandleForHeapStart();
+            var sourceDescriptorSize = (int)device.GetDescriptorHandleIncrementSize(
+                DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView);
+            var nextDescriptor = nextSourceDescriptor;
             var instances = new GpuTerrainTileInstance[draws.Length];
             for (var index = 0; index < draws.Length; index++)
-                instances[index] = draws[index].Instance;
+            {
+                var draw = draws[index];
+                instances[index] = draw.Instance;
+                instances[index].PrimaryTextureIndex = GetDescriptor(draw.Primary);
+                instances[index].SecondaryTextureIndex = GetDescriptor(draw.Secondary);
+            }
+            nextSourceDescriptor = nextDescriptor;
+
+            uint GetDescriptor(SourceTexture source)
+            {
+                if (descriptors.TryGetValue(source, out var descriptor))
+                    return descriptor;
+                descriptor = checked((uint)nextDescriptor++);
+                uploader.CreateShaderResourceView(
+                    source.Resource, sourceCpuStart + (int)descriptor * sourceDescriptorSize);
+                descriptors.Add(source, descriptor);
+                return descriptor;
+            }
             var instanceBytes = MemoryMarshal.AsBytes(instances.AsSpan());
             var instanceBuffer = uploader.CreateUploadBuffer(instanceBytes);
             transientResources.Add(instanceBuffer);
@@ -49,34 +73,8 @@ internal sealed class Dx12SectorTargetRecorder(
             commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
             var targetSize = stackalloc float[2] { width, height };
             commandList.SetGraphicsRoot32BitConstants(0, 2, targetSize, 0);
-            var sourceCpuStart = sourceSrvHeap.GetCPUDescriptorHandleForHeapStart();
-            var sourceGpuStart = sourceSrvHeap.GetGPUDescriptorHandleForHeapStart();
-            var sourceDescriptorSize = (int)device.GetDescriptorHandleIncrementSize(
-                DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView);
-            var instanceStride = Marshal.SizeOf<GpuTerrainTileInstance>();
-            var firstInstance = 0;
-            while (firstInstance < draws.Length)
-            {
-                var draw = draws[firstInstance];
-                var instanceCount = 1;
-                while (firstInstance + instanceCount < draws.Length &&
-                       ReferenceEquals(draw.Primary, draws[firstInstance + instanceCount].Primary) &&
-                       ReferenceEquals(draw.Secondary, draws[firstInstance + instanceCount].Secondary))
-                    instanceCount++;
-
-                var primaryDescriptor = sourceCpuStart + nextSourceDescriptor * sourceDescriptorSize;
-                uploader.CreateShaderResourceView(draw.Primary.Resource, primaryDescriptor);
-                uploader.CreateShaderResourceView(draw.Secondary.Resource, primaryDescriptor + sourceDescriptorSize);
-                commandList.SetGraphicsRootDescriptorTable(
-                    2,
-                    sourceGpuStart + nextSourceDescriptor * sourceDescriptorSize);
-                commandList.SetGraphicsRootShaderResourceView(
-                    1,
-                    instanceBuffer.GPUVirtualAddress + (ulong)(firstInstance * instanceStride));
-                commandList.DrawInstanced(VerticesPerTile, (uint)instanceCount, 0, 0);
-                nextSourceDescriptor += 2;
-                firstInstance += instanceCount;
-            }
+            commandList.SetGraphicsRootShaderResourceView(1, instanceBuffer.GPUVirtualAddress);
+            commandList.DrawInstanced(VerticesPerTile, (uint)draws.Length, 0, 0);
         }
 
         if (embeddedSprites.Length != 0)

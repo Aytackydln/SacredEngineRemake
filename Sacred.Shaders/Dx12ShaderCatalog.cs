@@ -3,68 +3,68 @@ namespace Sacred.Shaders;
 public static class Dx12ShaderCatalog
 {
     public static readonly Dx12ShaderSource AreaDownsampleVertexShader =
-        Shader("SacredAreaDownsample", EmbeddedResource_Shaders.SacredAreaDownsample_hlsl, "vs_main", "vs_5_0");
+        Shader("SacredAreaDownsample", EmbeddedResource_Shaders.SacredAreaDownsample_hlsl, "vs_main", "vs_6_6");
     public static readonly Dx12ShaderSource AreaDownsamplePixelShader =
-        Shader("SacredAreaDownsample", EmbeddedResource_Shaders.SacredAreaDownsample_hlsl, "ps_main", "ps_5_0");
+        Shader("SacredAreaDownsample", EmbeddedResource_Shaders.SacredAreaDownsample_hlsl, "ps_main", "ps_6_6");
     private const EmbeddedResource_Shaders HdrCommon = EmbeddedResource_Shaders.HdrCommon_hlsl;
     private const EmbeddedResource_Shaders SpriteCommon = EmbeddedResource_Shaders.SacredSpriteCommon_hlsl;
     private const EmbeddedResource_Shaders StaticSpriteCommon = EmbeddedResource_Shaders.SacredStaticSpriteCommon_hlsl;
     private static readonly Dx12ShaderSource ModelShadowVertexShader =
-        Shader("SacredModelShadow", EmbeddedResource_Shaders.SacredModelShadow_hlsl, "vs_main", "vs_5_0");
+        Shader("SacredModelShadow", EmbeddedResource_Shaders.SacredModelShadow_hlsl, "vs_main", "vs_6_6");
     private static readonly Dx12ShaderSource ModelShadowPixelShader =
-        Shader("SacredModelShadow", EmbeddedResource_Shaders.SacredModelShadow_hlsl, "ps_main", "ps_5_0");
+        Shader("SacredModelShadow", EmbeddedResource_Shaders.SacredModelShadow_hlsl, "ps_main", "ps_6_6");
     private static readonly Dx12ShaderSource GroundShadowVertexShader =
-        Shader("SacredGroundShadow", EmbeddedResource_Shaders.SacredGroundShadow_hlsl, "vs_main", "vs_5_0");
+        Shader("SacredGroundShadow", EmbeddedResource_Shaders.SacredGroundShadow_hlsl, "vs_main", "vs_6_6");
     private static readonly Dx12ShaderSource GroundShadowPixelShader =
-        Shader("SacredGroundShadow", EmbeddedResource_Shaders.SacredGroundShadow_hlsl, "ps_main", "ps_5_0");
+        Shader("SacredGroundShadow", EmbeddedResource_Shaders.SacredGroundShadow_hlsl, "ps_main", "ps_6_6");
 
     private static readonly Dx12ShaderSource QuadWorldVertexShader =
-        DisplayShader("SacredWorldQuad", EmbeddedResource_Shaders.SacredWorldQuad_hlsl, "vs_main", "vs_5_0");
+        DisplayShader("SacredWorldQuad", EmbeddedResource_Shaders.SacredWorldQuad_hlsl, "vs_main", "vs_6_6");
     internal static readonly Dx12ShaderSource ShadowOverlayPixelShader =
-        DisplayShader("SacredWorldQuad", EmbeddedResource_Shaders.SacredWorldQuad_hlsl, "ps_shadow", "ps_5_0");
+        DisplayShader("SacredWorldQuad", EmbeddedResource_Shaders.SacredWorldQuad_hlsl, "ps_shadow", "ps_6_6");
     private static readonly Dx12ShaderSource StaticSpriteVertexShader =
-        DisplayStaticSpriteShader("SacredStaticSprite", EmbeddedResource_Shaders.SacredStaticSprite_hlsl, "vs_main", "vs_5_0");
+        DisplayStaticSpriteShader("SacredStaticSprite", EmbeddedResource_Shaders.SacredStaticSprite_hlsl, "vs_main", "vs_6_6");
     private static readonly Dx12ShaderSource StaticSpriteShadowVertexShader =
-        Shader("SacredStaticSpriteShadow", EmbeddedResource_Shaders.SacredStaticSpriteShadow_hlsl, "vs_main", "vs_5_0");
+        Shader("SacredStaticSpriteShadow", EmbeddedResource_Shaders.SacredStaticSpriteShadow_hlsl, "vs_main", "vs_6_6");
     private static readonly Dx12ShaderSource StaticSpriteShadowPixelShader =
-        Shader("SacredStaticSpriteShadow", EmbeddedResource_Shaders.SacredStaticSpriteShadow_hlsl, "ps_main", "ps_5_0");
+        Shader("SacredStaticSpriteShadow", EmbeddedResource_Shaders.SacredStaticSpriteShadow_hlsl, "ps_main", "ps_6_6");
     internal static readonly Dx12ShaderSource SurfaceLightMapVertexShader =
-        Shader("SacredSurfaceLightMap", EmbeddedResource_Shaders.SacredSurfaceLightMap_hlsl, "vs_main", "vs_5_0");
+        Shader("SacredSurfaceLightMap", EmbeddedResource_Shaders.SacredSurfaceLightMap_hlsl, "vs_main", "vs_6_6");
     internal static readonly Dx12ShaderSource SurfaceLightMapPixelShader =
-        Shader("SacredSurfaceLightMap", EmbeddedResource_Shaders.SacredSurfaceLightMap_hlsl, "ps_main", "ps_5_0");
+        Shader("SacredSurfaceLightMap", EmbeddedResource_Shaders.SacredSurfaceLightMap_hlsl, "ps_main", "ps_6_6");
     internal static readonly Dx12ShaderSource PlayerOcclusionMapVertexShader =
-        Shader("SacredPlayerOcclusionMap", EmbeddedResource_Shaders.SacredPlayerOcclusionMap_hlsl, "vs_main", "vs_5_0");
+        Shader("SacredPlayerOcclusionMap", EmbeddedResource_Shaders.SacredPlayerOcclusionMap_hlsl, "vs_main", "vs_6_6");
     internal static readonly Dx12ShaderSource PlayerOcclusionMapPixelShader =
-        Shader("SacredPlayerOcclusionMap", EmbeddedResource_Shaders.SacredPlayerOcclusionMap_hlsl, "ps_main", "ps_5_0");
+        Shader("SacredPlayerOcclusionMap", EmbeddedResource_Shaders.SacredPlayerOcclusionMap_hlsl, "ps_main", "ps_6_6");
     private static readonly Dx12ShaderSource ModelVertexShader =
-        DisplayShader("SacredModel", EmbeddedResource_Shaders.SacredModel_hlsl, "vs_main", "vs_5_0");
+        DisplayShader("SacredModel", EmbeddedResource_Shaders.SacredModel_hlsl, "vs_main", "vs_6_6");
     private static readonly Dx12ShaderSource AnimatedModelVertexShader =
-        DisplayShader("SacredAnimatedModel", EmbeddedResource_Shaders.SacredAnimatedModel_hlsl, "vs_main", "vs_5_0");
+        DisplayShader("SacredAnimatedModel", EmbeddedResource_Shaders.SacredAnimatedModel_hlsl, "vs_main", "vs_6_6");
     private static readonly Dx12ShaderSource EffectModelVertexShader =
-        DisplayShader("SacredEffectModel", EmbeddedResource_Shaders.SacredEffectModel_hlsl, "vs_main", "vs_5_0");
+        DisplayShader("SacredEffectModel", EmbeddedResource_Shaders.SacredEffectModel_hlsl, "vs_main", "vs_6_6");
     private static readonly Dx12ShaderSource ItemParticleVertexShader =
-        DisplayShader("SacredItemParticle", EmbeddedResource_Shaders.SacredItemParticle_hlsl, "vs_main", "vs_5_0");
+        DisplayShader("SacredItemParticle", EmbeddedResource_Shaders.SacredItemParticle_hlsl, "vs_main", "vs_6_6");
     private static readonly Dx12ShaderSource ItemGlowVertexShader =
-        DisplayShader("SacredItemGlow", EmbeddedResource_Shaders.SacredItemGlow_hlsl, "vs_main", "vs_5_0");
+        DisplayShader("SacredItemGlow", EmbeddedResource_Shaders.SacredItemGlow_hlsl, "vs_main", "vs_6_6");
     private static readonly Dx12ShaderSource InventoryUiVertexShader =
-        DisplayShader("SacredInventoryUi", EmbeddedResource_Shaders.SacredInventoryUi_hlsl, "vs_main", "vs_5_0");
+        DisplayShader("SacredInventoryUi", EmbeddedResource_Shaders.SacredInventoryUi_hlsl, "vs_main", "vs_6_6");
     internal static readonly Dx12ShaderSource ImGuiVertexShader =
-        DisplayShader("SacredImGui", EmbeddedResource_Shaders.SacredImGui_hlsl, "vs_main", "vs_5_0");
+        DisplayShader("SacredImGui", EmbeddedResource_Shaders.SacredImGui_hlsl, "vs_main", "vs_6_6");
 
     // Sector composition is display-independent; SDR/HDR conversion happens later when the
     // completed sector texture is sampled by the world-quad shader.
     public static readonly Dx12ShaderSource TerrainComposeVertexShader =
-        TerrainShader("SacredTerrainCompose", EmbeddedResource_Shaders.SacredTerrainCompose_hlsl, "vs_main", "vs_5_0");
+        TerrainShader("SacredTerrainCompose", EmbeddedResource_Shaders.SacredTerrainCompose_hlsl, "vs_main", "vs_6_6");
     public static readonly Dx12ShaderSource TerrainComposePixelShader =
-        TerrainShader("SacredTerrainCompose", EmbeddedResource_Shaders.SacredTerrainCompose_hlsl, "ps_main", "ps_5_0");
+        TerrainShader("SacredTerrainCompose", EmbeddedResource_Shaders.SacredTerrainCompose_hlsl, "ps_main", "ps_6_6");
     public static readonly Dx12ShaderSource TerrainDebugVertexShader =
-        TerrainShader("SacredTerrainDebug", EmbeddedResource_Shaders.SacredTerrainDebug_hlsl, "vs_main", "vs_5_0");
+        TerrainShader("SacredTerrainDebug", EmbeddedResource_Shaders.SacredTerrainDebug_hlsl, "vs_main", "vs_6_6");
     public static readonly Dx12ShaderSource TerrainDebugPixelShader =
-        TerrainShader("SacredTerrainDebug", EmbeddedResource_Shaders.SacredTerrainDebug_hlsl, "ps_main", "ps_5_0");
+        TerrainShader("SacredTerrainDebug", EmbeddedResource_Shaders.SacredTerrainDebug_hlsl, "ps_main", "ps_6_6");
     public static readonly Dx12ShaderSource SectorSpriteComposeVertexShader =
-        Shader("SacredSectorSpriteCompose", EmbeddedResource_Shaders.SacredSectorSpriteCompose_hlsl, "vs_main", "vs_5_0");
+        Shader("SacredSectorSpriteCompose", EmbeddedResource_Shaders.SacredSectorSpriteCompose_hlsl, "vs_main", "vs_6_6");
     public static readonly Dx12ShaderSource SectorSpriteComposePixelShader =
-        Shader("SacredSectorSpriteCompose", EmbeddedResource_Shaders.SacredSectorSpriteCompose_hlsl, "ps_main", "ps_5_0");
+        Shader("SacredSectorSpriteCompose", EmbeddedResource_Shaders.SacredSectorSpriteCompose_hlsl, "ps_main", "ps_6_6");
 
     public static readonly Dx12ShaderSet Sdr = CreateShaderSet("vs_sdr", "ps_sdr");
     public static readonly Dx12ShaderSet Hdr = CreateShaderSet("vs_hdr", "ps_hdr");
@@ -74,14 +74,14 @@ public static class Dx12ShaderCatalog
             "SacredImGui",
             EmbeddedResource_Shaders.SacredImGui_hlsl,
             hdrOutput ? "ps_hdr" : "ps_sdr",
-            "ps_5_0");
+            "ps_6_6");
 
     public static Dx12ShaderSource GetUpscalePixelShader(bool hdrOutput) =>
         DisplayShader(
             "SacredWorldQuad",
             EmbeddedResource_Shaders.SacredWorldQuad_hlsl,
             hdrOutput ? "ps_hdr_upscale" : "ps_sdr_upscale",
-            "ps_5_0");
+            "ps_6_6");
 
     /// <summary>Raised after the embedded shader assembly is rebuilt.</summary>
     public static event Action? Reloaded;
@@ -99,103 +99,103 @@ public static class Dx12ShaderCatalog
         string lightHaloVertexEntryPoint,
         string pixelEntryPoint) => new(
         QuadWorldVertexShader,
-        DisplayShader("SacredWorldQuad", EmbeddedResource_Shaders.SacredWorldQuad_hlsl, pixelEntryPoint, "ps_5_0"),
+        DisplayShader("SacredWorldQuad", EmbeddedResource_Shaders.SacredWorldQuad_hlsl, pixelEntryPoint, "ps_6_6"),
         DisplayShader(
             "SacredWorldQuad",
             EmbeddedResource_Shaders.SacredWorldQuad_hlsl,
             pixelEntryPoint == "ps_hdr" ? "ps_hdr_screen" : "ps_sdr_screen",
-            "ps_5_0"),
+            "ps_6_6"),
         StaticSpriteVertexShader,
-        DisplayStaticSpriteShader("SacredStaticSprite", EmbeddedResource_Shaders.SacredStaticSprite_hlsl, pixelEntryPoint, "ps_5_0"),
+        DisplayStaticSpriteShader("SacredStaticSprite", EmbeddedResource_Shaders.SacredStaticSprite_hlsl, pixelEntryPoint, "ps_6_6"),
         DisplayStaticSpriteShader(
             "SacredStaticSprite",
             EmbeddedResource_Shaders.SacredStaticSprite_hlsl,
             pixelEntryPoint == "ps_hdr" ? "ps_transparent_hdr" : "ps_transparent_sdr",
-            "ps_5_0"),
+            "ps_6_6"),
         DisplayStaticSpriteShader(
             "SacredStaticSpriteUnlit",
             EmbeddedResource_Shaders.SacredStaticSpriteUnlit_hlsl,
             pixelEntryPoint == "ps_hdr" ? "ps_unlit_hdr" : "ps_unlit_sdr",
-            "ps_5_0"),
+            "ps_6_6"),
         DisplayStaticSpriteShader(
             "SacredStaticSpriteUnlit",
             EmbeddedResource_Shaders.SacredStaticSpriteUnlit_hlsl,
             pixelEntryPoint == "ps_hdr" ? "ps_transparent_unlit_hdr" : "ps_transparent_unlit_sdr",
-            "ps_5_0"),
+            "ps_6_6"),
         DisplayStaticSpriteShader(
             "SacredStaticSpriteUnlitRgb",
             EmbeddedResource_Shaders.SacredStaticSpriteUnlit_hlsl,
             pixelEntryPoint == "ps_hdr" ? "ps_transparent_unlit_hdr_rgb" : "ps_transparent_unlit_sdr",
-            "ps_5_0"),
+            "ps_6_6"),
         DisplayStaticSpriteShader(
             "SacredStaticSpriteUnlitArgb",
             EmbeddedResource_Shaders.SacredStaticSpriteUnlit_hlsl,
             pixelEntryPoint == "ps_hdr" ? "ps_transparent_unlit_hdr_argb" : "ps_transparent_unlit_sdr",
-            "ps_5_0"),
+            "ps_6_6"),
         DisplayStaticSpriteShader(
             "SacredStaticSpriteUnlitAlphaMask",
             EmbeddedResource_Shaders.SacredStaticSpriteUnlit_hlsl,
             pixelEntryPoint == "ps_hdr" ? "ps_transparent_unlit_hdr_alpha_mask" : "ps_transparent_unlit_sdr",
-            "ps_5_0"),
+            "ps_6_6"),
         DisplayWaterShader(
             "SacredWater",
             EmbeddedResource_Shaders.SacredWater_hlsl,
             pixelEntryPoint == "ps_hdr" ? "ps_water_hdr" : "ps_water_sdr",
-            "ps_5_0"),
+            "ps_6_6"),
         StaticSpriteShadowVertexShader,
         StaticSpriteShadowPixelShader,
         DisplayShader(
             "SacredLightHalo",
             EmbeddedResource_Shaders.SacredLightHalo_hlsl,
             lightHaloVertexEntryPoint,
-            "vs_5_0"),
-        DisplayShader("SacredLightHalo", EmbeddedResource_Shaders.SacredLightHalo_hlsl, pixelEntryPoint, "ps_5_0"),
+            "vs_6_6"),
+        DisplayShader("SacredLightHalo", EmbeddedResource_Shaders.SacredLightHalo_hlsl, pixelEntryPoint, "ps_6_6"),
         ModelVertexShader,
-        DisplayShader("SacredModel", EmbeddedResource_Shaders.SacredModel_hlsl, pixelEntryPoint, "ps_5_0"),
+        DisplayShader("SacredModel", EmbeddedResource_Shaders.SacredModel_hlsl, pixelEntryPoint, "ps_6_6"),
         ModelShadowVertexShader,
         ModelShadowPixelShader,
         GroundShadowVertexShader,
         GroundShadowPixelShader,
         AnimatedModelVertexShader,
-        DisplayShader("SacredAnimatedModel", EmbeddedResource_Shaders.SacredAnimatedModel_hlsl, pixelEntryPoint, "ps_5_0"),
+        DisplayShader("SacredAnimatedModel", EmbeddedResource_Shaders.SacredAnimatedModel_hlsl, pixelEntryPoint, "ps_6_6"),
         EffectModelVertexShader,
-        DisplayShader("SacredEffectModel", EmbeddedResource_Shaders.SacredEffectModel_hlsl, pixelEntryPoint, "ps_5_0"),
+        DisplayShader("SacredEffectModel", EmbeddedResource_Shaders.SacredEffectModel_hlsl, pixelEntryPoint, "ps_6_6"),
         ItemParticleVertexShader,
-        DisplayShader("SacredItemParticle", EmbeddedResource_Shaders.SacredItemParticle_hlsl, pixelEntryPoint, "ps_5_0"),
+        DisplayShader("SacredItemParticle", EmbeddedResource_Shaders.SacredItemParticle_hlsl, pixelEntryPoint, "ps_6_6"),
         DisplayShader(
             "SacredItemParticleRgb",
             EmbeddedResource_Shaders.SacredItemParticle_hlsl,
             pixelEntryPoint == "ps_hdr" ? "ps_hdr_rgb" : "ps_sdr",
-            "ps_5_0"),
+            "ps_6_6"),
         DisplayShader(
             "SacredItemParticleArgb",
             EmbeddedResource_Shaders.SacredItemParticle_hlsl,
             pixelEntryPoint == "ps_hdr" ? "ps_hdr_argb" : "ps_sdr",
-            "ps_5_0"),
+            "ps_6_6"),
         DisplayShader(
             "SacredItemParticleAlphaMask",
             EmbeddedResource_Shaders.SacredItemParticle_hlsl,
             pixelEntryPoint == "ps_hdr" ? "ps_hdr_alpha_mask" : "ps_sdr",
-            "ps_5_0"),
+            "ps_6_6"),
         ItemGlowVertexShader,
-        DisplayShader("SacredItemGlow", EmbeddedResource_Shaders.SacredItemGlow_hlsl, pixelEntryPoint, "ps_5_0"),
+        DisplayShader("SacredItemGlow", EmbeddedResource_Shaders.SacredItemGlow_hlsl, pixelEntryPoint, "ps_6_6"),
         DisplayShader(
             "SacredItemGlowRgb",
             EmbeddedResource_Shaders.SacredItemGlow_hlsl,
             pixelEntryPoint == "ps_hdr" ? "ps_hdr_rgb" : "ps_sdr",
-            "ps_5_0"),
+            "ps_6_6"),
         DisplayShader(
             "SacredItemGlowArgb",
             EmbeddedResource_Shaders.SacredItemGlow_hlsl,
             pixelEntryPoint == "ps_hdr" ? "ps_hdr_argb" : "ps_sdr",
-            "ps_5_0"),
+            "ps_6_6"),
         DisplayShader(
             "SacredItemGlowAlphaMask",
             EmbeddedResource_Shaders.SacredItemGlow_hlsl,
             pixelEntryPoint == "ps_hdr" ? "ps_hdr_alpha_mask" : "ps_sdr",
-            "ps_5_0"),
+            "ps_6_6"),
         InventoryUiVertexShader,
-        DisplayShader("SacredInventoryUi", EmbeddedResource_Shaders.SacredInventoryUi_hlsl, pixelEntryPoint, "ps_5_0"));
+        DisplayShader("SacredInventoryUi", EmbeddedResource_Shaders.SacredInventoryUi_hlsl, pixelEntryPoint, "ps_6_6"));
 
     private static Dx12ShaderSource TerrainShader(
         string name, EmbeddedResource_Shaders resource, string entryPoint, string target) =>

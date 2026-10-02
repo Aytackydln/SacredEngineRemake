@@ -1,6 +1,5 @@
 // One-time GPU composition of Sacred's 100x50 atlas cells into 96x48 terrain diamonds.
-// This shader intentionally targets Shader Model 5.0.  In particular, it avoids
-// resource arrays, which Proton's D3DCompiler implementation cannot compile.
+// Each tile carries absolute indices into the composition context's SRV heap.
 #pragma vertex vs_main
 #pragma fragment ps_main
 
@@ -8,8 +7,6 @@ static const uint tile_flag_has_secondary_mask = 1;
 static const uint tile_flag_premultiplied_output = 2;
 
 StructuredBuffer<TerrainTileInstance> tile_instances : register(t0);
-Texture2D primary_texture : register(t1);
-Texture2D secondary_texture : register(t2);
 
 cbuffer CompositionConstants : register(b0)
 {
@@ -23,6 +20,8 @@ struct vertex_output
     float2 secondary_source_pixel : TEXCOORD1;
     nointerpolation uint flags : TEXCOORD2;
     float baked_light : TEXCOORD3;
+    nointerpolation uint primary_texture_index : TEXCOORD4;
+    nointerpolation uint secondary_texture_index : TEXCOORD5;
 };
 
 vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_InstanceID)
@@ -40,6 +39,8 @@ vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_Instan
     output.primary_source_pixel = instance.primary_source_origin + source_vertices[vertex_id];
     output.secondary_source_pixel = instance.secondary_source_origin + source_vertices[vertex_id];
     output.flags = instance.flags;
+    output.primary_texture_index = instance.primary_texture_index;
+    output.secondary_texture_index = instance.secondary_texture_index;
     float4 baked_light = float4(
         instance.packed_baked_light & 0xFF,
         (instance.packed_baked_light >> 8) & 0xFF,
@@ -59,11 +60,13 @@ int2 clamp_source_pixel(Texture2D texture_to_sample, float2 source_pixel)
 
 float4 ps_main(vertex_output input) : SV_Target
 {
+    Texture2D primary_texture = ResourceDescriptorHeap[NonUniformResourceIndex(input.primary_texture_index)];
     float4 color = primary_texture.Load(int3(
         clamp_source_pixel(primary_texture, input.primary_source_pixel), 0));
 
     if ((input.flags & tile_flag_has_secondary_mask) != 0)
     {
+        Texture2D secondary_texture = ResourceDescriptorHeap[NonUniformResourceIndex(input.secondary_texture_index)];
         color.a = secondary_texture.Load(int3(
             clamp_source_pixel(secondary_texture, input.secondary_source_pixel), 0)).a;
     }

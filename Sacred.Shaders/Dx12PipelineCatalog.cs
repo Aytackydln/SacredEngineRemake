@@ -273,7 +273,8 @@ public static class Dx12PipelineCatalog
                 StaticSpriteShaderLayout.SamplerRegister,
                 TextureAddressMode.Clamp,
                 StaticBorderColor.TransparentBlack)],
-            pipelines);
+            pipelines,
+            RootSignatureFlags.AllowInputAssemblerInputLayout | RootSignatureFlags.ConstantBufferViewShaderResourceViewUnorderedAccessViewHeapDirectlyIndexed);
     }
 
     public static Dx12PipelineGroupDefinition CreateLightHalos(Dx12ShaderSet shaders)

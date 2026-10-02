@@ -275,6 +275,9 @@ internal sealed class Dx12SpritePass : IDisposable
         if (batch.StaticRanges is null)
             return;
 
+        var pendingStart = -1;
+        var pendingCount = 0;
+        ID3D12PipelineState? pendingPipeline = null;
         foreach (var range in batch.StaticRanges)
         {
             if (range.IsPostModel != postModel)
@@ -313,10 +316,32 @@ internal sealed class Dx12SpritePass : IDisposable
                     (false, true, false) => _transparentStaticPipeline,
                     _ => _staticPipeline
                 };
+            if (range.StartInstance < 0 || range.InstanceCount <= 0 || pipeline is null)
+                continue;
+
+            // Range flags can differ while selecting the same pipeline. Merge only
+            // consecutive GPU instances in this pass; model draws split calls here.
+            if (pendingCount > 0 &&
+                (!ReferenceEquals(pendingPipeline, pipeline) ||
+                 pendingStart + pendingCount != range.StartInstance))
+                Flush();
+            if (pendingCount == 0)
+            {
+                pendingStart = range.StartInstance;
+                pendingPipeline = pipeline;
+            }
+            pendingCount += range.InstanceCount;
+        }
+        Flush();
+
+        void Flush()
+        {
+            if (pendingCount == 0)
+                return;
             _batchRecorder.Record(
-                range.StartInstance,
-                range.InstanceCount,
-                pipeline,
+                pendingStart,
+                pendingCount,
+                pendingPipeline,
                 ambientColour,
                 paperWhiteNits,
                 unlitWhiteNits,
@@ -324,6 +349,7 @@ internal sealed class Dx12SpritePass : IDisposable
                 frame,
                 renderWidth,
                 renderHeight);
+            pendingCount = 0;
         }
     }
 

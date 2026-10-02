@@ -386,6 +386,7 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
         _factory = CreateDXGIFactory2<IDXGIFactory2>(false);
         _factory.MakeWindowAssociation(_hwnd, WindowAssociationFlags.IgnoreAltEnter).CheckError();
         _device = D3D12CreateDevice<ID3D12Device>(null, FeatureLevel.Level_11_0);
+        Dx12ShaderRequirements.Validate(_device);
         _commandQueue = _device.CreateCommandQueue(CommandListType.Direct);
     }
 

@@ -8,7 +8,7 @@ using Vortice.Direct3D12;
 
 namespace Sacred.Engine.Graphics.Sprites;
 
-/// <summary>Records texture-grouped liquid and static-sprite instances.</summary>
+/// <summary>Records painter-ordered sprite ranges with direct texture indexing.</summary>
 internal sealed class Dx12SpriteBatchRecorder
 {
     public float? AnimationTimeOverride { get; set; }
@@ -17,8 +17,6 @@ internal sealed class Dx12SpriteBatchRecorder
     private static readonly int InstanceStride = Marshal.SizeOf<StaticSpriteInstance>();
 
     private readonly ID3D12GraphicsCommandList _commandList;
-    private readonly GpuDescriptorHandle _srvHeapGpuStart;
-    private readonly int _descriptorSize;
     private readonly int _firstTextureSrvSlot;
     private readonly GpuDescriptorHandle _surfaceLightMap;
     private readonly GpuDescriptorHandle _playerOcclusionMap;
@@ -35,8 +33,6 @@ internal sealed class Dx12SpriteBatchRecorder
         GpuDescriptorHandle playerOcclusionMap)
     {
         _commandList = commandList;
-        _srvHeapGpuStart = srvHeapGpuStart;
-        _descriptorSize = descriptorSize;
         _firstTextureSrvSlot = firstTextureSrvSlot;
         _surfaceLightMap = surfaceLightMap;
         _playerOcclusionMap = playerOcclusionMap;
@@ -88,30 +84,14 @@ internal sealed class Dx12SpriteBatchRecorder
         _commandList.SetGraphicsRootDescriptorTable(
             StaticSpriteShaderLayout.PlayerOcclusionMapRootParameter,
             _playerOcclusionMap);
-        var instances = (StaticSpriteInstance*)frame.SpriteInstanceBufferMapped + startInstance;
-        var firstInstance = 0;
-        while (firstInstance < instanceCount)
-        {
-            var textureSlot = instances[firstInstance].TextureIndex;
-            var runLength = 1;
-            while (firstInstance + runLength < instanceCount &&
-                   instances[firstInstance + runLength].TextureIndex == textureSlot)
-            {
-                runLength++;
-            }
-
-            _commandList.SetGraphicsRootDescriptorTable(
-                StaticSpriteShaderLayout.TextureTableRootParameter,
-                SrvGpuHandle(_firstTextureSrvSlot + (int)textureSlot));
-            _commandList.SetGraphicsRootShaderResourceView(
-                StaticSpriteShaderLayout.InstanceBufferRootParameter,
-                frame.SpriteInstanceBuffer.GPUVirtualAddress +
-                (ulong)((startInstance + firstInstance) * InstanceStride));
-            _commandList.DrawInstanced(6, (uint)runLength, 0, 0);
-            firstInstance += runLength;
-        }
+        _commandList.SetGraphicsRoot32BitConstant(
+            StaticSpriteShaderLayout.SceneConstantsRootParameter,
+            (uint)_firstTextureSrvSlot,
+            StaticSpriteShaderLayout.FirstTextureDescriptorConstantsOffset);
+        _commandList.SetGraphicsRootShaderResourceView(
+            StaticSpriteShaderLayout.InstanceBufferRootParameter,
+            frame.SpriteInstanceBuffer.GPUVirtualAddress + (ulong)(startInstance * InstanceStride));
+        _commandList.DrawInstanced(6, (uint)instanceCount, 0, 0);
     }
 
-    private GpuDescriptorHandle SrvGpuHandle(int index) =>
-        _srvHeapGpuStart + index * _descriptorSize;
 }

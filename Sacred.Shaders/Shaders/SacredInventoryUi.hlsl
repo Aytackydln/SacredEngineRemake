@@ -1,4 +1,4 @@
-// #pragma hlsl profile ps_5_0
+// #pragma hlsl profile ps_6_6
 #pragma vertex vs_main
 #pragma fragment ps_sdr
 

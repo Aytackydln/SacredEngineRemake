@@ -125,6 +125,7 @@ float4 sample_water_texture(Texture2D texture_to_sample, vertex_output input)
 
 pixel_output ps_water_sdr(vertex_output input)
 {
+    Texture2D static_texture = ResourceDescriptorHeap[NonUniformResourceIndex(input.texture_index)];
     float4 color = sample_water_texture(static_texture, input);
     color.a *= liquid_corner_alpha(input.tex_coord, input.corner_alpha);
     if (color.a < 1.0f / 255.0f)
@@ -139,6 +140,7 @@ pixel_output ps_water_sdr(vertex_output input)
 
 pixel_output ps_water_hdr(vertex_output input)
 {
+    Texture2D static_texture = ResourceDescriptorHeap[NonUniformResourceIndex(input.texture_index)];
     float4 tex = sample_water_texture(static_texture, input);
     tex.a *= liquid_corner_alpha(input.tex_coord, input.corner_alpha);
     if (tex.a < 1.0f / 255.0f)

@@ -1,5 +1,4 @@
-// This shader intentionally targets Shader Model 5.0.  It avoids resource
-// arrays, which Proton's D3DCompiler implementation cannot compile.
+// Texture indices are relative to the sprite cache's range in the bound SRV heap.
 
 struct SpriteInstance
 {
@@ -21,7 +20,6 @@ struct SpriteInstance
 };
 
 StructuredBuffer<SpriteInstance> instances : register(t0);
-Texture2D static_texture : register(t1);
 Texture2D<float> surface_light_map : register(t2);
 Texture2D<float> player_occlusion_map : register(t3);
 SamplerState sampler0 : register(s0);
@@ -36,7 +34,7 @@ cbuffer StaticSpriteSceneConstants : register(b0)
     float unlit_white_nits;
     float occluder_opacity;
     float player_scene_depth;
-    float constants_padding;
+    uint first_texture_descriptor;
 }
 
 struct vertex_output
@@ -54,6 +52,7 @@ struct vertex_output
     nointerpolation float4 corner_alpha : TEXCOORD9;
     nointerpolation uint atlas_columns : TEXCOORD10;
     nointerpolation uint atlas_rows : TEXCOORD11;
+    nointerpolation uint texture_index : TEXCOORD12;
 };
 
 struct pixel_output
@@ -106,5 +105,6 @@ vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_Instan
     output.corner_alpha = instance.corner_alpha;
     output.atlas_columns = instance.atlas_columns;
     output.atlas_rows = instance.atlas_rows;
+    output.texture_index = first_texture_descriptor + instance.texture_index;
     return output;
 }

@@ -49,6 +49,7 @@ float player_occluder_opacity(vertex_output input)
 
 float4 sample_static_pixel(vertex_output input, float opacity)
 {
+    Texture2D static_texture = ResourceDescriptorHeap[NonUniformResourceIndex(input.texture_index)];
     float4 color = sample_static_texture(static_texture, input);
 
     if (color.a == 0)
