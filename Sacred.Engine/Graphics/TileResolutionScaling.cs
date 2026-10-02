@@ -36,6 +36,15 @@ public static class TileResolutionScaling
         if (snapToPercentageSteps)
         {
             stepPercentage = Math.Clamp(stepPercentage, MinimumStepPercentage, MaximumStepPercentage);
+            var minimumStepPercentage = (int)MathF.Ceiling(minimumPercentage / (float)stepPercentage) * stepPercentage;
+            var maximumStepPercentage = (int)MathF.Floor(maximumPercentage / (float)stepPercentage) * stepPercentage;
+            // Keep the configured limits when the range contains no complete step.
+            if (minimumStepPercentage <= maximumStepPercentage)
+            {
+                minimumPercentage = minimumStepPercentage;
+                maximumPercentage = maximumStepPercentage;
+            }
+
             var desiredPercentage = desiredHeight * 100.0f / Math.Max(1, outputHeight);
             var snappedPercentage = MathF.Round(
                 desiredPercentage / stepPercentage,
