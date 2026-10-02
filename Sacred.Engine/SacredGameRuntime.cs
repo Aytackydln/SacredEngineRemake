@@ -11,6 +11,7 @@ using Sacred.Engine.Platform;
 using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
 using Sacred.Granny.Abstractions;
+using Sacred.Granny.Diagnostics;
 using Sacred.Particles;
 
 namespace Sacred.Engine;
@@ -446,6 +447,9 @@ internal sealed class SacredGameRuntime : IDisposable
         switch (command)
         {
             case HelpCheatCommand:
+                EngineLog.WriteLine("Timing cheats: set frame-log <on|off> reports frame pacing; set animation-log <on|off> reports CPU animation stages, upload bytes and completed GPU model/shadow timestamps every two seconds.");
+                EngineLog.WriteLine("GPU preparation cheat: set skin-preparation <on|off> prepares shared bind/influence buffers and per-instance palettes while CPU drawing remains active.");
+                EngineLog.WriteLine("GPU drawing cheat: set gpu-skinning <on|off> selects skeletal model and shadow shaders; CPU pose materialization remains enabled until consumer cleanup.");
                 EngineLog.WriteLine("Particle cheats: set player-panel <on|off>; set particle-panel <on|off|play|toggles>; set particle-list <all|filter>; set particle-target <self|x,y>; set particle-follow <on|off>; set particle-play <FX name>; set particle-enable <FX name>; set particle-disable <FX name>; set particle-model <on|off>; set particle-stop all.");
                 EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set particles <on|off>; set particle-simulation <CpuSimd|CpuScalar>; set item-flags <hex>; set character next; set facing <degrees>; set door toggle; set hdr <on|off>; set pacing <vrr|vsync|limit|manual>; set fps <30-1000>; set latency <off|on|boost>; set resolution <percentage|auto>; set autoscale <on|off>; set scaling <none|bilinear|fsr1|fsr2|fsr1motionadaptive>; set granny <managed|native>.");
                 return;
@@ -580,6 +584,25 @@ internal sealed class SacredGameRuntime : IDisposable
                 if (_renderer.IsHdrEnabled != hdrEnabled)
                     _renderer.ToggleHdr();
                 message = $"HDR {(hdrEnabled ? "enabled" : "disabled")}";
+                return true;
+            case "frame-log" when TryParseBoolean(value, out var frameLog):
+                _renderer.FrameTiming.Enabled = frameLog;
+                message = $"frame timing log {(frameLog ? "enabled" : "disabled")}";
+                return true;
+            case "animation-log" when TryParseBoolean(value, out var animationLog):
+                _renderer.FrameTiming.Animation.Reset();
+                AnimationPerformance.Enabled = animationLog;
+                message = $"animation timing log {(animationLog ? "enabled" : "disabled")}";
+                return true;
+            case "skin-preparation" when TryParseBoolean(value, out var skinPreparation):
+                if (!_renderer.WorldInitialized) { message = "skin preparation requires a loaded world"; return false; }
+                _renderer.SetSkinPreparation(skinPreparation);
+                message = $"GPU skin preparation {(skinPreparation ? "enabled" : "disabled")}; CPU drawing remains active";
+                return true;
+            case "gpu-skinning" when TryParseBoolean(value, out var gpuSkinning):
+                if (!_renderer.WorldInitialized) { message = "GPU skinning requires a loaded world"; return false; }
+                _renderer.SetGpuSkinning(gpuSkinning);
+                message = $"GPU skeletal drawing {(gpuSkinning ? "enabled" : "disabled")}; CPU pose materialization remains enabled";
                 return true;
             case "pacing" when TryParseFramePacing(value, out var pacingMode):
                 _framePacing.SetMode(pacingMode);

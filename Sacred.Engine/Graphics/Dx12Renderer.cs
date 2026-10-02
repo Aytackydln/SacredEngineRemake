@@ -83,6 +83,7 @@ public sealed partial class Dx12Renderer : IDisposable
             hdrEnabled,
             hdrBrightnessSettings ?? HdrBrightnessSettings.Default);
         _textureUploader = new Dx12TextureUploader(_graphics.Device);
+        FrameTiming.Animation.ReadGpuTimings = _graphics.GpuAnimationTimings.CaptureAndReset;
         _screenPass = new Dx12ScreenPass(
             _graphics.CommandList,
             _textureUploader,
@@ -108,6 +109,8 @@ public sealed partial class Dx12Renderer : IDisposable
 
     public bool VariableRefreshRateSupported => _graphics.VariableRefreshRateSupported;
     public bool IsHdrEnabled => _graphics.IsHdrEnabled;
+    internal FrameTimingLog FrameTiming { get; } = new();
+    internal double LastPresentMilliseconds => _graphics.LastPresentMilliseconds;
     public HdrBrightnessSettings HdrBrightnessSettings => _graphics.HdrBrightnessSettings;
     public int OutputWidth => _graphics.OutputWidth;
     public int OutputHeight => _graphics.OutputHeight;
@@ -122,6 +125,8 @@ public sealed partial class Dx12Renderer : IDisposable
     public RenderScalingMode RenderScalingMode { get; private set; }
     internal DebugUiControlState DebugUiControls => _debugUiControls;
     public bool WorldInitialized => _worldPass is not null;
+    public void SetSkinPreparation(bool enabled) => GetWorldPass().SkinPreparationEnabled = enabled;
+    public void SetGpuSkinning(bool enabled) => GetWorldPass().GpuSkinningEnabled = enabled;
     public WorldPreparationStatus LastWorldPreparationStatus =>
         _worldPass?.LastPreparationStatus ?? WorldPreparationStatus.NotStarted;
 

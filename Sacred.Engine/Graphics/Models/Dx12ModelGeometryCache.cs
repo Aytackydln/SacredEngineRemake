@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Sacred.Engine.Assets;
+using Sacred.Engine.Graphics.Uploads;
 using Sacred.Engine.Scene;
 using Sacred.Granny.Meshes;
 using Vortice.Direct3D12;
@@ -10,12 +11,13 @@ using Vortice.DXGI;
 
 namespace Sacred.Engine.Graphics.Models;
 
-/// <summary>Owns immutable index buffers and one CPU-writable vertex buffer per in-flight frame.</summary>
+/// <summary>Owns DEFAULT geometry and per-frame upload vertices for CPU-deformed meshes.</summary>
 internal sealed class Dx12ModelGeometryCache : IDisposable
 {
     private static readonly int VertexStride = Marshal.SizeOf<VertexPositionNormalTexture>();
 
     private readonly Dx12TextureUploader _uploader;
+    private readonly Dx12GeometryUploader _geometryUploader;
     private readonly AssetManager _assets;
     private readonly int _frameCount;
     private readonly Dictionary<Mesh, ModelGpuMesh> _meshes = new(ReferenceEqualityComparer.Instance);
@@ -23,10 +25,11 @@ internal sealed class Dx12ModelGeometryCache : IDisposable
     private readonly HashSet<Mesh> _failedMeshes = new(ReferenceEqualityComparer.Instance);
     private readonly List<Mesh> _completedLoads = [];
 
-    public Dx12ModelGeometryCache(AssetManager assets, Dx12TextureUploader uploader, int frameCount)
+    public Dx12ModelGeometryCache(AssetManager assets, ID3D12Device device, Dx12TextureUploader uploader, int frameCount)
     {
         _assets = assets;
         _uploader = uploader;
+        _geometryUploader = new Dx12GeometryUploader(device, uploader);
         _frameCount = frameCount;
     }
 
@@ -36,7 +39,7 @@ internal sealed class Dx12ModelGeometryCache : IDisposable
         var ready = true;
         foreach (var model in models)
         {
-            ready &= Request(model.Mesh);
+            if (model.Geometry.Kind != SceneModelGeometryKind.GpuSkinned) ready &= Request(model.Mesh);
             if (model.EquipmentEffects is { } effects)
                 ready &= Request(effects.Mesh);
         }
@@ -50,12 +53,7 @@ internal sealed class Dx12ModelGeometryCache : IDisposable
         // Scanning every pending load per draw makes preparation quadratic in scene size.
         if (_meshes.TryGetValue(mesh, out gpuMesh!))
         {
-            if (gpuMesh.VertexRevisions[frameIndex] != mesh.VertexRevision)
-            {
-                var updatedVertexBytes = MemoryMarshal.AsBytes(mesh.Vertices.AsSpan());
-                Dx12TextureUploader.UpdateUploadBuffer(gpuMesh.VertexBuffers[frameIndex], updatedVertexBytes);
-                gpuMesh.VertexRevisions[frameIndex] = mesh.VertexRevision;
-            }
+            gpuMesh.UpdateVertices(_uploader, mesh, frameIndex);
 
             return true;
         }
@@ -87,6 +85,7 @@ internal sealed class Dx12ModelGeometryCache : IDisposable
         foreach (var mesh in _meshes.Values)
             mesh.Dispose();
         _meshes.Clear();
+        _geometryUploader.Dispose();
     }
 
     private bool Request(Mesh mesh)
@@ -104,6 +103,7 @@ internal sealed class Dx12ModelGeometryCache : IDisposable
 
     private void CollectCompletedLoads()
     {
+        var readyCount = 0;
         _completedLoads.Clear();
         foreach (var pair in _loads)
             if (pair.Value.IsCompleted)
@@ -116,75 +116,67 @@ internal sealed class Dx12ModelGeometryCache : IDisposable
             if (load.IsCompletedSuccessfully)
             {
                 _meshes.Add(mesh, load.Result);
+                readyCount++;
                 continue;
             }
 
             _failedMeshes.Add(mesh);
             EngineLog.WriteLine($"Model GPU geometry preparation failed: {load.Exception}");
         }
+
+        if (readyCount > 0)
+            EngineLog.WriteLine($"Model GPU geometry copies completed: {readyCount}; {_meshes.Count} meshes resident.");
     }
 
     private ModelGpuMesh CreateGpuMesh(Mesh mesh)
     {
-        var vertexBytes = MemoryMarshal.AsBytes(mesh.Vertices.AsSpan());
+        // Capture the revision before taking a snapshot so concurrent animation cannot mark
+        // an older snapshot as current. The render thread refreshes it on the next draw.
+        var revision = mesh.VertexRevision;
+        var dynamicVertices = mesh.HasDynamicVertices;
+        var vertices = (VertexPositionNormalTexture[])mesh.Vertices.Clone();
+        var vertexBytes = MemoryMarshal.AsBytes(vertices.AsSpan());
         var indexBytes = MemoryMarshal.AsBytes(mesh.Indices.AsSpan());
         var vertexBuffers = new ID3D12Resource[_frameCount];
         var vertexBufferViews = new VertexBufferView[_frameCount];
         var vertexRevisions = new ulong[_frameCount];
-        ModelGpuMesh gpuMesh;
+        ID3D12Resource? staticVertices = null;
+        ID3D12Resource? indexBuffer = null;
 
         try
         {
+            if (!dynamicVertices)
+                staticVertices = _geometryUploader.Upload(vertexBytes);
             for (var index = 0; index < _frameCount; index++)
             {
-                var vertexBuffer = _uploader.CreateUploadBuffer(vertexBytes);
+                var vertexBuffer = staticVertices ?? _uploader.CreateUploadBuffer(vertexBytes);
                 vertexBuffers[index] = vertexBuffer;
                 vertexBufferViews[index] = new VertexBufferView(
                     vertexBuffer.GPUVirtualAddress,
                     (uint)vertexBytes.Length,
                     (uint)VertexStride);
-                vertexRevisions[index] = mesh.VertexRevision;
+                vertexRevisions[index] = revision;
             }
 
-            var indexBuffer = _uploader.CreateUploadBuffer(indexBytes);
-            gpuMesh = new ModelGpuMesh(
+            indexBuffer = _geometryUploader.Upload(indexBytes);
+            return new ModelGpuMesh(
                 vertexBuffers,
                 vertexBufferViews,
                 vertexRevisions,
+                dynamicVertices,
                 indexBuffer,
                 new IndexBufferView(indexBuffer.GPUVirtualAddress, (uint)indexBytes.Length, Format.R16_UInt),
                 mesh.Indices.Length);
         }
         catch
         {
-            foreach (var vertexBuffer in vertexBuffers)
-                vertexBuffer?.Dispose();
+            if (staticVertices is not null)
+                staticVertices.Dispose();
+            else
+                foreach (var vertexBuffer in vertexBuffers)
+                    vertexBuffer?.Dispose();
+            indexBuffer?.Dispose();
             throw;
         }
-
-        return gpuMesh;
-    }
-}
-
-internal sealed class ModelGpuMesh(
-    ID3D12Resource[] vertexBuffers,
-    VertexBufferView[] vertexBufferViews,
-    ulong[] vertexRevisions,
-    ID3D12Resource indexBuffer,
-    IndexBufferView indexBufferView,
-    int indexCount) : IDisposable
-{
-    public ID3D12Resource[] VertexBuffers { get; } = vertexBuffers;
-    public VertexBufferView[] VertexBufferViews { get; } = vertexBufferViews;
-    public ulong[] VertexRevisions { get; } = vertexRevisions;
-    public ID3D12Resource IndexBuffer { get; } = indexBuffer;
-    public IndexBufferView IndexBufferView { get; } = indexBufferView;
-    public int IndexCount { get; } = indexCount;
-
-    public void Dispose()
-    {
-        foreach (var vertexBuffer in VertexBuffers)
-            vertexBuffer.Dispose();
-        IndexBuffer.Dispose();
     }
 }

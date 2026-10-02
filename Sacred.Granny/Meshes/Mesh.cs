@@ -24,12 +24,20 @@ public sealed class Mesh
     /// </summary>
     public ulong VertexRevision { get; private set; }
 
+    /// <summary>Whether this mesh needs CPU-writable vertex storage.</summary>
+    public bool HasDynamicVertices { get; private set; }
+
     public Mesh CreateInstance() => new((VertexPositionNormalTexture[])Vertices.Clone(), (ushort[])Indices.Clone())
     {
-        Surfaces = Surfaces
+        Surfaces = Surfaces,
+        HasDynamicVertices = true
     };
 
-    internal void MarkVerticesChanged() => VertexRevision++;
+    internal void MarkVerticesChanged()
+    {
+        HasDynamicVertices = true;
+        VertexRevision++;
+    }
 
     /// <summary>Notifies renderers after a caller updates the mutable vertex array in place.</summary>
     public void NotifyVerticesChanged() => MarkVerticesChanged();

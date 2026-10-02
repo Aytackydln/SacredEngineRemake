@@ -8,6 +8,7 @@ using Sacred.Engine.Graphics.ImGui;
 using Sacred.Engine.Graphics.Lighting;
 using Sacred.Engine.Graphics.Minimap;
 using Sacred.Engine.Graphics.Models;
+using Sacred.Engine.Graphics.Skinning;
 using Sacred.Engine.Graphics.Sprites;
 using Sacred.Engine.Graphics.Terrain;
 using Sacred.Engine.Graphics.Uploads;
@@ -32,6 +33,10 @@ internal sealed class Dx12WorldPass : IDisposable
     private readonly Dx12TerrainDebugPass _terrainDebug;
     private readonly Dx12ModelTextureCache _modelTextures;
     private readonly Dx12ModelGeometryCache _modelGeometry;
+    private readonly Dx12SkinPreparationCache _skinPreparation;
+    private readonly Dx12SkinDrawBindings _skinDraw;
+    public bool SkinPreparationEnabled { get; set; }
+    public bool GpuSkinningEnabled { get; set; }
     private readonly Dx12ModelPass _models;
     private readonly Dx12SpritePass _sprites;
     private readonly Dx12SurfaceLightMapPass _surfaceLights;
@@ -127,7 +132,10 @@ internal sealed class Dx12WorldPass : IDisposable
             graphics.SrvDescriptorSize,
             _freeModelSrvSlots,
             Dx12DescriptorLayout.MaximumModelTextures);
-        _modelGeometry = new Dx12ModelGeometryCache(assets, textureUploader, Dx12DeviceContext.FrameCount);
+        _modelGeometry = new Dx12ModelGeometryCache(assets, graphics.Device, textureUploader, Dx12DeviceContext.FrameCount);
+        _skinPreparation = new(graphics.Device, textureUploader, Dx12DeviceContext.FrameCount,
+            work => assets.ScheduleVisiblePreparation(work));
+        _skinDraw = new(_skinPreparation, graphics.Device, textureUploader);
         _models = new Dx12ModelPass(
             graphics.CommandList,
             _modelGeometry,
@@ -136,6 +144,8 @@ internal sealed class Dx12WorldPass : IDisposable
             graphics.SrvDescriptorSize,
             Dx12DescriptorLayout.DebugOverlay,
             Dx12DescriptorLayout.SurfaceLightMap);
+        _models.GpuTimings = graphics.GpuAnimationTimings;
+        _models.SkinDraw = _skinDraw;
         _debugOverlay = new Dx12DebugOverlay(
             graphics.CommandList,
             textureUploader,
@@ -231,7 +241,10 @@ internal sealed class Dx12WorldPass : IDisposable
         WorldPreloadRequest request,
         Dx12PreparedWorldFrame prepared)
     {
+        SelectSkinning(request.Scene);
         var modelGeometryReady = _modelGeometry.Prepare(request.Scene.Models);
+        _skinPreparation.Prepare(SkinPreparationEnabled || GpuSkinningEnabled ? request.Scene.Models : Array.Empty<SceneModel>(), _graphics.CurrentFrame);
+        modelGeometryReady &= SkinSourcesReady(request.Scene);
         _modelTextures.PrepareFrame(request.Scene, _graphics.CurrentFrame);
         _sprites.PrepareTextures(
             prepared.LiquidSprites,
@@ -255,7 +268,10 @@ internal sealed class Dx12WorldPass : IDisposable
         ID3D12PipelineState liquidCoverPipeline,
         ID3D12PipelineState shadowOverlayPipeline)
     {
+        SelectSkinning(scene);
         var modelGeometryReady = _modelGeometry.Prepare(scene.Models);
+        _skinPreparation.Prepare(SkinPreparationEnabled || GpuSkinningEnabled ? scene.Models : Array.Empty<SceneModel>(), _graphics.CurrentFrame);
+        modelGeometryReady &= SkinSourcesReady(scene);
         _modelTextures.PrepareFrame(scene, _graphics.CurrentFrame);
         _sprites.PrepareTextures(
             prepared.LiquidSprites,
@@ -341,6 +357,7 @@ internal sealed class Dx12WorldPass : IDisposable
         _sprites.SetPipeline(staticSprites, hdrOutput);
         _lightHalos.SetPipeline(lightHalos);
         _models.SetPipeline(models, hdrOutput);
+        _skinDraw.CreatePipelines(hdrOutput, _graphics.BackBufferFormat, Dx12DeviceContext.DepthBufferFormat);
         _imgui.SetPipeline(imgui);
     }
 
@@ -348,6 +365,7 @@ internal sealed class Dx12WorldPass : IDisposable
     {
         _terrainDebug.DisposePipeline();
         _models.DisposePipeline();
+        _skinDraw.DisposePipelines();
         _sprites.DisposePipeline();
         _lightHalos.DisposePipeline();
         _surfaceLights.DisposePipeline();
@@ -372,6 +390,7 @@ internal sealed class Dx12WorldPass : IDisposable
         _terrain.StopBackgroundWork();
         _sectorTextures.StopWorker();
         _modelGeometry.WaitForPendingLoads();
+        _skinPreparation.WaitForPendingLoads();
         _modelTextures.WaitForPendingLoads();
         _textureUploads.Stop();
     }
@@ -385,6 +404,8 @@ internal sealed class Dx12WorldPass : IDisposable
         _debugOverlay.Dispose();
         _imgui.Dispose();
         _modelGeometry.Dispose();
+        _skinPreparation.Dispose();
+        _skinDraw.Dispose();
         _modelTextures.Dispose();
         _sprites.Dispose();
         _surfaceLights.Dispose();
@@ -393,6 +414,26 @@ internal sealed class Dx12WorldPass : IDisposable
         _lightHalos.Dispose();
         _minimap.Dispose();
         _textureUploads.Dispose();
+    }
+
+    private void SelectSkinning(SceneState scene)
+    {
+        for (var i = 0; i < scene.Models.Count; i++)
+        {
+            var geometry = scene.Models[i].Geometry;
+            if (geometry.Animation is not { } animation) continue;
+            var desired = GpuSkinningEnabled ? SceneModelGeometryKind.GpuSkinned : SceneModelGeometryKind.CpuDeformed;
+            if (geometry.Kind != desired) scene.SetModelGeometry(i, GpuSkinningEnabled
+                ? SceneModelGeometry.ForGpuSkinning(animation) : SceneModelGeometry.ForCpuSkinning(animation));
+        }
+    }
+
+    private bool SkinSourcesReady(SceneState scene)
+    {
+        foreach (var model in scene.Models)
+            if (model.Geometry.Kind == SceneModelGeometryKind.GpuSkinned && model.Geometry.BindMesh.Indices.Length > 0 &&
+                model.Geometry.BindMesh.Vertices.Length > 0 && !_skinPreparation.TryGet(model.Geometry, _graphics.CurrentFrame.Index, out _, out _)) return false;
+        return true;
     }
 
     private void UpdatePreparationStatus(

@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
 using Sacred.Assets.Paks.Texture;
+using Sacred.Engine.Graphics.Frames;
+using Sacred.Engine.Graphics.Skinning;
 using Sacred.Engine.Graphics.Swapchain;
 using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
 using Sacred.Granny.Meshes;
-using Sacred.Particles;
 using Sacred.Shaders;
 using Sacred.World.Geometry;
 using Vortice.Direct3D;
@@ -18,6 +19,8 @@ namespace Sacred.Engine.Graphics.Models;
 /// <summary>Records the complete model pass using stable geometry and material caches.</summary>
 internal sealed class Dx12ModelPass
 {
+    public Dx12GpuAnimationTimings? GpuTimings { get; set; }
+    public Dx12SkinDrawBindings? SkinDraw { get; set; }
     public float? AnimationTimeOverride { get; set; }
     private const float PainterDepthScale = 1.0f / 4096.0f;
     private const float PlayerDepthBias = 0.0005f;
@@ -33,6 +36,7 @@ internal sealed class Dx12ModelPass
     private readonly ModelDescriptorTableUpdater _descriptorTables = new(ModelShaderLayout.RootParameterCount);
     private readonly ModelShaderConstantsUpdater _shaderConstants = new();
     private readonly Dx12ModelShadowPass _shadowPass;
+    private readonly Dx12EquipmentEffectPass _equipment;
 
     private ID3D12RootSignature? _rootSignature;
     private ID3D12PipelineState? _staticPipeline;
@@ -40,16 +44,7 @@ internal sealed class Dx12ModelPass
     private ID3D12PipelineState? _animatedPipeline;
     private ID3D12PipelineState? _effectPipeline;
     private ID3D12PipelineState? _transparentEffectPipeline;
-    private ID3D12PipelineState? _transparentParticlePipeline;
-    private ID3D12PipelineState? _denseParticlePipeline;
-    private ID3D12PipelineState? _itemGlowPipeline;
-    private ID3D12PipelineState? _itemParticleRgbPipeline;
-    private ID3D12PipelineState? _itemParticleArgbPipeline;
-    private ID3D12PipelineState? _itemParticleAlphaMaskPipeline;
-    private ID3D12PipelineState? _itemGlowRgbPipeline;
-    private ID3D12PipelineState? _itemGlowArgbPipeline;
-    private ID3D12PipelineState? _itemGlowAlphaMaskPipeline;
-    private bool _hdrOutput;
+
 
     public Dx12ModelPass(
         ID3D12GraphicsCommandList commandList,
@@ -67,6 +62,7 @@ internal sealed class Dx12ModelPass
         _descriptorSize = descriptorSize;
         _fallbackTextureSlot = fallbackTextureSlot;
         _surfaceLightMapSlot = surfaceLightMapSlot;
+        _equipment = new(commandList, geometryCache, textureCache, _srvHeapStart, descriptorSize, fallbackTextureSlot);
         _shadowPass = new Dx12ModelShadowPass(
             commandList,
             geometryCache,
@@ -78,7 +74,7 @@ internal sealed class Dx12ModelPass
 
     public void SetPipeline(Dx12CreatedPipelineGroup pipeline, bool hdrOutput)
     {
-        _hdrOutput = hdrOutput;
+
         _rootSignature = pipeline.RootSignature;
         _shadowPass.SetPipeline(
             pipeline.RootSignature,
@@ -89,18 +85,7 @@ internal sealed class Dx12ModelPass
         _animatedPipeline = pipeline[Dx12PipelineKind.AnimatedModel];
         _effectPipeline = pipeline[Dx12PipelineKind.EffectModel];
         _transparentEffectPipeline = pipeline[Dx12PipelineKind.TransparentEffectModel];
-        _transparentParticlePipeline = pipeline[Dx12PipelineKind.TransparentItemParticle];
-        _denseParticlePipeline = pipeline[Dx12PipelineKind.DenseItemParticle];
-        _itemGlowPipeline = pipeline[Dx12PipelineKind.ItemGlow];
-        if (hdrOutput)
-        {
-            _itemParticleRgbPipeline = pipeline[Dx12PipelineKind.ItemParticleRgb];
-            _itemParticleArgbPipeline = pipeline[Dx12PipelineKind.ItemParticleArgb];
-            _itemParticleAlphaMaskPipeline = pipeline[Dx12PipelineKind.ItemParticleAlphaMask];
-            _itemGlowRgbPipeline = pipeline[Dx12PipelineKind.ItemGlowRgb];
-            _itemGlowArgbPipeline = pipeline[Dx12PipelineKind.ItemGlowArgb];
-            _itemGlowAlphaMaskPipeline = pipeline[Dx12PipelineKind.ItemGlowAlphaMask];
-        }
+        _equipment.SetPipeline(pipeline, hdrOutput);
     }
 
     public void DisposePipeline()
@@ -116,24 +101,7 @@ internal sealed class Dx12ModelPass
         _effectPipeline = null;
         _transparentEffectPipeline?.Dispose();
         _transparentEffectPipeline = null;
-        _transparentParticlePipeline?.Dispose();
-        _transparentParticlePipeline = null;
-        _denseParticlePipeline?.Dispose();
-        _denseParticlePipeline = null;
-        _itemGlowPipeline?.Dispose();
-        _itemGlowPipeline = null;
-        _itemParticleRgbPipeline?.Dispose();
-        _itemParticleRgbPipeline = null;
-        _itemParticleArgbPipeline?.Dispose();
-        _itemParticleArgbPipeline = null;
-        _itemParticleAlphaMaskPipeline?.Dispose();
-        _itemParticleAlphaMaskPipeline = null;
-        _itemGlowRgbPipeline?.Dispose();
-        _itemGlowRgbPipeline = null;
-        _itemGlowArgbPipeline?.Dispose();
-        _itemGlowArgbPipeline = null;
-        _itemGlowAlphaMaskPipeline?.Dispose();
-        _itemGlowAlphaMaskPipeline = null;
+        _equipment.DisposePipeline();
         _rootSignature?.Dispose();
         _rootSignature = null;
     }
@@ -142,8 +110,13 @@ internal sealed class Dx12ModelPass
         SacredCamera camera,
         IReadOnlyList<SceneModel> models,
         SceneLighting lighting,
-        int frameIndex) =>
+        int frameIndex)
+    {
+        using var measurement = GpuTimings?.Measure(AnimationGpuStage.ModelShadows);
+        _shadowPass.SkinDraw = SkinDraw;
+        _shadowPass.GpuTimings = GpuTimings;
         _shadowPass.Record(camera, models, lighting, frameIndex);
+    }
 
     public unsafe void Record(
         SacredCamera camera,
@@ -154,6 +127,8 @@ internal sealed class Dx12ModelPass
     {
         if (models.Count == 0 || _rootSignature is null || _staticPipeline is null)
             return;
+
+        using var measurement = GpuTimings?.Measure(AnimationGpuStage.ModelDraws);
 
         _commandList.SetGraphicsRootSignature(_rootSignature);
         _commandList.SetPipelineState(_staticPipeline);
@@ -173,6 +148,7 @@ internal sealed class Dx12ModelPass
             ModelShaderLayout.SceneConstantsCount,
             0);
 
+        SkinDraw?.UploadScene(new ReadOnlySpan<float>(sceneConstants, ModelShaderLayout.SceneConstantsCount), frameIndex);
         var constants = stackalloc float[ModelShaderLayout.ModelConstantsCount];
         var viewProjection = camera.View * camera.Projection;
         foreach (var model in models)
@@ -180,11 +156,25 @@ internal sealed class Dx12ModelPass
             if (!ModelFrustumCuller.IsVisible(camera, model))
                 continue;
 
-            if (model.Mesh.Vertices.Length == 0 || model.Mesh.Indices.Length == 0)
-                continue;
-
-            if (!_geometryCache.TryGetOrRequest(model.Mesh, frameIndex, out var mesh))
-                continue;
+            var skinned = model.Geometry.Kind == SceneModelGeometryKind.GpuSkinned;
+            var renderMesh = skinned ? model.Geometry.BindMesh : model.Mesh;
+            if (renderMesh.Vertices.Length == 0 || renderMesh.Indices.Length == 0) continue;
+            ModelGpuMesh? mesh = null;
+            ModelGpuSkinSource? skinSource = null;
+            ModelGpuSkinInstance? skinInstance = null;
+            if (skinned)
+            {
+                if (SkinDraw is null || !SkinDraw.TryGet(model, frameIndex, out skinSource, out skinInstance)) continue;
+            }
+            else if (!_geometryCache.TryGetOrRequest(renderMesh, frameIndex, out mesh)) continue;
+            _commandList.SetGraphicsRootSignature(skinned ? SkinDraw!.Root : _rootSignature);
+            _commandList.SetPipelineState(skinned ? SkinDraw!.Pipeline(Dx12PipelineKind.StaticModel) : _staticPipeline);
+            _rootConstants.Reset(); _descriptorTables.Reset();
+            SetDescriptorTableIfChanged(ModelShaderLayout.SurfaceLightMapRootParameter, SrvGpuHandle(_surfaceLightMapSlot));
+            if (skinned) SkinDraw!.Bind(_commandList, skinSource!, skinInstance!, frameIndex, scene: true);
+            else SetRootConstantsIfChanged(ModelShaderLayout.SceneConstantsRootParameter, sceneConstants, ModelShaderLayout.SceneConstantsCount, 0);
+            var indexCount = skinned ? skinSource!.IndexCount : mesh!.IndexCount;
+            var skinMeasurement = skinned ? GpuTimings?.Measure(AnimationGpuStage.SkinnedModelDraws) : null;
             var world = model.Transform;
             var worldViewProjection = world * viewProjection;
             var modelSceneDepth = CalculateSceneDepth(camera, model);
@@ -200,8 +190,8 @@ internal sealed class Dx12ModelPass
                 world,
                 defaultModelColor);
 
-            var vertexBufferView = mesh.VertexBufferViews[frameIndex];
-            var indexBufferView = mesh.IndexBufferView;
+            var vertexBufferView = skinned ? new VertexBufferView(skinSource!.Vertices.GPUVirtualAddress, (uint)skinSource.Vertices.Description.Width, 48) : mesh!.VertexBufferViews[frameIndex];
+            var indexBufferView = skinned ? skinSource!.IndexView : mesh!.IndexBufferView;
             _commandList.IASetVertexBuffers(0, 1, &vertexBufferView);
             _commandList.IASetIndexBuffer(&indexBufferView);
             SetRootConstantsIfChanged(
@@ -210,24 +200,25 @@ internal sealed class Dx12ModelPass
                 ModelShaderLayout.ModelBaseConstantsCount,
                 ModelShaderLayout.ModelBaseConstantsOffset);
 
-            if (model.Mesh.Surfaces.Count == 0)
+            if (renderMesh.Surfaces.Count == 0)
             {
-                RecordUntexturedMesh(mesh, constants, modelGeometryDepth);
+                if (skinned) RecordUntexturedMeshCount(indexCount, constants, modelGeometryDepth);
+                else RecordUntexturedMesh(mesh!, constants, modelGeometryDepth);
             }
             else
             {
                 for (var passIndex = 0; passIndex < 3; passIndex++)
                 {
                     var pass = (ModelSurfacePass)passIndex;
-                    foreach (var surface in model.Mesh.Surfaces)
+                    foreach (var surface in renderMesh.Surfaces)
                     {
-                        if (surface.IndexCount <= 0 || surface.IndexStart >= mesh.IndexCount)
+                        if (surface.IndexCount <= 0 || surface.IndexStart >= indexCount)
                             continue;
 
                         var textureReference = model.ResolveTextureReference(surface.TextureName);
                         var animatesBase = textureReference.Animation.IsAnimated;
                         var animatesOverlay = textureReference.HasOverlay && textureReference.OverlayAnimation.IsAnimated;
-                        var drawCount = Math.Min(surface.IndexCount, mesh.IndexCount - surface.IndexStart);
+                        var drawCount = Math.Min(surface.IndexCount, indexCount - surface.IndexStart);
                         var texture = _textureCache.Get(textureReference.TextureName);
                         var hasTexture = texture is { Resource: not null, SrvSlot: >= 0 };
                         Dx12ModelTextureCache.ModelTexture? overlayTexture = null;
@@ -251,17 +242,20 @@ internal sealed class Dx12ModelPass
                                 out var hasOverlay))
                             continue;
 
-                        _commandList.SetPipelineState(pass switch
+                        var pipelineKind = pass switch
                         {
-                            ModelSurfacePass.AnimatedBase => _animatedPipeline!,
-                            ModelSurfacePass.EffectOverlay when textureReference.OverlayCompositesInFront => _transparentEffectPipeline!,
-                            ModelSurfacePass.EffectOverlay => _effectPipeline!,
-                            _ when texture?.HasTranslucentPixels == true => _transparentModelPipeline!,
-                            _ => _staticPipeline
-                        });
+                            ModelSurfacePass.AnimatedBase => Dx12PipelineKind.AnimatedModel,
+                            ModelSurfacePass.EffectOverlay when textureReference.OverlayCompositesInFront => Dx12PipelineKind.TransparentEffectModel,
+                            ModelSurfacePass.EffectOverlay => Dx12PipelineKind.EffectModel,
+                            _ when texture?.HasTranslucentPixels == true => Dx12PipelineKind.TransparentModel,
+                            _ => Dx12PipelineKind.StaticModel
+                        };
+                        _commandList.SetPipelineState(skinned ? SkinDraw!.Pipeline(pipelineKind) : pipelineKind switch {
+                            Dx12PipelineKind.AnimatedModel => _animatedPipeline!, Dx12PipelineKind.EffectModel => _effectPipeline!,
+                            Dx12PipelineKind.TransparentEffectModel => _transparentEffectPipeline!, Dx12PipelineKind.TransparentModel => _transparentModelPipeline!, _ => _staticPipeline });
 
                         var modelColor = animation.Mode == TextureAnimationMode.RadialSweepBlackKey &&
-                                         MeshSurfaceRadialSweep.TryCalculate(model.Mesh, surface, out var radialSweep)
+                                         MeshSurfaceRadialSweep.TryCalculate(model.Geometry.MaterializeCpuMesh(), surface, out var radialSweep)
                             ? radialSweep
                             : defaultModelColor;
                         _shaderConstants.WriteModelColor(constants + 32, modelColor);
@@ -296,88 +290,21 @@ internal sealed class Dx12ModelPass
                 }
             }
 
+            skinMeasurement?.Dispose();
+            _commandList.SetGraphicsRootSignature(_rootSignature);
+            _rootConstants.Reset(); _descriptorTables.Reset();
+            SetRootConstantsIfChanged(ModelShaderLayout.SceneConstantsRootParameter, sceneConstants, ModelShaderLayout.SceneConstantsCount, 0);
             RecordEquipmentEffects(model, viewProjection, modelSceneDepth, frameIndex, constants);
         }
     }
 
-    private unsafe void RecordEquipmentEffects(
-        SceneModel model,
-        Matrix4x4 viewProjection,
-        float modelSceneDepth,
-        int frameIndex,
-        float* constants)
-    {
-        var effects = model.EquipmentEffects;
-        if (effects is null || _transparentParticlePipeline is null || _denseParticlePipeline is null || _itemGlowPipeline is null)
-            return;
+    private unsafe void RecordEquipmentEffects(SceneModel model, Matrix4x4 viewProjection, float modelSceneDepth, int frameIndex, float* constants) =>
+        _equipment.Record(model, viewProjection, modelSceneDepth, frameIndex, constants);
 
-        if (!_geometryCache.TryGetOrRequest(effects.Mesh, frameIndex, out var mesh))
-            return;
-        var vertexBufferView = mesh.VertexBufferViews[frameIndex];
-        var indexBufferView = mesh.IndexBufferView;
-        _commandList.IASetVertexBuffers(0, 1, &vertexBufferView);
-        _commandList.IASetIndexBuffer(&indexBufferView);
+    private unsafe void RecordUntexturedMesh(ModelGpuMesh mesh, float* constants, float modelSceneDepth) =>
+        RecordUntexturedMeshCount(mesh.IndexCount, constants, modelSceneDepth);
 
-        foreach (var surface in effects.Surfaces)
-        {
-            if (model.DisabledEquipmentEffects?.Contains((surface.TextureName, surface.TextureMode)) == true)
-                continue;
-            var texture = _textureCache.Get(surface.TextureName);
-            if (texture is null || surface.IndexCount <= 0 || surface.IndexStart >= mesh.IndexCount)
-                continue;
-
-            var shaderKind = ParticleShaderCatalog.ForMode(surface.TextureMode);
-            _commandList.SetPipelineState(_hdrOutput
-                ? SelectHdrParticlePipeline(shaderKind, texture.ParticleEncoding)
-                : shaderKind switch
-                {
-                    ParticleShaderKind.ItemGlow => _itemGlowPipeline,
-                    ParticleShaderKind.DenseItemParticle => _denseParticlePipeline,
-                    ParticleShaderKind.ItemParticle => _transparentParticlePipeline,
-                    _ => throw new InvalidOperationException(
-                        $"Particle mode {surface.TextureMode} selected unsupported model shader {shaderKind}.")
-                });
-
-            _shaderConstants.WriteModelBase(constants, viewProjection, model.Transform, surface.Color);
-            _shaderConstants.WriteTextureFlags(
-                constants + ModelShaderLayout.TextureFlagsOffset,
-                (float)surface.TextureMode,
-                modelSceneDepth,
-                surface.Phase,
-                animationTimeScale: 0.0f);
-            SetRootConstantsIfChanged(
-                ModelShaderLayout.ModelConstantsRootParameter,
-                constants,
-                ModelShaderLayout.ModelConstantsCount,
-                0);
-            SetDescriptorTableIfChanged(
-                ModelShaderLayout.ModelTextureRootParameter,
-                SrvGpuHandle(texture.SrvSlot));
-            SetDescriptorTableIfChanged(
-                ModelShaderLayout.ModelOverlayTextureRootParameter,
-                SrvGpuHandle(_fallbackTextureSlot));
-            var drawCount = Math.Min(surface.IndexCount, mesh.IndexCount - surface.IndexStart);
-            _commandList.DrawIndexedInstanced((uint)drawCount, 1, (uint)surface.IndexStart, 0, 0);
-        }
-    }
-
-    private ID3D12PipelineState SelectHdrParticlePipeline(
-        ParticleShaderKind shaderKind,
-        SacredTextureChannelEncoding encoding)
-    {
-        var glowVertex = shaderKind == ParticleShaderKind.ItemGlow;
-        return (glowVertex, encoding) switch
-        {
-            (true, SacredTextureChannelEncoding.AlphaMask) => _itemGlowAlphaMaskPipeline!,
-            (true, SacredTextureChannelEncoding.Argb) => _itemGlowArgbPipeline!,
-            (true, _) => _itemGlowRgbPipeline!,
-            (false, SacredTextureChannelEncoding.AlphaMask) => _itemParticleAlphaMaskPipeline!,
-            (false, SacredTextureChannelEncoding.Argb) => _itemParticleArgbPipeline!,
-            (false, _) => _itemParticleRgbPipeline!
-        };
-    }
-
-    private unsafe void RecordUntexturedMesh(ModelGpuMesh mesh, float* constants, float modelSceneDepth)
+    private unsafe void RecordUntexturedMeshCount(int indexCount, float* constants, float modelSceneDepth)
     {
         _shaderConstants.WriteTextureFlags(
             constants + ModelShaderLayout.TextureFlagsOffset,
@@ -393,7 +320,7 @@ internal sealed class Dx12ModelPass
         var fallback = SrvGpuHandle(_fallbackTextureSlot);
         SetDescriptorTableIfChanged(ModelShaderLayout.ModelTextureRootParameter, fallback);
         SetDescriptorTableIfChanged(ModelShaderLayout.ModelOverlayTextureRootParameter, fallback);
-        _commandList.DrawIndexedInstanced((uint)mesh.IndexCount, 1, 0, 0, 0);
+        _commandList.DrawIndexedInstanced((uint)indexCount, 1, 0, 0, 0);
     }
 
     private unsafe void SetRootConstantsIfChanged(int parameter, float* constants, int count, int offset) =>

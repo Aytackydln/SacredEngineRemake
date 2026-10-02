@@ -27,7 +27,7 @@ internal sealed class ModelTextureRequests
 
         foreach (var model in models)
         {
-            foreach (var surface in model.Mesh.Surfaces)
+            foreach (var surface in model.Geometry.BindMesh.Surfaces)
             {
                 var reference = model.ResolveTextureReference(surface.TextureName);
                 if (!string.IsNullOrWhiteSpace(reference.TextureName))

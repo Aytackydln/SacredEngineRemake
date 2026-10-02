@@ -12,6 +12,7 @@ using Sacred.Engine.Graphics;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
+using Sacred.Granny.Animation;
 using Sacred.World;
 using Sacred.World.Geometry;
 using Sacred.World.Objects;
@@ -137,19 +138,23 @@ public sealed class GpuWorldImageRenderer : IDisposable
             }
             if (asset?.Model.Mesh is not { } mesh)
                 continue;
+            GrnAnimatedMesh? animatedMesh = null;
             if (openDoors && value.ModelDesc.Category == SacredItemCategory.Door)
             {
                 var motion = new DoorMotionPlayback(mesh, asset.Model.Skin, asset.OpenAnimation, asset.CloseAnimation);
                 motion.SetInitialState(true);
                 mesh = motion.Mesh;
+                animatedMesh = motion.AnimatedMesh;
             }
             var model = new SceneModel(value.ModelName, mesh, new Vector3(WorldModelPose.TilePosition(placement), 0),
                     new Vector3(0, 0, WorldModelPose.RotationRadians(value.ModelDesc.Angle3D, placement.ScriptFacingDegrees)),
                     WorldModelPose.Scale, asset.TextureAliases,
-                    sourceOriginOffset: asset.Model.Diagnostics?.SourceOriginOffset ?? Vector3.Zero)
+                    sourceOriginOffset: asset.Model.Diagnostics?.SourceOriginOffset ?? Vector3.Zero,
+                    blockRadius: value.ModelDesc.BlockRadius)
                 { IsWorldObject = true };
             model.SetPose(model.Position, model.Rotation, new Vector2(placement.TileWorldX, placement.TileWorldY));
             model.SetModelProjection(WorldModelPose.CameraProjection);
+            if (animatedMesh is not null) model.SetAnimatedMesh(animatedMesh);
             _scene.AddModel(model);
         }
     }

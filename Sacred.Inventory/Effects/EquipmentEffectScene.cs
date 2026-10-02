@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Sacred.Granny.Animation;
+using Sacred.Granny.Diagnostics;
 using Sacred.Granny.Meshes;
 using Sacred.Particles;
 
@@ -66,6 +67,8 @@ public sealed class EquipmentEffectScene
     /// <summary>Updates bound effects and emits a new fire/poison particle at each particle's next lifetime.</summary>
     public void ApplyPose(GrnAnimatedMesh animatedMesh, float deltaSeconds = 0.0f)
     {
+        using var measurement = AnimationPerformance.Measure(
+            AnimationCpuStage.Effects);
         foreach (var effect in NativeEffects)
             effect.Update(Mesh, animatedMesh, deltaSeconds);
         _particleElapsedSeconds += Math.Max(0.0f, deltaSeconds);

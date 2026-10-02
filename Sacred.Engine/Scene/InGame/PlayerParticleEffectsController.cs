@@ -99,7 +99,7 @@ internal sealed class PlayerParticleEffectsController(WorldParticleSystem partic
         var origin = model.RenderPosition;
         // Convert the posed mesh from the remake's 45-degree model camera to the
         // native Cartesian particle coordinates, preserving its projected silhouette.
-        return model.Mesh.Vertices.Select(vertex =>
+        return model.Geometry.MaterializeCpuMesh().Vertices.Select(vertex =>
         {
             var position = Vector3.Transform(vertex.Position, model.Transform) - origin;
             return new Vector3(position.X / projection.HorizontalScale,

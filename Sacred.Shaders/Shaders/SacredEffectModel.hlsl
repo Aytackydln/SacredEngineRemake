@@ -180,8 +180,15 @@ float multitexture_fill_mask(float4 base_color)
     return saturate(max(red_mask, alpha_mask));
 }
 
-vs_output vs_main(vs_input input)
+vs_output vs_main(vs_input input
+#ifdef SACRED_SKINNING
+    , uint vertex_id : SV_VertexID
+#endif
+)
 {
+#ifdef SACRED_SKINNING
+    skin_vertex(vertex_id, input.position, input.normal, input.tex_coord);
+#endif
     vs_output output;
     float4 world_position = mul(float4(input.position, 1.0f), world);
     float4 projected_position = mul(float4(input.position, 1.0f), world_view_projection);

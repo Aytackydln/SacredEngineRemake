@@ -68,7 +68,8 @@ internal sealed class PlayerCharacterController : IDisposable
             _proxyMesh,
             _position,
             BuildRotation(),
-            groundPlaneZ: GroundPlaneZ));
+            groundPlaneZ: GroundPlaneZ,
+            blockRadius: _assets.GetItem(_activeModelEntryId)?.ModelDesc.BlockRadius ?? 0));
         RequestModel(_loadout);
     }
 
@@ -414,7 +415,8 @@ internal sealed class PlayerCharacterController : IDisposable
             SceneScale,
             player.TextureAliases,
             player.EquipmentEffects,
-            GroundPlaneZ);
+            GroundPlaneZ,
+            blockRadius: _assets.GetItem(player.ItemId)?.ModelDesc.BlockRadius ?? 0);
 
         if (_scene.Models.Count == 0)
             _scene.AddModel(sceneModel);
@@ -435,7 +437,10 @@ internal sealed class PlayerCharacterController : IDisposable
 
         _animation = pending.Animation;
         pending.Animation.ApplyEquipmentEffectPose();
-        _scene.SetModelMesh(0, pending.Animation.Mesh);
+        if (pending.Animation.AnimatedMesh is { } animatedMesh)
+            _scene.SetModelAnimation(0, animatedMesh);
+        else
+            _scene.SetModelMesh(0, pending.Animation.Mesh);
     }
 
     private Vector3 BuildRotation() => new(0.0f, 0.0f, _movementRotationZ);

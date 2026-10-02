@@ -42,17 +42,30 @@ internal sealed class CharacterAnimationState
         {
             _animatedMesh = new GrnAnimatedMesh(asset.Mesh, asset.Skin, animations.Idle);
             _animatedMesh.Apply(0.0f);
-            Mesh = _animatedMesh.Mesh;
+            _fallbackMesh = _animatedMesh.Mesh;
         }
         else
         {
-            Mesh = asset.Mesh ?? fallbackMesh;
+            _fallbackMesh = asset.Mesh ?? fallbackMesh;
         }
     }
 
     public CharacterAnimationStateId CurrentState { get; private set; }
 
-    public Mesh Mesh { get; }
+    private readonly Mesh _fallbackMesh;
+    public Mesh Mesh => _animatedMesh?.Mesh ?? _fallbackMesh;
+    public GrnAnimatedMesh? AnimatedMesh => _animatedMesh;
+    public GrnPose? Pose => _animatedMesh?.Pose;
+    private bool _materializeCpuVertices = true;
+    public bool MaterializeCpuVertices
+    {
+        get => _materializeCpuVertices;
+        set
+        {
+            if (value && _animatedMesh?.Pose.IsEvaluated == true) _animatedMesh.MaterializeCpuMesh();
+            _materializeCpuVertices = value;
+        }
+    }
 
     public void ApplyEquipmentEffectPose()
     {
@@ -91,7 +104,7 @@ internal sealed class CharacterAnimationState
         if (_timeSinceLastPose >= MinimumPoseIntervalSeconds)
         {
             _timeSinceLastPose %= MinimumPoseIntervalSeconds;
-            _animatedMesh.Apply(_stateTimeSeconds);
+            ApplyCurrentPose(_stateTimeSeconds);
         }
         _equipmentEffects?.ApplyPose(_animatedMesh, deltaSeconds);
     }
@@ -108,7 +121,7 @@ internal sealed class CharacterAnimationState
             return;
 
         _animatedMesh.SetAnimation(AnimationFor(state));
-        _animatedMesh.Apply(0.0f);
+        ApplyCurrentPose(0.0f);
         _equipmentEffects?.ApplyPose(_animatedMesh);
     }
 
@@ -121,4 +134,10 @@ internal sealed class CharacterAnimationState
         CharacterAnimationStateId.Attack => _animations.Attack,
         _ => throw new ArgumentOutOfRangeException(nameof(state))
     };
+
+    private void ApplyCurrentPose(float time)
+    {
+        _animatedMesh!.EvaluatePose(time);
+        if (MaterializeCpuVertices) _animatedMesh.MaterializeCpuMesh();
+    }
 }

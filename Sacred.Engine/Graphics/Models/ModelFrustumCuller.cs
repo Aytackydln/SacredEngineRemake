@@ -18,6 +18,11 @@ internal static class ModelFrustumCuller
     public static bool MayCastVisibleShadow(SacredCamera camera, SceneModel model) =>
         IntersectsCamera(camera, model.VisualCenter, model.WorldBoundsRadius, DirectionalShadowCasterPadding);
 
+    public static bool MayCastVisibleGroundShadow(SacredCamera camera, SceneModel model) =>
+        IntersectsCamera(camera,
+            new Vector3(model.RenderPosition.X, model.RenderPosition.Y, model.GroundPlaneZ),
+            model.GroundShadowHalfExtents.Length(), 0.0f);
+
     private static bool IntersectsCamera(
         SacredCamera camera,
         Vector3 worldCenter,

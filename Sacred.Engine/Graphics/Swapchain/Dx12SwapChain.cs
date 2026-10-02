@@ -11,6 +11,7 @@ internal abstract class Dx12SwapChain : IDisposable
 {
     private const uint FrameLatencyPollMilliseconds = 50;
     private readonly nint _frameLatencyWaitableObject;
+    private bool _disposed;
 
     private protected Dx12SwapChain(IDXGISwapChain3 swapChain)
     {
@@ -64,7 +65,14 @@ internal abstract class Dx12SwapChain : IDisposable
 
     public ID3D12Resource GetBuffer(uint index) => SwapChain.GetBuffer<ID3D12Resource>(index);
 
-    public void Dispose() => SwapChain.Dispose();
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        Kernel32.CloseHandle(_frameLatencyWaitableObject);
+        SwapChain.Dispose();
+    }
 
     private protected void ApplyColorSpace() => SwapChain.SetColorSpace1(ColorSpace);
 

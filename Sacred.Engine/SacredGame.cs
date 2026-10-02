@@ -92,6 +92,7 @@ public sealed class SacredGame : IDisposable
         var frameId = 0UL;
         while (!cancellationToken.IsCancellationRequested)
         {
+            var waitStart = _renderer.FrameTiming.Enabled ? Stopwatch.GetTimestamp() : 0;
             WaitForFrameStart(frameId, cancellationToken);
             var frameStartTimestamp = Stopwatch.GetTimestamp();
             if (!_window.ProcessMessages())
@@ -100,6 +101,11 @@ public sealed class SacredGame : IDisposable
             await Update(frameId, cancellationToken);
             _lastCompletedFrameTimeMilliseconds =
                 Stopwatch.GetElapsedTime(frameStartTimestamp).TotalMilliseconds;
+            if (waitStart != 0 && _renderer.FrameTiming.Enabled)
+                _renderer.FrameTiming.Record(
+                    (frameStartTimestamp - waitStart) * 1000.0 / Stopwatch.Frequency,
+                    _lastCompletedFrameTimeMilliseconds, _renderer.LastPresentMilliseconds,
+                    $"{_scenes.ActiveSceneId}, HDR {_renderer.IsHdrEnabled}, {_renderer.RenderWidth}x{_renderer.RenderHeight}, {_framePacing.Status}, {_latency.ActiveBackendName} {_latency.Mode}");
             frameId++;
         }
     }
@@ -125,7 +131,8 @@ public sealed class SacredGame : IDisposable
 
     private void WaitForFrameStart(ulong frameId, CancellationToken cancellationToken)
     {
-        _framePacing.WaitForFrameStart(cancellationToken);
+        // Complete driver and CPU pacing before consuming the DXGI presentation slot.
         _framePacing.BeginLatencyFrame(frameId);
+        _framePacing.WaitForFrameStart(cancellationToken);
     }
 }

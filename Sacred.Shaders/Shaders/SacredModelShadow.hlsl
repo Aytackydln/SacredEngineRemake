@@ -26,8 +26,15 @@ struct vs_output
     float shadow_distance : TEXCOORD1;
 };
 
-vs_output vs_main(vs_input input)
+vs_output vs_main(vs_input input
+#ifdef SACRED_SKINNING
+    , uint vertex_id : SV_VertexID
+#endif
+)
 {
+#ifdef SACRED_SKINNING
+    skin_vertex(vertex_id, input.position, input.normal, input.tex_coord);
+#endif
     vs_output output;
     float3 world_position = mul(float4(input.position, 1.0f), world).xyz;
     float caster_height = max(world_position.z - texture_flags.y, 0.0f);

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Sacred.Engine.Graphics.Frames;
+using Sacred.Engine.Graphics.Skinning;
 using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
 using Sacred.Shaders;
@@ -12,6 +14,8 @@ namespace Sacred.Engine.Graphics.Models;
 /// <summary>Records soft projected model silhouettes beneath world sprites and models.</summary>
 internal sealed class Dx12ModelShadowPass
 {
+    public Dx12SkinDrawBindings? SkinDraw { get; set; }
+    public Dx12GpuAnimationTimings? GpuTimings { get; set; }
     private const float ShadowPainterDepth = 0.995f;
     private const float ObjectShadowOpacityMultiplier = 0.75f;
     private const float DirectionalStaticShadowOpacityScale = 1.08f;
@@ -123,11 +127,11 @@ internal sealed class Dx12ModelShadowPass
         var constants = stackalloc float[ModelShaderLayout.ModelConstantsCount];
         foreach (var model in models)
         {
-            if (!ModelFrustumCuller.MayCastVisibleShadow(camera, model))
+            if (!ModelFrustumCuller.MayCastVisibleGroundShadow(camera, model))
                 continue;
 
-            var radius = model.GroundShadowRadius * model.Scale;
-            var world = Matrix4x4.CreateScale(radius, radius, 1.0f) *
+            var halfExtents = model.GroundShadowHalfExtents;
+            var world = Matrix4x4.CreateScale(halfExtents.X, halfExtents.Y, 1.0f) *
                         Matrix4x4.CreateTranslation(
                             model.RenderPosition.X,
                             model.RenderPosition.Y,
@@ -154,11 +158,23 @@ internal sealed class Dx12ModelShadowPass
         Matrix4x4 viewProjection,
         int frameIndex)
     {
-        if (model.Mesh.Vertices.Length == 0 || model.Mesh.Indices.Length == 0)
-            return;
-
-        if (!_geometryCache.TryGetOrRequest(model.Mesh, frameIndex, out var mesh))
-            return;
+        var skinned = model.Geometry.Kind == SceneModelGeometryKind.GpuSkinned;
+        var renderMesh = skinned ? model.Geometry.BindMesh : model.Mesh;
+        if (renderMesh.Vertices.Length == 0 || renderMesh.Indices.Length == 0) return;
+        ModelGpuMesh? mesh = null;
+        ModelGpuSkinSource? source = null;
+        ModelGpuSkinInstance? instance = null;
+        if (skinned)
+        {
+            if (SkinDraw is null || !SkinDraw.TryGet(model, frameIndex, out source, out instance)) return;
+        }
+        else if (!_geometryCache.TryGetOrRequest(renderMesh, frameIndex, out mesh)) return;
+        _commandList.SetGraphicsRootSignature(skinned ? SkinDraw!.Root : _rootSignature);
+        _commandList.SetPipelineState(skinned ? SkinDraw!.Pipeline(Dx12PipelineKind.ModelShadow) : _directionalPipeline);
+        _rootConstants.Reset(); _descriptorTables.Reset();
+        if (skinned) SkinDraw!.Bind(_commandList, source!, instance!, frameIndex, scene: false);
+        var indexCount = skinned ? source!.IndexCount : mesh!.IndexCount;
+        using var skinMeasurement = skinned ? GpuTimings?.Measure(AnimationGpuStage.SkinnedShadowDraws) : null;
         var constants = stackalloc float[ModelShaderLayout.ModelConstantsCount];
         _shaderConstants.WriteModelBase(
             constants,
@@ -166,25 +182,25 @@ internal sealed class Dx12ModelShadowPass
             model.Transform,
             shadowParameters);
 
-        var vertexBufferView = mesh.VertexBufferViews[frameIndex];
-        var indexBufferView = mesh.IndexBufferView;
+        var vertexBufferView = skinned ? new VertexBufferView(source!.Vertices.GPUVirtualAddress, (uint)source.Vertices.Description.Width, 48) : mesh!.VertexBufferViews[frameIndex];
+        var indexBufferView = skinned ? source!.IndexView : mesh!.IndexBufferView;
         _commandList.IASetVertexBuffers(0, 1, &vertexBufferView);
         _commandList.IASetIndexBuffer(&indexBufferView);
 
-        if (model.Mesh.Surfaces.Count == 0)
+        if (renderMesh.Surfaces.Count == 0)
         {
             WriteMaterial(constants, hasTexture: false, model.GroundPlaneZ);
             SetConstants(constants);
             SetDescriptorTableIfChanged(
                 ModelShaderLayout.ModelTextureRootParameter,
                 SrvGpuHandle(_fallbackTextureSlot));
-            _commandList.DrawIndexedInstanced((uint)mesh.IndexCount, 1, 0, 0, 0);
+            _commandList.DrawIndexedInstanced((uint)indexCount, 1, 0, 0, 0);
             return;
         }
 
-        foreach (var surface in model.Mesh.Surfaces)
+        foreach (var surface in renderMesh.Surfaces)
         {
-            if (surface.IndexCount <= 0 || surface.IndexStart >= mesh.IndexCount)
+            if (surface.IndexCount <= 0 || surface.IndexStart >= indexCount)
                 continue;
 
             var textureReference = model.ResolveTextureReference(surface.TextureName);
@@ -195,7 +211,7 @@ internal sealed class Dx12ModelShadowPass
             SetDescriptorTableIfChanged(
                 ModelShaderLayout.ModelTextureRootParameter,
                 SrvGpuHandle(hasTexture ? texture!.SrvSlot : _fallbackTextureSlot));
-            var drawCount = Math.Min(surface.IndexCount, mesh.IndexCount - surface.IndexStart);
+            var drawCount = Math.Min(surface.IndexCount, indexCount - surface.IndexStart);
             _commandList.DrawIndexedInstanced((uint)drawCount, 1, (uint)surface.IndexStart, 0, 0);
         }
     }

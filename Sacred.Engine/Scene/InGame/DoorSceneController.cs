@@ -244,6 +244,7 @@ internal sealed class DoorSceneController
                 _doorAnimations[staticId] = animation;
                 animation.SetInitialState(GetDoorState(staticId) == DoorState.Open);
                 model.SetMesh(animation.Mesh);
+                if (animation.AnimatedMesh is { } animatedMesh) model.SetAnimatedMesh(animatedMesh);
             }
             EngineLog.WriteLine(
                 $"World model ready: item {placement.Item.ItemIndex} ({placement.Item.ModelName}) at " +
@@ -297,7 +298,8 @@ internal sealed class DoorSceneController
                 placement.StaticObject.ScriptFacingDegrees)),
             WorldModelPose.Scale,
             textureAliases,
-            sourceOriginOffset: sourceOriginOffset) { IsWorldObject = true };
+            sourceOriginOffset: sourceOriginOffset,
+            blockRadius: placement.Item.ModelDesc.BlockRadius) { IsWorldObject = true };
         model.SetPose(model.Position, model.Rotation,
             new Vector2(placement.StaticObject.TileWorldX, placement.StaticObject.TileWorldY));
         model.SetModelProjection(WorldModelPose.CameraProjection);
@@ -312,7 +314,10 @@ internal sealed class DoorSceneController
         foreach (var (staticId, animation) in _doorAnimations)
         {
             animation.Update(deltaSeconds);
-            _models[staticId].SetMesh(animation.Mesh);
+            if (animation.AnimatedMesh is { } animatedMesh)
+                _models[staticId].SetAnimatedMesh(animatedMesh);
+            else
+                _models[staticId].SetMesh(animation.Mesh);
 
         }
     }

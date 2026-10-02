@@ -128,7 +128,7 @@ float4 apply_animated_alpha(float4 color)
 
 float4 RGBToTransparentRgba(float3 rgb)
 {
-    // Use luminance as the alpha — black becomes fully transparent,
+    // Use luminance as the alpha â€” black becomes fully transparent,
     // brighter colors become more opaque.
     float alpha = dot(rgb, float3(0.2126f, 0.7152f, 0.0722f)); // Rec.709 luma
 
@@ -146,8 +146,15 @@ float4 sample_animated_texture(Texture2D texture_source, float2 tex_coord)
     return RGBToTransparentRgba(color.rgb);
 }
 
-vs_output vs_main(vs_input input)
+vs_output vs_main(vs_input input
+#ifdef SACRED_SKINNING
+    , uint vertex_id : SV_VertexID
+#endif
+)
 {
+#ifdef SACRED_SKINNING
+    skin_vertex(vertex_id, input.position, input.normal, input.tex_coord);
+#endif
     vs_output output;
     float4 world_position = mul(float4(input.position, 1.0f), world);
     float4 projected_position = mul(float4(input.position, 1.0f), world_view_projection);

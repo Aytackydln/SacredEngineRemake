@@ -101,7 +101,9 @@ internal sealed class FramePacingController : IDisposable
 
     public void SetLowLatencyMode(LowLatencyMode mode)
     {
-        _latency.SetMode(mode, LatencyMaximumFrameRate);
+        // The CPU clock owns the FPS cap. A second driver limiter can drift against
+        // both that clock and DXGI, making throughput depend on the startup phase.
+        _latency.SetMode(mode, 0);
     }
 
     public void Dispose() => _clock.Dispose();
@@ -110,9 +112,7 @@ internal sealed class FramePacingController : IDisposable
         _mode is FramePacingMode.MonitorRefreshLimiter or FramePacingMode.Manual ||
         (_mode == FramePacingMode.VariableRefreshRate && _renderer.VariableRefreshRateSupported);
 
-    private uint LatencyMaximumFrameRate => VerticalSyncEnabled ? 0 : TargetFrameRate;
-
-    private void ApplyLatencyMode() => _latency.SetMode(_latency.Mode, LatencyMaximumFrameRate);
+    private void ApplyLatencyMode() => _latency.SetMode(_latency.Mode, 0);
 
     private uint TargetFrameRateForMode(FramePacingMode mode) =>
         mode == FramePacingMode.Manual ? (uint)_manualFrameRate : _displayRefreshRateHz;

@@ -72,7 +72,10 @@ public readonly struct ItemsPakEntryModelDescLayout
     /// <summary>Authored blocking radius (<c>cObjectShared::blockRadius</c>).
     /// Gold 0x428CE0 reads this field for a valid item and substitutes 50 when
     /// the stored radius is zero. Generic FX subtype 6 uses that result to scale
-    /// mesh-seeded particle size, gravity and size change (0x7972B0..0x797302).</summary>
+    /// mesh-seeded particle size, gravity and size change (0x7972B0..0x797302).
+    /// Demo 0x415EB0 substitutes 30 for zero; cObject3D::render passes the resolved
+    /// value to renderShadowSimple as its quad half-extent (0x42D72E..0x42D766).
+    /// This shadow size is independent of animated mesh bounds.</summary>
     [FieldOffset(20)]
     public readonly uint BlockRadius;
 
@@ -144,7 +147,12 @@ public readonly struct ItemsPakEntryModelDescLayout
     [FieldOffset(50)]
     public readonly ushort Radius;
 
-    /// <summary>Three packed model extents named <c>lwh3d</c> by the native type.</summary>
+    /// <summary>
+    /// Three packed model extents named <c>lwh3d</c> by the native type. All three
+    /// bytes are zero in every inspected Demo and Gold Items.pak record. Demo
+    /// model visibility uses CABBCache/Granny bounds instead; these bytes do not
+    /// establish a serialized bounds center. See docs/research/model-bounds-demo.md.
+    /// </summary>
     [FieldOffset(52)]
     public readonly ItemsPakEntryDimensions Dimensions3D;
 

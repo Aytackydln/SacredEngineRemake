@@ -32,7 +32,7 @@ internal static class ImGuiModelDebugRenderer
 
             drawList.AddText(screen, Colour(LabelColour),
                 $"{model.Name}\nP {model.Position.X:0.##},{model.Position.Y:0.##},{model.Position.Z:0.##}  " +
-                $"R {model.Rotation.Z * (180.0f / MathF.PI):0.#}°  V{model.Mesh.Vertices.Length} I{model.Mesh.Indices.Length}");
+                $"R {model.Rotation.Z * (180.0f / MathF.PI):0.#}°  V{model.Geometry.BindMesh.Vertices.Length} I{model.Geometry.BindMesh.Indices.Length}");
         }
     }
 

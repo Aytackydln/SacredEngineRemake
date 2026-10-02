@@ -44,6 +44,7 @@ internal sealed partial class Dx12DeviceContext : IDisposable
     private ID3D12Resource? _sceneColor;
     private Dx12FrameContext[] _frames = null!;
     private Dx12FrameContext? _currentFrame;
+    public Dx12GpuAnimationTimings GpuAnimationTimings { get; private set; } = null!;
 
     private nint _fenceEvent;
     private int _rtvDescriptorSize;
@@ -97,6 +98,7 @@ internal sealed partial class Dx12DeviceContext : IDisposable
     public float RenderResolutionPercentage { get; private set; } = 1;
 
     public bool VariableRefreshRateSupported => _allowTearing;
+    public double LastPresentMilliseconds { get; private set; }
     public bool IsHdrEnabled => _swapChain is Dx12HdrSwapChain;
     public Format BackBufferFormat => _window is null ? Format.B8G8R8A8_UNorm : _swapChain.BackBufferFormat;
     public Dx12ShaderSet Shaders => _window is null ? Dx12ShaderCatalog.Sdr : _swapChain.Shaders;
@@ -158,6 +160,7 @@ internal sealed partial class Dx12DeviceContext : IDisposable
             WaitForFence(cancellationToken);
         }
 
+        GpuAnimationTimings.ReadCompletedFrame(frame.Index);
         releaseRetiredResources(frame);
         _currentFrame = frame;
     }
@@ -170,6 +173,7 @@ internal sealed partial class Dx12DeviceContext : IDisposable
         _submissionOpen = true;
         CurrentFrame.CommandAllocator.Reset();
         _commandList.Reset(CurrentFrame.CommandAllocator, initialPipeline);
+        GpuAnimationTimings.BeginFrame(CurrentFrame.Index);
     }
 
     public Dx12PendingScreenshot? SubmitAndPresent(
@@ -190,6 +194,7 @@ internal sealed partial class Dx12DeviceContext : IDisposable
                 BackBufferFormat,
                 _window is null ? ColorSpaceType.RgbFullG22NoneP709 : _swapChain.ColorSpace)
             : null;
+        GpuAnimationTimings.ResolveFrame();
         _commandList.Close();
         _latency.Mark(LatencyMarker.RenderSubmitStart, frameId);
         _commandQueue.ExecuteCommandLists(1, _submittedCommandLists);
@@ -200,9 +205,11 @@ internal sealed partial class Dx12DeviceContext : IDisposable
         CurrentFrame.FenceValue = fenceValue;
 
         _latency.Mark(LatencyMarker.PresentStart, frameId);
+        var presentStart = Stopwatch.GetTimestamp();
         if (_window is null) _offscreenFrameIndex = (_offscreenFrameIndex + 1) % FrameCount;
         else _swapChain.Present(verticalSyncEnabled, _allowTearing);
         _latency.Mark(LatencyMarker.PresentEnd, frameId);
+        LastPresentMilliseconds = Stopwatch.GetElapsedTime(presentStart).TotalMilliseconds;
         _submissionOpen = false;
         _currentFrame = null;
 
@@ -220,7 +227,10 @@ internal sealed partial class Dx12DeviceContext : IDisposable
         }
 
         foreach (var frame in _frames)
+        {
+            GpuAnimationTimings.ReadCompletedFrame(frame.Index);
             releaseRetiredResources(frame);
+        }
     }
 
     public void RecreateSwapChain(Dx12SwapChainMode requestedMode)
@@ -245,6 +255,7 @@ internal sealed partial class Dx12DeviceContext : IDisposable
         _depthBuffer = null;
         DisposeSceneColor();
         DisposeBackBuffers();
+        GpuAnimationTimings?.Dispose();
         _fence?.Dispose();
         _commandList?.Dispose();
         foreach (var frame in _frames ?? [])
@@ -365,6 +376,7 @@ internal sealed partial class Dx12DeviceContext : IDisposable
         _fenceEvent = Kernel32.CreateEventA(IntPtr.Zero, false, false, null);
         if (_fenceEvent == 0)
             throw new InvalidOperationException("Failed to create D3D12 fence event.");
+        GpuAnimationTimings = new Dx12GpuAnimationTimings(_device, _commandQueue, _commandList, FrameCount);
     }
 
     private void CreateSceneColor()

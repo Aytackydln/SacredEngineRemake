@@ -27,6 +27,7 @@ public sealed partial class Dx12Renderer
         {
             _graphics = new Dx12DeviceContext(width, height, latency, Dx12DescriptorLayout.TotalCount);
             _textureUploader = new Dx12TextureUploader(_graphics.Device);
+            FrameTiming.Animation.ReadGpuTimings = _graphics.GpuAnimationTimings.CaptureAndReset;
             _screenPass = new Dx12ScreenPass(_graphics.CommandList, _textureUploader,
                 _graphics.SrvCpuHandle(Dx12DescriptorLayout.Screen), _graphics.SrvGpuHandle(Dx12DescriptorLayout.Screen));
             _fsr2History = new Dx12Fsr2History(_graphics.Device, _graphics.CommandList,

@@ -30,9 +30,12 @@ public sealed class GrnMeshSkin
                 ? inverseRigid
                 : Matrix4x4.Identity;
         }
+        SkinningData = new GrnSkinningData(this);
     }
 
     public GrnSkeleton Skeleton { get; }
+
+    public GrnSkinningData SkinningData { get; }
 
     internal GrnSkinVertex[] Vertices { get; }
 
@@ -53,7 +56,7 @@ internal readonly record struct GrnSkinVertex(
 
 internal readonly record struct GrnBoneWeight(int BoneIndex, float Weight);
 
-internal readonly record struct GrnMeshProjection(
+public readonly record struct GrnMeshProjection(
     Vector3 Minimum,
     Vector3 Center,
     int VerticalAxis,

@@ -187,7 +187,7 @@ internal sealed class ImGuiDebugPanel(
                     value => scene.Debug.ModelNamesVisible = value);
                 DearImGui.TextDisabled($"{scene.Models.Count} rendered model(s)");
                 foreach (var model in scene.Models)
-                    DearImGui.TextDisabled($"{model.Name}  V{model.Mesh.Vertices.Length} I{model.Mesh.Indices.Length}");
+                    DearImGui.TextDisabled($"{model.Name}  V{model.Geometry.BindMesh.Vertices.Length} I{model.Geometry.BindMesh.Indices.Length}");
             }
 
             if (DearImGui.CollapsingHeader("Sprites and lights", ImGuiTreeNodeFlags.DefaultOpen))
@@ -413,7 +413,7 @@ internal sealed class ImGuiDebugPanel(
         if (scene.Models.Count == 0)
             return "none";
         var model = scene.Models[0];
-        return $"{model.Name}  V{model.Mesh.Vertices.Length} I{model.Mesh.Indices.Length}";
+        return $"{model.Name}  V{model.Geometry.BindMesh.Vertices.Length} I{model.Geometry.BindMesh.Indices.Length}";
     }
 
 }
