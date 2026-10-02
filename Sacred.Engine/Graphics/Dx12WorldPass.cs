@@ -10,6 +10,7 @@ using Sacred.Engine.Graphics.Minimap;
 using Sacred.Engine.Graphics.Models;
 using Sacred.Engine.Graphics.Sprites;
 using Sacred.Engine.Graphics.Terrain;
+using Sacred.Engine.Graphics.Uploads;
 using Sacred.Engine.Platform;
 using Sacred.Engine.Rendering;
 using Sacred.Engine.Scene;
@@ -17,9 +18,7 @@ using Sacred.Engine.Scene.InGame;
 using Sacred.Shaders;
 using Sacred.World;
 using Sacred.World.Particles;
-using Vortice;
 using Vortice.Direct3D12;
-using Vortice.Mathematics;
 
 namespace Sacred.Engine.Graphics;
 
@@ -28,7 +27,9 @@ internal sealed class Dx12WorldPass : IDisposable
 {
     private readonly Dx12DeviceContext _graphics;
     private readonly TerrainRenderer _terrain;
+    private readonly Dx12TextureUploadWorker _textureUploads;
     private readonly Dx12SectorTextureCache _sectorTextures;
+    private readonly Dx12TerrainDebugPass _terrainDebug;
     private readonly Dx12ModelTextureCache _modelTextures;
     private readonly Dx12ModelGeometryCache _modelGeometry;
     private readonly Dx12ModelPass _models;
@@ -42,6 +43,7 @@ internal sealed class Dx12WorldPass : IDisposable
     private readonly Dx12ImGuiRenderer _imgui;
     private readonly ImGuiDebugPanel _debugPanel;
     private readonly Dx12WorldCommandRecorder _commandRecorder;
+    private readonly Dx12WorldUiPass _worldUi;
     private readonly Stack<int> _freeModelSrvSlots = new();
     private double _lastCompletedFrameTimeMilliseconds;
     private TaskCompletionSource? _preparationCompletion;
@@ -63,13 +65,16 @@ internal sealed class Dx12WorldPass : IDisposable
             _freeModelSrvSlots.Push(slot);
         }
 
+        _textureUploads = new Dx12TextureUploadWorker(graphics.Device);
         _terrain = new TerrainRenderer(assets);
+        _terrainDebug = new Dx12TerrainDebugPass(graphics.Device, textureUploader);
         _sectorTextures = new Dx12SectorTextureCache(
             graphics.Device,
             textureUploader,
             graphics.SrvHeap,
             graphics.SrvDescriptorSize,
-            Dx12DescriptorLayout.MaximumSectorTextures);
+            Dx12DescriptorLayout.MaximumSectorTextures,
+            _terrain.InvalidateComposition);
         _surfaceLights = new Dx12SurfaceLightMapPass(
             graphics.Device,
             graphics.CommandList,
@@ -89,6 +94,7 @@ internal sealed class Dx12WorldPass : IDisposable
             graphics.Device,
             graphics.CommandList,
             textureUploader,
+            _textureUploads,
             graphics.SrvHeap,
             graphics.SrvDescriptorSize,
             Dx12DescriptorLayout.FirstStaticSprite,
@@ -115,6 +121,7 @@ internal sealed class Dx12WorldPass : IDisposable
         _modelTextures = new Dx12ModelTextureCache(
             assets,
             textureUploader,
+            _textureUploads,
             graphics.CommandList,
             graphics.SrvHeap,
             graphics.SrvDescriptorSize,
@@ -151,6 +158,7 @@ internal sealed class Dx12WorldPass : IDisposable
             graphics.SrvHeap,
             graphics.SrvDescriptorSize,
             _sectorTextures,
+            _terrainDebug,
             _sprites,
             _surfaceLights,
             _shadowMap,
@@ -160,6 +168,7 @@ internal sealed class Dx12WorldPass : IDisposable
             _debugOverlay,
             _imgui,
             _minimap);
+        _worldUi = new Dx12WorldUiPass(graphics, _commandRecorder, _minimap, _debugOverlay, _imgui, _debugPanel);
     }
 
     public WorldPreparationStatus LastPreparationStatus { get; private set; } =
@@ -167,8 +176,7 @@ internal sealed class Dx12WorldPass : IDisposable
 
     public void EnableBulkUploads()
     {
-        _sprites.EnableBulkUploads();
-        _modelTextures.UploadBatchSize = 64;
+        _textureUploads.EnableBulkUploads();
         _modelTextures.MaxConcurrentLoads = 8;
     }
 
@@ -209,8 +217,10 @@ internal sealed class Dx12WorldPass : IDisposable
             _terrain.PrepareVisibleLiquidSprites(),
             _terrain.PrepareVisibleStaticSprites(particles, particleRevision),
             _terrain.VisibleWorldLights);
+        _terrain.PreparePreloadedWorld(world);
         _sectorTextures.PrepareFrame(
             prepared.SectorImages,
+            _terrain.PreloadedSectorImages,
             camera.WorldCenter,
             camera.CameraSpeedUnitVector,
             _graphics.CurrentFrame);
@@ -283,27 +293,7 @@ internal sealed class Dx12WorldPass : IDisposable
             _lightHalos.SurfaceLightCount,
             _lastCompletedFrameTimeMilliseconds,
             framePacingStatus);
-        _debugOverlay.Update(
-            camera,
-            world,
-            debugStats,
-            _graphics.IsHdrEnabled,
-            _graphics.RenderWidth,
-            _graphics.RenderHeight,
-            _graphics.CurrentFrame.TransientResources);
-        if (_imgui.IsFrameBegun)
-        {
-            _debugPanel.Build(
-                camera,
-                world,
-                scene,
-                debugStats,
-                prepared.StaticSprites,
-                prepared.WorldLights,
-                _debugOverlay.FramesPerSecond,
-                _graphics.OutputWidth,
-                _graphics.OutputHeight);
-        }
+        _worldUi.UpdateDebug(camera, world, scene, prepared, debugStats);
         _commandRecorder.Record(
             camera,
             prepared.SectorImages,
@@ -328,80 +318,13 @@ internal sealed class Dx12WorldPass : IDisposable
             _graphics.RenderHeight);
     }
 
-    public void PrepareWorldMap(WorldMapOverlay overlay)
-    {
-        if (overlay.MinimapVisible)
-        {
-            _minimap.Prepare(
-                overlay.TargetWorldPosition,
-                overlay.DifficultyDisplayName,
-                overlay.RegionDisplayName,
-                _graphics.RenderWidth,
-                _graphics.RenderHeight,
-                _graphics.CurrentFrame);
-        }
-        else if (overlay.TargetMarkerVisible)
-        {
-            _minimap.PrepareTargetMarker(_graphics.CurrentFrame);
-        }
-    }
+    public void PrepareWorldMap(WorldMapOverlay overlay) => _worldUi.PrepareWorldMap(overlay);
 
-    public void RecordUi(
-        SceneState scene,
-        ID3D12RootSignature rootSignature,
-        ID3D12PipelineState terrainPipeline)
-    {
-        Dx12TextureUploader.Transition(
-            _graphics.CommandList,
-            _graphics.CurrentBackBuffer,
-            ResourceStates.Present,
-            ResourceStates.RenderTarget);
-        _graphics.CommandList.RSSetViewports(new Viewport(
-            0, 0, _graphics.OutputWidth, _graphics.OutputHeight, 0, 1));
-        _graphics.CommandList.RSSetScissorRects(new RawRect(
-            0, 0, _graphics.OutputWidth, _graphics.OutputHeight));
-        _graphics.CommandList.OMSetRenderTargets(_graphics.CurrentRenderTarget, null);
-        _graphics.CommandList.SetDescriptorHeaps(1, _graphics.ShaderVisibleDescriptorHeaps);
-        _commandRecorder.RecordUi(
-            scene,
-            _graphics.CurrentFrame,
-            rootSignature,
-            terrainPipeline,
-            _graphics.DisplayProfile,
-            _graphics.OutputWidth,
-            _graphics.OutputHeight);
-        Dx12TextureUploader.Transition(
-            _graphics.CommandList,
-            _graphics.CurrentBackBuffer,
-            ResourceStates.RenderTarget,
-            ResourceStates.Present);
-    }
+    public void RecordUi(SceneState scene, ID3D12RootSignature rootSignature, ID3D12PipelineState terrainPipeline) =>
+        _worldUi.RecordUi(scene, rootSignature, terrainPipeline);
 
-    public void RecordWorldMap(
-        WorldMapOverlay overlay,
-        ID3D12RootSignature rootSignature,
-        ID3D12PipelineState pipeline)
-    {
-        if (overlay.MinimapVisible)
-        {
-            _minimap.Record(
-                rootSignature,
-                pipeline,
-                _graphics.OutputWidth,
-                _graphics.OutputHeight,
-                _graphics.DisplayProfile.UiPaperWhiteNits);
-        }
-        if (overlay.TargetMarkerVisible)
-        {
-            _minimap.RecordTargetMarker(
-                rootSignature,
-                pipeline,
-                overlay.TargetScreenPosition,
-                _graphics.OutputWidth,
-                _graphics.OutputHeight,
-                _graphics.DisplayProfile.UiPaperWhiteNits);
-        }
-    }
+    public void RecordWorldMap(WorldMapOverlay overlay, ID3D12RootSignature rootSignature, ID3D12PipelineState pipeline) =>
+        _worldUi.RecordWorldMap(overlay, rootSignature, pipeline);
 
     public void SetPipelines(
         Dx12CreatedPipelineGroup surfaceLights,
@@ -412,6 +335,7 @@ internal sealed class Dx12WorldPass : IDisposable
         Dx12CreatedPipelineGroup imgui,
         bool hdrOutput)
     {
+        _terrainDebug.SetHdrOutput(hdrOutput);
         _surfaceLights.SetPipeline(surfaceLights);
         _playerOcclusionMap.SetPipeline(playerOcclusionMap);
         _sprites.SetPipeline(staticSprites, hdrOutput);
@@ -422,6 +346,7 @@ internal sealed class Dx12WorldPass : IDisposable
 
     public void DisposePipelines()
     {
+        _terrainDebug.DisposePipeline();
         _models.DisposePipeline();
         _sprites.DisposePipeline();
         _lightHalos.DisposePipeline();
@@ -436,8 +361,11 @@ internal sealed class Dx12WorldPass : IDisposable
         _sectorTextures.OnFrameRetired(released);
     }
 
-    public void OnForegroundFrameSubmitted() =>
+    public void OnForegroundFrameSubmitted()
+    {
+        _textureUploads.OnForegroundFrameSubmitted();
         _sectorTextures.OnForegroundFrameSubmitted();
+    }
 
     public void StopBackgroundWork()
     {
@@ -445,10 +373,13 @@ internal sealed class Dx12WorldPass : IDisposable
         _sectorTextures.StopWorker();
         _modelGeometry.WaitForPendingLoads();
         _modelTextures.WaitForPendingLoads();
+        _textureUploads.Stop();
     }
 
     public void Dispose()
     {
+        _textureUploads.Stop();
+        _terrainDebug.Dispose();
         _sectorTextures.Dispose();
         _terrain.Dispose();
         _debugOverlay.Dispose();
@@ -461,6 +392,7 @@ internal sealed class Dx12WorldPass : IDisposable
         _playerOcclusionMap.Dispose();
         _lightHalos.Dispose();
         _minimap.Dispose();
+        _textureUploads.Dispose();
     }
 
     private void UpdatePreparationStatus(
@@ -468,11 +400,10 @@ internal sealed class Dx12WorldPass : IDisposable
         IReadOnlyList<TerrainSectorComposition> sectorImages,
         bool modelGeometryReady)
     {
-        var terrainStats = _terrain.LastStats;
         LastPreparationStatus = new WorldPreparationStatus(
             world.LoadingSectors == 0 && world.Sectors.Count > 0,
-            terrainStats.SectorImagesPending == 0 && sectorImages.Count == world.Sectors.Count,
-            _sectorTextures.PendingUploadCount == 0 && _sectorTextures.Count >= sectorImages.Count,
+            sectorImages.Count == world.Sectors.Count,
+            _sectorTextures.AreResident(sectorImages),
             !_terrain.HasPendingSpriteAssetRequests,
             _sprites.VisibleTexturesPrepared(_terrain.WorldSpriteRevision),
             modelGeometryReady);

@@ -1,5 +1,6 @@
 using Sacred.Engine.Graphics.Minimap;
 using Sacred.Engine.Graphics.Sprites;
+using Sacred.Engine.Graphics.Terrain;
 
 namespace Sacred.Engine.Graphics;
 
@@ -8,7 +9,7 @@ internal static class Dx12DescriptorLayout
 {
     public const int MaximumSectorTextures = 32;
     public const int MaximumModelTextures = 128;
-    public const int SectorDescriptorCount = MaximumSectorTextures * 5;
+    public const int SectorDescriptorCount = MaximumSectorTextures * Dx12SectorTextureCache.TexturesPerSector;
     public const int DebugOverlay = SectorDescriptorCount;
     public const int DebugSceneDim = DebugOverlay + 1;
     public const int ImGuiFont = DebugSceneDim + 1;

@@ -22,6 +22,7 @@ public sealed class WorldStreamer : IDisposable
     private StreamRequest _requestedCenter;
     private VisibleWorld _visibleWorld = VisibleWorld.Empty;
     private SectorCoord? _centerSector;
+    private SectorCoord _appliedAhead;
     private int _appliedRequestVersion = -1;
     private int _requestVersion;
     private int _wakeSignaled;
@@ -30,7 +31,7 @@ public sealed class WorldStreamer : IDisposable
     public WorldStreamer(SacredWorldArchive worldArchive)
     {
         _worldArchive = worldArchive;
-        _requestedCenter = new StreamRequest(worldArchive.StartSector, 0);
+        _requestedCenter = new StreamRequest(worldArchive.StartSector, default, 0);
         _streamingTask = Task.Run(RunStreamingLoopAsync);
         SignalWorker();
     }
@@ -46,24 +47,24 @@ public sealed class WorldStreamer : IDisposable
         RequestCenter(new SectorCoord(sx, sy));
     }
 
-    public void Update(Vector2 cameraWorldCenter)
+    public void Update(Vector2 cameraWorldCenter, Vector2 movementDirection = default)
     {
         var center = new SectorCoord(
             (int)MathF.Floor(cameraWorldCenter.X / SectorTileCount),
             (int)MathF.Floor(cameraWorldCenter.Y / SectorTileCount));
 
-        if (Volatile.Read(ref _requestedCenter).Center == center)
-            return;
-
-        RequestCenter(center);
+        var ahead = SectorPreloadDirection.Ahead(cameraWorldCenter, movementDirection);
+        var current = Volatile.Read(ref _requestedCenter);
+        if (current.Center == center && current.Ahead == ahead) return;
+        RequestCenter(center, ahead);
     }
 
-    private void RequestCenter(SectorCoord center)
+    private void RequestCenter(SectorCoord center, SectorCoord ahead = default)
     {
         if (_disposed)
             return;
 
-        Volatile.Write(ref _requestedCenter, new StreamRequest(center, Interlocked.Increment(ref _requestVersion)));
+        Volatile.Write(ref _requestedCenter, new StreamRequest(center, ahead, Interlocked.Increment(ref _requestVersion)));
         SignalWorker();
     }
 
@@ -92,7 +93,7 @@ public sealed class WorldStreamer : IDisposable
         {
             _loading.Remove(load.Coord);
 
-            if (_centerSector is not { } center || !IsInVisibleRange(load.Coord, center))
+            if (_centerSector is not { } center || !IsInRetainedRange(load.Coord, center))
                 continue;
 
             if (load.Sector is not null)
@@ -113,40 +114,39 @@ public sealed class WorldStreamer : IDisposable
 
         _appliedRequestVersion = request.Version;
         _centerSector = request.Center;
-        Ensure3x3Loaded(request.Center, cancellationToken);
+        _appliedAhead = request.Ahead;
+        EnsureLoaded(request, cancellationToken);
         return true;
     }
 
-    private void Ensure3x3Loaded(SectorCoord center, CancellationToken cancellationToken)
+    private void EnsureLoaded(StreamRequest request, CancellationToken cancellationToken)
     {
         _sectorLoadTasks.RemoveAll(static task => task.IsCompleted);
         _needed.Clear();
-        var coords = new int[][]
-        {
-            [0, 0], [0, -1],  [1, 1], [-1, 0], [1, 0], [0, 1], [1, -1], [-1, 1], [-1, -1]
-        };
-        foreach (var coord in coords)
-        {
-            var x = coord[0];
-            var y = coord[1];
-            
-            var c = new SectorCoord(center.X + x, center.Y + y);
-            _needed.Add(c);
-            if (!_loaded.ContainsKey(c) && _loading.Add(c))
-                _sectorLoadTasks.Add(Task.Run(
-                    () => LoadSectorAsync(c, cancellationToken),
-                    CancellationToken.None));
-        }
-
+        // Always request visible data first. The next strip is lower priority.
+        RequestArea(request.Center, cancellationToken);
+        if (request.Ahead != default)
+            RequestArea(new SectorCoord(request.Center.X + request.Ahead.X, request.Center.Y + request.Ahead.Y), cancellationToken);
         _toRemove.Clear();
         foreach (var key in _loaded.Keys)
-        {
-            if (!_needed.Contains(key))
-                _toRemove.Add(key);
-        }
+            if (!IsInRetainedRange(key, request.Center)) _toRemove.Add(key);
+        foreach (var key in _toRemove) _loaded.Remove(key);
+        Console.WriteLine($"World streaming: center {request.Center.X},{request.Center.Y}; ahead {request.Ahead.X},{request.Ahead.Y}; {_needed.Count} requested, {_loaded.Count} retained.");
+    }
 
-        foreach (var key in _toRemove)
-            _loaded.Remove(key);
+    private void RequestArea(SectorCoord center, CancellationToken cancellationToken)
+    {
+        RequestSector(center, cancellationToken);
+        for (var y = -1; y <= 1; y++)
+        for (var x = -1; x <= 1; x++)
+            RequestSector(new SectorCoord(center.X + x, center.Y + y), cancellationToken);
+    }
+
+    private void RequestSector(SectorCoord coord, CancellationToken cancellationToken)
+    {
+        _needed.Add(coord);
+        if (!_loaded.ContainsKey(coord) && _loading.Add(coord))
+            _sectorLoadTasks.Add(Task.Run(() => LoadSectorAsync(coord, cancellationToken), CancellationToken.None));
     }
 
     private async Task LoadSectorAsync(SectorCoord coord, CancellationToken cancellationToken)
@@ -178,7 +178,18 @@ public sealed class WorldStreamer : IDisposable
             if (_loaded.TryGetValue(new SectorCoord(center.X + x, center.Y + y), out var s))
                 sectors.Add(s);
 
-        Volatile.Write(ref _visibleWorld, new VisibleWorld(center, sectors, CountLoadingSectors(center)));
+        var preloaded = new List<Sector>(3);
+        foreach (var coord in _needed)
+            if (!IsInVisibleRange(coord, center) && _loaded.TryGetValue(coord, out var sector)) preloaded.Add(sector);
+        var loadingPreloaded = 0;
+        foreach (var coord in _loading)
+            if (_needed.Contains(coord) && !IsInVisibleRange(coord, center)) loadingPreloaded++;
+        Volatile.Write(ref _visibleWorld, new VisibleWorld(center, sectors, CountLoadingSectors(center))
+        {
+            PreloadedSectors = preloaded,
+            PrefetchCenterSector = _appliedAhead == default ? null : new SectorCoord(center.X + _appliedAhead.X, center.Y + _appliedAhead.Y),
+            LoadingPreloadedSectors = loadingPreloaded
+        });
     }
 
     private int CountLoadingSectors(SectorCoord center)
@@ -190,6 +201,9 @@ public sealed class WorldStreamer : IDisposable
 
         return count;
     }
+
+    private static bool IsInRetainedRange(SectorCoord coord, SectorCoord center) =>
+        Math.Abs(coord.X - center.X) <= 2 && Math.Abs(coord.Y - center.Y) <= 2;
 
     private static bool IsInVisibleRange(SectorCoord coord, SectorCoord center) =>
         Math.Abs(coord.X - center.X) <= 1 && Math.Abs(coord.Y - center.Y) <= 1;
@@ -217,7 +231,7 @@ public sealed class WorldStreamer : IDisposable
         _shutdown.Dispose();
     }
 
-    private sealed record StreamRequest(SectorCoord Center, int Version);
+    private sealed record StreamRequest(SectorCoord Center, SectorCoord Ahead, int Version);
 
     private readonly record struct SectorLoadResult(SectorCoord Coord, Sector? Sector);
 }

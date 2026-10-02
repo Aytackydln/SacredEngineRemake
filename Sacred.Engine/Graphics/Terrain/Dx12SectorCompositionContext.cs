@@ -21,7 +21,7 @@ internal sealed class Dx12SectorCompositionContext : IDisposable
             null);
         RtvHeap = device.CreateDescriptorHeap(new DescriptorHeapDescription(
             DescriptorHeapType.RenderTargetView,
-            5,
+            2,
             DescriptorHeapFlags.None,
             0));
     }

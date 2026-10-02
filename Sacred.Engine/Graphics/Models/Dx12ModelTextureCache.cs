@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Graphics.Frames;
+using Sacred.Engine.Graphics.Uploads;
 using Sacred.Engine.Scene;
 using Vortice.Direct3D12;
 
@@ -15,10 +17,11 @@ namespace Sacred.Engine.Graphics.Models;
 internal sealed class Dx12ModelTextureCache : IDisposable
 {
     public int MaxConcurrentLoads { get; set; } = 2;
-    public int UploadBatchSize { get; set; } = 1;
 
     private readonly AssetManager _assets;
     private readonly Dx12TextureUploader _uploader;
+    private readonly Dx12TextureUploadWorker _uploads;
+    private readonly List<PendingModelUpload> _pendingUploads = [];
     private readonly ID3D12GraphicsCommandList _commandList;
     private readonly CpuDescriptorHandle _srvHeapStart;
     private readonly int _descriptorSize;
@@ -35,6 +38,7 @@ internal sealed class Dx12ModelTextureCache : IDisposable
     public Dx12ModelTextureCache(
         AssetManager assets,
         Dx12TextureUploader uploader,
+        Dx12TextureUploadWorker uploads,
         ID3D12GraphicsCommandList commandList,
         ID3D12DescriptorHeap srvHeap,
         int descriptorSize,
@@ -43,6 +47,7 @@ internal sealed class Dx12ModelTextureCache : IDisposable
     {
         _assets = assets;
         _uploader = uploader;
+        _uploads = uploads;
         _commandList = commandList;
         _srvHeapStart = srvHeap.GetCPUDescriptorHandleForHeapStart();
         _descriptorSize = descriptorSize;
@@ -90,6 +95,7 @@ internal sealed class Dx12ModelTextureCache : IDisposable
             _preparedModelSetRevision = scene.ModelSetRevision;
         }
 
+        CollectCompletedUploads();
         CollectCompletedLoads(frame);
         StartPendingLoads();
     }
@@ -110,6 +116,9 @@ internal sealed class Dx12ModelTextureCache : IDisposable
     {
         WaitForPendingLoads();
 
+        foreach (var pending in _pendingUploads)
+            pending.Ticket.Cancel();
+        _pendingUploads.Clear();
         foreach (var texture in _textures.Values)
             texture.Resource?.Dispose();
         _textures.Clear();
@@ -118,6 +127,8 @@ internal sealed class Dx12ModelTextureCache : IDisposable
         {
             if (completed.SrvSlot >= 0)
                 _freeSrvSlots.Push(completed.SrvSlot);
+            if (completed.Asset is { } asset)
+                _assets.ReleaseModelTexture(completed.Texture.Name, asset);
         }
     }
 
@@ -201,7 +212,7 @@ internal sealed class Dx12ModelTextureCache : IDisposable
             texture.Pending = true;
             texture.Stage = ModelTextureStage.LoadingAsset;
             var slot = _freeSrvSlots.Pop();
-            _loadTasks.Add(LoadAsync(texture, slot));
+            _loadTasks.Add(Task.Run(() => LoadAsync(texture, slot)));
         }
     }
 
@@ -232,61 +243,72 @@ internal sealed class Dx12ModelTextureCache : IDisposable
 
     private void CollectCompletedLoads(Dx12FrameContext frame)
     {
-        var uploaded = 0;
-        while (uploaded < UploadBatchSize && _completedLoads.TryDequeue(out var completed))
+        var timer = Stopwatch.StartNew();
+        while (timer.Elapsed.TotalMilliseconds < 0.5 && _completedLoads.TryPeek(out var completed))
         {
-            var requestedTexture = completed.Texture;
-            if (!_textures.TryGetValue(requestedTexture.Name, out var texture) ||
-                !ReferenceEquals(texture, requestedTexture))
+            var requested = completed.Texture;
+            if (!_textures.TryGetValue(requested.Name, out var texture) || !ReferenceEquals(texture, requested))
             {
-                if (completed.SrvSlot >= 0)
-                    _freeSrvSlots.Push(completed.SrvSlot);
-                if (completed.Asset is { } unusedAsset)
-                    _assets.ReleaseModelTexture(requestedTexture.Name, unusedAsset);
+                _completedLoads.TryDequeue(out _);
+                _freeSrvSlots.Push(completed.SrvSlot);
+                if (completed.Asset is { } obsolete) _assets.ReleaseModelTexture(requested.Name, obsolete);
                 continue;
             }
-
-            texture.Pending = false;
             if (completed.Error is not null || completed.Asset is null)
             {
+                _completedLoads.TryDequeue(out _);
+                texture.Pending = false;
                 texture.Failed = true;
                 texture.Stage = ModelTextureStage.Failed;
-                if (completed.SrvSlot >= 0)
-                    _freeSrvSlots.Push(completed.SrvSlot);
+                _freeSrvSlots.Push(completed.SrvSlot);
                 continue;
             }
-
-            uploaded++;
-            ID3D12Resource? resource = null;
-            try
-            {
-                var asset = completed.Asset;
-                resource = _uploader.UploadRgbaTexture(
-                    _commandList,
-                    asset.Width,
-                    asset.Height,
-                    asset.Rgba8,
-                    frame.TransientResources);
-                _uploader.CreateShaderResourceView(resource, SrvCpuHandle(completed.SrvSlot));
-                texture.SrvSlot = completed.SrvSlot;
-                texture.Resource = resource;
-                texture.HasTranslucentPixels = completed.HasTranslucentPixels;
-                texture.ParticleEncoding = completed.ParticleEncoding;
-            }
-            catch
-            {
-                resource?.Dispose();
-                _freeSrvSlots.Push(completed.SrvSlot);
-                texture.Failed = true;
-                texture.Stage = ModelTextureStage.Failed;
-            }
-            finally
-            {
-                // Upload copies the pixels; failed uploads also no longer need the decoded asset.
-                _assets.ReleaseModelTexture(texture.Name, completed.Asset);
-            }
+            var asset = completed.Asset;
+            if (!_uploads.TryEnqueue(texture.Name, asset.Width, asset.Height, asset.Rgba8,
+                    () => _assets.ReleaseModelTexture(requested.Name, asset), out var ticket))
+                break;
+            _completedLoads.TryDequeue(out _);
+            _pendingUploads.Add(new PendingModelUpload(completed, ticket));
         }
     }
+
+    private void CollectCompletedUploads()
+    {
+        var timer = Stopwatch.StartNew();
+        for (var index = _pendingUploads.Count - 1; index >= 0 && timer.Elapsed.TotalMilliseconds < 0.5; index--)
+        {
+            var pending = _pendingUploads[index];
+            var completed = pending.Load;
+            var requested = completed.Texture;
+            if (!_textures.TryGetValue(requested.Name, out var texture) || !ReferenceEquals(texture, requested))
+            {
+                pending.Ticket.Cancel();
+                _freeSrvSlots.Push(completed.SrvSlot);
+                _pendingUploads.RemoveAt(index);
+                continue;
+            }
+            if (!pending.Ticket.TryTake(out var resource, out var error)) continue;
+            _pendingUploads.RemoveAt(index);
+            texture.Pending = false;
+            if (resource is null || error is not null)
+            {
+                texture.Failed = true;
+                texture.Stage = ModelTextureStage.Failed;
+                _freeSrvSlots.Push(completed.SrvSlot);
+                EngineLog.WriteLine($"Model copy failed: {requested.Name}: {error?.Message}");
+                continue;
+            }
+            Dx12TextureUploader.Transition(_commandList, resource, ResourceStates.Common, ResourceStates.PixelShaderResource);
+            _uploader.CreateShaderResourceView(resource, SrvCpuHandle(completed.SrvSlot));
+            texture.SrvSlot = completed.SrvSlot;
+            texture.Resource = resource;
+            texture.HasTranslucentPixels = completed.HasTranslucentPixels;
+            texture.ParticleEncoding = completed.ParticleEncoding;
+            EngineLog.WriteLine($"Model texture copy completed: {requested.Name}.");
+        }
+    }
+
+    private sealed record PendingModelUpload(CompletedTextureLoad Load, TextureUploadTicket Ticket);
 
     private CpuDescriptorHandle SrvCpuHandle(int index) => _srvHeapStart + index * _descriptorSize;
 

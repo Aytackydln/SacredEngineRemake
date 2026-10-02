@@ -1,14 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Engine.Extern;
 using Sacred.Engine.Rendering;
-using Vortice;
-using Vortice.Direct3D;
 using Vortice.Direct3D12;
 using Vortice.DXGI;
-using Vortice.Mathematics;
 
 namespace Sacred.Engine.Graphics.Terrain;
 
@@ -21,7 +17,6 @@ internal sealed class Dx12SectorComposer : IDisposable
     public const int MaximumInFlightCompositions = 2;
 
     private const int MaximumTileSheetCount = 4096;
-    private const int VerticesPerTile = 6;
     private const uint HasSecondaryMaskFlag = 0x01;
     private const uint PremultipliedOutputFlag = 0x02;
     private const Format OutputFormat = Format.R8G8B8A8_UNorm;
@@ -37,6 +32,7 @@ internal sealed class Dx12SectorComposer : IDisposable
     private readonly ID3D12PipelineState _basePipeline;
     private readonly ID3D12PipelineState _coverPipeline;
     private readonly ID3D12PipelineState _spritePipeline;
+    private readonly Dx12SectorTargetRecorder _targetRecorder;
     private readonly Dx12SectorCompositionContext[] _contexts;
 
     private nint _fenceEvent;
@@ -57,6 +53,7 @@ internal sealed class Dx12SectorComposer : IDisposable
         _basePipeline = pipeline.Base;
         _coverPipeline = pipeline.Cover;
         _spritePipeline = pipeline.Sprite;
+        _targetRecorder = new Dx12SectorTargetRecorder(device, uploader, _rootSignature, _spritePipeline);
         _contexts = new Dx12SectorCompositionContext[MaximumInFlightCompositions];
         for (var index = 0; index < _contexts.Length; index++)
             _contexts[index] = new Dx12SectorCompositionContext(device);
@@ -68,9 +65,6 @@ internal sealed class Dx12SectorComposer : IDisposable
         var commandList = context.CommandList;
         ID3D12Resource? baseTexture = null;
         ID3D12Resource? coverTexture = null;
-        ID3D12Resource? stairsDebugTexture = null;
-        ID3D12Resource? blockedAreaDebugTexture = null;
-        ID3D12Resource? terrainTopologyDebugTexture = null;
         var addedSourceNames = new List<string>();
         var addedSpriteSources = new List<StaticSpriteAsset>();
 
@@ -79,35 +73,17 @@ internal sealed class Dx12SectorComposer : IDisposable
             var maximumSourceDescriptorCount = checked((
                 composition.BaseTiles.Count +
                 composition.CoverTiles.Count +
-                composition.StairsDebugTiles.Count +
-                composition.BlockedAreaDebugTiles.Count +
-                composition.TerrainTopologyDebugTiles.Count +
                 composition.EmbeddedSprites.Count) * 2);
             context.BeginRecording(maximumSourceDescriptorCount);
 
             baseTexture = CreateOutputTexture(composition.Width, composition.Height);
             coverTexture = CreateOutputTexture(composition.Width, composition.Height);
-            stairsDebugTexture = CreateOutputTexture(
-                composition.StairsDebugWidth,
-                composition.StairsDebugHeight);
-            blockedAreaDebugTexture = CreateOutputTexture(
-                composition.BlockedAreaDebugWidth,
-                composition.BlockedAreaDebugHeight);
-            terrainTopologyDebugTexture = CreateOutputTexture(
-                composition.TerrainTopologyDebugWidth,
-                composition.TerrainTopologyDebugHeight);
             var rtvStart = context.RtvHeap.GetCPUDescriptorHandleForHeapStart();
             var rtvDescriptorSize = (int)_device.GetDescriptorHandleIncrementSize(DescriptorHeapType.RenderTargetView);
             var baseRtv = rtvStart;
             var coverRtv = rtvStart + rtvDescriptorSize;
-            var stairsDebugRtv = rtvStart + rtvDescriptorSize * 2;
-            var blockedAreaDebugRtv = rtvStart + rtvDescriptorSize * 3;
-            var terrainTopologyDebugRtv = rtvStart + rtvDescriptorSize * 4;
             _device.CreateRenderTargetView(baseTexture, null, baseRtv);
             _device.CreateRenderTargetView(coverTexture, null, coverRtv);
-            _device.CreateRenderTargetView(stairsDebugTexture, null, stairsDebugRtv);
-            _device.CreateRenderTargetView(blockedAreaDebugTexture, null, blockedAreaDebugRtv);
-            _device.CreateRenderTargetView(terrainTopologyDebugTexture, null, terrainTopologyDebugRtv);
 
             var baseDraws = CreateDraws(
                 composition.BaseTiles,
@@ -121,24 +97,6 @@ internal sealed class Dx12SectorComposer : IDisposable
                 commandList,
                 context.TransientResources,
                 addedSourceNames);
-            var stairsDebugDraws = CreateDraws(
-                composition.StairsDebugTiles,
-                true,
-                commandList,
-                context.TransientResources,
-                addedSourceNames);
-            var blockedAreaDebugDraws = CreateDraws(
-                composition.BlockedAreaDebugTiles,
-                true,
-                commandList,
-                context.TransientResources,
-                addedSourceNames);
-            var terrainTopologyDebugDraws = CreateDraws(
-                composition.TerrainTopologyDebugTiles,
-                true,
-                commandList,
-                context.TransientResources,
-                addedSourceNames);
             var embeddedSpriteDraws = CreateEmbeddedSpriteDraws(
                 composition.EmbeddedSprites,
                 commandList,
@@ -147,7 +105,7 @@ internal sealed class Dx12SectorComposer : IDisposable
 
             var sourceSrvHeap = context.SourceSrvHeap;
             var nextSourceDescriptor = 0;
-            RecordTarget(
+            _targetRecorder.RecordTarget(
                 commandList,
                 baseTexture,
                 baseRtv,
@@ -159,43 +117,7 @@ internal sealed class Dx12SectorComposer : IDisposable
                 context.TransientResources,
                 sourceSrvHeap,
                 ref nextSourceDescriptor);
-            RecordTarget(
-                commandList,
-                blockedAreaDebugTexture,
-                blockedAreaDebugRtv,
-                composition.BlockedAreaDebugWidth,
-                composition.BlockedAreaDebugHeight,
-                blockedAreaDebugDraws,
-                [],
-                _coverPipeline,
-                context.TransientResources,
-                sourceSrvHeap,
-                ref nextSourceDescriptor);
-            RecordTarget(
-                commandList,
-                stairsDebugTexture,
-                stairsDebugRtv,
-                composition.StairsDebugWidth,
-                composition.StairsDebugHeight,
-                stairsDebugDraws,
-                [],
-                _coverPipeline,
-                context.TransientResources,
-                sourceSrvHeap,
-                ref nextSourceDescriptor);
-            RecordTarget(
-                commandList,
-                terrainTopologyDebugTexture,
-                terrainTopologyDebugRtv,
-                composition.TerrainTopologyDebugWidth,
-                composition.TerrainTopologyDebugHeight,
-                terrainTopologyDebugDraws,
-                [],
-                _coverPipeline,
-                context.TransientResources,
-                sourceSrvHeap,
-                ref nextSourceDescriptor);
-            RecordTarget(
+            _targetRecorder.RecordTarget(
                 commandList,
                 coverTexture,
                 coverRtv,
@@ -218,15 +140,9 @@ internal sealed class Dx12SectorComposer : IDisposable
                 context,
                 fenceValue,
                 baseTexture,
-                coverTexture,
-                stairsDebugTexture,
-                blockedAreaDebugTexture,
-                terrainTopologyDebugTexture);
+                coverTexture);
             baseTexture = null;
             coverTexture = null;
-            stairsDebugTexture = null;
-            blockedAreaDebugTexture = null;
-            terrainTopologyDebugTexture = null;
             return submission;
         }
         catch
@@ -251,9 +167,6 @@ internal sealed class Dx12SectorComposer : IDisposable
         {
             if (context.FenceValue == 0)
                 context.ReleaseTransientResources();
-            blockedAreaDebugTexture?.Dispose();
-            terrainTopologyDebugTexture?.Dispose();
-            stairsDebugTexture?.Dispose();
             coverTexture?.Dispose();
             baseTexture?.Dispose();
         }
@@ -443,119 +356,6 @@ internal sealed class Dx12SectorComposer : IDisposable
         }
     }
 
-    private unsafe void RecordTarget(
-        ID3D12GraphicsCommandList commandList,
-        ID3D12Resource target,
-        CpuDescriptorHandle rtv,
-        int width,
-        int height,
-        GpuTerrainTileDraw[] draws,
-        GpuSectorSpriteDraw[] embeddedSprites,
-        ID3D12PipelineState pipeline,
-        ICollection<ID3D12Resource> transientResources,
-        ID3D12DescriptorHeap sourceSrvHeap,
-        ref int nextSourceDescriptor)
-    {
-        commandList.OMSetRenderTargets(rtv, null);
-        commandList.ClearRenderTargetView(rtv, new Color4(0.0f, 0.0f, 0.0f, 0.0f));
-        commandList.RSSetViewports(new Viewport(0, 0, width, height, 0.0f, 1.0f));
-        commandList.RSSetScissorRects(new RawRect(0, 0, width, height));
-
-        if (draws.Length != 0)
-        {
-            var instances = new GpuTerrainTileInstance[draws.Length];
-            for (var index = 0; index < draws.Length; index++)
-                instances[index] = draws[index].Instance;
-            var instanceBytes = MemoryMarshal.AsBytes(instances.AsSpan());
-            var instanceBuffer = _uploader.CreateUploadBuffer(instanceBytes);
-            transientResources.Add(instanceBuffer);
-            commandList.SetDescriptorHeaps(1, [sourceSrvHeap]);
-            commandList.SetGraphicsRootSignature(_rootSignature);
-            commandList.SetPipelineState(pipeline);
-            commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
-            var targetSize = stackalloc float[2] { width, height };
-            commandList.SetGraphicsRoot32BitConstants(0, 2, targetSize, 0);
-            var sourceCpuStart = sourceSrvHeap.GetCPUDescriptorHandleForHeapStart();
-            var sourceGpuStart = sourceSrvHeap.GetGPUDescriptorHandleForHeapStart();
-            var sourceDescriptorSize = (int)_device.GetDescriptorHandleIncrementSize(
-                DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView);
-            var instanceStride = Marshal.SizeOf<GpuTerrainTileInstance>();
-            var firstInstance = 0;
-            while (firstInstance < draws.Length)
-            {
-                var draw = draws[firstInstance];
-                var instanceCount = 1;
-                while (firstInstance + instanceCount < draws.Length &&
-                       ReferenceEquals(draw.Primary, draws[firstInstance + instanceCount].Primary) &&
-                       ReferenceEquals(draw.Secondary, draws[firstInstance + instanceCount].Secondary))
-                    instanceCount++;
-
-                var primaryDescriptor = sourceCpuStart + nextSourceDescriptor * sourceDescriptorSize;
-                _uploader.CreateShaderResourceView(draw.Primary.Resource, primaryDescriptor);
-                _uploader.CreateShaderResourceView(draw.Secondary.Resource, primaryDescriptor + sourceDescriptorSize);
-                commandList.SetGraphicsRootDescriptorTable(
-                    2,
-                    sourceGpuStart + nextSourceDescriptor * sourceDescriptorSize);
-                commandList.SetGraphicsRootShaderResourceView(
-                    1,
-                    instanceBuffer.GPUVirtualAddress + (ulong)(firstInstance * instanceStride));
-                commandList.DrawInstanced(VerticesPerTile, (uint)instanceCount, 0, 0);
-                nextSourceDescriptor += 2;
-                firstInstance += instanceCount;
-            }
-        }
-
-        if (embeddedSprites.Length != 0)
-        {
-            var instances = new GpuSectorSpriteInstance[embeddedSprites.Length];
-            for (var index = 0; index < embeddedSprites.Length; index++)
-                instances[index] = embeddedSprites[index].Instance;
-            var instanceBuffer = _uploader.CreateUploadBuffer(MemoryMarshal.AsBytes(instances.AsSpan()));
-            transientResources.Add(instanceBuffer);
-            commandList.SetDescriptorHeaps(1, [sourceSrvHeap]);
-            commandList.SetGraphicsRootSignature(_rootSignature);
-            commandList.SetPipelineState(_spritePipeline);
-            commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
-            var targetSize = stackalloc float[2] { width, height };
-            commandList.SetGraphicsRoot32BitConstants(0, 2, targetSize, 0);
-            var sourceCpuStart = sourceSrvHeap.GetCPUDescriptorHandleForHeapStart();
-            var sourceGpuStart = sourceSrvHeap.GetGPUDescriptorHandleForHeapStart();
-            var sourceDescriptorSize = (int)_device.GetDescriptorHandleIncrementSize(
-                DescriptorHeapType.ConstantBufferViewShaderResourceViewUnorderedAccessView);
-            var instanceStride = Marshal.SizeOf<GpuSectorSpriteInstance>();
-            var firstInstance = 0;
-            while (firstInstance < embeddedSprites.Length)
-            {
-                var draw = embeddedSprites[firstInstance];
-                var instanceCount = 1;
-                while (firstInstance + instanceCount < embeddedSprites.Length &&
-                       ReferenceEquals(draw.Source, embeddedSprites[firstInstance + instanceCount].Source))
-                {
-                    instanceCount++;
-                }
-
-                var sourceDescriptor = sourceCpuStart + nextSourceDescriptor * sourceDescriptorSize;
-                _uploader.CreateShaderResourceView(draw.Source.Resource, sourceDescriptor);
-                _uploader.CreateShaderResourceView(draw.Source.Resource, sourceDescriptor + sourceDescriptorSize);
-                commandList.SetGraphicsRootDescriptorTable(
-                    2,
-                    sourceGpuStart + nextSourceDescriptor * sourceDescriptorSize);
-                commandList.SetGraphicsRootShaderResourceView(
-                    1,
-                    instanceBuffer.GPUVirtualAddress + (ulong)(firstInstance * instanceStride));
-                commandList.DrawInstanced(VerticesPerTile, (uint)instanceCount, 0, 0);
-                nextSourceDescriptor += 2;
-                firstInstance += instanceCount;
-            }
-        }
-
-        Dx12TextureUploader.Transition(
-            commandList,
-            target,
-            ResourceStates.RenderTarget,
-            ResourceStates.PixelShaderResource);
-    }
-
     private ID3D12Resource CreateOutputTexture(int width, int height)
     {
         var description = new ResourceDescription(
@@ -587,31 +387,14 @@ internal sealed class Dx12SectorComposer : IDisposable
         Kernel32.WaitForSingleObject(_fenceEvent, uint.MaxValue);
     }
 
-    private sealed record SourceTexture(ID3D12Resource Resource);
-
-    private readonly record struct GpuTerrainTileDraw(
-        GpuTerrainTileInstance Instance,
-        SourceTexture Primary,
-        SourceTexture Secondary);
-
-    private readonly record struct GpuSectorSpriteDraw(
-        GpuSectorSpriteInstance Instance,
-        SourceTexture Source);
-
     internal sealed class Submission(
         Dx12SectorCompositionContext context,
         ulong fenceValue,
         ID3D12Resource baseTexture,
-        ID3D12Resource liquidCoverTexture,
-        ID3D12Resource stairsDebugTexture,
-        ID3D12Resource blockedAreaDebugTexture,
-        ID3D12Resource terrainTopologyDebugTexture)
+        ID3D12Resource liquidCoverTexture)
     {
         private ID3D12Resource? _baseTexture = baseTexture;
         private ID3D12Resource? _liquidCoverTexture = liquidCoverTexture;
-        private ID3D12Resource? _stairsDebugTexture = stairsDebugTexture;
-        private ID3D12Resource? _blockedAreaDebugTexture = blockedAreaDebugTexture;
-        private ID3D12Resource? _terrainTopologyDebugTexture = terrainTopologyDebugTexture;
 
         public Dx12SectorCompositionContext Context { get; } = context;
         public ulong FenceValue { get; } = fenceValue;
@@ -619,25 +402,16 @@ internal sealed class Dx12SectorComposer : IDisposable
         public Dx12ComposedSector TakeResult()
         {
             if (_baseTexture is null ||
-                _liquidCoverTexture is null ||
-                _stairsDebugTexture is null ||
-                _blockedAreaDebugTexture is null ||
-                _terrainTopologyDebugTexture is null)
+                _liquidCoverTexture is null)
             {
                 throw new InvalidOperationException("The sector composition result was already collected.");
             }
 
             var result = new Dx12ComposedSector(
                 _baseTexture,
-                _liquidCoverTexture,
-                _stairsDebugTexture,
-                _blockedAreaDebugTexture,
-                _terrainTopologyDebugTexture);
+                _liquidCoverTexture);
             _baseTexture = null;
             _liquidCoverTexture = null;
-            _stairsDebugTexture = null;
-            _blockedAreaDebugTexture = null;
-            _terrainTopologyDebugTexture = null;
             return result;
         }
     }
@@ -645,16 +419,10 @@ internal sealed class Dx12SectorComposer : IDisposable
 
 internal sealed record Dx12ComposedSector(
     ID3D12Resource BaseTexture,
-    ID3D12Resource LiquidCoverTexture,
-    ID3D12Resource StairsDebugTexture,
-    ID3D12Resource BlockedAreaDebugTexture,
-    ID3D12Resource TerrainTopologyDebugTexture) : IDisposable
+    ID3D12Resource LiquidCoverTexture) : IDisposable
 {
     public void Dispose()
     {
-        BlockedAreaDebugTexture.Dispose();
-        TerrainTopologyDebugTexture.Dispose();
-        StairsDebugTexture.Dispose();
         LiquidCoverTexture.Dispose();
         BaseTexture.Dispose();
     }

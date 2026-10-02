@@ -15,6 +15,9 @@ public sealed class TerrainRenderer : IDisposable
     private const int MaxConcurrentSectorImageBuilds = 1;
 
     private readonly SectorCompositionBuilder _sectorCompositionBuilder;
+    private readonly TerrainPrefetchPreparation _prefetchPreparation;
+    private readonly List<TerrainSectorComposition> _preloadedSectorImages = new(3);
+    private bool _cacheInvalidated;
     private readonly TerrainLiquidSpriteBuilder _liquidSpriteBuilder;
     private readonly TerrainStaticSpriteBuilder _staticSpriteBuilder;
     private readonly TerrainParticleSpriteBuilder _particleSpriteBuilder;
@@ -35,6 +38,8 @@ public sealed class TerrainRenderer : IDisposable
     private bool _sectorCompositionsChangedThisFrame;
     private ulong _preparedParticleRevision = ulong.MaxValue;
 
+    public IReadOnlyList<TerrainSectorComposition> PreloadedSectorImages => _preloadedSectorImages;
+
     public TerrainRenderStats LastStats { get; private set; }
     public ulong WorldSpriteRevision { get; private set; }
     public IReadOnlyList<TerrainWorldLight> VisibleWorldLights { get; private set; } = [];
@@ -46,6 +51,7 @@ public sealed class TerrainRenderer : IDisposable
     public TerrainRenderer(AssetManager assets)
     {
         _sectorCompositionBuilder = new SectorCompositionBuilder(assets);
+        _prefetchPreparation = new TerrainPrefetchPreparation(assets);
         _liquidSpriteBuilder = new TerrainLiquidSpriteBuilder(assets);
         _staticSpriteBuilder = new TerrainStaticSpriteBuilder(assets);
         _particleSpriteBuilder = new TerrainParticleSpriteBuilder(assets);
@@ -57,7 +63,9 @@ public sealed class TerrainRenderer : IDisposable
     {
         var previousIndoorGroup = _activeIndoorGroup;
         var indoorChanged = previousIndoorGroup?.Id != activeIndoorGroup?.Id;
-        var worldChanged = !ReferenceEquals(_preparedWorld, world);
+        var worldChanged = _cacheInvalidated || !SameVisibleSectors(_preparedWorld, world);
+        _cacheInvalidated = false;
+        _preparedWorld = world;
         _activeIndoorGroup = activeIndoorGroup;
         _worldChangedThisFrame = worldChanged;
         _indoorChangedThisFrame = indoorChanged;
@@ -139,8 +147,16 @@ public sealed class TerrainRenderer : IDisposable
             true);
         if (preparation.PromotionsChanged || _sectorCompositionsChangedThisFrame)
         {
-            foreach (var composition in _visibleSectorImages)
-                composition.RemoveEmbeddedSprites(preparation.PromotedEmbeddedObjectIds);
+            for (var index = _visibleSectorImages.Count - 1; index >= 0; index--)
+            {
+                var composition = _visibleSectorImages[index];
+                if (composition.NeedsRebuildForPromotions(preparation.PromotedEmbeddedObjectIds))
+                {
+                    InvalidateComposition(composition);
+                    _visibleSectorImages.RemoveAt(index);
+                }
+                else composition.RemoveEmbeddedSprites(preparation.PromotedEmbeddedObjectIds);
+            }
         }
         particles ??= Array.Empty<WorldParticle>();
         var particlesChanged = _preparedParticleRevision != particleRevision ||
@@ -156,6 +172,16 @@ public sealed class TerrainRenderer : IDisposable
 
         _visibleWorldSprites.Clear();
         _visibleWorldSprites.AddRange(preparation.Sprites);
+        // Prefetched/retained plans remember which authored sprites were excluded from baking.
+        for (var index = 0; index < _visibleWorldSprites.Count; index++)
+        {
+            var sprite = _visibleWorldSprites[index];
+            if (!sprite.IsEmbeddedInTerrain) continue;
+            var coord = new SectorCoord((int)MathF.Floor(sprite.TileWorldX / (float)Sector.TileCount),
+                (int)MathF.Floor(sprite.TileWorldY / (float)Sector.TileCount));
+            if (_sectorCache.TryGetValue(coord, out var composition) && composition.PromotedEmbeddedObjectIds.Contains(sprite.StaticObjectId))
+                _visibleWorldSprites[index] = sprite with { IsEmbeddedInTerrain = false };
+        }
         _visibleWorldSprites.AddRange(_particleSpriteBuilder.Sprites);
 
         if (preparation.Changed)
@@ -208,7 +234,7 @@ public sealed class TerrainRenderer : IDisposable
     {
         _sectorCoordsToRemove.Clear();
         foreach (var coord in _sectorCache.Keys)
-            if (!_neededSectorCoords.Contains(coord))
+            if (_preparedWorld is { } world && (Math.Abs(coord.X - world.CenterSector.X) > 2 || Math.Abs(coord.Y - world.CenterSector.Y) > 2))
                 _sectorCoordsToRemove.Add(coord);
 
         foreach (var coord in _sectorCoordsToRemove)
@@ -230,7 +256,7 @@ public sealed class TerrainRenderer : IDisposable
             var task = _sectorBuildTasks[coord];
             _sectorBuildTasks.Remove(coord);
             if (task.Status == TaskStatus.RanToCompletion &&
-                _neededSectorCoords.Contains(coord))
+                _preparedWorld is { } world && Math.Abs(coord.X - world.CenterSector.X) <= 2 && Math.Abs(coord.Y - world.CenterSector.Y) <= 2)
             {
                 _sectorCache[coord] = task.Result;
             }
@@ -264,7 +290,47 @@ public sealed class TerrainRenderer : IDisposable
         return count;
     }
 
-    public void StopBackgroundWork() => _sectorBuildScheduler.Dispose();
+    public void PreparePreloadedWorld(VisibleWorld world)
+    {
+        _preloadedSectorImages.Clear();
+        if (_activeIndoorGroup is not null || _visibleSectorImages.Count != _candidateSectors.Count) return;
+        var promotions = _prefetchPreparation.Prepare(world);
+        foreach (var sector in world.PreloadedSectors)
+        {
+            var composition = GetSectorImageOrQueueBuild(sector);
+            if (composition is null || promotions is null) continue;
+            if (composition.NeedsRebuildForPromotions(promotions))
+            {
+                InvalidateComposition(composition);
+                continue;
+            }
+            composition.RemoveEmbeddedSprites(promotions);
+            _preloadedSectorImages.Add(composition);
+        }
+    }
+
+    internal void InvalidateComposition(TerrainSectorComposition composition)
+    {
+        if (_sectorCache.TryGetValue(composition.Coord, out var cached) && ReferenceEquals(cached, composition))
+        {
+            _sectorCache.Remove(composition.Coord);
+            _cacheInvalidated = true;
+        }
+    }
+
+    private static bool SameVisibleSectors(VisibleWorld? previous, VisibleWorld current)
+    {
+        if (previous is null || previous.CenterSector != current.CenterSector || previous.Sectors.Count != current.Sectors.Count) return false;
+        for (var index = 0; index < current.Sectors.Count; index++)
+            if (!ReferenceEquals(previous.Sectors[index], current.Sectors[index])) return false;
+        return true;
+    }
+
+    public void StopBackgroundWork()
+    {
+        _prefetchPreparation.Dispose();
+        _sectorBuildScheduler.Dispose();
+    }
 
     public void Dispose() => StopBackgroundWork();
 

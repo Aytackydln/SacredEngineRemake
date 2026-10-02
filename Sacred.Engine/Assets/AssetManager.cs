@@ -236,7 +236,7 @@ public sealed class AssetManager : IDisposable
 
     internal void ReleaseModelTexture(string textureName, TextureAsset asset)
     {
-        // Called from frame preparation after the pixels have reached an upload buffer.
+        // Called after the pixels have reached upload buffers, including from the copy worker.
         // Missing this opportunistic trim is harmless: the bounded LRU will evict it later.
         if (!_modelTextureLock.Wait(0))
             return;

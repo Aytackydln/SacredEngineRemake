@@ -180,7 +180,7 @@ internal sealed class InGameInputController
                 deltaSeconds,
                 _worldStreamer.VisibleWorld.LoadingSectors == 0) == true)
             _elevationTrace = null;
-        _worldStreamer.Update(_camera.WorldCenter);
+        _worldStreamer.Update(_camera.WorldCenter, _camera.CameraSpeedUnitVector);
         var mouseWorld = GameActorElevation.ScreenToWorldOnSurface(
             _camera,
             _elevation,

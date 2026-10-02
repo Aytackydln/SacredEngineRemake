@@ -172,9 +172,6 @@ internal sealed class Dx12SectorCompositionWorker : IDisposable
             composed,
             request.BaseSrvSlot,
             request.LiquidCoverSrvSlot,
-            request.StairsDebugSrvSlot,
-            request.BlockedAreaDebugSrvSlot,
-            request.TerrainTopologyDebugSrvSlot,
             error);
 
     private sealed record InFlightSectorComposition(

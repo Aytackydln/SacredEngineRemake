@@ -4,6 +4,7 @@ using System.Numerics;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Graphics.Frames;
+using Sacred.Engine.Graphics.Uploads;
 using Sacred.Engine.Rendering;
 using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
@@ -16,7 +17,6 @@ namespace Sacred.Engine.Graphics.Sprites;
 internal sealed class Dx12SpritePass : IDisposable
 {
     public const int MaximumTextureCount = Dx12SpriteTextureCache.MaximumTextureCount;
-    public void EnableBulkUploads() => _textureCache.UploadBatchSize = 64;
     public void SetAnimationTime(float seconds) => _batchRecorder.AnimationTimeOverride = seconds;
 
     private readonly Dx12SpriteTextureCache _textureCache;
@@ -46,6 +46,7 @@ internal sealed class Dx12SpritePass : IDisposable
         ID3D12Device device,
         ID3D12GraphicsCommandList commandList,
         Dx12TextureUploader uploader,
+        Dx12TextureUploadWorker uploads,
         ID3D12DescriptorHeap srvHeap,
         int descriptorSize,
         int firstTextureSrvSlot,
@@ -68,6 +69,7 @@ internal sealed class Dx12SpritePass : IDisposable
             firstTextureSrvSlot);
         _textureCache = new Dx12SpriteTextureCache(
             uploader,
+            uploads,
             commandList,
             srvHeap,
             descriptorSize,

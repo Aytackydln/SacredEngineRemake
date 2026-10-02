@@ -39,6 +39,9 @@ public sealed class TerrainSectorComposition
     private TerrainCompositionTile[] _terrainTopologyDebugTiles;
     private TerrainEmbeddedSprite[] _embeddedSprites;
     private int _embeddedSpriteCount;
+    private readonly HashSet<uint> _embeddedObjectIds = [];
+    private readonly HashSet<uint> _promotedEmbeddedObjectIds = [];
+    private volatile bool _sourceTilesReleased;
 
     public TerrainSectorComposition(
         SectorCoord coord,
@@ -95,6 +98,7 @@ public sealed class TerrainSectorComposition
         _terrainTopologyDebugTiles = terrainTopologyDebugTiles;
         _embeddedSprites = embeddedSprites;
         _embeddedSpriteCount = embeddedSprites.Length;
+        foreach (var sprite in embeddedSprites) _embeddedObjectIds.Add(sprite.StaticObjectId);
         TerrainTopologyDebugOffsetX = terrainTopologyDebugOffsetX;
         TerrainTopologyDebugOffsetY = terrainTopologyDebugOffsetY;
         TerrainTopologyDebugWidth = terrainTopologyDebugWidth;
@@ -140,6 +144,15 @@ public sealed class TerrainSectorComposition
     public int FloorMissingTiles { get; }
     public IReadOnlyList<TerrainEmbeddedSprite> EmbeddedSprites => _embeddedSprites;
     public int EmbeddedSpriteCount => _embeddedSpriteCount;
+    public IReadOnlySet<uint> PromotedEmbeddedObjectIds => _promotedEmbeddedObjectIds;
+
+    internal bool NeedsRebuildForPromotions(IReadOnlySet<uint> objectIds)
+    {
+        if (!_sourceTilesReleased) return false;
+        foreach (var objectId in objectIds)
+            if (_embeddedObjectIds.Contains(objectId) && !_promotedEmbeddedObjectIds.Contains(objectId)) return true;
+        return false;
+    }
 
     internal void RemoveEmbeddedSprites(IReadOnlySet<uint> staticObjectIds)
     {
@@ -150,6 +163,8 @@ public sealed class TerrainSectorComposition
         foreach (var sprite in _embeddedSprites)
             if (!staticObjectIds.Contains(sprite.StaticObjectId))
                 retainedCount++;
+            else
+                _promotedEmbeddedObjectIds.Add(sprite.StaticObjectId);
 
         if (retainedCount == _embeddedSprites.Length)
             return;
@@ -164,13 +179,12 @@ public sealed class TerrainSectorComposition
         _embeddedSpriteCount = retainedCount;
     }
 
+    // Debug plans remain available for on-demand drawing; only baked source data is released.
     internal void ReleaseSourceTiles()
     {
+        _sourceTilesReleased = true;
         Interlocked.Exchange(ref _baseTiles, []);
         Interlocked.Exchange(ref _coverTiles, []);
-        Interlocked.Exchange(ref _stairsDebugTiles, []);
-        Interlocked.Exchange(ref _blockedAreaDebugTiles, []);
-        Interlocked.Exchange(ref _terrainTopologyDebugTiles, []);
         Interlocked.Exchange(ref _embeddedSprites, []);
     }
 }

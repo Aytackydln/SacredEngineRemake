@@ -29,6 +29,7 @@ internal sealed class Dx12WorldCommandRecorder
     private readonly GpuDescriptorHandle _srvHeapStart;
     private readonly int _srvDescriptorSize;
     private readonly Dx12SectorTextureCache _sectorTextures;
+    private readonly Dx12TerrainDebugPass _terrainDebug;
     private readonly Dx12SpritePass _sprites;
     private readonly Dx12SurfaceLightMapPass _surfaceLights;
     private readonly Dx12ShadowMap _shadowMap;
@@ -47,6 +48,7 @@ internal sealed class Dx12WorldCommandRecorder
         ID3D12DescriptorHeap srvHeap,
         int srvDescriptorSize,
         Dx12SectorTextureCache sectorTextures,
+        Dx12TerrainDebugPass terrainDebug,
         Dx12SpritePass sprites,
         Dx12SurfaceLightMapPass surfaceLights,
         Dx12ShadowMap shadowMap,
@@ -61,6 +63,7 @@ internal sealed class Dx12WorldCommandRecorder
         _srvHeapStart = srvHeap.GetGPUDescriptorHandleForHeapStart();
         _srvDescriptorSize = srvDescriptorSize;
         _sectorTextures = sectorTextures;
+        _terrainDebug = terrainDebug;
         _sprites = sprites;
         _surfaceLights = surfaceLights;
         _shadowMap = shadowMap;
@@ -200,24 +203,11 @@ internal sealed class Dx12WorldCommandRecorder
 
             if (scene.Debug.BlockedAreasVisible && image.HasBlockedAreaDebugData)
             {
-                var debugPosition = screenTransform.ToScreen(
-                    image.IsoX + image.BlockedAreaDebugOffsetX,
-                    image.IsoY + image.BlockedAreaDebugOffsetY);
-                RecordTerrainLayer(
-                    texture.BlockedAreaDebugSrvSlot,
-                    debugPosition.X,
-                    debugPosition.Y,
-                    screenTransform.Scale(image.BlockedAreaDebugWidth),
-                    screenTransform.Scale(image.BlockedAreaDebugHeight),
-                    Vector3.One,
-                    true,
-                    constants,
-                    rootSignature,
-                    terrainPipeline,
-                    liquidCoverPipeline,
-                    displayProfile.ScenePaperWhiteNits,
-                    renderWidth,
-                    renderHeight);
+                _terrainDebug.Record(_commandList, image, image.BlockedAreaDebugTiles,
+                    image.BlockedAreaDebugOffsetX, image.BlockedAreaDebugOffsetY,
+                    screenTransform, frame, sceneColor.Description.Format,
+                    displayProfile.ScenePaperWhiteNits, renderWidth, renderHeight);
+                _commandList.SetDescriptorHeaps(1, shaderVisibleDescriptorHeaps);
             }
         }
 
@@ -244,34 +234,22 @@ internal sealed class Dx12WorldCommandRecorder
         // scenery paints in that order without changing the model depth buffer.
         if (scene.Debug.StairsMapVisible)
         {
-            RecordStairsDebug(
-                sectorImages,
-                screenTransform,
-                constants,
-                rootSignature,
-                terrainPipeline,
-                liquidCoverPipeline,
-                displayProfile.ScenePaperWhiteNits,
-                renderTarget,
-                renderWidth,
-                renderHeight);
+            _commandList.OMSetRenderTargets(renderTarget, null);
+            _terrainDebug.RecordSectors(_commandList, sectorImages, _sectorTextures, TerrainDebugLayer.Stairs,
+                screenTransform, frame, sceneColor.Description.Format,
+                displayProfile.ScenePaperWhiteNits, renderWidth, renderHeight);
+            _commandList.SetDescriptorHeaps(1, shaderVisibleDescriptorHeaps);
             _commandList.OMSetRenderTargets(renderTarget, depthStencil);
             _commandList.ClearDepthStencilView(depthStencil, ClearFlags.Depth, 1.0f, 0, 0, []);
         }
 
         if (scene.Debug.TerrainTopologyVisible)
         {
-            RecordTerrainTopologyDebug(
-                sectorImages,
-                screenTransform,
-                constants,
-                rootSignature,
-                terrainPipeline,
-                liquidCoverPipeline,
-                displayProfile.ScenePaperWhiteNits,
-                renderTarget,
-                renderWidth,
-                renderHeight);
+            _commandList.OMSetRenderTargets(renderTarget, null);
+            _terrainDebug.RecordSectors(_commandList, sectorImages, _sectorTextures, TerrainDebugLayer.Topology,
+                screenTransform, frame, sceneColor.Description.Format,
+                displayProfile.ScenePaperWhiteNits, renderWidth, renderHeight);
+            _commandList.SetDescriptorHeaps(1, shaderVisibleDescriptorHeaps);
             _commandList.OMSetRenderTargets(renderTarget, depthStencil);
             _commandList.ClearDepthStencilView(depthStencil, ClearFlags.Depth, 1.0f, 0, 0, []);
         }
@@ -403,84 +381,6 @@ internal sealed class Dx12WorldCommandRecorder
                 outputHeight,
                 displayProfile.UiPaperWhiteNits);
         _imgui.Record(frame, displayProfile.UiPaperWhiteNits);
-    }
-
-    private unsafe void RecordStairsDebug(
-        IReadOnlyList<TerrainSectorComposition> sectorImages,
-        WorldScreenTransform screenTransform,
-        float* constants,
-        ID3D12RootSignature rootSignature,
-        ID3D12PipelineState terrainPipeline,
-        ID3D12PipelineState liquidCoverPipeline,
-        float paperWhiteNits,
-        CpuDescriptorHandle renderTarget,
-        int renderWidth,
-        int renderHeight)
-    {
-        _commandList.OMSetRenderTargets(renderTarget, null);
-        foreach (var image in sectorImages)
-        {
-            if (!_sectorTextures.TryGet(image.Coord, out var texture) || !image.HasStairsDebugData)
-                continue;
-
-            var debugPosition = screenTransform.ToScreen(
-                image.IsoX + image.StairsDebugOffsetX,
-                image.IsoY + image.StairsDebugOffsetY);
-            RecordTerrainLayer(
-                texture.StairsDebugSrvSlot,
-                debugPosition.X,
-                debugPosition.Y,
-                screenTransform.Scale(image.StairsDebugWidth),
-                screenTransform.Scale(image.StairsDebugHeight),
-                Vector3.One,
-                true,
-                constants,
-                rootSignature,
-                terrainPipeline,
-                liquidCoverPipeline,
-                paperWhiteNits,
-                renderWidth,
-                renderHeight);
-        }
-    }
-
-    private unsafe void RecordTerrainTopologyDebug(
-        IReadOnlyList<TerrainSectorComposition> sectorImages,
-        WorldScreenTransform screenTransform,
-        float* constants,
-        ID3D12RootSignature rootSignature,
-        ID3D12PipelineState terrainPipeline,
-        ID3D12PipelineState liquidCoverPipeline,
-        float paperWhiteNits,
-        CpuDescriptorHandle renderTarget,
-        int renderWidth,
-        int renderHeight)
-    {
-        _commandList.OMSetRenderTargets(renderTarget, null);
-        foreach (var image in sectorImages)
-        {
-            if (!_sectorTextures.TryGet(image.Coord, out var texture))
-                continue;
-
-            var debugPosition = screenTransform.ToScreen(
-                image.IsoX + image.TerrainTopologyDebugOffsetX,
-                image.IsoY + image.TerrainTopologyDebugOffsetY);
-            RecordTerrainLayer(
-                texture.TerrainTopologyDebugSrvSlot,
-                debugPosition.X,
-                debugPosition.Y,
-                screenTransform.Scale(image.TerrainTopologyDebugWidth),
-                screenTransform.Scale(image.TerrainTopologyDebugHeight),
-                Vector3.One,
-                true,
-                constants,
-                rootSignature,
-                terrainPipeline,
-                liquidCoverPipeline,
-                paperWhiteNits,
-                renderWidth,
-                renderHeight);
-        }
     }
 
     private unsafe void RecordTerrainLayer(

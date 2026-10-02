@@ -54,9 +54,13 @@ public static class Dx12ShaderCatalog
     // Sector composition is display-independent; SDR/HDR conversion happens later when the
     // completed sector texture is sampled by the world-quad shader.
     public static readonly Dx12ShaderSource TerrainComposeVertexShader =
-        Shader("SacredTerrainCompose", EmbeddedResource_Shaders.SacredTerrainCompose_hlsl, "vs_main", "vs_5_0");
+        TerrainShader("SacredTerrainCompose", EmbeddedResource_Shaders.SacredTerrainCompose_hlsl, "vs_main", "vs_5_0");
     public static readonly Dx12ShaderSource TerrainComposePixelShader =
-        Shader("SacredTerrainCompose", EmbeddedResource_Shaders.SacredTerrainCompose_hlsl, "ps_main", "ps_5_0");
+        TerrainShader("SacredTerrainCompose", EmbeddedResource_Shaders.SacredTerrainCompose_hlsl, "ps_main", "ps_5_0");
+    public static readonly Dx12ShaderSource TerrainDebugVertexShader =
+        TerrainShader("SacredTerrainDebug", EmbeddedResource_Shaders.SacredTerrainDebug_hlsl, "vs_main", "vs_5_0");
+    public static readonly Dx12ShaderSource TerrainDebugPixelShader =
+        TerrainShader("SacredTerrainDebug", EmbeddedResource_Shaders.SacredTerrainDebug_hlsl, "ps_main", "ps_5_0");
     public static readonly Dx12ShaderSource SectorSpriteComposeVertexShader =
         Shader("SacredSectorSpriteCompose", EmbeddedResource_Shaders.SacredSectorSpriteCompose_hlsl, "vs_main", "vs_5_0");
     public static readonly Dx12ShaderSource SectorSpriteComposePixelShader =
@@ -192,6 +196,15 @@ public static class Dx12ShaderCatalog
             "ps_5_0"),
         InventoryUiVertexShader,
         DisplayShader("SacredInventoryUi", EmbeddedResource_Shaders.SacredInventoryUi_hlsl, pixelEntryPoint, "ps_5_0"));
+
+    private static Dx12ShaderSource TerrainShader(
+        string name, EmbeddedResource_Shaders resource, string entryPoint, string target) =>
+        new(name,
+            [
+                () => EmbeddedShaderAssemblyReloader.ReadAllBytes(HdrCommon.GetResourceName()),
+                () => EmbeddedShaderAssemblyReloader.ReadAllBytes(EmbeddedResource_Shaders.SacredTerrainTileCommon_hlsl.GetResourceName()),
+                () => EmbeddedShaderAssemblyReloader.ReadAllBytes(resource.GetResourceName())
+            ], entryPoint, target);
 
     private static Dx12ShaderSource DisplayShader(
         string name,
