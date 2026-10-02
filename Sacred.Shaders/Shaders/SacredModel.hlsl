@@ -214,3 +214,17 @@ float4 ps_hdr(vs_output input) : SV_Target
         hdr_display.w);
     return float4(hdr, base_color.a);
 }
+
+float4 ps_sdr_opaque(vs_output input) : SV_Target
+{
+    float4 color = ps_sdr(input);
+    color.a = 1.0f;
+    return color;
+}
+
+float4 ps_hdr_opaque(vs_output input) : SV_Target
+{
+    float4 color = ps_hdr(input);
+    color.a = 1.0f;
+    return color;
+}

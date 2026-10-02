@@ -134,7 +134,6 @@ pixel_output ps_water_sdr(vertex_output input)
 
     pixel_output output;
     output.color = color;
-    output.depth = input.depth;
     return output;
 }
 
@@ -149,6 +148,5 @@ pixel_output ps_water_hdr(vertex_output input)
 
     pixel_output output;
     output.color = float4(SdrTextureToHdr10(tex.rgb, scene_paper_white) * tex.a, tex.a);
-    output.depth = input.depth;
     return output;
 }

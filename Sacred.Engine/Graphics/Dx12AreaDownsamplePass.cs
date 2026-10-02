@@ -33,7 +33,7 @@ internal sealed class Dx12AreaDownsamplePass : IDisposable
                 RootSignature = _rootSignature,
                 VertexShader = Dx12ShaderCompiler.CompileShader(Dx12ShaderCatalog.AreaDownsampleVertexShader),
                 PixelShader = Dx12ShaderCompiler.CompileShader(Dx12ShaderCatalog.AreaDownsamplePixelShader),
-                BlendState = BlendDescription.Opaque,
+                BlendState = Dx12BlendStates.Opaque,
                 RasterizerState = RasterizerDescription.CullNone,
                 DepthStencilState = DepthStencilDescription.None,
                 SampleMask = uint.MaxValue,

@@ -57,6 +57,8 @@ public static class Dx12ShaderCatalog
         TerrainShader("SacredTerrainCompose", EmbeddedResource_Shaders.SacredTerrainCompose_hlsl, "vs_main", "vs_6_6");
     public static readonly Dx12ShaderSource TerrainComposePixelShader =
         TerrainShader("SacredTerrainCompose", EmbeddedResource_Shaders.SacredTerrainCompose_hlsl, "ps_main", "ps_6_6");
+    public static readonly Dx12ShaderSource TerrainComposeOpaquePixelShader =
+        TerrainShader("SacredTerrainComposeOpaque", EmbeddedResource_Shaders.SacredTerrainCompose_hlsl, "ps_opaque", "ps_6_6");
     public static readonly Dx12ShaderSource TerrainDebugVertexShader =
         TerrainShader("SacredTerrainDebug", EmbeddedResource_Shaders.SacredTerrainDebug_hlsl, "vs_main", "vs_6_6");
     public static readonly Dx12ShaderSource TerrainDebugPixelShader =

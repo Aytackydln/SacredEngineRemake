@@ -23,9 +23,10 @@ float mixed_light_emission(float3 colour)
     return max(max(blue_dominance, warm_dominance), white_glint);
 }
 
-pixel_output render_static_sdr(vertex_output input, float opacity)
+pixel_output render_static_sdr(vertex_output input, float opacity, bool opaque = false)
 {
     float4 color = sample_static_pixel(input, opacity);
+    if (opaque) color.a = 1.0f;
 
     float emission = input.mixed_light_emitter != 0 ? mixed_light_emission(color.rgb) : 0.0f;
     float3 lighting = surface_lighting(input.position.xy);
@@ -33,7 +34,6 @@ pixel_output render_static_sdr(vertex_output input, float opacity)
 
     pixel_output output;
     output.color = float4(color.rgb * color.a, color.a);
-    output.depth = input.depth;
     return output;
 }
 
@@ -47,14 +47,14 @@ pixel_output ps_transparent_sdr(vertex_output input)
     return render_static_sdr(input, player_occluder_opacity(input));
 }
 
-pixel_output render_static_hdr(vertex_output input, float opacity)
+pixel_output render_static_hdr(vertex_output input, float opacity, bool opaque = false)
 {
     float4 tex = sample_static_pixel(input, opacity);
+    if (opaque) tex.a = 1.0f;
     tex.rgb *= surface_lighting(input.position.xy);
 
     pixel_output output;
     output.color = float4(SdrTextureToHdr10(tex.rgb, scene_paper_white) * tex.a, tex.a);
-    output.depth = input.depth;
     return output;
 }
 
@@ -66,4 +66,15 @@ pixel_output ps_hdr(vertex_output input)
 pixel_output ps_transparent_hdr(vertex_output input)
 {
     return render_static_hdr(input, player_occluder_opacity(input));
+}
+
+// Binary-coverage scenery discards holes and replaces each covered fragment.
+pixel_output ps_sdr_opaque(vertex_output input)
+{
+    return render_static_sdr(input, 1.0f, true);
+}
+
+pixel_output ps_hdr_opaque(vertex_output input)
+{
+    return render_static_hdr(input, 1.0f, true);
 }

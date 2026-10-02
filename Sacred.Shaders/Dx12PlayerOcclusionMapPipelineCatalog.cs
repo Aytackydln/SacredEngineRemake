@@ -25,7 +25,7 @@ public static class Dx12PlayerOcclusionMapPipelineCatalog
                 Dx12ShaderCatalog.PlayerOcclusionMapVertexShader,
                 Dx12ShaderCatalog.PlayerOcclusionMapPixelShader,
                 null,
-                BlendDescription.Opaque,
+                Dx12BlendStates.Opaque,
                 RasterizerDescription.CullNone,
                 DepthStencilDescription.None,
                 usesDepthBuffer: false)]);

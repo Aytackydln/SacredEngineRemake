@@ -16,6 +16,7 @@ internal sealed class Dx12SectorTargetRecorder(
     ID3D12PipelineState spritePipeline)
 {
     private const int VerticesPerTile = 6;
+    public ID3D12PipelineState OpaquePipeline { get; init; } = null!;
 
     public unsafe void RecordTarget(
         ID3D12GraphicsCommandList commandList,
@@ -69,12 +70,24 @@ internal sealed class Dx12SectorTargetRecorder(
             transientResources.Add(instanceBuffer);
             commandList.SetDescriptorHeaps(1, [sourceSrvHeap]);
             commandList.SetGraphicsRootSignature(rootSignature);
-            commandList.SetPipelineState(pipeline);
             commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
             var targetSize = stackalloc float[2] { width, height };
             commandList.SetGraphicsRoot32BitConstants(0, 2, targetSize, 0);
-            commandList.SetGraphicsRootShaderResourceView(1, instanceBuffer.GPUVirtualAddress);
-            commandList.DrawInstanced(VerticesPerTile, (uint)draws.Length, 0, 0);
+            // Blend only masked tiles. Keep consecutive runs in native painter order.
+            var firstTile = 0;
+            while (firstTile < draws.Length)
+            {
+                var opaque = draws[firstTile].IsOpaque;
+                var tileCount = 1;
+                while (firstTile + tileCount < draws.Length &&
+                       draws[firstTile + tileCount].IsOpaque == opaque)
+                    tileCount++;
+                commandList.SetPipelineState(opaque ? OpaquePipeline : pipeline);
+                commandList.SetGraphicsRootShaderResourceView(1,
+                    instanceBuffer.GPUVirtualAddress + (ulong)(firstTile * Marshal.SizeOf<GpuTerrainTileInstance>()));
+                commandList.DrawInstanced(VerticesPerTile, (uint)tileCount, 0, 0);
+                firstTile += tileCount;
+            }
         }
 
         if (embeddedSprites.Length != 0)
@@ -135,7 +148,10 @@ internal sealed record SourceTexture(ID3D12Resource Resource);
 internal readonly record struct GpuTerrainTileDraw(
     GpuTerrainTileInstance Instance,
     SourceTexture Primary,
-    SourceTexture Secondary);
+    SourceTexture Secondary)
+{
+    public bool IsOpaque { get; init; }
+}
 
 internal readonly record struct GpuSectorSpriteDraw(
     GpuSectorSpriteInstance Instance,

@@ -57,6 +57,11 @@ internal static class Dx12SectorCompositionPipeline
         description.BlendState = straightAlphaBlend;
         var basePipeline = device.CreateGraphicsPipelineState(description);
 
+        description.BlendState = Dx12BlendStates.Opaque;
+        description.PixelShader = Dx12ShaderCompiler.CompileShader(Dx12ShaderCatalog.TerrainComposeOpaquePixelShader);
+        var opaquePipeline = device.CreateGraphicsPipelineState(description);
+        description.PixelShader = pixelShader;
+
         var premultipliedBlend = BlendDescription.AlphaBlend;
         premultipliedBlend.RenderTarget[0].SourceBlend = Blend.One;
         premultipliedBlend.RenderTarget[0].DestinationBlend = Blend.InverseSourceAlpha;
@@ -72,7 +77,8 @@ internal static class Dx12SectorCompositionPipeline
             rootSignature,
             basePipeline,
             coverPipeline,
-            device.CreateGraphicsPipelineState(description));
+            device.CreateGraphicsPipelineState(description),
+            opaquePipeline);
     }
 }
 
@@ -80,7 +86,8 @@ internal sealed record Dx12SectorCompositionPipelines(
     ID3D12RootSignature RootSignature,
     ID3D12PipelineState Base,
     ID3D12PipelineState Cover,
-    ID3D12PipelineState Sprite);
+    ID3D12PipelineState Sprite,
+    ID3D12PipelineState Opaque);
 
 [StructLayout(LayoutKind.Sequential)]
 internal struct GpuTerrainTileInstance

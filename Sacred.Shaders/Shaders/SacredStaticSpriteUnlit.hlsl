@@ -12,7 +12,6 @@ pixel_output render_unlit_sdr(vertex_output input, float opacity)
     // preserves the destination while adding the particle's RGB contribution.
     output.color = float4(color.rgb * source_scale,
         (input.particle_sprite & 2) != 0 ? 0.0f : coverage);
-    output.depth = input.depth;
     return output;
 }
 
@@ -41,7 +40,6 @@ pixel_output render_unlit_hdr_rgb(vertex_output input, float opacity)
         source_scale,
         scene_paper_white),
         (input.particle_sprite & 2) != 0 ? 0.0f : coverage);
-    output.depth = input.depth;
     return output;
 }
 
@@ -62,7 +60,6 @@ pixel_output render_unlit_hdr_argb(vertex_output input, float opacity)
         source_scale,
         scene_paper_white),
         (input.particle_sprite & 2) != 0 ? 0.0f : coverage);
-    output.depth = input.depth;
     return output;
 }
 
@@ -83,7 +80,6 @@ pixel_output render_unlit_hdr_alpha_mask(vertex_output input, float opacity)
         source_scale,
         scene_paper_white),
         (input.particle_sprite & 2) != 0 ? 0.0f : coverage);
-    output.depth = input.depth;
     return output;
 }
 
@@ -112,7 +108,6 @@ pixel_output render_unlit_hdr(vertex_output input, float opacity)
     float source_scale = (input.particle_sprite & 4) != 0 ? opacity : coverage;
     output.color = float4(SdrParticleToHdr10(tex.rgb, source_scale, white_nits),
         (input.particle_sprite & 2) != 0 ? 0.0f : coverage);
-    output.depth = input.depth;
     return output;
 }
 
@@ -124,4 +119,20 @@ pixel_output ps_unlit_hdr(vertex_output input)
 pixel_output ps_transparent_unlit_hdr(vertex_output input)
 {
     return render_unlit_hdr(input, player_occluder_opacity(input));
+}
+
+pixel_output ps_unlit_sdr_opaque(vertex_output input)
+{
+    float4 tex = sample_static_pixel(input, 1.0f);
+    pixel_output output;
+    output.color = float4(tex.rgb, 1.0f);
+    return output;
+}
+
+pixel_output ps_unlit_hdr_opaque(vertex_output input)
+{
+    float4 tex = sample_static_pixel(input, 1.0f);
+    pixel_output output;
+    output.color = float4(SdrParticleToHdr10(tex.rgb, 1.0f, unlit_white_nits), 1.0f);
+    return output;
 }

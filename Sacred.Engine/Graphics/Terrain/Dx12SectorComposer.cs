@@ -53,7 +53,10 @@ internal sealed class Dx12SectorComposer : IDisposable
         _basePipeline = pipeline.Base;
         _coverPipeline = pipeline.Cover;
         _spritePipeline = pipeline.Sprite;
-        _targetRecorder = new Dx12SectorTargetRecorder(device, uploader, _rootSignature, _spritePipeline);
+        _targetRecorder = new Dx12SectorTargetRecorder(device, uploader, _rootSignature, _spritePipeline)
+        {
+            OpaquePipeline = pipeline.Opaque
+        };
         _contexts = new Dx12SectorCompositionContext[MaximumInFlightCompositions];
         for (var index = 0; index < _contexts.Length; index++)
             _contexts[index] = new Dx12SectorCompositionContext(device);
@@ -208,6 +211,7 @@ internal sealed class Dx12SectorComposer : IDisposable
         _spritePipeline.Dispose();
         _coverPipeline.Dispose();
         _basePipeline.Dispose();
+        _targetRecorder.OpaquePipeline.Dispose();
         _rootSignature.Dispose();
         _fence.Dispose();
         _commandQueue.Dispose();
@@ -268,7 +272,7 @@ internal sealed class Dx12SectorComposer : IDisposable
                     flags,
                     tile.Surface),
                 primary,
-                secondary);
+                secondary) { IsOpaque = (tile.Secondary ?? tile.Primary).IsOpaque };
         }
 
         return draws;

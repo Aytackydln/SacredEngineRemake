@@ -78,3 +78,11 @@ float4 ps_main(vertex_output input) : SV_Target
 
     return color;
 }
+
+// Binary masks can overwrite covered texels without a destination blend read.
+float4 ps_opaque(vertex_output input) : SV_Target
+{
+    float4 color = ps_main(input);
+    if (color.a == 0.0f) discard;
+    return color;
+}

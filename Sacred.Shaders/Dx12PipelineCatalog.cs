@@ -89,7 +89,7 @@ public static class Dx12PipelineCatalog
             rootParameters,
             [CreateSampler(WorldQuadShaderLayout.SamplerRegister, TextureAddressMode.Clamp, StaticBorderColor.TransparentBlack)],
             [Pipeline(Dx12PipelineKind.Terrain, shaders.QuadWorldVertexShader,
-                Dx12ShaderCatalog.GetUpscalePixelShader(hdrOutput), BlendDescription.AlphaBlend,
+                Dx12ShaderCatalog.GetUpscalePixelShader(hdrOutput), Dx12BlendStates.Opaque,
                 RasterizerDescription.CullNone, DepthStencilDescription.None, false)]);
     }
 
@@ -158,6 +158,8 @@ public static class Dx12PipelineCatalog
             TextureTable(StaticSpriteShaderLayout.PlayerOcclusionMapRegister)
         };
 
+        var opaqueSpriteShader = Dx12OpaqueShader.Create(shaders.StaticSpritePixelShader);
+        var opaqueUnlitSpriteShader = Dx12OpaqueShader.Create(shaders.UnlitStaticSpritePixelShader);
         var pipelines = new List<Dx12GraphicsPipelineDefinition>
         {
             Pipeline(
@@ -172,8 +174,8 @@ public static class Dx12PipelineCatalog
             Pipeline(
                 Dx12PipelineKind.StaticSprite,
                 shaders.StaticSpriteVertexShader,
-                shaders.StaticSpritePixelShader,
-                CreatePremultipliedBlend(),
+                opaqueSpriteShader,
+                Dx12BlendStates.Opaque,
                 RasterizerDescription.CullNone,
                 CreatePainterDepth(),
                 usesDepthBuffer: true),
@@ -196,8 +198,8 @@ public static class Dx12PipelineCatalog
             Pipeline(
                 Dx12PipelineKind.UnlitStaticSprite,
                 shaders.StaticSpriteVertexShader,
-                shaders.UnlitStaticSpritePixelShader,
-                CreatePremultipliedBlend(),
+                opaqueUnlitSpriteShader,
+                Dx12BlendStates.Opaque,
                 RasterizerDescription.CullNone,
                 CreatePainterDepth(),
                 usesDepthBuffer: true),
@@ -228,16 +230,16 @@ public static class Dx12PipelineCatalog
         };
 
         pipelines.Add(Pipeline(
-            Dx12PipelineKind.DepthStaticSprite, shaders.StaticSpriteVertexShader, shaders.StaticSpritePixelShader,
-            CreatePremultipliedBlend(), RasterizerDescription.CullNone,
+            Dx12PipelineKind.DepthStaticSprite, shaders.StaticSpriteVertexShader, opaqueSpriteShader,
+            Dx12BlendStates.Opaque, RasterizerDescription.CullNone,
             CreateLessEqualDepth(), usesDepthBuffer: true));
         pipelines.Add(Pipeline(
             Dx12PipelineKind.DepthTransparentStaticSprite, shaders.StaticSpriteVertexShader, shaders.TransparentStaticSpritePixelShader,
             CreatePremultipliedBlend(), RasterizerDescription.CullNone,
             CreateLessEqualDepth(), usesDepthBuffer: true));
         pipelines.Add(Pipeline(
-            Dx12PipelineKind.DepthUnlitStaticSprite, shaders.StaticSpriteVertexShader, shaders.UnlitStaticSpritePixelShader,
-            CreatePremultipliedBlend(), RasterizerDescription.CullNone,
+            Dx12PipelineKind.DepthUnlitStaticSprite, shaders.StaticSpriteVertexShader, opaqueUnlitSpriteShader,
+            Dx12BlendStates.Opaque, RasterizerDescription.CullNone,
             CreateLessEqualDepth(), usesDepthBuffer: true));
         pipelines.Add(Pipeline(
             Dx12PipelineKind.DepthTransparentUnlitStaticSprite, shaders.StaticSpriteVertexShader, shaders.TransparentUnlitStaticSpritePixelShader,
@@ -347,12 +349,12 @@ public static class Dx12PipelineCatalog
             Pipeline(Dx12PipelineKind.GroundShadow, shaders.GroundShadowVertexShader, shaders.GroundShadowPixelShader,
                 CreateMaximumBlend(), RasterizerDescription.CullNone, shadowDepth, usesDepthBuffer: false,
                 renderTargetFormat: Format.R8_UNorm),
-            ModelPipeline(Dx12PipelineKind.StaticModel, shaders.ModelVertexShader, shaders.ModelPixelShader,
-                BlendDescription.AlphaBlend, RasterizerDescription.CullClockwise, depth),
+            ModelPipeline(Dx12PipelineKind.StaticModel, shaders.ModelVertexShader, Dx12OpaqueShader.Create(shaders.ModelPixelShader),
+                Dx12BlendStates.Opaque, RasterizerDescription.CullClockwise, depth),
             ModelPipeline(Dx12PipelineKind.TransparentModel, shaders.ModelVertexShader, shaders.ModelPixelShader,
-                BlendDescription.AlphaBlend, RasterizerDescription.CullClockwise, depth),
+                Dx12BlendStates.StraightAlpha, RasterizerDescription.CullClockwise, depth),
             ModelPipeline(Dx12PipelineKind.AnimatedModel, shaders.AnimatedModelVertexShader, shaders.AnimatedModelPixelShader,
-                BlendDescription.AlphaBlend, RasterizerDescription.CullClockwise, depth),
+                Dx12BlendStates.StraightAlpha, RasterizerDescription.CullClockwise, depth),
             ModelPipeline(Dx12PipelineKind.EffectModel, shaders.EffectModelVertexShader, shaders.EffectModelPixelShader,
                 BlendDescription.AlphaBlend, RasterizerDescription.CullClockwise, depth),
             ModelPipeline(Dx12PipelineKind.TransparentEffectModel, shaders.EffectModelVertexShader, shaders.EffectModelPixelShader,
@@ -402,7 +404,7 @@ public static class Dx12PipelineCatalog
                 Dx12PipelineKind.InventoryUi,
                 shaders.InventoryUiVertexShader,
                 shaders.InventoryUiPixelShader,
-                BlendDescription.AlphaBlend,
+                Dx12BlendStates.StraightAlpha,
                 RasterizerDescription.CullNone,
                 CreateDisabledDepth()));
         }
@@ -461,10 +463,9 @@ public static class Dx12PipelineCatalog
 
     private static DepthStencilDescription CreatePainterDepth()
     {
-        var depth = DepthStencilDescription.Default;
-        depth.DepthFunc = ComparisonFunction.Always;
-        depth.DepthWriteMask = DepthWriteMask.Zero;
-        return depth;
+        // Ordinary sprites follow native queue order without accessing depth.
+        // Keep the DSV format in the PSO so these draws share the world target.
+        return DepthStencilDescription.None;
     }
 
     private static DepthStencilDescription CreateTransparentSpriteDepth()

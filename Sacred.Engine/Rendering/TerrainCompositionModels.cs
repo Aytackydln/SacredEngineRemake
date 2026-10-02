@@ -7,7 +7,11 @@ using Sacred.Core.World.Sector;
 
 namespace Sacred.Engine.Rendering;
 
-public sealed record TerrainTileSource(TextureAsset Texture, int SourceX, int SourceY);
+public sealed record TerrainTileSource(TextureAsset Texture, int SourceX, int SourceY)
+{
+    // Binary coverage uses an opaque cutout pass; resolve once before GPU submission.
+    public bool IsOpaque { get; } = TerrainTileOpacity.IsOpaque(Texture, SourceX, SourceY);
+}
 
 public readonly record struct TerrainTileSurface(
     TerrainVisualElevationTile VisualElevation,

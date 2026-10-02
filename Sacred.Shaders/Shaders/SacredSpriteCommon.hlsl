@@ -58,7 +58,6 @@ struct vertex_output
 struct pixel_output
 {
     float4 color : SV_Target;
-    float depth : SV_Depth;
 };
 
 static const float2 quad_uvs[6] =
