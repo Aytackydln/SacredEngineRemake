@@ -51,7 +51,7 @@ Generate one minimap texture or all sectors from the original game world files:
 
 ```powershell
 .\Sacred.World.Renderer.Terminal.exe --game 'D:\SteamLibrary\steamapps\common\Sacred Gold' --sector-x 52 --sector-y 38 --resolution x2 --output '.\generated-minimap-x2'
-.\Sacred.World.Renderer.Terminal.exe --game 'D:\SteamLibrary\steamapps\common\Sacred Gold' --all-sectors --resolution x4 --output '.\generated-minimap-x4' --texture-cache-mb 256
+.\Sacred.World.Renderer.Terminal.exe --game 'D:\SteamLibrary\steamapps\common\Sacred Gold' --all-sectors --renderer gpu --supersampling x8 --output '.\generated-minimap' --texture-cache-mb 256
 ```
 
 | Argument | Default | Description |
@@ -64,7 +64,7 @@ Generate one minimap texture or all sectors from the original game world files:
 | `--sector-y <integer>` | — | Sector grid Y coordinate; requires `--sector-x`. |
 | `--all-sectors` | Off | Export all sectors with an original minimap texture; cannot be combined with a single sector. |
 | `--resolution <x1, x2, x4, x8, x16>` | `x1` | Scale sector image dimensions. Currently, `x16` uses the same scale as `x8`. |
-| `--supersampling <x1, x2, x4, x8, x16>` | `x2` | Smooth sector image edges; `x1` disables smoothing. Currently, `x16` uses the same scale as `x8`. |
+| `--supersampling <x1, x2, x4, x8, x16>` | `x2` | Smooth sector image edges; `x1` disables smoothing. |
 | `--skip-existing` | Off | Skip existing output files; requires `--all-sectors`. |
 | `--world-x <number>` | Start-sector center | View center X coordinate; cannot be used with sector exports. |
 | `--world-y <number>` | Start-sector center | View center Y coordinate; cannot be used with sector exports. |

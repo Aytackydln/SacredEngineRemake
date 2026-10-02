@@ -188,7 +188,7 @@ internal sealed record RendererOptions(
         "x2" or "2" => 2,
         "x4" or "4" => 4,
         "x8" or "8" => 8,
-        "x16" or "16" => 8,
+        "x16" or "16" => 16,
         _ => throw new ArgumentException($"{option} requires x1, x2, x4, x8 or x16.")
     };
 
