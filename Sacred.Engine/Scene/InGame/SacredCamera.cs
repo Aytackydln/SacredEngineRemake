@@ -73,6 +73,16 @@ public sealed class SacredCamera
         RebuildMatrices();
     }
 
+    /// <summary>Sets an export view without the interactive camera's zoom limits.</summary>
+    public void SetExportView(float x, float y, float zoom)
+    {
+        if (!float.IsFinite(x) || !float.IsFinite(y) || !float.IsFinite(zoom) || zoom <= 0)
+            throw new ArgumentOutOfRangeException(nameof(zoom));
+        WorldCenter = new Vector2(x, y);
+        Zoom = zoom;
+        RebuildMatrices();
+    }
+
     public Vector2 ScreenToWorld(Vector2 screenPosition, int viewportWidth, int viewportHeight) =>
         IsometricProjection.ScreenToWorld(screenPosition, WorldCenter, GetViewportZoom(viewportHeight), viewportWidth, viewportHeight);
 

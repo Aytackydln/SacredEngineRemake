@@ -2,6 +2,10 @@ namespace Sacred.Shaders;
 
 public static class Dx12ShaderCatalog
 {
+    public static readonly Dx12ShaderSource AreaDownsampleVertexShader =
+        Shader("SacredAreaDownsample", EmbeddedResource_Shaders.SacredAreaDownsample_hlsl, "vs_main", "vs_5_0");
+    public static readonly Dx12ShaderSource AreaDownsamplePixelShader =
+        Shader("SacredAreaDownsample", EmbeddedResource_Shaders.SacredAreaDownsample_hlsl, "ps_main", "ps_5_0");
     private const EmbeddedResource_Shaders HdrCommon = EmbeddedResource_Shaders.HdrCommon_hlsl;
     private const EmbeddedResource_Shaders SpriteCommon = EmbeddedResource_Shaders.SacredSpriteCommon_hlsl;
     private const EmbeddedResource_Shaders StaticSpriteCommon = EmbeddedResource_Shaders.SacredStaticSpriteCommon_hlsl;

@@ -47,6 +47,37 @@ Logic about game world. Compositing, paths, world scripts etc.
 ### Sacred.World.Renderer.Terminal
 Terminal project that outputs images of game world, map and minimap.
 
+Generate one minimap texture or all sectors from the original game world files:
+
+```powershell
+.\Sacred.World.Renderer.Terminal.exe --game 'D:\SteamLibrary\steamapps\common\Sacred Gold' --sector-x 52 --sector-y 38 --resolution x2 --output '.\generated-minimap-x2'
+.\Sacred.World.Renderer.Terminal.exe --game 'D:\SteamLibrary\steamapps\common\Sacred Gold' --all-sectors --resolution x4 --output '.\generated-minimap-x4' --texture-cache-mb 256
+```
+
+| Argument | Default | Description |
+| --- | --- | --- |
+| `--game <directory>` | Sacred Gold Steam installation on `E:` if present | Game installation folder; also accepted as the first positional argument. |
+| `--output <directory>` | `./world-debug-images` | Folder for exported images. |
+| `--format <tga, bmp>` | `tga` | Image format. |
+| `--renderer <software, gpu, auto>` | `software` | Rendering backend. GPU requires Windows; `auto` currently selects software. |
+| `--sector-x <integer>` | — | Sector grid X coordinate; requires `--sector-y`. |
+| `--sector-y <integer>` | — | Sector grid Y coordinate; requires `--sector-x`. |
+| `--all-sectors` | Off | Export all sectors with an original minimap texture; cannot be combined with a single sector. |
+| `--resolution <x1, x2, x4, x8, x16>` | `x1` | Scale sector image dimensions. Currently, `x16` uses the same scale as `x8`. |
+| `--supersampling <x1, x2, x4, x8, x16>` | `x2` | Smooth sector image edges; `x1` disables smoothing. Currently, `x16` uses the same scale as `x8`. |
+| `--skip-existing` | Off | Skip existing output files; requires `--all-sectors`. |
+| `--world-x <number>` | Start-sector center | View center X coordinate; cannot be used with sector exports. |
+| `--world-y <number>` | Start-sector center | View center Y coordinate; cannot be used with sector exports. |
+| `--width <pixels>` | `1280` | View image width; cannot be used with sector exports. |
+| `--height <pixels>` | `720` | View image height; cannot be used with sector exports. |
+| `--zoom <number>` | `0.75` | View camera zoom; must be positive and cannot be used with sector exports. |
+| `--open-doors` | Off | Render doors in their open position. |
+| `--indoor-level <1–255>` | — | Select the indoor floor at the view center; cannot be used with sector exports. |
+| `--particle-seconds <0–60>` | `2` | Particle simulation warm-up in seconds. |
+| `--texture-cache-mb <integer>` | `256` | Texture cache size in MiB; `0` disables caching. |
+| `--verbose` | Off | Show detailed loading and rendering diagnostics. |
+| `--help` | — | Show command-line help. |
+
 ### Sacred.Shaders
 DX12 shaders for all graphics projects about the game.
 

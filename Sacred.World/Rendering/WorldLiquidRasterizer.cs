@@ -5,7 +5,7 @@ using Sacred.World.Geometry;
 
 namespace Sacred.World.Rendering;
 
-internal sealed class WorldLiquidRasterizer(TexturePakArchive textures)
+internal sealed class WorldLiquidRasterizer(ITextureSource textures)
 {
     private const int TileWidth = 96;
     private const int TileHeight = 48;

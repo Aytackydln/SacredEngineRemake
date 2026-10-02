@@ -39,6 +39,23 @@ public sealed class SacredWorldArchive : IDisposable
     public SacredStairsMap StairsMap { get; }
     public WorldParticleScriptIndex ParticleScript { get; }
     public WorldObjectScriptIndex ObjectScript { get; }
+    public IReadOnlyList<SectorCoord> SectorCoordinates => _sectorIdByGrid.Keys.OrderBy(c => c.Y).ThenBy(c => c.X).ToArray();
+
+    /// <summary>Releases decoded sector data between offline batches. No sector loads may be in flight.</summary>
+    public void ClearLoadedSectorCache()
+    {
+        lock (_sectorLoadTaskLock)
+        {
+            if (_sectorLoadTasks.Values.Any(task => !task.IsCompleted))
+                throw new InvalidOperationException("Wait for sector loads before clearing the sector cache.");
+            lock (_sectorLoadLock)
+            {
+                _sectorLoadTasks.Clear();
+                _loadedSectors.Clear();
+                _loadedIndoorGroups.Clear();
+            }
+        }
+    }
 
     public WorldZone GetZone(float worldX, float worldY) =>
         _zoneMap.GetZone(new SectorCoord(

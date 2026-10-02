@@ -1,11 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
-using Sacred.Assets.Paks.Items;
-using Sacred.Assets.Paks.Mixed;
-using Sacred.Assets.Paks.Models;
 using Sacred.Assets.Paks.Texture;
-using Sacred.Assets.Paks.Tiles;
 using Sacred.Core.World.Sector;
 using Sacred.World;
 using Sacred.World.Map;
@@ -29,16 +25,17 @@ catch (ArgumentException exception)
     return 2;
 }
 
+using var logging = new RendererLog(options.Verbose);
 try
 {
-    Console.WriteLine($"Loading Sacred world from: {options.GameDirectory}");
+    RendererLog.Info($"Loading Sacred world from: {options.GameDirectory}");
     var pakDirectory = Path.Combine(options.GameDirectory, "pak");
     using var textures = TexturePakArchive.LoadFromDirectory(pakDirectory);
-    var tiles = TilesPakArchive.Load(Path.Combine(pakDirectory, "tiles.pak"));
-    var items = ItemsPakArchive.Load(Path.Combine(pakDirectory, "Items.pak"))
-        .ToDictionary(static item => item.ItemIndex);
-    var mixed = MixedPakArchive.Load(Path.Combine(pakDirectory, "mixed.pak"));
     using var world = SacredWorldArchiveFactory.Load(options.GameDirectory);
+    using var renderer = new WorldRenderSession(pakDirectory, world, textures);
+    Directory.CreateDirectory(options.OutputDirectory);
+    if (options.AllSectors || options.SectorX.HasValue)
+        return await SectorGenerator.RunAsync(options, world, textures, renderer);
     var defaultCenter = new Vector2(
         (world.StartSector.X + 0.5f) * Sector.TileCount,
         (world.StartSector.Y + 0.5f) * Sector.TileCount);
@@ -50,48 +47,41 @@ try
         throw new ArgumentException(
             $"No authored indoor floor level {options.IndoorLevel} contains world {worldCenter.X:F2},{worldCenter.Y:F2}.");
     if (activeIndoorGroup is not null)
-        Console.WriteLine(
+        RendererLog.Info(
             $"Indoor floor: {activeIndoorGroup.Id}, level {activeIndoorGroup.SurfaceLevel}, " +
             $"origin {activeIndoorGroup.WorldX},{activeIndoorGroup.WorldY}.");
-    Directory.CreateDirectory(options.OutputDirectory);
-    Console.WriteLine($"Rendering at world {worldCenter.X.ToString("F2", CultureInfo.InvariantCulture)}, " +
+    RendererLog.Info($"Rendering at world {worldCenter.X.ToString("F2", CultureInfo.InvariantCulture)}, " +
                       $"{worldCenter.Y.ToString("F2", CultureInfo.InvariantCulture)} (day).");
 
     var stopwatch = Stopwatch.StartNew();
     var map = await new WorldMapRasterizer(textures).RenderAsync(worldCenter);
-    Write("map.bmp", map);
+    Write("map", map);
     var minimap = await new MinimapRasterizer(world, textures).RenderAsync(worldCenter);
-    Write("minimap.bmp", minimap);
-    var staticSprites = new WorldStaticSpriteProvider(textures, mixed, items);
-    var dayWorld = await new DayWorldRasterizer(world, textures, tiles, staticSprites).RenderAsync(
-        worldCenter, options.Width, options.Height, options.Zoom, activeIndoorGroup: activeIndoorGroup);
-    Write("world-day.bmp", dayWorld.Image);
-    using var modelArchive = ModelsPakArchive.Load(
-        Path.Combine(pakDirectory, "models.pak"), Path.Combine(pakDirectory, "Models.tmp"));
-    var modelWorld = await new WorldModelRasterizer(world, items, modelArchive, textures)
-        { StaticSprites = staticSprites }
-        .RenderAsync(dayWorld.Image, worldCenter, options.Zoom, options.OpenDoors, activeIndoorGroup);
-    Write("world-models.bmp", modelWorld);
-    Console.WriteLine(
+    Write("minimap", minimap);
+    var result = await renderer.RenderAsync(worldCenter, options.Width, options.Height, options.Zoom, options, activeIndoorGroup);
+    var dayWorld = result.Terrain;
+    Write("world-day", dayWorld.Image);
+    Write("world-models", result.Complete);
+    RendererLog.Detail(
         $"World image: {dayWorld.LoadedSectors} sectors, {dayWorld.RenderedTiles}/{dayWorld.CandidateTiles} tiles " +
         $"rendered, {dayWorld.MissingTiles} missing; " +
         $"{dayWorld.LiquidRenderedTiles}/{dayWorld.LiquidCandidateTiles} liquid tiles rendered; " +
         $"{dayWorld.StaticRenderedObjects}/{dayWorld.StaticCandidateObjects} static objects rendered, " +
         $"{dayWorld.StaticMissingObjects} visible sprites missing.");
-    Console.WriteLine($"Completed in {stopwatch.Elapsed.TotalSeconds:F2}s. Output: {options.OutputDirectory}");
+    RendererLog.Info($"Completed in {stopwatch.Elapsed.TotalSeconds:F2}s. Output: {options.OutputDirectory}");
     return 0;
 
     void Write(string fileName, RgbaImage image)
     {
-        var path = Path.Combine(options.OutputDirectory, fileName);
-        BmpWriter.Write(path, image);
-        Console.WriteLine($"Wrote {image.Width}x{image.Height}: {path}");
+        var path = Path.Combine(options.OutputDirectory, fileName + "." + ImageWriter.Extension(options.Format));
+        ImageWriter.Write(path, image, options.Format);
+        RendererLog.Info($"Wrote {image.Width}x{image.Height}: {path}");
     }
 }
 
 catch (Exception exception)
 {
-    Console.Error.WriteLine(exception);
+    Console.Error.WriteLine(options.Verbose ? exception.ToString() : exception.Message);
     return 1;
 }
 

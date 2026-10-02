@@ -13,9 +13,8 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
     public const int MaximumTextureCount = 4096;
 
     // Resource creation and upload-buffer copies must use the render command list.
-    // Keep those unavoidable render-thread operations to one of each kind per frame.
-    private const int StaticUploadBatchSize = 1;
-    private const int LiquidUploadBatchSize = 1;
+    // Interactive frames upload one texture per kind; offscreen exporters can batch them.
+    public int UploadBatchSize { get; set; } = 1;
 
     private readonly Dx12TextureUploader _uploader;
     private readonly ID3D12GraphicsCommandList _commandList;
@@ -147,7 +146,7 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
                 _freeSrvSlots.Push(slot);
             }
 
-            if (++attempted == LiquidUploadBatchSize)
+            if (++attempted == UploadBatchSize)
                 return false;
         }
 
@@ -170,7 +169,7 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
             {
                 attempted++;
             }
-            if (attempted == StaticUploadBatchSize)
+            if (attempted >= UploadBatchSize)
                 return false;
 
             if (visibleSprite.Shadow is { } shadow &&
@@ -181,7 +180,7 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
             }
             if (visibleSprite.Shadow is { } preparedShadow)
                 preparedShadowAtlas = preparedShadow.Atlas;
-            if (attempted == StaticUploadBatchSize)
+            if (attempted >= UploadBatchSize)
                 return false;
         }
 

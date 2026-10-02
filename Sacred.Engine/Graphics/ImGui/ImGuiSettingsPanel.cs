@@ -130,6 +130,8 @@ internal static class ImGuiSettingsPanel
         }
         EnumCombo("Render scaling", controls.RenderScalingMode,
             value => controls.RequestedRenderScalingMode = value, FormatRenderScalingMode);
+        if (controls.RenderScalingMode == RenderScalingMode.Fsr2Lanczos2)
+            DearImGui.TextDisabled("FSR 2 below window resolution; Lanczos2 above window resolution.");
         if (DearImGui.Button("Capture screenshot (F12)"))
         {
             controls.ScreenshotRequested = true;
@@ -310,6 +312,8 @@ internal static class ImGuiSettingsPanel
         RenderScalingMode.Fsr1 => "FSR 1 (spatial)",
         RenderScalingMode.Fsr1MotionAdaptive => "FSR 1 (motion-adaptive sharpen)",
         RenderScalingMode.Fsr2 => "FSR 2 (temporal)",
+        RenderScalingMode.Lanczos2 => "Lanczos2 downsampling",
+        RenderScalingMode.Fsr2Lanczos2 => "FSR 2 / Lanczos2 (auto)",
         _ => mode.ToString()
     };
 }

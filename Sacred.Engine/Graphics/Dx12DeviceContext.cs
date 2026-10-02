@@ -17,7 +17,7 @@ using static Vortice.DXGI.DXGI;
 namespace Sacred.Engine.Graphics;
 
 /// <summary>Owns the D3D12 device, swap chain, descriptors, frame contexts, and GPU synchronization.</summary>
-internal sealed class Dx12DeviceContext : IDisposable
+internal sealed partial class Dx12DeviceContext : IDisposable
 {
     public const int FrameCount = 2;
     public const Format DepthBufferFormat = Format.D32_Float;
@@ -25,7 +25,7 @@ internal sealed class Dx12DeviceContext : IDisposable
 
     private static readonly TimeSpan ResizeDebounce = TimeSpan.FromMilliseconds(150);
 
-    private readonly Win32Window _window;
+    private readonly Win32Window? _window;
     private readonly LowLatencySystem _latency;
     private readonly ID3D12Resource[] _backBuffers = new ID3D12Resource[FrameCount];
     private readonly ID3D12CommandList[] _submittedCommandLists = new ID3D12CommandList[1];
@@ -98,8 +98,8 @@ internal sealed class Dx12DeviceContext : IDisposable
 
     public bool VariableRefreshRateSupported => _allowTearing;
     public bool IsHdrEnabled => _swapChain is Dx12HdrSwapChain;
-    public Format BackBufferFormat => _swapChain.BackBufferFormat;
-    public Dx12ShaderSet Shaders => _swapChain.Shaders;
+    public Format BackBufferFormat => _window is null ? Format.B8G8R8A8_UNorm : _swapChain.BackBufferFormat;
+    public Dx12ShaderSet Shaders => _window is null ? Dx12ShaderCatalog.Sdr : _swapChain.Shaders;
     public HdrBrightnessSettings HdrBrightnessSettings => _hdrBrightnessSettings;
     public Dx12DisplayProfile DisplayProfile => IsHdrEnabled
         ? Dx12DisplayProfile.CreateHdr(_hdrBrightnessSettings)
@@ -123,8 +123,9 @@ internal sealed class Dx12DeviceContext : IDisposable
     public Dx12FrameContext CurrentFrame =>
         _currentFrame ?? throw new InvalidOperationException("No Direct3D frame is being recorded.");
 
-    public ID3D12Resource CurrentBackBuffer => _backBuffers[_swapChain.CurrentBackBufferIndex];
-    public CpuDescriptorHandle CurrentRenderTarget => RtvHandle((int)_swapChain.CurrentBackBufferIndex);
+    private int BackBufferIndex => _window is null ? _offscreenFrameIndex : (int)_swapChain.CurrentBackBufferIndex;
+    public ID3D12Resource CurrentBackBuffer => _backBuffers[BackBufferIndex];
+    public CpuDescriptorHandle CurrentRenderTarget => RtvHandle(BackBufferIndex);
     public bool UsesRenderScaling => _sceneColor is not null;
     public ID3D12Resource SceneColor => _sceneColor ?? CurrentBackBuffer;
     public CpuDescriptorHandle SceneRenderTarget => _sceneColor is null ? CurrentRenderTarget : RtvHandle(FrameCount);
@@ -147,9 +148,9 @@ internal sealed class Dx12DeviceContext : IDisposable
 
         ResizeIfNeeded(releaseRetiredResources);
         RecreateSceneColorIfNeeded(releaseRetiredResources);
-        _swapChain.WaitForPresentSlot(cancellationToken);
+        if (_window is not null) _swapChain.WaitForPresentSlot(cancellationToken);
 
-        var frame = _frames[_swapChain.CurrentBackBufferIndex];
+        var frame = _frames[BackBufferIndex];
         var fenceValue = frame.FenceValue;
         if (fenceValue != 0 && _fence.CompletedValue < fenceValue)
         {
@@ -187,7 +188,7 @@ internal sealed class Dx12DeviceContext : IDisposable
                 OutputWidth,
                 OutputHeight,
                 BackBufferFormat,
-                _swapChain.ColorSpace)
+                _window is null ? ColorSpaceType.RgbFullG22NoneP709 : _swapChain.ColorSpace)
             : null;
         _commandList.Close();
         _latency.Mark(LatencyMarker.RenderSubmitStart, frameId);
@@ -199,7 +200,8 @@ internal sealed class Dx12DeviceContext : IDisposable
         CurrentFrame.FenceValue = fenceValue;
 
         _latency.Mark(LatencyMarker.PresentStart, frameId);
-        _swapChain.Present(verticalSyncEnabled, _allowTearing);
+        if (_window is null) _offscreenFrameIndex = (_offscreenFrameIndex + 1) % FrameCount;
+        else _swapChain.Present(verticalSyncEnabled, _allowTearing);
         _latency.Mark(LatencyMarker.PresentEnd, frameId);
         _submissionOpen = false;
         _currentFrame = null;
@@ -223,6 +225,7 @@ internal sealed class Dx12DeviceContext : IDisposable
 
     public void RecreateSwapChain(Dx12SwapChainMode requestedMode)
     {
+        if (_window is null) throw new InvalidOperationException("Offscreen exports use SDR render targets.");
         DisposeBackBuffers();
         DisposeSceneColor();
         _depthBuffer?.Dispose();
@@ -242,17 +245,17 @@ internal sealed class Dx12DeviceContext : IDisposable
         _depthBuffer = null;
         DisposeSceneColor();
         DisposeBackBuffers();
-        _fence.Dispose();
-        _commandList.Dispose();
-        foreach (var frame in _frames)
-            frame.Dispose();
-        _srvHeap.Dispose();
-        _dsvHeap.Dispose();
-        _rtvHeap.Dispose();
-        _swapChain.Dispose();
-        _commandQueue.Dispose();
-        _device.Dispose();
-        _factory.Dispose();
+        _fence?.Dispose();
+        _commandList?.Dispose();
+        foreach (var frame in _frames ?? [])
+            frame?.Dispose();
+        _srvHeap?.Dispose();
+        _dsvHeap?.Dispose();
+        _rtvHeap?.Dispose();
+        _swapChain?.Dispose();
+        _commandQueue?.Dispose();
+        _device?.Dispose();
+        _factory?.Dispose();
 
         if (_fenceEvent != 0)
         {
@@ -264,7 +267,8 @@ internal sealed class Dx12DeviceContext : IDisposable
     private void CreateDevice()
     {
         _factory = CreateDXGIFactory2<IDXGIFactory2>(false);
-        _factory.MakeWindowAssociation(_window.Hwnd, WindowAssociationFlags.IgnoreAltEnter).CheckError();
+        if (_window is not null)
+            _factory.MakeWindowAssociation(_window.Hwnd, WindowAssociationFlags.IgnoreAltEnter).CheckError();
         using var factory5 = _factory.QueryInterfaceOrNull<IDXGIFactory5>();
         _allowTearing = factory5?.PresentAllowTearing == true;
         _swapChainFlags = SwapChainFlags.FrameLatencyWaitableObject;
@@ -281,6 +285,7 @@ internal sealed class Dx12DeviceContext : IDisposable
 
     private void CreateSwapChain()
     {
+        if (_window is null) return;
         OutputWidth = _window.ClientWidth;
         OutputHeight = _window.ClientHeight;
         _swapChain = Dx12SwapChainFactory.Create(
@@ -313,7 +318,7 @@ internal sealed class Dx12DeviceContext : IDisposable
     {
         for (var index = 0; index < FrameCount; index++)
         {
-            _backBuffers[index] = _swapChain.GetBuffer((uint)index);
+            _backBuffers[index] = _window is null ? CreateOffscreenTarget() : _swapChain.GetBuffer((uint)index);
             _device.CreateRenderTargetView(_backBuffers[index], null, RtvHandle(index));
         }
     }
@@ -394,12 +399,18 @@ internal sealed class Dx12DeviceContext : IDisposable
         RenderWidth = _requestedRenderWidth;
         RenderHeight = _requestedRenderHeight;
         RenderResolutionPercentage = (float)RenderHeight / Math.Max(1, OutputHeight);
-        CreateSceneColor();
+        if (_window is not null || RenderWidth != OutputWidth || RenderHeight != OutputHeight)
+            CreateSceneColor();
         CreateDepthBuffer();
     }
 
     private void ResizeIfNeeded(Action<Dx12FrameContext> releaseRetiredResources)
     {
+        if (_window is null)
+        {
+            ResizeOffscreenIfNeeded(releaseRetiredResources);
+            return;
+        }
         var width = _window.ClientWidth;
         var height = _window.ClientHeight;
         if (width <= 0 || height <= 0)

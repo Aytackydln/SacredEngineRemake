@@ -11,6 +11,7 @@ namespace Sacred.Engine.Graphics.Sprites;
 /// <summary>Records texture-grouped liquid and static-sprite instances.</summary>
 internal sealed class Dx12SpriteBatchRecorder
 {
+    public float? AnimationTimeOverride { get; set; }
     private const float AlphaCutoff = 64.0f / 255.0f;
     private const float PlayerOccluderOpacity = 0.48f;
     private static readonly int InstanceStride = Marshal.SizeOf<StaticSpriteInstance>();
@@ -69,7 +70,7 @@ internal sealed class Dx12SpriteBatchRecorder
                 ambientColour,
                 paperWhiteNits,
                 unlitWhiteNits,
-                (float)Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds,
+                AnimationTimeOverride ?? (float)Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds,
                 PlayerOccluderOpacity,
                 playerOcclusion.SceneDepth));
 

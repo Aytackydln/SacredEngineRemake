@@ -18,6 +18,7 @@ namespace Sacred.Engine.Graphics.Models;
 /// <summary>Records the complete model pass using stable geometry and material caches.</summary>
 internal sealed class Dx12ModelPass
 {
+    public float? AnimationTimeOverride { get; set; }
     private const float PainterDepthScale = 1.0f / 4096.0f;
     private const float PlayerDepthBias = 0.0005f;
     private readonly ID3D12GraphicsCommandList _commandList;
@@ -163,7 +164,7 @@ internal sealed class Dx12ModelPass
             ModelShaderLayout.SurfaceLightMapRootParameter,
             SrvGpuHandle(_surfaceLightMapSlot));
 
-        var elapsedSeconds = (float)Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds;
+        var elapsedSeconds = AnimationTimeOverride ?? (float)Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds;
         var sceneConstants = stackalloc float[ModelShaderLayout.SceneConstantsCount];
         WriteLighting(camera, lighting, display, elapsedSeconds, sceneConstants);
         SetRootConstantsIfChanged(

@@ -62,7 +62,7 @@ public static class SacredWorldArchiveFactory
         path,
         FileMode.Open,
         FileAccess.Read,
-        FileShare.Read,
+        FileShare.ReadWrite,
         bufferSize: 1,
         FileOptions.Asynchronous | FileOptions.RandomAccess);
 

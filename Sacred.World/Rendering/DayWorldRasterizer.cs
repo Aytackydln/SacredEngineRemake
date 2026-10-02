@@ -11,7 +11,7 @@ namespace Sacred.World.Rendering;
 /// <summary>Builds a deterministic daytime terrain view without a graphics device.</summary>
 public sealed class DayWorldRasterizer(
     SacredWorldArchive world,
-    TexturePakArchive textures,
+    ITextureSource textures,
     TilesPakArchive tiles,
     WorldStaticSpriteProvider? staticSprites = null)
 {
@@ -32,6 +32,7 @@ public sealed class DayWorldRasterizer(
     ];
 
     private readonly Dictionary<uint, Task<TerrainTileSource?>> _tileSourceLoads = [];
+    public bool DrawCenterMarker { get; set; } = true;
 
     public async Task<DayWorldRenderResult> RenderAsync(
         Vector2 worldCenter,
@@ -110,7 +111,8 @@ public sealed class DayWorldRasterizer(
             : await DrawStaticSpritesAsync(
                     canvas, sectors, centerIso, width, height, zoom, activeIndoorGroup, cancellationToken)
                 .ConfigureAwait(false);
-        canvas.DrawCross(width / 2, height / 2, 6, 255, 224, 128);
+        if (DrawCenterMarker)
+            canvas.DrawCross(width / 2, height / 2, 6, 255, 224, 128);
         return new DayWorldRenderResult(
             canvas.ToImage(),
             sectors.Length,

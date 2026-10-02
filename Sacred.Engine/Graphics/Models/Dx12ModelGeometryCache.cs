@@ -46,7 +46,8 @@ internal sealed class Dx12ModelGeometryCache : IDisposable
 
     public bool TryGetOrRequest(Mesh mesh, int frameIndex, out ModelGpuMesh gpuMesh)
     {
-        CollectCompletedLoads();
+        // Prepare publishes completed loads once before recording models and shadows.
+        // Scanning every pending load per draw makes preparation quadratic in scene size.
         if (_meshes.TryGetValue(mesh, out gpuMesh!))
         {
             if (gpuMesh.VertexRevisions[frameIndex] != mesh.VertexRevision)

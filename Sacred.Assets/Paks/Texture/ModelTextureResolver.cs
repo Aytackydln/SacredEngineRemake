@@ -9,7 +9,7 @@ public static class ModelTextureResolver
     private const float EffectScrollCyclesPerSecond = 0.5f;
     private const uint PrimaryTextureTableLimit = byte.MaxValue;
 
-    public static ModelTextureReference Resolve(TexturePakArchive textureArchive,
+    public static ModelTextureReference Resolve(ITextureSource textureArchive,
         uint itemTextureId,
         uint effectTextureId,
         SacredItemGraphicFlags graphicFlags,
@@ -96,8 +96,7 @@ public static class ModelTextureResolver
             : ModelTextureReference.Static(surfaceTextureName);
     }
 
-    private static TextureAnimation CreateEffectAnimation(
-        TexturePakArchive textureArchive,
+    private static TextureAnimation CreateEffectAnimation(ITextureSource textureArchive,
         string effectTextureName,
         SacredItemGraphicFlags graphicFlags,
         bool clampAtTextureEdges)

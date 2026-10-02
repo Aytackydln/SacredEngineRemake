@@ -32,6 +32,13 @@ public sealed class SceneState
         ModelSetRevision++;
     }
 
+    /// <summary>Clears an offline scene without reserving a player slot.</summary>
+    public void ClearModels()
+    {
+        _models.Clear();
+        ModelSetRevision++;
+    }
+
     public void SetModel(int index, SceneModel model)
     {
         ArgumentNullException.ThrowIfNull(model);

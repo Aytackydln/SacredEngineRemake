@@ -14,8 +14,8 @@ namespace Sacred.Engine.Graphics.Models;
 /// <summary>Reconciles scene materials only when the model set changes and incrementally uploads them.</summary>
 internal sealed class Dx12ModelTextureCache : IDisposable
 {
-    private const int MaxConcurrentLoads = 2;
-    private const int UploadBatchSize = 1;
+    public int MaxConcurrentLoads { get; set; } = 2;
+    public int UploadBatchSize { get; set; } = 1;
 
     private readonly AssetManager _assets;
     private readonly Dx12TextureUploader _uploader;
@@ -27,7 +27,7 @@ internal sealed class Dx12ModelTextureCache : IDisposable
     private readonly Queue<ModelTexture> _pendingLoads = new();
     private readonly ConcurrentQueue<CompletedTextureLoad> _completedLoads = new();
     private readonly List<Task> _loadTasks = [];
-    private readonly HashSet<string> _activeNames = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ModelTextureRequests _requests = new();
     private readonly List<string> _namesToRemove;
 
     private ulong _preparedModelSetRevision = ulong.MaxValue;
@@ -123,28 +123,12 @@ internal sealed class Dx12ModelTextureCache : IDisposable
 
     private void ReconcileScene(IReadOnlyList<SceneModel> models, Dx12FrameContext frame)
     {
-        _activeNames.Clear();
-        foreach (var model in models)
-        foreach (var surface in model.Mesh.Surfaces)
-        {
-            var reference = model.ResolveTextureReference(surface.TextureName);
-            if (!string.IsNullOrWhiteSpace(reference.TextureName))
-                _activeNames.Add(reference.TextureName);
-            if (!string.IsNullOrWhiteSpace(reference.OverlayTextureName))
-                _activeNames.Add(reference.OverlayTextureName);
-        }
-        foreach (var model in models)
-        {
-            if (model.EquipmentEffects is null)
-                continue;
-            foreach (var textureName in model.EquipmentEffects.TextureNames)
-                _activeNames.Add(textureName);
-        }
+        _requests.Collect(models);
 
         _namesToRemove.Clear();
         foreach (var pair in _textures)
         {
-            if (_activeNames.Contains(pair.Key))
+            if (_requests.Contains(pair.Key))
                 continue;
 
             _namesToRemove.Add(pair.Key);
@@ -166,25 +150,12 @@ internal sealed class Dx12ModelTextureCache : IDisposable
             _textures.Remove(textureName);
 
         // Queue base textures before optional overlays so characters become complete progressively.
-        foreach (var model in models)
-        foreach (var surface in model.Mesh.Surfaces)
-            Request(model.ResolveTextureReference(surface.TextureName).TextureName);
-
-        foreach (var model in models)
-        foreach (var surface in model.Mesh.Surfaces)
-        {
-            var reference = model.ResolveTextureReference(surface.TextureName);
-            if (reference.HasOverlay)
-                Request(reference.OverlayTextureName);
-        }
-
-        foreach (var model in models)
-        {
-            if (model.EquipmentEffects is null)
-                continue;
-            foreach (var textureName in model.EquipmentEffects.TextureNames)
-                Request(textureName);
-        }
+        foreach (var textureName in _requests.BaseNames)
+            Request(textureName);
+        foreach (var textureName in _requests.OverlayNames)
+            Request(textureName);
+        foreach (var textureName in _requests.EffectNames)
+            Request(textureName);
     }
 
     private void Request(string? textureName)
@@ -270,6 +241,8 @@ internal sealed class Dx12ModelTextureCache : IDisposable
             {
                 if (completed.SrvSlot >= 0)
                     _freeSrvSlots.Push(completed.SrvSlot);
+                if (completed.Asset is { } unusedAsset)
+                    _assets.ReleaseModelTexture(requestedTexture.Name, unusedAsset);
                 continue;
             }
 
@@ -299,7 +272,6 @@ internal sealed class Dx12ModelTextureCache : IDisposable
                 texture.Resource = resource;
                 texture.HasTranslucentPixels = completed.HasTranslucentPixels;
                 texture.ParticleEncoding = completed.ParticleEncoding;
-                _assets.ReleaseModelTexture(texture.Name, asset);
             }
             catch
             {
@@ -307,6 +279,11 @@ internal sealed class Dx12ModelTextureCache : IDisposable
                 _freeSrvSlots.Push(completed.SrvSlot);
                 texture.Failed = true;
                 texture.Stage = ModelTextureStage.Failed;
+            }
+            finally
+            {
+                // Upload copies the pixels; failed uploads also no longer need the decoded asset.
+                _assets.ReleaseModelTexture(texture.Name, completed.Asset);
             }
         }
     }

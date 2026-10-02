@@ -8,7 +8,7 @@ namespace Sacred.World.Rendering;
 
 /// <summary>Resolves the 2D world-object formats used by Static.pak records.</summary>
 public sealed class WorldStaticSpriteProvider(
-    TexturePakArchive textures,
+    ITextureSource textures,
     MixedPakArchive mixed,
     IReadOnlyDictionary<ushort, ItemsPakEntry> items)
 {

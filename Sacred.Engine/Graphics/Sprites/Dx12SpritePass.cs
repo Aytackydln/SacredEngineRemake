@@ -16,6 +16,8 @@ namespace Sacred.Engine.Graphics.Sprites;
 internal sealed class Dx12SpritePass : IDisposable
 {
     public const int MaximumTextureCount = Dx12SpriteTextureCache.MaximumTextureCount;
+    public void EnableBulkUploads() => _textureCache.UploadBatchSize = 64;
+    public void SetAnimationTime(float seconds) => _batchRecorder.AnimationTimeOverride = seconds;
 
     private readonly Dx12SpriteTextureCache _textureCache;
     private readonly Dx12SpriteInstanceBuilder _instances;

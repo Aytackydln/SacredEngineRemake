@@ -7,14 +7,10 @@ using System.Linq;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
-using Sacred.Assets.GameBin.Sets;
-using Sacred.Assets.Paks.Items;
 using Sacred.Assets.Paks.Mixed;
 using Sacred.Assets.Paks.Models;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Assets.Paks.Tiles;
-using Sacred.Assets.Paks.Weapon;
-using Sacred.Core;
 using Sacred.Core.GameBin.Sets;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Pak.Weapon;
@@ -30,7 +26,7 @@ namespace Sacred.Engine.Assets;
 
 public sealed class AssetManager : IDisposable
 {
-    // dictionaries should have fixed size to prevent resizing during game thus crash
+    // Initial capacities reduce resizing; texture retention is bounded by the LRU limits.
     private const int MaxTextureCacheEntries = 64;
     private const int MaxModelTextureCacheEntries = 128;
     private const int DefaultMaxCache = 256;
@@ -80,45 +76,11 @@ public sealed class AssetManager : IDisposable
         new(DefaultMaxCache, StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _playerAnimationLock = new(1, 1);
     private bool _disposed;
+    internal bool LeaveTextureArchiveOpen { get; init; }
+    internal ITextureSource? TextureSource { get; init; }
 
     public float PlayableCharacterLightRadius { get; }
     public IReadOnlyList<SacredSetEntry> ItemSets { get; }
-
-    public AssetManager(SacredGameDirectories gameDirectories)
-    {
-        var texturePakPath = gameDirectories.TexturesPakPath;
-        var pakDirectory = Path.GetDirectoryName(texturePakPath)
-            ?? throw new InvalidDataException("Cannot infer tiles.pak path from texture PAK path.");
-        _texturePak = TexturePakArchive.LoadFromDirectory(pakDirectory);
-        _tilesPak = TilesPakArchive.Load(Path.Combine(pakDirectory, "tiles.pak"));
-        var items = ItemsPakArchive.Load(gameDirectories.ItemsPakPath).ToArray();
-        _itemsByModelId = items.ToFrozenDictionary(static item => item.ItemIndex);
-        PlayableCharacterLightRadius = FindLargestAuthoredLightRadius(items);
-        _equipmentByModelId = WeaponPakParser.Parse(gameDirectories.WeaponsPakPath, _itemsByModelId)
-            .ToFrozenDictionary(static equipment => checked((ushort)equipment.IdemId));
-        _itemsByModelId = items.Select(item => _equipmentByModelId.TryGetValue(item.ItemIndex, out var equipment)
-                ? equipment.Item : item).ToFrozenDictionary(static item => item.ItemIndex);
-        _itemsByItemId = _itemsByModelId.Values
-            .GroupBy(static item => item.ModelDesc.ItemId)
-            .ToFrozenDictionary(static group => group.Key, static group => group.ToArray());
-        _mixedPak = MixedPakArchive.Load(Path.Combine(pakDirectory, "mixed.pak"));
-        _miniObjectSprites = new MiniObjectSpriteLoader(
-            textureId => LoadTextureAsync(textureId, AssetLoadPriority.Visible),
-            _worldSpriteLoadQueue);
-        _worldParticleSprites = new WorldParticleSpriteLoader(
-            textureName => LoadTextureAsync(textureName, AssetLoadPriority.Background),
-            _worldSpriteLoadQueue);
-        _staticShadowAtlas = new StaticShadowAtlasLoader(
-            textureName => LoadTextureAsync(textureName, AssetLoadPriority.Background),
-            _worldSpriteLoadQueue);
-        _modelsPak = ModelsPakArchive.Load(
-            Path.Combine(pakDirectory, "models.pak"),
-            Path.Combine(pakDirectory, "Models.tmp"));
-        var gameDirectory = Directory.GetParent(pakDirectory)?.FullName
-            ?? throw new InvalidDataException("Cannot infer the game directory from Texture.pak.");
-        ItemSets = SetsBinArchive.Load(gameDirectories.ItemSetsPath ?? Path.Combine(gameDirectory, "bin", "sets.bin"));
-        _itemSetEquipment = ResolveItemSetEquipment(ItemSets);
-    }
 
     internal AssetManager(
         TexturePakArchive texturePak,
@@ -214,7 +176,7 @@ public sealed class AssetManager : IDisposable
         AssetLoadPriority priority,
         CancellationToken cancellationToken = default) =>
         LoadTextureAsync(
-            _texturePak,
+            TextureSource ?? _texturePak,
             textureName,
             _textures,
             _textureLoads,
@@ -247,7 +209,7 @@ public sealed class AssetManager : IDisposable
         }
 
         return LoadTextureAsync(
-            _texturePak,
+            TextureSource ?? _texturePak,
             textureName,
             _textures,
             _textureLoads,
@@ -261,7 +223,7 @@ public sealed class AssetManager : IDisposable
     public Task<TextureAsset> LoadModelTextureAsync(string textureName, CancellationToken cancellationToken = default)
     {
         return LoadTextureAsync(
-            _texturePak,
+            TextureSource ?? _texturePak,
             textureName,
             _modelTextures,
             _modelTextureLoads,
@@ -295,8 +257,7 @@ public sealed class AssetManager : IDisposable
         }
     }
 
-    private async Task<TextureAsset> LoadTextureAsync(
-        TexturePakArchive archive,
+    private async Task<TextureAsset> LoadTextureAsync(ITextureSource archive,
         string textureName,
         IDictionary<string, TextureCacheEntry> cache,
         Dictionary<string, Task<TextureAsset>> loads,
@@ -345,8 +306,7 @@ public sealed class AssetManager : IDisposable
             .ConfigureAwait(false);
     }
 
-    private async Task<TextureAsset> LoadAndCacheTextureAsync(
-        TexturePakArchive archive,
+    private async Task<TextureAsset> LoadAndCacheTextureAsync(ITextureSource archive,
         string textureName,
         IDictionary<string, TextureCacheEntry> cache,
         Dictionary<string, Task<TextureAsset>> loads,
@@ -1253,7 +1213,8 @@ public sealed class AssetManager : IDisposable
         _modelLock.Wait();
         _grnModels.Clear();
         _grnModelLoads.Clear();
-        _texturePak.Dispose();
+        if (!LeaveTextureArchiveOpen)
+            _texturePak.Dispose();
         _modelsPak.Dispose();
     }
 

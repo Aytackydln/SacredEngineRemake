@@ -89,7 +89,8 @@ float4 ps_hdr_screen(vertex_output input) : SV_Target
 
 // ambient_colour.x selects the presentation filter: 0 point, 1 bilinear, 2 FSR 1-style
 // spatial reconstruction, 3 FSR 2-style temporal reconstruction,
-// 4 spatial reconstruction with motion-adaptive sharpening.
+// 4 spatial reconstruction with motion-adaptive sharpening, 5 Lanczos2.
+// The engine resolves mode 6 (FSR 2 / Lanczos2) from the current resolution ratio.
 float4 sample_point(float2 uv)
 {
     uint width, height;
@@ -126,8 +127,52 @@ float motion_adaptive_fsr1_sharpening(float2 uv)
     return lerp(fsr1_stationary_sharpening, fsr1_moving_sharpening, motion_amount);
 }
 
+float lanczos2_weight(float distance)
+{
+    float x = abs(distance);
+    if (x < 0.0001f)
+        return 1.0f;
+    if (x >= 2.0f)
+        return 0.0f;
+    float angle = 3.14159265359f * x;
+    return sin(angle) * sin(angle * 0.5f) / (angle * angle * 0.5f);
+}
+
+float4 sample_lanczos2(float2 uv)
+{
+    uint width, height;
+    texture0.GetDimensions(width, height);
+    float2 source_size = float2(width, height);
+    // Widen the two-lobe kernel in source pixels when reducing resolution.
+    // A fixed 4x4 footprint would alias whenever multiple source pixels collapse.
+    float2 scale = max(source_size / viewport_size, 1.0f);
+    float2 center = uv * source_size - 0.5f;
+    int2 first = int2(ceil(center - 2.0f * scale));
+    int2 last = int2(floor(center + 2.0f * scale));
+    float4 color = 0.0f;
+    float weight_sum = 0.0f;
+    [loop]
+    for (int y = first.y; y <= last.y; ++y)
+    {
+        float wy = lanczos2_weight((y - center.y) / scale.y);
+        [loop]
+        for (int x = first.x; x <= last.x; ++x)
+        {
+            float weight = wy * lanczos2_weight((x - center.x) / scale.x);
+            int2 pixel = clamp(int2(x, y), int2(0, 0), int2(width - 1, height - 1));
+            color += texture0.Load(int3(pixel, 0)) * weight;
+            weight_sum += weight;
+        }
+    }
+    color /= max(weight_sum, 0.0001f);
+    // Preserve HDR values above one while removing negative ringing.
+    return float4(max(color.rgb, 0.0f), saturate(color.a));
+}
+
 float4 sample_upscaled(float2 uv)
 {
+    if (ambient_colour.x >= 4.5f)
+        return sample_lanczos2(uv);
     if (ambient_colour.x < 0.5f)
         return sample_point(uv);
     if (ambient_colour.x < 1.5f)

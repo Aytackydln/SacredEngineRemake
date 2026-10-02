@@ -165,6 +165,19 @@ internal sealed class Dx12WorldPass : IDisposable
     public WorldPreparationStatus LastPreparationStatus { get; private set; } =
         WorldPreparationStatus.NotStarted;
 
+    public void EnableBulkUploads()
+    {
+        _sprites.EnableBulkUploads();
+        _modelTextures.UploadBatchSize = 64;
+        _modelTextures.MaxConcurrentLoads = 8;
+    }
+
+    public void SetAnimationTime(float seconds)
+    {
+        _sprites.SetAnimationTime(seconds);
+        _models.AnimationTimeOverride = seconds;
+    }
+
     public Task StartPreparation()
     {
         if (_preparationCompletion is null)
@@ -216,7 +229,9 @@ internal sealed class Dx12WorldPass : IDisposable
             _graphics.CurrentFrame,
             _terrain.WorldSpriteRevision);
         _lightHalos.PrepareTexture(prepared.WorldLights, _graphics.CurrentFrame);
-        UpdatePreparationStatus(request.World, prepared.SectorImages, modelGeometryReady);
+        var modelStats = _modelTextures.Stats;
+        UpdatePreparationStatus(request.World, prepared.SectorImages,
+            modelGeometryReady && modelStats.Loading == 0 && modelStats.Uploading == 0);
     }
 
     public void UploadAndRecord(
@@ -230,7 +245,7 @@ internal sealed class Dx12WorldPass : IDisposable
         ID3D12PipelineState liquidCoverPipeline,
         ID3D12PipelineState shadowOverlayPipeline)
     {
-        _modelGeometry.Prepare(scene.Models);
+        var modelGeometryReady = _modelGeometry.Prepare(scene.Models);
         _modelTextures.PrepareFrame(scene, _graphics.CurrentFrame);
         _sprites.PrepareTextures(
             prepared.LiquidSprites,
@@ -248,6 +263,8 @@ internal sealed class Dx12WorldPass : IDisposable
                 _graphics.CurrentFrame);
 
         var modelStats = _modelTextures.Stats;
+        UpdatePreparationStatus(world, prepared.SectorImages,
+            modelGeometryReady && modelStats.Loading == 0 && modelStats.Uploading == 0);
         var debugStats = new Dx12DebugOverlayStats(
             _sectorTextures.Count,
             _sectorTextures.MaximumTextureCount,

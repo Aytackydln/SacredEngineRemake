@@ -149,6 +149,27 @@ as its third argument also checks every cached record and discovers installed
 
 ## Evidence sources
 
+### Loose TGA row orientation
+
+Sacred Gold's texture loader calls `LoadTGAtoTex` at `0x65FF10` from
+`0x656F17` for loose texture overrides. For uncompressed 32-bit TGA, it reads
+the stored BGRA bytes and branches from `0x660243..0x660245` to `0x660151`.
+That path always calls the vertical row mirror at `0x660880` from `0x66015A`.
+The mirror swaps first and last rows toward the center. The image descriptor
+at TGA header offset `0x11`, including bit `0x20` (top-origin), is not consulted.
+The decoded RLE paths also reach the same unconditional mirror.
+
+Consequently, loose TGA images must store bottom-up rows. A standard bottom-left
+descriptor (`0x08` for a 32-bit image with eight alpha bits) makes the same file
+display correctly in an editor honoring the TGA origin and in Sacred's loader.
+Top-down rows with descriptor `0x28` look correct in editors but invert in Sacred.
+The terminal exporter now writes bottom-up BGRA rows with descriptor `0x08`.
+This concerns loose TGA files, not the pixel storage of Texture.pak entries.
+Evidence: disassembly of the existing mapped Gold executable image and the
+reported editor-versus-game orientation difference.
+
+### Archive layout evidence
+
 - Executable analysis: exact 80-byte
   `sTextureEntry` size, field types, and offsets.
 - Executable analysis functions:

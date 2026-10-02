@@ -7,7 +7,7 @@ using Sacred.Core.Utils;
 
 namespace Sacred.Assets.Paks.Texture;
 
-public sealed class TexturePakArchive : IDisposable
+public sealed class TexturePakArchive : IDisposable, ITextureSource
 {
     private static readonly Encoding NameEncoding = Encoding.Latin1;
 

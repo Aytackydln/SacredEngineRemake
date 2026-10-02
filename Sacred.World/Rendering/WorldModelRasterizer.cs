@@ -11,10 +11,17 @@ using Sacred.World.Objects;
 namespace Sacred.World.Rendering;
 
 /// <summary>Software-rasterizes authored GRN world models over a deterministic terrain frame.</summary>
-public sealed class WorldModelRasterizer(SacredWorldArchive world, IReadOnlyDictionary<ushort, ItemsPakEntry> items, ModelsPakArchive models, TexturePakArchive textures)
+public sealed class WorldModelRasterizer(
+    SacredWorldArchive world,
+    IReadOnlyDictionary<ushort, ItemsPakEntry> items,
+    ModelsPakArchive models,
+    ITextureSource textures)
 {
     private readonly Dictionary<(uint TypeId, bool Open), ModelGeometry?> _meshes = [];
     public WorldStaticSpriteProvider? StaticSprites { get; init; }
+    public WorldSpriteOcclusionCache? SpriteOcclusionCache { get; init; }
+    /// <summary>Allows offline exporters to reuse a frame that will no longer be needed separately.</summary>
+    public bool RenderInPlace { get; set; }
 
     public async Task<RgbaImage> RenderAsync(
         RgbaImage terrain,
@@ -23,7 +30,7 @@ public sealed class WorldModelRasterizer(SacredWorldArchive world, IReadOnlyDict
         bool openDoors = false,
         IndoorTileGroup? activeIndoorGroup = null)
     {
-        var pixels = (byte[])terrain.Pixels.Clone();
+        var pixels = RenderInPlace ? terrain.Pixels : (byte[])terrain.Pixels.Clone();
         var sectors = await LoadSectors(center);
         var indoorGroups = sectors.SelectMany(static sector => sector.IndoorTileGroups.Groups)
             .DistinctBy(static group => group.Id).ToArray();
@@ -32,8 +39,6 @@ public sealed class WorldModelRasterizer(SacredWorldArchive world, IReadOnlyDict
             .OrderByDescending(p => p.PreciseWorldPosition.HasValue)
             .DistinctBy(p => (p.TypeId, p.TileWorldX, p.TileWorldY)).ToArray();
         var triangles = new List<Triangle>();
-        var occlusion = StaticSprites is null ? null : await WorldModelOcclusion.BuildAsync(
-            StaticSprites, sectors, center, terrain.Width, terrain.Height, zoom, activeIndoorGroup);
         foreach (var placement in placements)
         {
             if (!items.TryGetValue((ushort)placement.TypeId, out var item) || string.IsNullOrWhiteSpace(item.ModelName))
@@ -42,11 +47,16 @@ public sealed class WorldModelRasterizer(SacredWorldArchive world, IReadOnlyDict
             if (geometry is null) continue;
             AddTriangles(triangles, geometry.Value, placement, item.ModelDesc.Angle3D, center, terrain.Width, terrain.Height, zoom);
         }
+        Console.WriteLine($"Model overlay: {placements.Length} authored placements, {triangles.Count:N0} GRN triangles.");
+        if (triangles.Count == 0)
+            return new RgbaImage(terrain.Width, terrain.Height, pixels);
+        var occlusion = StaticSprites is null ? null : await (SpriteOcclusionCache?.GetAsync(
+            StaticSprites, sectors, center, terrain.Width, terrain.Height, zoom, activeIndoorGroup)
+            ?? WorldModelOcclusion.BuildAsync(StaticSprites, sectors, center, terrain.Width, terrain.Height, zoom, activeIndoorGroup));
         var depths = new float[terrain.Width * terrain.Height];
         Array.Fill(depths, float.PositiveInfinity);
         foreach (var triangle in triangles)
             DrawTriangle(pixels, depths, occlusion, terrain.Width, terrain.Height, triangle);
-        Console.WriteLine($"Model overlay: {placements.Length} authored placements, {triangles.Count:N0} GRN triangles.");
         return new RgbaImage(terrain.Width, terrain.Height, pixels);
     }
 
@@ -141,6 +151,9 @@ public sealed class WorldModelRasterizer(SacredWorldArchive world, IReadOnlyDict
         for (var i = 0; i + 2 < mesh.Indices.Length; i += 3)
         {
             var a = points[mesh.Indices[i]]; var b = points[mesh.Indices[i + 1]]; var c = points[mesh.Indices[i + 2]];
+            if (MathF.Max(a.X, MathF.Max(b.X, c.X)) < 0 || MathF.Min(a.X, MathF.Min(b.X, c.X)) >= width ||
+                MathF.Max(a.Y, MathF.Max(b.Y, c.Y)) < 0 || MathF.Min(a.Y, MathF.Min(b.Y, c.Y)) >= height)
+                continue;
             var cross = (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
             TextureAsset? texture = null;
             for (var surfaceIndex = 0; surfaceIndex < mesh.Surfaces.Count; surfaceIndex++)
