@@ -2,6 +2,10 @@ namespace Sacred.Shaders;
 
 public static class Dx12ShaderCatalog
 {
+    public static readonly Dx12ShaderSource HdrArtTransferVertexShader =
+        DisplayShader("SacredHdrArtTransfer", EmbeddedResource_Shaders.SacredHdrArtTransfer_hlsl, "vs_main", "vs_6_6");
+    public static readonly Dx12ShaderSource HdrArtTransferPixelShader =
+        DisplayShader("SacredHdrArtTransfer", EmbeddedResource_Shaders.SacredHdrArtTransfer_hlsl, "ps_main", "ps_6_6");
     public static readonly Dx12ShaderSource AreaDownsampleVertexShader =
         Shader("SacredAreaDownsample", EmbeddedResource_Shaders.SacredAreaDownsample_hlsl, "vs_main", "vs_6_6");
     public static readonly Dx12ShaderSource AreaDownsamplePixelShader =

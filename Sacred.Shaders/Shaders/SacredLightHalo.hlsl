@@ -67,8 +67,8 @@ vertex_output vs_hdr(uint vertex_id : SV_VertexID, uint instance_id : SV_Instanc
 {
     vertex_output output = build_vertex(vertex_id, instance_id);
     // The colour and paper-white value are constant across an instance. Converting
-    // here avoids repeating the expensive sRGB -> Rec.2020 -> PQ work per pixel.
-    output.colour = SdrTextureToHdr10(output.colour, white_nits);
+    // here avoids repeating the sRGB decoding work per pixel.
+    output.colour = SdrTextureToScrgb(output.colour, white_nits);
     return output;
 }
 

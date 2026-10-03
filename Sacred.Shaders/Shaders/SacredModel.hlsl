@@ -211,7 +211,7 @@ float4 ps_hdr(vs_output input) : SV_Target
     float3 ambient = model_surface_lighting(input.position.xy);
     float3 diffuse = light_color_and_diffuse_intensity.rgb * (diffuse_amount * light_color_and_diffuse_intensity.w);
     float3 specular = 0;
-    float3 hdr = SdrLitTextureToHdr10(
+    float3 hdr = SdrLitTextureToScrgb(
         base_color.rgb,
         ambient,
         diffuse,

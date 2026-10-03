@@ -54,7 +54,7 @@ pixel_output render_static_hdr(vertex_output input, float opacity, bool opaque =
     tex.rgb *= surface_lighting(input.position.xy);
 
     pixel_output output;
-    output.color = float4(SdrTextureToHdr10(tex.rgb, scene_paper_white) * tex.a, tex.a);
+    output.color = float4(SdrTextureToScrgb(tex.rgb, scene_paper_white) * tex.a, tex.a);
     return output;
 }
 

@@ -49,7 +49,5 @@ float4 ps_sdr(vertex_output input) : SV_Target
 float4 ps_hdr(vertex_output input) : SV_Target
 {
     float4 color = sample_ui(input);
-    // Keep fully transparent atlas texels at zero. PQ black has a non-zero code
-    // value, which otherwise exposes every glyph quad as a bright rectangle.
-    return float4(SdrTextureToHdr10(color.rgb, paper_white_nits) * color.a, color.a);
+    return float4(SdrTextureToScrgb(color.rgb, paper_white_nits) * color.a, color.a);
 }

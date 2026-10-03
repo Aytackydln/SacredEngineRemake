@@ -8,7 +8,7 @@ namespace Sacred.Engine.Graphics;
 /// <summary>Records and reads back a copy of a rendered D3D12 back buffer.</summary>
 internal sealed class Dx12BackBufferCapture : IDisposable
 {
-    private const int BytesPerPixel = 4;
+    private static int BytesPerPixel(Format format) => format == Format.R16G16B16A16_Float ? 8 : 4;
     private const int TextureDataPitchAlignment = 256;
 
     private readonly ID3D12Resource _readbackBuffer;
@@ -44,7 +44,7 @@ internal sealed class Dx12BackBufferCapture : IDisposable
         Format format,
         ColorSpaceType colorSpace)
     {
-        var rowPitch = Align(width * BytesPerPixel, TextureDataPitchAlignment);
+        var rowPitch = Align(width * BytesPerPixel(format), TextureDataPitchAlignment);
         var bufferDescription = new ResourceDescription(
             ResourceDimension.Buffer,
             0,
@@ -112,12 +112,12 @@ internal sealed class Dx12BackBufferCapture : IDisposable
 
     public unsafe Dx12ScreenshotImage ReadPixels()
     {
-        var pixels = GC.AllocateUninitializedArray<byte>(checked(Width * Height * BytesPerPixel));
+        var pixels = GC.AllocateUninitializedArray<byte>(checked(Width * Height * BytesPerPixel(Format)));
         void* mapped;
         _readbackBuffer.Map(0, null, &mapped).CheckError();
         try
         {
-            var rowBytes = Width * BytesPerPixel;
+            var rowBytes = Width * BytesPerPixel(Format);
             for (var y = 0; y < Height; y++)
             {
                 Marshal.Copy(

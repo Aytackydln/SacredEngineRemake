@@ -29,6 +29,7 @@ namespace Sacred.Engine.Graphics;
 internal sealed class Dx12WorldPass : IDisposable
 {
     private readonly Dx12DeviceContext _graphics;
+    private readonly Dx12HdrArtComposition _hdrArt;
     private readonly TerrainRenderer _terrain;
     private readonly Dx12TextureUploadWorker _textureUploads;
     private readonly Dx12SectorTextureCache _sectorTextures;
@@ -70,6 +71,7 @@ internal sealed class Dx12WorldPass : IDisposable
         DebugUiControlState debugUiControls)
     {
         _graphics = graphics;
+        _hdrArt = new Dx12HdrArtComposition(graphics);
         for (var slot = Dx12DescriptorLayout.FirstModelTexture + Dx12DescriptorLayout.MaximumModelTextures - 1;
              slot >= Dx12DescriptorLayout.FirstModelTexture;
              slot--)
@@ -153,6 +155,9 @@ internal sealed class Dx12WorldPass : IDisposable
             graphics.SrvDescriptorSize,
             Dx12DescriptorLayout.DebugOverlay,
             Dx12DescriptorLayout.SurfaceLightMap);
+        _models.HdrArt = _hdrArt;
+        _sprites.HdrArt = _hdrArt;
+        _gpuParticles.HdrArt = _hdrArt;
         _models.GpuTimings = graphics.GpuAnimationTimings;
         _models.SkinDraw = _skinDraw;
         _debugOverlay = new Dx12DebugOverlay(
@@ -386,6 +391,7 @@ internal sealed class Dx12WorldPass : IDisposable
 
     public void DisposePipelines()
     {
+        _hdrArt.DisposePipeline();
         _terrainDebug.DisposePipeline();
         _models.DisposePipeline();
         _skinDraw.DisposePipelines();
@@ -423,6 +429,7 @@ internal sealed class Dx12WorldPass : IDisposable
     public void Dispose()
     {
         _textureUploads.Stop();
+        _hdrArt.Dispose();
         _terrainDebug.Dispose();
         _sectorTextures.Dispose();
         _terrain.Dispose();

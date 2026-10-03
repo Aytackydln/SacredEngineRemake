@@ -77,14 +77,14 @@ float4 ps_hdr(vertex_output input) : SV_Target
     float4 tex = texture0.Sample(sampler0, input.tex_coord);
     tex.rgb *= ambient_colour + surface_lighting(input.position.xy);
 
-    return float4(SdrTextureToHdr10(tex.rgb, paper_white_nits), tex.a);
+    return float4(SdrTextureToScrgb(tex.rgb, paper_white_nits), tex.a);
 }
 
 float4 ps_hdr_screen(vertex_output input) : SV_Target
 {
     float4 tex = texture0.Sample(sampler0, input.tex_coord);
 
-    return float4(SdrTextureToHdr10(tex.rgb, paper_white_nits), tex.a);
+    return float4(SdrTextureToScrgb(tex.rgb, paper_white_nits), tex.a);
 }
 
 // ambient_colour.x selects the presentation filter: 0 point, 1 bilinear, 2 FSR 1-style

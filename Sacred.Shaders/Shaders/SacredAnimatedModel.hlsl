@@ -229,7 +229,7 @@ float4 ps_hdr(vs_output input) : SV_Target
     float specular_surface_light = max(ambient.r, max(ambient.g, ambient.b));
     float3 specular = light_color_and_diffuse_intensity.rgb *
         (specular_amount * max(light_direction_and_specular_strength.w, 0.0f) * specular_surface_light);
-    float3 hdr = SdrLitTextureToHdr10(
+    float3 hdr = SdrLitTextureToScrgb(
         color.rgb,
         ambient,
         diffuse,

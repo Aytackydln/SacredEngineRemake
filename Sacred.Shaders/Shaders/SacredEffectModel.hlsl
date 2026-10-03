@@ -161,13 +161,13 @@ float4 hdr_spatial_sweep_effect(float4 effect_color, float3 local_position)
     float glow = 1.0f - smoothstep(0.07f, 0.19f, abs(radial_progress - sweep_position));
     float alpha = saturate(effect_color.a + glow * 0.38f);
     float3 color = saturate(effect_color.rgb * (1.0f + glow * 1.9f));
-    return float4(SdrTextureToHdr10(color, hdr_display.w), alpha);
+    return float4(SdrTextureToPremultipliedScrgb(color, alpha, hdr_display.w), alpha);
 }
 
 float4 hdr_premultiplied_effect_color(float4 color)
 {
     // Effects are emissive and use the HDR highlight target, not scene paper white.
-    float3 hdr = SdrTextureToPremultipliedHdr10(color.rgb * color.a, color.a, hdr_display.w);
+    float3 hdr = SdrTextureToPremultipliedScrgb(color.rgb, color.a, hdr_display.w);
     return float4(hdr, color.a);
 }
 
@@ -292,7 +292,7 @@ float4 ps_hdr(vs_output input) : SV_Target
     float specular_surface_light = max(ambient.r, max(ambient.g, ambient.b));
     float3 specular = light_color_and_diffuse_intensity.rgb *
         (specular_amount * max(light_direction_and_specular_strength.w, 0.0f) * specular_surface_light);
-    float3 hdr = SdrLitTextureToHdr10(
+    float3 hdr = SdrLitTextureToScrgb(
         lerped.rgb,
         ambient,
         diffuse,

@@ -45,7 +45,7 @@ public static class ParticleGpuShaderLayout
         var roots = original.RootParameters.ToArray();
         roots[1] = new(RootParameterType.ShaderResourceView,new RootDescriptor(4,0),ShaderVisibility.Vertex);
         return new(roots,original.StaticSamplers,[new(Dx12PipelineKind.PostModelTransparentUnlitStaticSprite,
-            Shader("vs_main","vs_6_6"),Shader(hdr?"ps_gpu_hdr":"ps_gpu_sdr","ps_6_6"),p.InputLayout,p.BlendState,
+            Shader("vs_main","vs_6_6"),Shader(hdr?"ps_gpu_hdr":"ps_gpu_sdr","ps_6_6"),p.InputLayout,hdr ? Dx12BlendStates.HdrParticle : p.BlendState,
             p.RasterizerState,p.DepthStencilState,p.UsesDepthBuffer,p.RenderTargetFormat)],original.RootSignatureFlags);
     }
 }

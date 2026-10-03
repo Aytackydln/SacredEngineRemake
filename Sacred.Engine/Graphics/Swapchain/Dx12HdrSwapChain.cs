@@ -7,8 +7,8 @@ namespace Sacred.Engine.Graphics.Swapchain;
 
 internal sealed class Dx12HdrSwapChain : Dx12SwapChain
 {
-    public const Format HdrBackBufferFormat = Format.R10G10B10A2_UNorm;
-    public const ColorSpaceType HdrColorSpace = ColorSpaceType.RgbFullG2084NoneP2020;
+    public const Format HdrBackBufferFormat = Format.R16G16B16A16_Float;
+    public const ColorSpaceType HdrColorSpace = ColorSpaceType.RgbFullG10NoneP709;
 
     public Dx12HdrSwapChain(
         IDXGIFactory2 factory,
@@ -43,7 +43,7 @@ internal sealed class Dx12HdrSwapChain : Dx12SwapChain
             return swapChain;
 
         swapChain.Dispose();
-        throw new NotSupportedException("The swapchain cannot present RGB ST.2084 Rec.2020.");
+        throw new NotSupportedException("The swapchain cannot present linear scRGB.");
     }
 
     private static bool SupportsHdrColorSpace(IDXGISwapChain3 swapChain)

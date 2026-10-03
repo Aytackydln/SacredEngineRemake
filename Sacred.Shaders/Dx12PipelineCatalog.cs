@@ -253,19 +253,19 @@ public static class Dx12PipelineCatalog
                 Dx12PipelineKind.TransparentUnlitParticleRgb,
                 shaders.StaticSpriteVertexShader,
                 shaders.TransparentUnlitParticleRgbPixelShader,
-                CreatePremultipliedBlend(), RasterizerDescription.CullNone,
+                Dx12BlendStates.HdrParticle, RasterizerDescription.CullNone,
                 transparentDepth, usesDepthBuffer: true));
             pipelines.Add(Pipeline(
                 Dx12PipelineKind.TransparentUnlitParticleArgb,
                 shaders.StaticSpriteVertexShader,
                 shaders.TransparentUnlitParticleArgbPixelShader,
-                CreatePremultipliedBlend(), RasterizerDescription.CullNone,
+                Dx12BlendStates.HdrParticle, RasterizerDescription.CullNone,
                 transparentDepth, usesDepthBuffer: true));
             pipelines.Add(Pipeline(
                 Dx12PipelineKind.TransparentUnlitParticleAlphaMask,
                 shaders.StaticSpriteVertexShader,
                 shaders.TransparentUnlitParticleAlphaMaskPixelShader,
-                CreatePremultipliedBlend(), RasterizerDescription.CullNone,
+                Dx12BlendStates.HdrParticle, RasterizerDescription.CullNone,
                 transparentDepth, usesDepthBuffer: true));
         }
 
@@ -526,18 +526,10 @@ public static class Dx12PipelineCatalog
     private static BlendDescription CreateParticleBlend(bool hdrOutput)
     {
         var blend = BlendDescription.AlphaBlend;
-        // For SDR, shader-premultiplied RGB makes ONE / ONE equivalent to
+        // Shader-premultiplied RGB makes ONE / ONE equivalent to
         // Sacred's straight-colour SRC_ALPHA / ONE particle blend.
         blend.RenderTarget[0].DestinationBlend = Blend.One;
         blend.RenderTarget[0].DestinationBlendAlpha = Blend.One;
-        if (hdrOutput)
-        {
-            // HDR shaders supply a calibrated screen-blend contribution. Unlike
-            // adding PQ code values, screen composition remains bounded.
-            blend.RenderTarget[0].SourceBlend = Blend.One;
-            blend.RenderTarget[0].DestinationBlend = Blend.InverseSourceColor;
-            blend.RenderTarget[0].SourceBlendAlpha = Blend.One;
-        }
 
         return blend;
     }

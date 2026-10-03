@@ -138,23 +138,13 @@ float4 ps_sdr(vs_output input) : SV_Target
     return float4(color * alpha, alpha);
 }
 
-// HDR uses separate fragment entry points for the channel conventions found in
-// Texture.pak. SDR continues to compile ps_sdr unchanged.
+// Texture.pak channel encoding selects the fragment shader; no item IDs are used.
 float4 ps_hdr_rgb(vs_output input) : SV_Target
 {
-    float4 sampled = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord));
+    float3 sampled = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord)).rgb;
     float coverage = model_color.a * input.opacity;
-
-    if (coverage < 0.02f)
-        discard;
-
-    const float strength = 25.0f;
-    coverage = log2(1.0f + strength * coverage) / log2(1.0f + strength);
-    
-
-    float3 color = sampled.rgb * model_color.rgb * input.tint;
-    return float4(SdrParticleToHdr10Screen(
-        color, coverage, hdr_display.x * coverage, hdr_display.w), hdr_display.w);
+    if (coverage < 0.02f) discard;
+    return HdrEquipmentParticle(sampled, model_color.rgb * input.tint, coverage, hdr_display.w, hdr_display.x);
 }
 
 float4 ps_hdr_argb(vs_output input) : SV_Target
@@ -162,24 +152,16 @@ float4 ps_hdr_argb(vs_output input) : SV_Target
     float4 sampled = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord));
     float coverage = (texture_flags.x > 8.5f ? 1.0f : 0.92f) * sampled.a;
     float alpha = coverage * model_color.a * input.opacity;
-    if (alpha < 0.02f)
-        discard;
-
-    float3 color = sampled.rgb * model_color.rgb * input.tint;
-    return float4(SdrParticleToHdr10Screen(
-        color, alpha, hdr_display.x * alpha, hdr_display.w), hdr_display.w);
+    if (alpha < 0.02f) discard;
+    return HdrEquipmentParticle(sampled.rgb, model_color.rgb * input.tint, alpha, hdr_display.w, hdr_display.x);
 }
 
 float4 ps_hdr_alpha_mask(vs_output input) : SV_Target
 {
-    float coverage = particle_texture.Sample(
-        particle_sampler, animated_tex_coord(input.tex_coord)).a;
+    float coverage = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord)).a;
     float alpha = coverage * model_color.a * input.opacity;
-    if (alpha < 0.02f)
-        discard;
-
-    float3 color = model_color.rgb * input.tint;
-    return float4(SdrParticleToHdr10Screen(color, alpha, hdr_display.x * input.tint * alpha, hdr_display.w), hdr_display.w);
+    if (alpha < 0.02f) discard;
+    return HdrEquipmentParticle(1.0f.xxx, model_color.rgb * input.tint, alpha, hdr_display.w, hdr_display.x);
 }
 
 float4 ps_hdr(vs_output input) : SV_Target

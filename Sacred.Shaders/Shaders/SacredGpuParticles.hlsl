@@ -123,7 +123,7 @@ void sort_particles(uint i : SV_DispatchThreadID)
     { particle_output[i] = b; particle_output[other] = a; }
 }
 pixel_output ps_gpu_sdr(vertex_output input) { return render_unlit_sdr(input,1); }
-pixel_output ps_gpu_hdr(vertex_output input)
+hdr_particle_output ps_gpu_hdr(vertex_output input)
 {
     if (input.texture_encoding == 0) return render_unlit_hdr_alpha_mask(input,1);
     if (input.texture_encoding == 1) return render_unlit_hdr_argb(input,1);

@@ -42,7 +42,7 @@ float4 ps_main(vertex_output input) : SV_Target
     float4 color = guide_texture.Load(int3(pixel, 0));
     color.rgb *= input.baked_light;
     if (paper_white_nits > 0.0f)
-        color.rgb = SdrTextureToHdr10(color.rgb, paper_white_nits);
+        color.rgb = SdrTextureToScrgb(color.rgb, paper_white_nits);
     color.rgb *= color.a;
     return color;
 }

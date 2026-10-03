@@ -112,53 +112,29 @@ float4 ps_sdr(vs_output input) : SV_Target
     return float4(color, alpha);
 }
 
-// HDR channel-specific entry points. The SDR entry point above is intentionally
-// unchanged because the original SDR blend path already matches the game.
+// Texture.pak channel encoding selects the fragment shader; no item IDs are used.
 float4 ps_hdr_rgb(vs_output input) : SV_Target
 {
-    float2 animated_coord = animated_tex_coord(input.tex_coord);
-    float4 sampled = particle_texture.Sample(
-        particle_sampler, animated_coord);
+    float3 sampled = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord)).rgb;
     float alpha = model_color.a * input.opacity;
-    if (alpha < 0.02f)
-        discard;
-
-    float nits = hdr_display.x * alpha;
-    return float4(SdrParticleToHdr10Screen(
-                      sampled * model_color.rgb,
-                      alpha,
-                      hdr_display.x,
-                      hdr_display.w), nits);
+    if (alpha < 0.02f) discard;
+    return HdrEquipmentParticle(sampled, model_color.rgb, alpha, hdr_display.w, hdr_display.x);
 }
 
 float4 ps_hdr_argb(vs_output input) : SV_Target
 {
     float4 sampled = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord));
     float alpha = sampled.a * model_color.a * input.opacity;
-    if (alpha < 0.01f)
-        discard;
-
-    float3 color = sampled.rgb * model_color.rgb;
-    return float4(SdrParticleToHdr10Screen(
-        color,
-        alpha,
-        hdr_display.x * alpha,
-        hdr_display.w), 0.0f);
+    if (alpha < 0.01f) discard;
+    return HdrEquipmentParticle(sampled.rgb, model_color.rgb, alpha, hdr_display.w, hdr_display.x);
 }
 
 float4 ps_hdr_alpha_mask(vs_output input) : SV_Target
 {
-    float mask = particle_texture.Sample(
-        particle_sampler, animated_tex_coord(input.tex_coord)).a;
+    float mask = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord)).a;
     float alpha = mask * model_color.a * input.opacity;
-    if (alpha < 0.01f)
-        discard;
-
-    return float4(SdrParticleToHdr10Screen(
-        model_color.rgb,
-        alpha,
-        hdr_display.x * alpha,
-        hdr_display.w), 0.0f);
+    if (alpha < 0.01f) discard;
+    return HdrEquipmentParticle(1.0f.xxx, model_color.rgb, alpha, hdr_display.w, hdr_display.x);
 }
 
 float4 ps_hdr(vs_output input) : SV_Target

@@ -1,46 +1,16 @@
+// HDR is composed in linear scRGB (Rec.709 primaries). Windows maps the
+// floating-point swap chain to the display; scRGB 1.0 represents 80 nits.
 float3 SrgbToLinear(float3 color)
 {
-    return pow(color, 2.2f);
+    return pow(max(color, 0.0f), 2.2f);
 }
 
-float3 Linear709To2020(float3 color)
+float3 SdrTextureToScrgb(float3 color, float white_nits)
 {
-    return float3(
-        dot(color, float3(0.6274040f, 0.3292820f, 0.0433136f)),
-        dot(color, float3(0.0690970f, 0.9195400f, 0.0113612f)),
-        dot(color, float3(0.0163916f, 0.0880132f, 0.8955950f))
-    );
+    return SrgbToLinear(color) * (white_nits / 80.0f);
 }
 
-float LinearNitsToPQ(float nits)
-{
-    const float m1 = 2610.0f / 16384.0f;
-    const float m2 = 2523.0f / 32.0f;
-    const float c1 = 3424.0f / 4096.0f;
-    const float c2 = 2413.0f / 128.0f;
-    const float c3 = 2392.0f / 128.0f;
-
-    float normalized_nits = nits / 10000.0f;
-    float p = pow(normalized_nits, m1);
-    return pow((c1 + c2 * p) / (1.0f + c3 * p), m2);
-}
-
-float3 LinearNitsToPQ(float3 nits)
-{
-    return float3(
-        LinearNitsToPQ(nits.r),
-        LinearNitsToPQ(nits.g),
-        LinearNitsToPQ(nits.b)
-    );
-}
-
-float3 SdrTextureToHdr10(float3 color, float paper_white_nits)
-{
-    float3 nits709 = SrgbToLinear(color) * paper_white_nits;
-    return LinearNitsToPQ(Linear709To2020(nits709));
-}
-
-float3 SdrLitTextureToHdr10(
+float3 SdrLitTextureToScrgb(
     float3 base_color,
     float3 ambient,
     float3 diffuse,
@@ -49,50 +19,68 @@ float3 SdrLitTextureToHdr10(
     float diffuse_white_nits,
     float specular_white_nits)
 {
-    // Sacred's SDR renderer applies its lighting to the encoded texture color.
-    // Preserve that response before converting to PQ; applying small night-light
-    // factors after decoding to linear makes dark models substantially brighter.
-    float diffuse_scale = diffuse_white_nits / paper_white_nits;
-    float specular_scale = specular_white_nits / paper_white_nits;
+    // Retain Sacred's lighting response in authored texture space, then extend
+    // its range. No exposure adaptation or color grading is applied.
     float3 lit_color =
-        base_color * (ambient + diffuse * diffuse_scale) +
-        specular * specular_scale;
-    return SdrTextureToHdr10(lit_color, paper_white_nits);
+        base_color * (ambient + diffuse * (diffuse_white_nits / paper_white_nits)) +
+        specular * (specular_white_nits / paper_white_nits);
+    return SdrTextureToScrgb(lit_color, paper_white_nits);
 }
 
-float3 Linear709NitsToHdr10(float3 nits709)
+float3 SdrTextureToPremultipliedScrgb(float3 color, float alpha, float white_nits)
 {
-    return LinearNitsToPQ(Linear709To2020(max(nits709, 0.0f)));
+    return SdrTextureToScrgb(color, white_nits) * alpha;
 }
 
-float3 SdrTextureToPremultipliedHdr10(float3 color, float alpha, float paper_white_nits)
+float3 SdrParticleToScrgb(float3 color, float coverage, float white_nits)
 {
-    // Apply coverage after decoding sRGB but before PQ encoding. Multiplying an
-    // already PQ-encoded value would crush partially transparent highlights.
-    float3 premultiplied_nits709 = SrgbToLinear(color) * paper_white_nits * alpha;
-    return Linear709NitsToHdr10(premultiplied_nits709);
+    return SdrTextureToPremultipliedScrgb(color, coverage, white_nits);
 }
 
-float3 SdrParticleToHdr10(float3 color, float coverage, float white_nits)
+// Sprite composition happens in Sacred's authored RGB space in an FP16
+// target. Decode the completed blend, not each individual texture/fade/tint.
+struct hdr_particle_output
 {
-    // Keep coverage outside the transfer function when the fixed-function blend
-    // unit consumes premultiplied PQ values.
-    return SdrTextureToHdr10(color, white_nits) * coverage;
+    float4 color : SV_Target0;
+};
+
+// Preserve the authored transfer below reference white. Above white, extend
+// its tangent line: accumulated over-white RGB keeps increasing without being
+// raised to gamma again. This is a fixed, reversible extension, with no exposure
+// adaptation, background estimate, channel attenuation, or clipping ceiling.
+float3 HdrArtToLinear(float3 color)
+{
+    float3 positive = max(color, 0.0f);
+    return float3(
+        positive.r <= 1.0f ? pow(positive.r, 2.2f) : 1.0f + (positive.r - 1.0f) * 2.2f,
+        positive.g <= 1.0f ? pow(positive.g, 2.2f) : 1.0f + (positive.g - 1.0f) * 2.2f,
+        positive.b <= 1.0f ? pow(positive.b, 2.2f) : 1.0f + (positive.b - 1.0f) * 2.2f);
 }
 
-float3 SdrParticleToHdr10Screen(
-    float3 color,
-    float coverage,
-    float background_white_nits,
-    float particle_white_nits)
+float3 LinearToHdrArt(float3 color)
 {
-    // Solve S + B * (1-S) = C for S, using paper white as the representative
-    // background and paper white plus the emissive particle as the desired result.
-    // Feeding a PQ-encoded particle directly to screen blending interprets its PQ
-    // code as coverage and drives even soft particles toward the display maximum.
-    float3 background_pq = LinearNitsToPQ(background_white_nits.xxx);
-    float3 particle_nits = Linear709To2020(SrgbToLinear(color)) * particle_white_nits;
-    float3 combined_pq = LinearNitsToPQ(background_white_nits.xxx + particle_nits);
-    float3 screen_contribution = (combined_pq - background_pq) /(1.0f - background_pq);
-    return screen_contribution * coverage;
+    float3 positive = max(color, 0.0f);
+    return float3(
+        positive.r <= 1.0f ? pow(positive.r, 1.0f / 2.2f) : 1.0f + (positive.r - 1.0f) / 2.2f,
+        positive.g <= 1.0f ? pow(positive.g, 1.0f / 2.2f) : 1.0f + (positive.g - 1.0f) / 2.2f,
+        positive.b <= 1.0f ? pow(positive.b, 1.0f / 2.2f) : 1.0f + (positive.b - 1.0f) / 2.2f);
+}
+
+float3 HdrArtColor(float3 color, float white_nits, float scene_white_nits)
+{
+    return color * LinearToHdrArt((white_nits / scene_white_nits).xxx);
+}
+
+float4 HdrEquipmentParticle(float3 texture_color, float3 tint, float coverage, float white_nits, float scene_white_nits)
+{
+    return float4(HdrArtColor(texture_color * tint, white_nits, scene_white_nits) * coverage, 0.0f);
+}
+
+hdr_particle_output HdrParticle(
+    float3 texture_color, float3 tint, float source_scale, float coverage, float white_nits, float scene_white_nits, bool additive)
+{
+    hdr_particle_output output;
+    output.color = float4(HdrArtColor(texture_color * tint, white_nits, scene_white_nits) * source_scale,
+        additive ? 0.0f : coverage);
+    return output;
 }

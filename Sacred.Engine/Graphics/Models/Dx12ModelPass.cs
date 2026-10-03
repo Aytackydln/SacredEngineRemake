@@ -18,6 +18,8 @@ namespace Sacred.Engine.Graphics.Models;
 /// <summary>Records the complete model pass using stable geometry and material caches.</summary>
 internal sealed class Dx12ModelPass
 {
+    public Dx12HdrArtComposition? HdrArt { get; set; }
+
     public Dx12GpuAnimationTimings? GpuTimings { get; set; }
     public Dx12SkinDrawBindings? SkinDraw { get; set; }
     public float? AnimationTimeOverride { get; set; }
@@ -293,7 +295,13 @@ internal sealed class Dx12ModelPass
             _commandList.SetGraphicsRootSignature(_rootSignature);
             _rootConstants.Reset(); _descriptorTables.Reset();
             SetRootConstantsIfChanged(ModelShaderLayout.SceneConstantsRootParameter, sceneConstants, ModelShaderLayout.SceneConstantsCount, 0);
-            RecordEquipmentEffects(model, viewProjection, modelSceneDepth, frameIndex, constants);
+            using (model.EquipmentEffects is { Surfaces.Count: > 0 } ? HdrArt?.Begin() : null)
+            {
+                _commandList.SetGraphicsRootSignature(_rootSignature);
+                _commandList.SetGraphicsRoot32BitConstants(ModelShaderLayout.SceneConstantsRootParameter,
+                    ModelShaderLayout.SceneConstantsCount, sceneConstants, 0);
+                RecordEquipmentEffects(model, viewProjection, modelSceneDepth, frameIndex, constants);
+            }
         }
     }
 
