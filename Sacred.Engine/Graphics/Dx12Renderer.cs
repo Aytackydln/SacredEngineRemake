@@ -449,6 +449,7 @@ public sealed partial class Dx12Renderer : IDisposable
                 ? null
                 : Dx12RendererPipelineFactory.Compile(_graphics.Shaders, _graphics.IsHdrEnabled);
             _graphics.WaitForGpu(_releaseRetiredResources);
+            _graphics.ReloadPresentationShaders();
             DisposePipelineResources();
             CreateScreenPipeline(screenShaders);
             CreateUpscalePipeline(upscaleShaders);

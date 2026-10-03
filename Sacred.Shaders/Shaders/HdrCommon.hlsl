@@ -1,5 +1,5 @@
-// HDR is composed in linear scRGB (Rec.709 primaries). Windows maps the
-// floating-point swap chain to the display; scRGB 1.0 represents 80 nits.
+// HDR is composed in linear scRGB (Rec.709 primaries), where 1.0 is 80 nits.
+// The presentation shader converts the completed frame to Rec.2020/PQ HDR10.
 float3 SrgbToLinear(float3 color)
 {
     return pow(max(color, 0.0f), 2.2f);

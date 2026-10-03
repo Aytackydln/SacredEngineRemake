@@ -266,10 +266,12 @@ internal sealed class Dx12WorldCommandRecorder
             renderWidth,
             renderHeight);
 
-        // Light halos are screen-space overlays in Sacred and must remain above depth-tested art.
-        _commandList.OMSetRenderTargets(renderTarget, null);
+        // GPU particles use the same depth-tested pipeline as CPU particle sprites.
+        _commandList.OMSetRenderTargets(renderTarget, depthStencil);
         GpuParticles?.Draw(_commandList,displayProfile,renderWidth,renderHeight,_models.GpuTimings!);
 
+        // Light halos are screen-space overlays in Sacred and must remain above depth-tested art.
+        _commandList.OMSetRenderTargets(renderTarget, null);
         _lightHalos.Record(
             lightHaloInstanceCount,
             scene.Lighting.NightBlend,

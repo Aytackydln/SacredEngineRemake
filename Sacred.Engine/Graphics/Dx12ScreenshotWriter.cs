@@ -53,7 +53,7 @@ internal static class Dx12ScreenshotWriter
     public static string DescribeColorSpace(Dx12ScreenshotImage image) => image.ColorSpace switch
     {
         Dx12SdrSwapChain.SdrColorSpace => "SDR sRGB / Rec.709",
-        Dx12HdrSwapChain.HdrColorSpace => "HDR JPEG XR / linear scRGB",
+        Dx12HdrSwapChain.HdrColorSpace => "HDR JPEG XR / Rec.2020 PQ",
         _ => image.ColorSpace.ToString()
     };
 

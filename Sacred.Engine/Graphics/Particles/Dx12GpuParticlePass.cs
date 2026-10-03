@@ -183,7 +183,7 @@ internal sealed class Dx12GpuParticlePass : IParticleGpuBackend, IDisposable
     public unsafe void Draw(ID3D12GraphicsCommandList commands,Dx12DisplayProfile profile,int width,int height,Dx12GpuAnimationTimings timings)
     {
         if (_drawCount==0 || _draw is null || _output is null) return;
-        using var art = HdrArt?.Begin(depth: false);
+        using var art = HdrArt?.Begin();
         using var scope=timings.Measure(AnimationGpuStage.ParticleDraws);
         var c=stackalloc float[StaticSpriteShaderLayout.SceneConstantsCount];
         new StaticSpriteShaderConstantsUpdater().Write(c,new(new(width,height),64/255f,Vector3.One,

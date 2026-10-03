@@ -66,13 +66,17 @@ internal sealed class Dx12HdrArtComposition(Dx12DeviceContext graphics) : IDispo
         var snapshot = _snapshots[index];
         var description = target.Description;
         if (snapshot is null || snapshot.Description.Width != description.Width ||
-            snapshot.Description.Height != description.Height)
+            snapshot.Description.Height != description.Height || snapshot.Description.Format != description.Format)
         {
             // AcquireFrame has waited for this frame's fence. Its texture and SRV
             // can be replaced without overwriting another frame's descriptors.
             snapshot?.Dispose();
+            // CopyResource requires matching subresources. Texture2D's default mipLevels=0
+            // allocates a full mip chain, whereas the scene has exactly one mip.
+            // Preserve the source description and remove only render-target usage.
+            description.Flags = ResourceFlags.None;
             snapshot = graphics.Device.CreateCommittedResource(new HeapProperties(HeapType.Default), HeapFlags.None,
-                ResourceDescription.Texture2D(description.Format, checked((uint)description.Width), description.Height),
+                description,
                 ResourceStates.PixelShaderResource);
             _snapshots[index] = snapshot;
             graphics.Device.CreateShaderResourceView(snapshot, null,

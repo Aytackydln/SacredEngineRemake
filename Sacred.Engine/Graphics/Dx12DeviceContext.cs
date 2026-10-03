@@ -42,6 +42,7 @@ internal sealed partial class Dx12DeviceContext : IDisposable
     private ID3D12Fence _fence = null!;
     private ID3D12Resource? _depthBuffer;
     private ID3D12Resource? _sceneColor;
+    private Dx12HdrPresentation? _hdrPresentation;
     private Dx12FrameContext[] _frames = null!;
     private Dx12FrameContext? _currentFrame;
     public Dx12GpuAnimationTimings GpuAnimationTimings { get; private set; } = null!;
@@ -100,7 +101,8 @@ internal sealed partial class Dx12DeviceContext : IDisposable
     public bool VariableRefreshRateSupported => _allowTearing;
     public double LastPresentMilliseconds { get; private set; }
     public bool IsHdrEnabled => _swapChain is Dx12HdrSwapChain;
-    public Format BackBufferFormat => _window is null ? Format.B8G8R8A8_UNorm : _swapChain.BackBufferFormat;
+    // Rendering and temporal history remain linear FP16; only presentation uses HDR10.
+    public Format BackBufferFormat => IsHdrEnabled ? Format.R16G16B16A16_Float : Format.B8G8R8A8_UNorm;
     public Dx12ShaderSet Shaders => _window is null ? Dx12ShaderCatalog.Sdr : _swapChain.Shaders;
     public HdrBrightnessSettings HdrBrightnessSettings => _hdrBrightnessSettings;
     public Dx12DisplayProfile DisplayProfile => IsHdrEnabled
@@ -109,6 +111,16 @@ internal sealed partial class Dx12DeviceContext : IDisposable
 
     public void SetHdrBrightnessSettings(HdrBrightnessSettings settings) =>
         _hdrBrightnessSettings = settings.Normalized();
+
+    public void ReloadPresentationShaders()
+    {
+        if (!IsHdrEnabled) return;
+        var presentation = new Dx12HdrPresentation(_device, _swapChain);
+        for (var index = 0; index < FrameCount; index++)
+            presentation.BindSource(_device, index, _backBuffers[index]);
+        _hdrPresentation?.Dispose();
+        _hdrPresentation = presentation;
+    }
 
     public void SetRenderResolution(int renderWidth, int renderHeight)
     {
@@ -184,14 +196,16 @@ internal sealed partial class Dx12DeviceContext : IDisposable
         if (!_submissionOpen)
             throw new InvalidOperationException("No Direct3D render submission is open.");
 
+        var presentedBuffer = _hdrPresentation?.Record(_commandList, BackBufferIndex, CurrentBackBuffer,
+            OutputWidth, OutputHeight) ?? CurrentBackBuffer;
         var capture = captureScreenshot
             ? Dx12BackBufferCapture.Record(
                 _device,
                 _commandList,
-                CurrentBackBuffer,
+                presentedBuffer,
                 OutputWidth,
                 OutputHeight,
-                BackBufferFormat,
+                presentedBuffer.Description.Format,
                 _window is null ? ColorSpaceType.RgbFullG22NoneP709 : _swapChain.ColorSpace)
             : null;
         GpuAnimationTimings.ResolveFrame();
@@ -328,10 +342,13 @@ internal sealed partial class Dx12DeviceContext : IDisposable
 
     private void CreateBackBuffers()
     {
+        if (IsHdrEnabled)
+            _hdrPresentation = new Dx12HdrPresentation(_device, _swapChain);
         for (var index = 0; index < FrameCount; index++)
         {
-            _backBuffers[index] = _window is null ? CreateOffscreenTarget() : _swapChain.GetBuffer((uint)index);
+            _backBuffers[index] = _window is null || IsHdrEnabled ? CreateOffscreenTarget() : _swapChain.GetBuffer((uint)index);
             _device.CreateRenderTargetView(_backBuffers[index], null, RtvHandle(index));
+            _hdrPresentation?.BindSource(_device, index, _backBuffers[index]);
         }
     }
 
@@ -478,6 +495,8 @@ internal sealed partial class Dx12DeviceContext : IDisposable
 
     private void DisposeBackBuffers()
     {
+        _hdrPresentation?.Dispose();
+        _hdrPresentation = null;
         for (var index = 0; index < _backBuffers.Length; index++)
         {
             _backBuffers[index]?.Dispose();
