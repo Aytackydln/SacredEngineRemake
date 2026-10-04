@@ -58,7 +58,8 @@ public readonly record struct StaticSpriteSceneConstants(
     float OccluderOpacity,
     float PlayerSceneDepth)
 {
-    public const int FloatCount = 12;
+    public const int FloatCount = 13;
+    public float ParticleColorMultiplier { get; init; } = 1.0f;
 }
 
 /// <summary>Serializes static-sprite scene constants in the HLSL declaration order.</summary>
@@ -78,5 +79,6 @@ public sealed class StaticSpriteShaderConstantsUpdater
         target[9] = Math.Clamp(constants.OccluderOpacity, 0.0f, 1.0f);
         target[10] = Math.Clamp(constants.PlayerSceneDepth, 0.0f, 1.0f);
         target[11] = 0.0f;
+        target[12] = constants.ParticleColorMultiplier;
     }
 }

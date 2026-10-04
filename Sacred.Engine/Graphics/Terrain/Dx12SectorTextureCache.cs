@@ -114,7 +114,10 @@ internal sealed class Dx12SectorTextureCache : IDisposable
         {
             texture = new SectorTextureView(
                 cached.BaseSrvSlot,
-                cached.LiquidCoverSrvSlot);
+                cached.LiquidCoverSrvSlot)
+            {
+                HasLiquidCover = cached.Composition.HasCoverTiles
+            };
             return true;
         }
 

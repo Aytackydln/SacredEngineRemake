@@ -18,8 +18,6 @@ namespace Sacred.Engine.Graphics.Models;
 /// <summary>Records the complete model pass using stable geometry and material caches.</summary>
 internal sealed class Dx12ModelPass
 {
-    public Dx12HdrArtComposition? HdrArt { get; set; }
-
     public Dx12GpuAnimationTimings? GpuTimings { get; set; }
     public Dx12SkinDrawBindings? SkinDraw { get; set; }
     public float? AnimationTimeOverride { get; set; }
@@ -41,6 +39,7 @@ internal sealed class Dx12ModelPass
 
     private ID3D12RootSignature? _rootSignature;
     private ID3D12PipelineState? _staticPipeline;
+    private ID3D12PipelineState? _solidPipeline;
     private ID3D12PipelineState? _transparentModelPipeline;
     private ID3D12PipelineState? _animatedPipeline;
     private ID3D12PipelineState? _effectPipeline;
@@ -82,6 +81,7 @@ internal sealed class Dx12ModelPass
             pipeline[Dx12PipelineKind.ModelShadow],
             pipeline[Dx12PipelineKind.GroundShadow]);
         _staticPipeline = pipeline[Dx12PipelineKind.StaticModel];
+        _solidPipeline = pipeline[Dx12PipelineKind.SolidModel];
         _transparentModelPipeline = pipeline[Dx12PipelineKind.TransparentModel];
         _animatedPipeline = pipeline[Dx12PipelineKind.AnimatedModel];
         _effectPipeline = pipeline[Dx12PipelineKind.EffectModel];
@@ -93,6 +93,8 @@ internal sealed class Dx12ModelPass
     {
         _staticPipeline?.Dispose();
         _staticPipeline = null;
+        _solidPipeline?.Dispose();
+        _solidPipeline = null;
         _shadowPass.DisposePipeline();
         _transparentModelPipeline?.Dispose();
         _transparentModelPipeline = null;
@@ -123,7 +125,7 @@ internal sealed class Dx12ModelPass
         SacredCamera camera,
         IReadOnlyList<SceneModel> models,
         SceneLighting lighting,
-        Dx12DisplayProfile display,
+        Dx12SceneColorProfile display,
         int frameIndex)
     {
         if (models.Count == 0 || _rootSignature is null || _staticPipeline is null)
@@ -203,6 +205,7 @@ internal sealed class Dx12ModelPass
 
             if (renderMesh.Surfaces.Count == 0)
             {
+                _commandList.SetPipelineState(skinned ? SkinDraw!.Pipeline(Dx12PipelineKind.SolidModel) : _solidPipeline!);
                 if (skinned) RecordUntexturedMeshCount(indexCount, constants, modelGeometryDepth);
                 else RecordUntexturedMesh(mesh!, constants, modelGeometryDepth);
             }
@@ -249,11 +252,13 @@ internal sealed class Dx12ModelPass
                             ModelSurfacePass.EffectOverlay when textureReference.OverlayCompositesInFront => Dx12PipelineKind.TransparentEffectModel,
                             ModelSurfacePass.EffectOverlay => Dx12PipelineKind.EffectModel,
                             _ when texture?.HasTranslucentPixels == true => Dx12PipelineKind.TransparentModel,
+                            _ when !hasOverlay && (!hasTexture || texture?.IsFullyOpaque == true) => Dx12PipelineKind.SolidModel,
                             _ => Dx12PipelineKind.StaticModel
                         };
                         _commandList.SetPipelineState(skinned ? SkinDraw!.Pipeline(pipelineKind) : pipelineKind switch {
                             Dx12PipelineKind.AnimatedModel => _animatedPipeline!, Dx12PipelineKind.EffectModel => _effectPipeline!,
-                            Dx12PipelineKind.TransparentEffectModel => _transparentEffectPipeline!, Dx12PipelineKind.TransparentModel => _transparentModelPipeline!, _ => _staticPipeline });
+                            Dx12PipelineKind.TransparentEffectModel => _transparentEffectPipeline!, Dx12PipelineKind.TransparentModel => _transparentModelPipeline!,
+                            Dx12PipelineKind.SolidModel => _solidPipeline!, _ => _staticPipeline });
 
                         var modelColor = animation.Mode == TextureAnimationMode.RadialSweepBlackKey &&
                                          model.Geometry.TryGetRadialSweep(surface, out var radialSweep)
@@ -295,13 +300,7 @@ internal sealed class Dx12ModelPass
             _commandList.SetGraphicsRootSignature(_rootSignature);
             _rootConstants.Reset(); _descriptorTables.Reset();
             SetRootConstantsIfChanged(ModelShaderLayout.SceneConstantsRootParameter, sceneConstants, ModelShaderLayout.SceneConstantsCount, 0);
-            using (model.EquipmentEffects is { Surfaces.Count: > 0 } ? HdrArt?.Begin() : null)
-            {
-                _commandList.SetGraphicsRootSignature(_rootSignature);
-                _commandList.SetGraphicsRoot32BitConstants(ModelShaderLayout.SceneConstantsRootParameter,
-                    ModelShaderLayout.SceneConstantsCount, sceneConstants, 0);
-                RecordEquipmentEffects(model, viewProjection, modelSceneDepth, frameIndex, constants);
-            }
+            RecordEquipmentEffects(model, viewProjection, modelSceneDepth, frameIndex, constants);
         }
     }
 
@@ -339,7 +338,7 @@ internal sealed class Dx12ModelPass
     private unsafe void WriteLighting(
         SacredCamera camera,
         SceneLighting lighting,
-        Dx12DisplayProfile display,
+        Dx12SceneColorProfile display,
         float elapsedSeconds,
         float* target)
     {
@@ -355,10 +354,10 @@ internal sealed class Dx12ModelPass
             new Vector4(lighting.AmbientColor, lighting.AmbientIntensity),
             new Vector4(lighting.LightColor, lighting.DiffuseIntensity),
             new Vector4(
-                display.ScenePaperWhiteNits,
+                display.SceneWhiteScale,
                 1.0f,
-                display.SunDiffuseNits,
-                display.SunSpecularNits),
+                display.ParticleColorMultiplier,
+                display.UnlitSpriteScale),
             elapsedSeconds);
     }
 

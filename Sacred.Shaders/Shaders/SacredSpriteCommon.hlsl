@@ -31,10 +31,11 @@ cbuffer StaticSpriteSceneConstants : register(b0)
     float animation_time;
     float3 ambient_colour;
     float scene_paper_white;
-    float unlit_white_nits;
+    float unlit_white_nits; // Legacy slot: authored RGB multiplier, not nits.
     float occluder_opacity;
     float player_scene_depth;
     uint first_texture_descriptor;
+    float particle_color_multiplier;
 }
 
 struct vertex_output
@@ -53,6 +54,7 @@ struct vertex_output
     nointerpolation uint atlas_columns : TEXCOORD10;
     nointerpolation uint atlas_rows : TEXCOORD11;
     nointerpolation uint texture_index : TEXCOORD12;
+
 };
 
 struct pixel_output
@@ -105,5 +107,6 @@ vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_Instan
     output.atlas_columns = instance.atlas_columns;
     output.atlas_rows = instance.atlas_rows;
     output.texture_index = first_texture_descriptor + instance.texture_index;
+
     return output;
 }

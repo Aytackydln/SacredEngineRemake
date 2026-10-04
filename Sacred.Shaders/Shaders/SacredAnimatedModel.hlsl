@@ -128,7 +128,7 @@ float4 apply_animated_alpha(float4 color)
 
 float4 RGBToTransparentRgba(float3 rgb)
 {
-    // Use luminance as the alpha â€” black becomes fully transparent,
+    // Use luminance as the alpha ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â black becomes fully transparent,
     // brighter colors become more opaque.
     float alpha = dot(rgb, float3(0.2126f, 0.7152f, 0.0722f)); // Rec.709 luma
 
@@ -229,13 +229,6 @@ float4 ps_hdr(vs_output input) : SV_Target
     float specular_surface_light = max(ambient.r, max(ambient.g, ambient.b));
     float3 specular = light_color_and_diffuse_intensity.rgb *
         (specular_amount * max(light_direction_and_specular_strength.w, 0.0f) * specular_surface_light);
-    float3 hdr = SdrLitTextureToScrgb(
-        color.rgb,
-        ambient,
-        diffuse,
-        specular,
-        hdr_display.x,
-        hdr_display.z,
-        hdr_display.w);
+    float3 hdr = compose_sdr_model_lighting(color.rgb, ambient, diffuse, specular);
     return float4(hdr, color.a);
 }

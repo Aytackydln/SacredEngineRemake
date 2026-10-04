@@ -155,54 +155,58 @@ internal static class ImGuiSettingsPanel
 
         DearImGui.Separator();
         DearImGui.TextDisabled("HDR brightness");
-        DearImGui.TextDisabled("Brightness changes are applied to HDR output immediately.");
+        DearImGui.TextDisabled("Frame brightness sets output white. Color multipliers affect HDR RGB before blending.");
 
         var settings = graphics.HdrBrightnessSettings;
         var scene = settings.SceneBrightnessNits;
-        var ui = settings.UiBrightnessNits;
-        var diffuse = settings.SunDiffuseNits;
-        var specular = settings.SunSpecularNits;
-        var unlitSprites = settings.UnlitSpriteNits;
+        var unlit = settings.UnlitColorMultiplier;
+        var particles = settings.ParticleColorMultiplier;
         var changed = false;
 
         changed |= BrightnessControl(
-            "Scene brightness", "scene-brightness", ref scene,
-            40.0f, 500.0f, HdrBrightnessSettings.DefaultSceneBrightnessNits);
-        changed |= BrightnessControl(
-            "UI brightness", "ui-brightness", ref ui,
-            40.0f, 1_000.0f, HdrBrightnessSettings.DefaultUiBrightnessNits);
-        changed |= BrightnessControl(
-            "Sun diffuse", "sun-diffuse", ref diffuse,
-            40.0f, 2_000.0f, HdrBrightnessSettings.DefaultSunDiffuseNits);
-        changed |= BrightnessControl(
-            "Highlights", "sun-specular", ref specular,
-            40.0f, 4_000.0f, HdrBrightnessSettings.DefaultSunSpecularNits);
-        changed |= BrightnessControl(
-            "Unlit sprites / halos", "unlit-sprites", ref unlitSprites,
-            40.0f, 2_000.0f, HdrBrightnessSettings.DefaultUnlitSpriteNits);
+            "Frame brightness", "scene-brightness", ref scene,
+            40.0f, 500.0f, HdrBrightnessSettings.DefaultSceneBrightnessNits, graphics);
+        changed |= ColorMultiplierControl("Unlit objects", ref unlit, HdrBrightnessSettings.DefaultUnlitColorMultiplier);
+        changed |= ColorMultiplierControl("Particles", ref particles, HdrBrightnessSettings.DefaultParticleColorMultiplier);
 
-        if (DearImGui.Button("Reset all HDR brightness"))
+        if (DearImGui.Button("Reset HDR brightness"))
         {
             scene = HdrBrightnessSettings.DefaultSceneBrightnessNits;
-            ui = HdrBrightnessSettings.DefaultUiBrightnessNits;
-            diffuse = HdrBrightnessSettings.DefaultSunDiffuseNits;
-            specular = HdrBrightnessSettings.DefaultSunSpecularNits;
-            unlitSprites = HdrBrightnessSettings.DefaultUnlitSpriteNits;
+            unlit = HdrBrightnessSettings.DefaultUnlitColorMultiplier;
+            particles = HdrBrightnessSettings.DefaultParticleColorMultiplier;
             changed = true;
-            EngineLog.WriteLine("Debug input: all HDR brightness settings reset to defaults");
+            EngineLog.WriteLine("Debug input: HDR brightness and color multipliers reset to defaults");
         }
 
         if (changed)
         {
-            graphics.SetHdrBrightnessSettings(new HdrBrightnessSettings
+            graphics.SetHdrBrightnessSettings(settings with
             {
                 SceneBrightnessNits = scene,
-                UiBrightnessNits = ui,
-                SunDiffuseNits = diffuse,
-                SunSpecularNits = specular,
-                UnlitSpriteNits = unlitSprites
+                UnlitColorMultiplier = unlit,
+                ParticleColorMultiplier = particles
             });
         }
+    }
+
+    private static bool ColorMultiplierControl(string label, ref float value, float defaultValue)
+    {
+        DearImGui.AlignTextToFramePadding();
+        DearImGui.TextUnformatted(label);
+        DearImGui.SameLine(180.0f);
+        DearImGui.SetNextItemWidth(245.0f);
+        var changed = DearImGui.SliderFloat($"##{label}-multiplier", ref value, 0.0f, 4.0f, "%.2fx");
+        var editFinished = DearImGui.IsItemDeactivatedAfterEdit();
+        DearImGui.SameLine();
+        if (DearImGui.SmallButton($"Reset##{label}-multiplier"))
+        {
+            value = defaultValue;
+            changed = true;
+            editFinished = true;
+        }
+        if (editFinished)
+            EngineLog.WriteLine($"Debug input: {label} color multiplier set to {value:0.##}x");
+        return changed;
     }
 
     private static bool BrightnessControl(
@@ -211,16 +215,19 @@ internal static class ImGuiSettingsPanel
         ref float value,
         float minimum,
         float maximum,
-        float defaultValue)
+        float defaultValue,
+        Dx12DeviceContext graphics)
     {
+        var osWhite = graphics.GetOsSdrWhiteLevel();
         DearImGui.AlignTextToFramePadding();
         DearImGui.TextUnformatted(label);
         DearImGui.SameLine(180.0f);
         DearImGui.SetNextItemWidth(245.0f);
-        var changed = DearImGui.SliderFloat($"##{id}", ref value, minimum, maximum, "%.0f nits");
+        var changed = DearImGui.SliderFloat($"##{id}", ref value, minimum,
+            Math.Max(maximum, osWhite.IsAvailable ? osWhite.Nits : maximum), "%.0f nits");
         var editFinished = DearImGui.IsItemDeactivatedAfterEdit();
-        DearImGui.SameLine();
-        if (DearImGui.SmallButton($"Reset##{id}"))
+        DearImGui.SetCursorPosX(180.0f);
+        if (DearImGui.SmallButton($"Reset 160##{id}"))
         {
             value = defaultValue;
             changed = true;
@@ -230,6 +237,23 @@ internal static class ImGuiSettingsPanel
         {
             EngineLog.WriteLine($"Debug input: {label} set to {value:0} nits");
         }
+
+        DearImGui.SameLine();
+        DearImGui.BeginDisabled(!osWhite.IsAvailable);
+        if (DearImGui.SmallButton($"Reset OS##{id}"))
+        {
+            osWhite = graphics.GetOsSdrWhiteLevel(refresh: true);
+            if (osWhite.IsAvailable)
+            {
+                value = osWhite.Nits;
+                changed = true;
+                EngineLog.WriteLine($"Debug input: {label} reset to {value:0.##} nits from {osWhite.Source}");
+            }
+        }
+        DearImGui.EndDisabled();
+        DearImGui.TextDisabled(osWhite.IsAvailable
+            ? $"{osWhite.Source}: {osWhite.Nits:0.##} nits"
+            : $"OS SDR white unavailable. Reset 160 remains available.");
 
         return changed;
     }

@@ -41,8 +41,6 @@ float4 ps_main(vertex_output input) : SV_Target
     int2 pixel = clamp((int2)round(input.source_pixel), int2(0, 0), int2(width - 1, height - 1));
     float4 color = guide_texture.Load(int3(pixel, 0));
     color.rgb *= input.baked_light;
-    if (paper_white_nits > 0.0f)
-        color.rgb = SdrTextureToScrgb(color.rgb, paper_white_nits);
     color.rgb *= color.a;
     return color;
 }

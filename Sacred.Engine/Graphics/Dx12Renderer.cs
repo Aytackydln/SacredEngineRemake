@@ -115,6 +115,8 @@ public sealed partial class Dx12Renderer : IDisposable
     internal double LastPresentMilliseconds => _graphics.LastPresentMilliseconds;
     internal double LastStreamingDispatchMilliseconds { get; private set; }
     public HdrBrightnessSettings HdrBrightnessSettings => _graphics.HdrBrightnessSettings;
+    public void SetHdrBrightness(float frameWhiteNits) =>
+        _graphics.SetHdrBrightnessSettings(_graphics.HdrBrightnessSettings with { SceneBrightnessNits = frameWhiteNits });
     public int OutputWidth => _graphics.OutputWidth;
     public int OutputHeight => _graphics.OutputHeight;
     public int RenderWidth => _graphics.RenderWidth;
@@ -535,7 +537,7 @@ public sealed partial class Dx12Renderer : IDisposable
                 _screenPipeline,
                 _graphics.OutputWidth,
                 _graphics.OutputHeight,
-                _graphics.DisplayProfile.UiPaperWhiteNits,
+                _graphics.DisplayProfile.UiWhiteScale,
                 destination);
         }
         else
@@ -545,7 +547,7 @@ public sealed partial class Dx12Renderer : IDisposable
                 _screenPipeline,
                 _graphics.OutputWidth,
                 _graphics.OutputHeight,
-                _graphics.DisplayProfile.UiPaperWhiteNits);
+                _graphics.DisplayProfile.UiWhiteScale);
         }
 
         if (worldMapOverlay is { } overlay)

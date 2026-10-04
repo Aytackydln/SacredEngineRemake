@@ -351,6 +351,11 @@ public static class Dx12PipelineCatalog
                 renderTargetFormat: Format.R8_UNorm),
             ModelPipeline(Dx12PipelineKind.StaticModel, shaders.ModelVertexShader, Dx12OpaqueShader.Create(shaders.ModelPixelShader),
                 Dx12BlendStates.Opaque, RasterizerDescription.CullClockwise, depth),
+            ModelPipeline(Dx12PipelineKind.SolidModel, shaders.ModelVertexShader,
+                options.SamplerAddressMode == TextureAddressMode.Border && options.SamplerBorderColor == StaticBorderColor.TransparentBlack
+                    ? Dx12OpaqueShader.Create(shaders.ModelPixelShader)
+                    : Dx12SolidShader.Create(shaders.ModelPixelShader),
+                Dx12BlendStates.Opaque, RasterizerDescription.CullClockwise, depth),
             ModelPipeline(Dx12PipelineKind.TransparentModel, shaders.ModelVertexShader, shaders.ModelPixelShader,
                 Dx12BlendStates.StraightAlpha, RasterizerDescription.CullClockwise, depth),
             ModelPipeline(Dx12PipelineKind.AnimatedModel, shaders.AnimatedModelVertexShader, shaders.AnimatedModelPixelShader,

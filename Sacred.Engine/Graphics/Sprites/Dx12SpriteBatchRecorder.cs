@@ -12,6 +12,7 @@ namespace Sacred.Engine.Graphics.Sprites;
 internal sealed class Dx12SpriteBatchRecorder
 {
     public float? AnimationTimeOverride { get; set; }
+    public float ParticleColorMultiplier { get; set; } = 1.0f;
     private const float AlphaCutoff = 64.0f / 255.0f;
     private const float PlayerOccluderOpacity = 0.48f;
     private static readonly int InstanceStride = Marshal.SizeOf<StaticSpriteInstance>();
@@ -68,7 +69,7 @@ internal sealed class Dx12SpriteBatchRecorder
                 unlitWhiteNits,
                 AnimationTimeOverride ?? (float)Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds,
                 PlayerOccluderOpacity,
-                playerOcclusion.SceneDepth));
+                playerOcclusion.SceneDepth) { ParticleColorMultiplier = ParticleColorMultiplier });
 
         _commandList.SetGraphicsRootSignature(_rootSignature);
         _commandList.SetPipelineState(pipeline);

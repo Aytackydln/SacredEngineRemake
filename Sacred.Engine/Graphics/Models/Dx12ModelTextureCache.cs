@@ -230,7 +230,7 @@ internal sealed class Dx12ModelTextureCache : IDisposable
                 srvSlot,
                 hasTranslucentPixels,
                 particleEncoding,
-                null));
+                null) { IsFullyOpaque = IsFullyOpaque(asset.Rgba8) });
         }
         catch (Exception exception)
         {
@@ -303,6 +303,7 @@ internal sealed class Dx12ModelTextureCache : IDisposable
             texture.SrvSlot = completed.SrvSlot;
             texture.Resource = resource;
             texture.HasTranslucentPixels = completed.HasTranslucentPixels;
+            texture.IsFullyOpaque = completed.IsFullyOpaque;
             texture.ParticleEncoding = completed.ParticleEncoding;
             EngineLog.WriteLine($"Model texture copy completed: {requested.Name}.");
         }
@@ -324,13 +325,23 @@ internal sealed class Dx12ModelTextureCache : IDisposable
         return false;
     }
 
+    private static bool IsFullyOpaque(ReadOnlySpan<byte> rgba8)
+    {
+        for (var index = 3; index < rgba8.Length; index += 4)
+            if (rgba8[index] != byte.MaxValue) return false;
+        return rgba8.Length != 0;
+    }
+
     private readonly record struct CompletedTextureLoad(
         ModelTexture Texture,
         TextureAsset? Asset,
         int SrvSlot,
         bool HasTranslucentPixels,
         SacredTextureChannelEncoding ParticleEncoding,
-        Exception? Error);
+        Exception? Error)
+    {
+        public bool IsFullyOpaque { get; init; }
+    }
 
     internal enum ModelTextureStage
     {
@@ -351,6 +362,7 @@ internal sealed class Dx12ModelTextureCache : IDisposable
         public bool Pending { get; set; }
         public bool Failed { get; set; }
         public bool HasTranslucentPixels { get; set; }
+        public bool IsFullyOpaque { get; set; }
         public SacredTextureChannelEncoding ParticleEncoding { get; set; } = SacredTextureChannelEncoding.Rgb;
         public ModelTextureStage Stage
         {

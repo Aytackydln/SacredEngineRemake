@@ -5,7 +5,7 @@ using Vortice.DXGI;
 
 namespace Sacred.Engine.Graphics.Frames;
 
-internal enum AnimationGpuStage { ModelDraws, ModelShadows, Skinning, BoundsReduction, SkinnedModelDraws, SkinnedShadowDraws, ParticleSimulation, ParticleSort, ParticleDraws, ClipSampling, Hierarchy, PoseQueries, ParticleEmission, EquipmentSimulation, ParticleCompaction }
+internal enum AnimationGpuStage { ModelDraws, ModelShadows, Skinning, BoundsReduction, SkinnedModelDraws, SkinnedShadowDraws, ParticleSimulation, ParticleSort, ParticleDraws, ClipSampling, Hierarchy, PoseQueries, ParticleEmission, EquipmentSimulation, ParticleCompaction, HdrPresentation }
 
 /// <summary>Timestamp pairs read only after the existing frame fence retires; no profiling waits.</summary>
 internal sealed class Dx12GpuAnimationTimings : IDisposable

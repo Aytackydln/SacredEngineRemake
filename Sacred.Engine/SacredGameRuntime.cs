@@ -466,7 +466,7 @@ internal sealed class SacredGameRuntime : IDisposable
                 EngineLog.WriteLine("World particle emission: set world-gpu-emission <on|off> selects GPU birth/RNG/lifetime ownership for script/sector objects; set particle-stats show reports readiness and memory; set world-particle-step <0..0.1|off> controls fixed-step validation. Default off; switching off explicitly snapshots current state.");
                 EngineLog.WriteLine("Model skinning: set skinning <auto|cpu|gpu|gpuonly> (default Auto); set gpu-skinning <on|off> aliases Gpu/Cpu. GpuOnly skips unavailable draws; set gpu-only <on|off> controls both skinning and particles. set skin-crowd <0..128> adds independent asset-driven poses; set skin-stats show reports resource bytes; set shader-reload now; set quit now.");
                 EngineLog.WriteLine("Particle cheats: set player-panel <on|off>; set particle-panel <on|off|play|toggles>; set particle-list <all|filter>; set particle-target <self|x,y>; set particle-follow <on|off>; set particle-play <FX name>; set particle-enable <FX name>; set particle-disable <FX name>; set particle-model <on|off>; set particle-stop all; set particle-crowd <0..64> creates asset-driven stress previews.");
-                EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set particles <on|off>; set particle-simulation <Auto|CpuSimd|CpuScalar|Gpu|GpuOnly>; set particle-stats show; set item-flags <hex>; set character next; set facing <degrees>; set door toggle; set hdr <on|off>; set pacing <vrr|vsync|limit|manual>; set fps <30-1000>; set latency <off|on|boost>; set resolution <percentage|auto>; set autoscale <on|off>; set scaling <none|bilinear|fsr1|fsr2|fsr1motionadaptive>; set granny <managed|native>.");
+                EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set particles <on|off>; set particle-simulation <Auto|CpuSimd|CpuScalar|Gpu|GpuOnly>; set particle-stats show; set item-flags <hex>; set character next; set facing <degrees>; set door toggle; set hdr <on|off>; set hdr-brightness <nits|os>; set hdr-scene-format <packed|fp16>; set hdr-unlit-multiplier <0-4>; set hdr-particle-multiplier <0-4>; set pacing <vrr|vsync|limit|manual>; set fps <30-1000>; set latency <off|on|boost>; set resolution <percentage|auto>; set autoscale <on|off>; set scaling <none|bilinear|fsr1|fsr2|fsr1motionadaptive>; set granny <managed|native>.");
                 return;
             case TeleportCheatCommand teleport:
                 if (_inGameScene is null)
@@ -599,6 +599,28 @@ internal sealed class SacredGameRuntime : IDisposable
                 if (_renderer.IsHdrEnabled != hdrEnabled)
                     _renderer.ToggleHdr();
                 message = $"HDR {(hdrEnabled ? "enabled" : "disabled")}";
+                return true;
+            case "hdr-brightness" when float.TryParse(value, out var frameWhiteNits) && float.IsFinite(frameWhiteNits):
+                _renderer.SetHdrBrightness(frameWhiteNits);
+                message = $"HDR frame white {_renderer.HdrBrightnessSettings.SceneBrightnessNits:0.##} nits; native effect intensity";
+                return true;
+            case "hdr-brightness" when value.Equals("os", StringComparison.OrdinalIgnoreCase):
+                message = _renderer.ResetHdrBrightnessToOs()
+                    ? $"HDR frame white {_renderer.HdrBrightnessSettings.SceneBrightnessNits:0.##} nits from OS SDR white"
+                    : "OS SDR white unavailable; frame brightness unchanged";
+                return true;
+            case "hdr-scene-format" when value.Equals("packed", StringComparison.OrdinalIgnoreCase) ||
+                                        value.Equals("fp16", StringComparison.OrdinalIgnoreCase):
+                _renderer.SetPackedHdrScene(value.Equals("packed", StringComparison.OrdinalIgnoreCase));
+                message = $"HDR scene format {(_renderer.UsesPackedHdrScene ? "packed" : "fp16")}";
+                return true;
+            case "hdr-unlit-multiplier" when float.TryParse(value, out var unlitMultiplier) && float.IsFinite(unlitMultiplier):
+                _renderer.SetHdrUnlitColorMultiplier(unlitMultiplier);
+                message = $"HDR unlit objects color multiplier {_renderer.HdrBrightnessSettings.UnlitColorMultiplier:0.##}x";
+                return true;
+            case "hdr-particle-multiplier" when float.TryParse(value, out var particleMultiplier) && float.IsFinite(particleMultiplier):
+                _renderer.SetHdrParticleColorMultiplier(particleMultiplier);
+                message = $"HDR particles color multiplier {_renderer.HdrBrightnessSettings.ParticleColorMultiplier:0.##}x";
                 return true;
             case "frame-log" when TryParseBoolean(value, out var frameLog):
                 _renderer.FrameTiming.Enabled = frameLog;

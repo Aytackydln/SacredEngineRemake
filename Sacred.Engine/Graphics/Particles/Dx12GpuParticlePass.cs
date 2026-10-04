@@ -22,7 +22,6 @@ namespace Sacred.Engine.Graphics.Particles;
 /// <summary>Persistent simulation, merged painter sorting and direct GPU rendering. GPU mode stays opt-in.</summary>
 internal sealed class Dx12GpuParticlePass : IParticleGpuBackend, IDisposable
 {
-    public Dx12HdrArtComposition? HdrArt { get; set; }
 
     private readonly ID3D12Device _device;
     private readonly Dx12TextureUploader _uploader;
@@ -193,14 +192,14 @@ internal sealed class Dx12GpuParticlePass : IParticleGpuBackend, IDisposable
         Dx12TextureUploader.Transition(commands,_output,ResourceStates.UnorderedAccess,ResourceStates.NonPixelShaderResource);
         _outputState=ResourceStates.NonPixelShaderResource; _drawCount=needed;
     }
-    public unsafe void Draw(ID3D12GraphicsCommandList commands,Dx12DisplayProfile profile,int width,int height,Dx12GpuAnimationTimings timings)
+    public unsafe void Draw(ID3D12GraphicsCommandList commands,Dx12SceneColorProfile profile,int width,int height,Dx12GpuAnimationTimings timings)
     {
         if (_drawCount==0 || _draw is null || _output is null) return;
-        using var art = HdrArt?.Begin();
         using var scope=timings.Measure(AnimationGpuStage.ParticleDraws);
         var c=stackalloc float[StaticSpriteShaderLayout.SceneConstantsCount];
         new StaticSpriteShaderConstantsUpdater().Write(c,new(new(width,height),64/255f,Vector3.One,
-            profile.ScenePaperWhiteNits,profile.UnlitSpriteNits,0,1,0));
+            profile.SceneWhiteScale,profile.UnlitSpriteScale,0,1,0)
+            { ParticleColorMultiplier = profile.ParticleColorMultiplier });
         c[11]=0;
         commands.SetGraphicsRootSignature(_draw.RootSignature);
         commands.SetPipelineState(_draw[Dx12PipelineKind.PostModelTransparentUnlitStaticSprite]);

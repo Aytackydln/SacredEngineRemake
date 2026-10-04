@@ -80,7 +80,7 @@ internal sealed class Dx12WorldUiPass(
                 pipeline,
                 graphics.OutputWidth,
                 graphics.OutputHeight,
-                graphics.DisplayProfile.UiPaperWhiteNits);
+                graphics.DisplayProfile.UiWhiteScale);
         }
         if (overlay.TargetMarkerVisible)
         {
@@ -90,7 +90,7 @@ internal sealed class Dx12WorldUiPass(
                 overlay.TargetScreenPosition,
                 graphics.OutputWidth,
                 graphics.OutputHeight,
-                graphics.DisplayProfile.UiPaperWhiteNits);
+                graphics.DisplayProfile.UiWhiteScale);
         }
     }
 

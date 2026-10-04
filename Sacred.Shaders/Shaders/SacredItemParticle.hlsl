@@ -16,7 +16,7 @@ cbuffer SceneConstants : register(b1)
     float4 camera_position_and_shininess;
     float4 ambient_color_and_intensity;
     float4 light_color_and_diffuse_intensity;
-    float4 hdr_display; // x: scene paper white, y: surface-light influence, z: sun diffuse nits, w: sun specular nits
+    float4 hdr_display; // x: scene paper white, y: surface-light influence, z: particle RGB gain, w: unlit RGB gain
     float scene_elapsed_seconds;
 }
 
@@ -36,6 +36,7 @@ struct vs_output
     float2 tex_coord : TEXCOORD0;
     float opacity : TEXCOORD1;
     float3 tint : COLOR0;
+
 };
 
 vs_output vs_main(vs_input input)
@@ -43,6 +44,7 @@ vs_output vs_main(vs_input input)
     vs_output output;
     float3 world_position = mul(float4(input.position, 1.0f), world).xyz;
     output.opacity = 1.0f;
+
     output.tint = 1.0f;
     if (texture_flags.x > 9.5f)
     {
@@ -122,6 +124,7 @@ float2 animated_tex_coord(float2 tex_coord)
     return tex_coord;
 }
 
+[earlydepthstencil]
 float4 ps_sdr(vs_output input) : SV_Target
 {
     float4 sampled = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord));
@@ -139,31 +142,35 @@ float4 ps_sdr(vs_output input) : SV_Target
 }
 
 // Texture.pak channel encoding selects the fragment shader; no item IDs are used.
+[earlydepthstencil]
 float4 ps_hdr_rgb(vs_output input) : SV_Target
 {
     float3 sampled = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord)).rgb;
     float coverage = model_color.a * input.opacity;
     if (coverage < 0.02f) discard;
-    return HdrEquipmentParticle(sampled, model_color.rgb * input.tint, coverage, hdr_display.w, hdr_display.x);
+    return ComposeAdditiveParticle(sampled, model_color.rgb * input.tint * hdr_display.z, coverage);
 }
 
+[earlydepthstencil]
 float4 ps_hdr_argb(vs_output input) : SV_Target
 {
     float4 sampled = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord));
     float coverage = (texture_flags.x > 8.5f ? 1.0f : 0.92f) * sampled.a;
     float alpha = coverage * model_color.a * input.opacity;
     if (alpha < 0.02f) discard;
-    return HdrEquipmentParticle(sampled.rgb, model_color.rgb * input.tint, alpha, hdr_display.w, hdr_display.x);
+    return ComposeAdditiveParticle(sampled.rgb, model_color.rgb * input.tint * hdr_display.z, alpha);
 }
 
+[earlydepthstencil]
 float4 ps_hdr_alpha_mask(vs_output input) : SV_Target
 {
     float coverage = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord)).a;
     float alpha = coverage * model_color.a * input.opacity;
     if (alpha < 0.02f) discard;
-    return HdrEquipmentParticle(1.0f.xxx, model_color.rgb * input.tint, alpha, hdr_display.w, hdr_display.x);
+    return ComposeAdditiveParticle(1.0f.xxx, model_color.rgb * input.tint * hdr_display.z, alpha);
 }
 
+[earlydepthstencil]
 float4 ps_hdr(vs_output input) : SV_Target
 {
     return ps_hdr_argb(input);

@@ -147,6 +147,6 @@ pixel_output ps_water_hdr(vertex_output input)
     tex.rgb *= water_surface_lighting(input.position.xy);
 
     pixel_output output;
-    output.color = float4(SdrTextureToScrgb(tex.rgb, scene_paper_white) * tex.a, tex.a);
+    output.color = float4(tex.rgb * tex.a, tex.a);
     return output;
 }

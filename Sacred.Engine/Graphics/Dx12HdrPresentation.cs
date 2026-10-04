@@ -9,7 +9,7 @@ using Vortice.Mathematics;
 
 namespace Sacred.Engine.Graphics;
 
-/// <summary>Encodes the completed FP16 frame into the native HDR10 swapchain.</summary>
+/// <summary>Encodes the completed floating-point RGB frame into the native HDR10 swapchain.</summary>
 internal sealed class Dx12HdrPresentation : IDisposable
 {
     private readonly ID3D12Resource[] _targets = new ID3D12Resource[Dx12DeviceContext.FrameCount];
@@ -20,6 +20,7 @@ internal sealed class Dx12HdrPresentation : IDisposable
     private readonly int _srvSize;
     private readonly ID3D12RootSignature _root;
     private readonly ID3D12PipelineState _pipeline;
+    public float FrameWhiteNits { get; set; } = HdrBrightnessSettings.DefaultSceneBrightnessNits;
 
     public Dx12HdrPresentation(ID3D12Device device, Dx12SwapChain swapChain)
     {
@@ -34,7 +35,8 @@ internal sealed class Dx12HdrPresentation : IDisposable
             [new RootParameter(new RootDescriptorTable
             {
                 Ranges = [new DescriptorRange(DescriptorRangeType.ShaderResourceView, 1, 0)]
-            }, ShaderVisibility.Pixel)], []);
+            }, ShaderVisibility.Pixel),
+             new RootParameter(new RootConstants(0, 0, 1), ShaderVisibility.Pixel)], []);
         _root = device.CreateRootSignature(in description, RootSignatureVersion.Version1);
         _pipeline = device.CreateGraphicsPipelineState(new GraphicsPipelineStateDescription
         {
@@ -54,7 +56,7 @@ internal sealed class Dx12HdrPresentation : IDisposable
             _targets[index] = swapChain.GetBuffer((uint)index);
             device.CreateRenderTargetView(_targets[index], null, Rtv(index));
         }
-        EngineLog.WriteLine("HDR10 presentation ready: FP16 composition, shader Rec.2020/PQ output.");
+        EngineLog.WriteLine("HDR10 presentation ready: native RGB blending, one final gamma/Rec.2020/PQ conversion.");
     }
 
     public void BindSource(ID3D12Device device, int index, ID3D12Resource source) =>
@@ -72,6 +74,7 @@ internal sealed class Dx12HdrPresentation : IDisposable
         commands.SetGraphicsRootSignature(_root);
         commands.SetPipelineState(_pipeline);
         commands.SetGraphicsRootDescriptorTable(0, _srvs.GetGPUDescriptorHandleForHeapStart() + index * _srvSize);
+        commands.SetGraphicsRoot32BitConstant(1, BitConverter.SingleToUInt32Bits(FrameWhiteNits), 0);
         commands.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         commands.DrawInstanced(3, 1, 0, 0);
         Dx12TextureUploader.Transition(commands, target, ResourceStates.RenderTarget, ResourceStates.Present);

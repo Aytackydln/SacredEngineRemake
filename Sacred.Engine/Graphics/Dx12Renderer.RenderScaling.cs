@@ -39,7 +39,7 @@ public sealed partial class Dx12Renderer
             _upscalePipeline,
             _graphics.OutputWidth,
             _graphics.OutputHeight,
-            _graphics.DisplayProfile.UiPaperWhiteNits,
+            _graphics.DisplayProfile.UiWhiteScale,
             _graphics.SceneColorSrvGpuHandle,
             scalingMode,
             reprojection.CameraMotionPixels,

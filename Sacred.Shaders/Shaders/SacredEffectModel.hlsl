@@ -16,7 +16,7 @@ cbuffer SceneConstants : register(b1)
     float4 camera_position_and_shininess;
     float4 ambient_color_and_intensity;
     float4 light_color_and_diffuse_intensity;
-    float4 hdr_display; // x: scene paper white, y: surface-light influence, z: sun diffuse nits, w: sun specular nits
+    float4 hdr_display; // x: scene paper white, y: surface-light influence, z: particle RGB gain, w: unlit RGB gain
     float scene_elapsed_seconds;
 }
 
@@ -155,20 +155,14 @@ float4 visible_effect_color(float4 color)
 
 float4 hdr_spatial_sweep_effect(float4 effect_color, float3 local_position)
 {
-    float radial_progress = saturate(
-        length(local_position.xz - model_color.xy) * model_color.z);
-    float sweep_position = frac(scene_elapsed_seconds * texture_flags.w);
-    float glow = 1.0f - smoothstep(0.07f, 0.19f, abs(radial_progress - sweep_position));
-    float alpha = saturate(effect_color.a + glow * 0.38f);
-    float3 color = saturate(effect_color.rgb * (1.0f + glow * 1.9f));
-    return float4(SdrTextureToPremultipliedScrgb(color, alpha, hdr_display.w), alpha);
+    float4 color = visible_effect_color(spatial_sweep_effect(effect_color, local_position));
+    return float4(color.rgb * hdr_display.w, color.a);
 }
 
 float4 hdr_premultiplied_effect_color(float4 color)
 {
-    // Effects are emissive and use the HDR highlight target, not scene paper white.
-    float3 hdr = SdrTextureToPremultipliedScrgb(color.rgb, color.a, hdr_display.w);
-    return float4(hdr, color.a);
+    float4 output = visible_effect_color(color);
+    return float4(output.rgb * hdr_display.w, output.a);
 }
 
 float multitexture_fill_mask(float4 base_color)
@@ -272,6 +266,8 @@ float4 ps_hdr(vs_output input) : SV_Target
             : hdr_premultiplied_effect_color(animated_overlay);
     }
 
+    animated_overlay.rgb *= hdr_display.w;
+
     float3 normal = safe_normalize(input.normal, float3(0.0f, 0.0f, 1.0f));
     float3 light_direction = safe_normalize(
         light_direction_and_specular_strength.xyz,
@@ -292,13 +288,6 @@ float4 ps_hdr(vs_output input) : SV_Target
     float specular_surface_light = max(ambient.r, max(ambient.g, ambient.b));
     float3 specular = light_color_and_diffuse_intensity.rgb *
         (specular_amount * max(light_direction_and_specular_strength.w, 0.0f) * specular_surface_light);
-    float3 hdr = SdrLitTextureToScrgb(
-        lerped.rgb,
-        ambient,
-        diffuse,
-        specular,
-        hdr_display.x,
-        hdr_display.z,
-        hdr_display.w);
+    float3 hdr = compose_sdr_model_lighting(lerped.rgb, ambient, diffuse, specular);
     return float4(hdr, base_color.a);
 }

@@ -23,14 +23,14 @@ float mixed_light_emission(float3 colour)
     return max(max(blue_dominance, warm_dominance), white_glint);
 }
 
-pixel_output render_static_sdr(vertex_output input, float opacity, bool opaque = false)
+pixel_output render_static_sdr(vertex_output input, float opacity, bool opaque = false, float emission_multiplier = 1.0f)
 {
     float4 color = sample_static_pixel(input, opacity);
     if (opaque) color.a = 1.0f;
 
     float emission = input.mixed_light_emitter != 0 ? mixed_light_emission(color.rgb) : 0.0f;
     float3 lighting = surface_lighting(input.position.xy);
-    color.rgb *= lerp(lighting, 1.0f, emission);
+    color.rgb *= lerp(lighting, emission_multiplier, emission);
 
     pixel_output output;
     output.color = float4(color.rgb * color.a, color.a);
@@ -49,13 +49,7 @@ pixel_output ps_transparent_sdr(vertex_output input)
 
 pixel_output render_static_hdr(vertex_output input, float opacity, bool opaque = false)
 {
-    float4 tex = sample_static_pixel(input, opacity);
-    if (opaque) tex.a = 1.0f;
-    tex.rgb *= surface_lighting(input.position.xy);
-
-    pixel_output output;
-    output.color = float4(SdrTextureToScrgb(tex.rgb, scene_paper_white) * tex.a, tex.a);
-    return output;
+    return render_static_sdr(input, opacity, opaque, unlit_white_nits);
 }
 
 pixel_output ps_hdr(vertex_output input)

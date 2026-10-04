@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Sacred.Core.World;
 using Sacred.Engine.Graphics.Frames;
 using Sacred.Engine.Graphics.Models;
 using Sacred.Engine.Graphics.Sprites;
@@ -17,7 +18,18 @@ internal sealed class Dx12WorldPainterPass(Dx12SpritePass sprites, Dx12ModelPass
     private readonly SceneModel[] _oneModel = new SceneModel[1];
 
     public void Record(WorldSpriteBatch batch, SacredCamera camera, SceneState scene,
-        Dx12DisplayProfile display, Dx12FrameContext frame, int width, int height)
+        Dx12SceneColorProfile display, Dx12FrameContext frame, int width, int height)
+        => RecordLayers(batch, camera, scene, display, frame, width, height,
+            WorldRenderLayer.Floor2, WorldRenderLayer.Ceiling);
+
+    public void RecordFloor(WorldSpriteBatch batch, SacredCamera camera, SceneState scene,
+        Dx12SceneColorProfile display, Dx12FrameContext frame, int width, int height)
+        => RecordLayers(batch, camera, scene, display, frame, width, height,
+            WorldRenderLayer.Floor, WorldRenderLayer.Floor);
+
+    private void RecordLayers(WorldSpriteBatch batch, SacredCamera camera, SceneState scene,
+        Dx12SceneColorProfile display, Dx12FrameContext frame, int width, int height,
+        WorldRenderLayer firstLayer, WorldRenderLayer lastLayer)
     {
         _submissions.Clear();
         _ranges.Clear();
@@ -33,13 +45,16 @@ internal sealed class Dx12WorldPainterPass(Dx12SpritePass sprites, Dx12ModelPass
                 var range = ranges[rangeIndex];
                 if (range.IsPostModel) continue;
                 var sprite = submission.Sprite;
-                _submissions.Add(new Submission(sprite.IsParticleSprite ? 3 : sprite.QueueIndex,
+                var queue = sprite.IsParticleSprite ? (int)WorldRenderLayer.Objects : sprite.QueueIndex;
+                if (queue < (int)firstLayer || queue > (int)lastLayer) continue;
+                _submissions.Add(new Submission(queue,
                     sprite.ParticleDepthKey ?? sprite.TileDepth, sprite.TileWorldX,
                     sprite.ChainDepth, sprite.InsertionOrder, null,
                     range with { StartInstance = submission.Instance, InstanceCount = 1 }));
             }
         }
-        for (var index = 0; index < scene.Models.Count; index++)
+        for (var index = 0; firstLayer <= WorldRenderLayer.Objects && lastLayer >= WorldRenderLayer.Objects &&
+             index < scene.Models.Count; index++)
         {
             var model = scene.Models[index];
             var anchor = model.DepthAnchor;
@@ -80,8 +95,8 @@ internal sealed class Dx12WorldPainterPass(Dx12SpritePass sprites, Dx12ModelPass
         {
             if (_ranges.Count == 0) return;
             sprites.RecordOpaqueStatic(batch with { StaticRanges = _ranges },
-                scene.Lighting.WorldSurfaceAmbientColour, display.ScenePaperWhiteNits,
-                display.UnlitSpriteNits, frame, width, height);
+                scene.Lighting.WorldSurfaceAmbientColour, display.SceneWhiteScale,
+                display.UnlitSpriteScale, frame, width, height);
             _ranges.Clear();
         }
     }

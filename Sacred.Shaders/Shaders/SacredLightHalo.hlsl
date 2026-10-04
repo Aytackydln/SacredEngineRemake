@@ -63,15 +63,6 @@ vertex_output vs_sdr(uint vertex_id : SV_VertexID, uint instance_id : SV_Instanc
     return build_vertex(vertex_id, instance_id);
 }
 
-vertex_output vs_hdr(uint vertex_id : SV_VertexID, uint instance_id : SV_InstanceID)
-{
-    vertex_output output = build_vertex(vertex_id, instance_id);
-    // The colour and paper-white value are constant across an instance. Converting
-    // here avoids repeating the sRGB decoding work per pixel.
-    output.colour = SdrTextureToScrgb(output.colour, white_nits);
-    return output;
-}
-
 float halo_alpha(vertex_output input)
 {
     // Invisible authored light volumes are consumed by the terrain/static-sprite
@@ -98,5 +89,5 @@ float4 ps_sdr(vertex_output input) : SV_Target
 float4 ps_hdr(vertex_output input) : SV_Target
 {
     float alpha = halo_alpha(input);
-    return float4(input.colour * alpha, alpha);
+    return float4(input.colour * alpha * white_nits, alpha);
 }

@@ -16,8 +16,7 @@ internal static class Dx12DescriptorLayout
     public const int Screen = ImGuiFont + 1;
     public const int SceneColor = Screen + 1;
     public const int Fsr2History = SceneColor + 1;
-    public const int HdrArtSnapshot = Fsr2History + 1;
-    public const int FirstModelTexture = HdrArtSnapshot + Dx12DeviceContext.FrameCount;
+    public const int FirstModelTexture = Fsr2History + 1;
     public const int FirstStaticSprite = FirstModelTexture + MaximumModelTextures;
     public const int LightHalo = FirstStaticSprite + Dx12SpritePass.MaximumTextureCount;
     public const int SurfaceLightMap = LightHalo + 1;

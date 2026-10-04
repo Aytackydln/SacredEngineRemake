@@ -36,6 +36,5 @@ float4 ps_sdr(vs_output input) : SV_Target
 
 float4 ps_hdr(vs_output input) : SV_Target
 {
-    float paper_white = ui_flags.x > 0.0f ? ui_flags.x : 203.0f;
-    return float4(SdrTextureToScrgb(ui_color.rgb, paper_white), ui_color.a);
+    return ui_color;
 }

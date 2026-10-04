@@ -63,6 +63,8 @@ vertex_output vs_main(uint vertex_id : SV_VertexID)
 float4 ps_sdr(vertex_output input) : SV_Target
 {
     float4 color = texture0.Sample(sampler0, input.tex_coord);
+    // Sector rectangles include uncovered borders. Avoid lighting invisible texels.
+    if (color.a == 0.0f) discard;
     color.rgb *= ambient_colour + surface_lighting(input.position.xy);
     return color;
 }
@@ -74,17 +76,12 @@ float4 ps_sdr_screen(vertex_output input) : SV_Target
 
 float4 ps_hdr(vertex_output input) : SV_Target
 {
-    float4 tex = texture0.Sample(sampler0, input.tex_coord);
-    tex.rgb *= ambient_colour + surface_lighting(input.position.xy);
-
-    return float4(SdrTextureToScrgb(tex.rgb, paper_white_nits), tex.a);
+    return ps_sdr(input);
 }
 
 float4 ps_hdr_screen(vertex_output input) : SV_Target
 {
-    float4 tex = texture0.Sample(sampler0, input.tex_coord);
-
-    return float4(SdrTextureToScrgb(tex.rgb, paper_white_nits), tex.a);
+    return ps_sdr_screen(input);
 }
 
 // ambient_colour.x selects the presentation filter: 0 point, 1 bilinear, 2 FSR 1-style

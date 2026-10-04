@@ -18,7 +18,7 @@ public static class SkinningShaderLayout
         roots[ModelShaderLayout.SceneConstantsRootParameter] = new(RootParameterType.ConstantBufferView, new RootDescriptor(1, 0), ShaderVisibility.All);
         for (var register = 3; register <= 7; register++)
             roots.Add(new(RootParameterType.ShaderResourceView, new RootDescriptor((uint)register, 0), ShaderVisibility.Vertex));
-        var kinds = new[] { Dx12PipelineKind.StaticModel, Dx12PipelineKind.TransparentModel, Dx12PipelineKind.AnimatedModel,
+        var kinds = new[] { Dx12PipelineKind.StaticModel, Dx12PipelineKind.SolidModel, Dx12PipelineKind.TransparentModel, Dx12PipelineKind.AnimatedModel,
             Dx12PipelineKind.EffectModel, Dx12PipelineKind.TransparentEffectModel, Dx12PipelineKind.ModelShadow };
         var variants = new Dictionary<Dx12ShaderSource, Dx12ShaderSource>();
         var pipelines = kinds.Select(kind => {

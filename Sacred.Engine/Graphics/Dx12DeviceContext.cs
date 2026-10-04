@@ -102,13 +102,20 @@ internal sealed partial class Dx12DeviceContext : IDisposable
     public bool VariableRefreshRateSupported => _allowTearing;
     public double LastPresentMilliseconds { get; private set; }
     public bool IsHdrEnabled => _swapChain is Dx12HdrSwapChain;
-    // Rendering and temporal history remain linear FP16; only presentation uses HDR10.
-    public Format BackBufferFormat => IsHdrEnabled ? Format.R16G16B16A16_Float : Format.B8G8R8A8_UNorm;
+    // Both HDR formats preserve additive headroom. Packed RGB trades blend precision
+    // for smaller targets; source alpha controls coverage without stored frame alpha.
+    public Format BackBufferFormat => IsHdrEnabled
+        ? UsesPackedHdrScene ? Format.R11G11B10_Float : Format.R16G16B16A16_Float
+        : Format.B8G8R8A8_UNorm;
     public Dx12ShaderSet Shaders => _window is null ? Dx12ShaderCatalog.Sdr : _swapChain.Shaders;
     public HdrBrightnessSettings HdrBrightnessSettings => _hdrBrightnessSettings;
-    public Dx12DisplayProfile DisplayProfile => IsHdrEnabled
-        ? Dx12DisplayProfile.CreateHdr(_hdrBrightnessSettings)
-        : Dx12DisplayProfile.Sdr;
+    public Dx12SceneColorProfile DisplayProfile => IsHdrEnabled
+        ? Dx12SceneColorProfile.Native with
+        {
+            UnlitSpriteScale = _hdrBrightnessSettings.UnlitColorMultiplier,
+            ParticleColorMultiplier = _hdrBrightnessSettings.ParticleColorMultiplier
+        }
+        : Dx12SceneColorProfile.Native;
 
     public void SetHdrBrightnessSettings(HdrBrightnessSettings settings) =>
         _hdrBrightnessSettings = settings.Normalized();
@@ -199,8 +206,12 @@ internal sealed partial class Dx12DeviceContext : IDisposable
         if (!_submissionOpen)
             throw new InvalidOperationException("No Direct3D render submission is open.");
 
-        var presentedBuffer = _hdrPresentation?.Record(_commandList, BackBufferIndex, CurrentBackBuffer,
-            OutputWidth, OutputHeight) ?? CurrentBackBuffer;
+        ID3D12Resource presentedBuffer;
+        if (_hdrPresentation is not null)
+            _hdrPresentation.FrameWhiteNits = _hdrBrightnessSettings.SceneBrightnessNits;
+        using (var measurement = _hdrPresentation is null ? default : GpuAnimationTimings.Measure(AnimationGpuStage.HdrPresentation))
+            presentedBuffer = _hdrPresentation?.Record(_commandList, BackBufferIndex, CurrentBackBuffer,
+                OutputWidth, OutputHeight) ?? CurrentBackBuffer;
         var capture = captureScreenshot
             ? Dx12BackBufferCapture.Record(
                 _device,

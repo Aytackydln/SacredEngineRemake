@@ -87,6 +87,7 @@ public sealed class TerrainSectorComposition
         Depth = depth;
         _baseTiles = baseTiles;
         _coverTiles = coverTiles;
+        HasCoverTiles = coverTiles.Length != 0;
         _stairsDebugTiles = stairsDebugTiles;
         StairsDebugOffsetX = stairsDebugOffsetX;
         StairsDebugOffsetY = stairsDebugOffsetY;
@@ -123,6 +124,8 @@ public sealed class TerrainSectorComposition
     public int Depth { get; }
     public IReadOnlyList<TerrainCompositionTile> BaseTiles => _baseTiles;
     public IReadOnlyList<TerrainCompositionTile> CoverTiles => _coverTiles;
+    // Retain this after source arrays are released by the GPU compositor.
+    public bool HasCoverTiles { get; }
     public IReadOnlyList<TerrainCompositionTile> StairsDebugTiles => _stairsDebugTiles;
     public int StairsDebugOffsetX { get; }
     public int StairsDebugOffsetY { get; }

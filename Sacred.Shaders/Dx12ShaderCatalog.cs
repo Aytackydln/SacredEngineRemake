@@ -6,10 +6,7 @@ public static class Dx12ShaderCatalog
         Shader("SacredHdrPresentation", EmbeddedResource_Shaders.SacredHdrPresentation_hlsl, "vs_main", "vs_6_6");
     public static readonly Dx12ShaderSource HdrPresentationPixelShader =
         Shader("SacredHdrPresentation", EmbeddedResource_Shaders.SacredHdrPresentation_hlsl, "ps_main", "ps_6_6");
-    public static readonly Dx12ShaderSource HdrArtTransferVertexShader =
-        DisplayShader("SacredHdrArtTransfer", EmbeddedResource_Shaders.SacredHdrArtTransfer_hlsl, "vs_main", "vs_6_6");
-    public static readonly Dx12ShaderSource HdrArtTransferPixelShader =
-        DisplayShader("SacredHdrArtTransfer", EmbeddedResource_Shaders.SacredHdrArtTransfer_hlsl, "ps_main", "ps_6_6");
+
     public static readonly Dx12ShaderSource AreaDownsampleVertexShader =
         Shader("SacredAreaDownsample", EmbeddedResource_Shaders.SacredAreaDownsample_hlsl, "vs_main", "vs_6_6");
     public static readonly Dx12ShaderSource AreaDownsamplePixelShader =
@@ -32,6 +29,7 @@ public static class Dx12ShaderCatalog
         DisplayShader("SacredWorldQuad", EmbeddedResource_Shaders.SacredWorldQuad_hlsl, "ps_shadow", "ps_6_6");
     private static readonly Dx12ShaderSource StaticSpriteVertexShader =
         DisplayStaticSpriteShader("SacredStaticSprite", EmbeddedResource_Shaders.SacredStaticSprite_hlsl, "vs_main", "vs_6_6");
+
     private static readonly Dx12ShaderSource StaticSpriteShadowVertexShader =
         Shader("SacredStaticSpriteShadow", EmbeddedResource_Shaders.SacredStaticSpriteShadow_hlsl, "vs_main", "vs_6_6");
     private static readonly Dx12ShaderSource StaticSpriteShadowPixelShader =
@@ -52,15 +50,17 @@ public static class Dx12ShaderCatalog
         DisplayShader("SacredEffectModel", EmbeddedResource_Shaders.SacredEffectModel_hlsl, "vs_main", "vs_6_6");
     private static readonly Dx12ShaderSource ItemParticleVertexShader =
         DisplayShader("SacredItemParticle", EmbeddedResource_Shaders.SacredItemParticle_hlsl, "vs_main", "vs_6_6");
+
     private static readonly Dx12ShaderSource ItemGlowVertexShader =
         DisplayShader("SacredItemGlow", EmbeddedResource_Shaders.SacredItemGlow_hlsl, "vs_main", "vs_6_6");
+
     private static readonly Dx12ShaderSource InventoryUiVertexShader =
         DisplayShader("SacredInventoryUi", EmbeddedResource_Shaders.SacredInventoryUi_hlsl, "vs_main", "vs_6_6");
     internal static readonly Dx12ShaderSource ImGuiVertexShader =
         DisplayShader("SacredImGui", EmbeddedResource_Shaders.SacredImGui_hlsl, "vs_main", "vs_6_6");
 
-    // Sector composition is display-independent; SDR/HDR conversion happens later when the
-    // completed sector texture is sampled by the world-quad shader.
+    // Sector composition and world drawing retain authored RGB in both modes.
+    // Only the final HDR presentation shader decodes the completed frame.
     public static readonly Dx12ShaderSource TerrainComposeVertexShader =
         TerrainShader("SacredTerrainCompose", EmbeddedResource_Shaders.SacredTerrainCompose_hlsl, "vs_main", "vs_6_6");
     public static readonly Dx12ShaderSource TerrainComposePixelShader =
@@ -77,7 +77,7 @@ public static class Dx12ShaderCatalog
         Shader("SacredSectorSpriteCompose", EmbeddedResource_Shaders.SacredSectorSpriteCompose_hlsl, "ps_main", "ps_6_6");
 
     public static readonly Dx12ShaderSet Sdr = CreateShaderSet("vs_sdr", "ps_sdr");
-    public static readonly Dx12ShaderSet Hdr = CreateShaderSet("vs_hdr", "ps_hdr");
+    public static readonly Dx12ShaderSet Hdr = CreateShaderSet("vs_sdr", "ps_hdr");
 
     internal static Dx12ShaderSource GetImGuiPixelShader(bool hdrOutput) =>
         DisplayShader(

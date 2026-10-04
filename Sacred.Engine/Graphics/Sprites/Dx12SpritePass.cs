@@ -16,10 +16,9 @@ namespace Sacred.Engine.Graphics.Sprites;
 /// <summary>Owns sprite texture residency, frame-local instances, and batched draw recording.</summary>
 internal sealed class Dx12SpritePass : IDisposable
 {
-    public Dx12HdrArtComposition? HdrArt { get; set; }
-
     public const int MaximumTextureCount = Dx12SpriteTextureCache.MaximumTextureCount;
     public void SetAnimationTime(float seconds) => _batchRecorder.AnimationTimeOverride = seconds;
+    public void SetParticleColorMultiplier(float value) => _batchRecorder.ParticleColorMultiplier = value;
 
     private readonly Dx12SpriteTextureCache _textureCache;
     private readonly Dx12SpriteInstanceBuilder _instances;
@@ -195,7 +194,6 @@ internal sealed class Dx12SpritePass : IDisposable
         if (batch.HighlightedStaticInstance is not { } highlightedInstance)
             return;
 
-        using var art = batch.HighlightedStaticIsUnlit ? HdrArt?.Begin() : null;
         _batchRecorder.Record(
             highlightedInstance,
             1,
@@ -283,76 +281,61 @@ internal sealed class Dx12SpritePass : IDisposable
         var pendingStart = -1;
         var pendingCount = 0;
         ID3D12PipelineState? pendingPipeline = null;
-        bool pendingArt = false;
-        IDisposable? artScope = null;
-        try
+        foreach (var range in batch.StaticRanges)
         {
-            foreach (var range in batch.StaticRanges)
-            {
-                if (range.IsPostModel != postModel)
-                    continue;
-                var pipeline = _hdrOutput && range.ParticleEncoding is { } encoding
-                    ? encoding switch
+            if (range.IsPostModel != postModel)
+                continue;
+            var pipeline = _hdrOutput && range.ParticleEncoding is { } encoding
+                ? encoding switch
+                {
+                    SacredTextureChannelEncoding.AlphaMask => _transparentParticleAlphaMaskPipeline,
+                    SacredTextureChannelEncoding.Argb => _transparentParticleArgbPipeline,
+                    _ => _transparentParticleRgbPipeline
+                }
+                : range.UsesSpriteDepth
+                    ? (range.IsUnlit, range.RequiresAlphaBlend) switch
                     {
-                        SacredTextureChannelEncoding.AlphaMask => _transparentParticleAlphaMaskPipeline,
-                        SacredTextureChannelEncoding.Argb => _transparentParticleArgbPipeline,
-                        _ => _transparentParticleRgbPipeline
+                        (true, true) => _depthTransparentUnlitStaticPipeline,
+                        (true, false) => _depthUnlitStaticPipeline,
+                        (false, true) => _depthTransparentStaticPipeline,
+                        _ => _depthStaticPipeline
                     }
-                    : range.UsesSpriteDepth
-                        ? (range.IsUnlit, range.RequiresAlphaBlend) switch
-                        {
-                            (true, true) => _depthTransparentUnlitStaticPipeline,
-                            (true, false) => _depthUnlitStaticPipeline,
-                            (false, true) => _depthTransparentStaticPipeline,
-                            _ => _depthStaticPipeline
-                        }
-                    : range.ParticleEncoding is not null
-                        ? range.IsUnlit ? _postModelTransparentUnlitStaticPipeline : _postModelTransparentStaticPipeline
-                    : range.IsFrontLayer
-                        ? (range.IsUnlit, range.RequiresAlphaBlend) switch
-                        {
-                            (true, true) => _transparentUnlitStaticPipeline,
-                            (true, false) => _unlitStaticPipeline,
-                            (false, true) => _transparentStaticPipeline,
-                            _ => _staticPipeline
-                        }
-                    : (range.IsUnlit, range.RequiresAlphaBlend, postModel) switch
+                : range.ParticleEncoding is not null
+                    ? range.IsUnlit ? _postModelTransparentUnlitStaticPipeline : _postModelTransparentStaticPipeline
+                : range.IsFrontLayer
+                    ? (range.IsUnlit, range.RequiresAlphaBlend) switch
                     {
-                        (true, true, true) => _postModelTransparentUnlitStaticPipeline,
-                        (false, true, true) => _postModelTransparentStaticPipeline,
-                        (true, true, false) => _transparentUnlitStaticPipeline,
-                        (true, false, _) => _unlitStaticPipeline,
-                        (false, true, false) => _transparentStaticPipeline,
+                        (true, true) => _transparentUnlitStaticPipeline,
+                        (true, false) => _unlitStaticPipeline,
+                        (false, true) => _transparentStaticPipeline,
                         _ => _staticPipeline
-                    };
-                if (range.StartInstance < 0 || range.InstanceCount <= 0 || pipeline is null)
-                    continue;
-
-                var usesArt = _hdrOutput && (range.IsUnlit || range.ParticleEncoding is not null);
-                if (usesArt != pendingArt)
+                    }
+                : (range.IsUnlit, range.RequiresAlphaBlend, postModel) switch
                 {
-                    Flush();
-                    artScope?.Dispose();
-                    artScope = usesArt ? HdrArt?.Begin() : null;
-                    pendingArt = usesArt;
-                }
+                    (true, true, true) => _postModelTransparentUnlitStaticPipeline,
+                    (false, true, true) => _postModelTransparentStaticPipeline,
+                    (true, true, false) => _transparentUnlitStaticPipeline,
+                    (true, false, _) => _unlitStaticPipeline,
+                    (false, true, false) => _transparentStaticPipeline,
+                    _ => _staticPipeline
+                };
+            if (range.StartInstance < 0 || range.InstanceCount <= 0 || pipeline is null)
+                continue;
 
-                // Range flags can differ while selecting the same pipeline. Merge only
-                // consecutive GPU instances in this pass; model draws split calls here.
-                if (pendingCount > 0 &&
-                    (!ReferenceEquals(pendingPipeline, pipeline) ||
-                     pendingStart + pendingCount != range.StartInstance))
-                    Flush();
-                if (pendingCount == 0)
-                {
-                    pendingStart = range.StartInstance;
-                    pendingPipeline = pipeline;
-                }
-                pendingCount += range.InstanceCount;
+            // Range flags can differ while selecting the same pipeline. Merge only
+            // consecutive GPU instances in this pass; model draws split calls here.
+            if (pendingCount > 0 &&
+                (!ReferenceEquals(pendingPipeline, pipeline) ||
+                 pendingStart + pendingCount != range.StartInstance))
+                Flush();
+            if (pendingCount == 0)
+            {
+                pendingStart = range.StartInstance;
+                pendingPipeline = pipeline;
             }
-            Flush();
+            pendingCount += range.InstanceCount;
         }
-        finally { artScope?.Dispose(); }
+        Flush();
 
         void Flush()
         {

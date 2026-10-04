@@ -37,4 +37,7 @@ internal sealed class SectorTexture(
 
 internal readonly record struct SectorTextureView(
     int BaseSrvSlot,
-    int LiquidCoverSrvSlot);
+    int LiquidCoverSrvSlot)
+{
+    public bool HasLiquidCover { get; init; }
+}

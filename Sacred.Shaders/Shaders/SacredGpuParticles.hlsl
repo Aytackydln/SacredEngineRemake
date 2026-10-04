@@ -122,8 +122,10 @@ void sort_particles(uint i : SV_DispatchThreadID)
     if (ascending ? particle_less(b,a) : particle_less(a,b))
     { particle_output[i] = b; particle_output[other] = a; }
 }
+[earlydepthstencil]
 pixel_output ps_gpu_sdr(vertex_output input) { return render_unlit_sdr(input,1); }
-hdr_particle_output ps_gpu_hdr(vertex_output input)
+[earlydepthstencil]
+particle_pixel_output ps_gpu_hdr(vertex_output input)
 {
     if (input.texture_encoding == 0) return render_unlit_hdr_alpha_mask(input,1);
     if (input.texture_encoding == 1) return render_unlit_hdr_argb(input,1);

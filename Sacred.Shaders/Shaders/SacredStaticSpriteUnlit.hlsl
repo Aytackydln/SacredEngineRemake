@@ -25,7 +25,12 @@ pixel_output ps_transparent_unlit_sdr(vertex_output input)
     return render_unlit_sdr(input, player_occluder_opacity(input));
 }
 
-hdr_particle_output render_unlit_hdr_rgb(vertex_output input, float opacity)
+float hdr_unlit_color_multiplier(vertex_output input)
+{
+    return input.particle_sprite != 0 ? particle_color_multiplier : unlit_white_nits;
+}
+
+particle_pixel_output render_unlit_hdr_rgb(vertex_output input, float opacity)
 {
     Texture2D static_texture = ResourceDescriptorHeap[NonUniformResourceIndex(input.texture_index)];
     float3 texture_color = sample_static_texture(static_texture, input).rgb;
@@ -34,11 +39,11 @@ hdr_particle_output render_unlit_hdr_rgb(vertex_output input, float opacity)
         discard;
 
     float source_scale = (input.particle_sprite & 4) != 0 ? opacity : coverage;
-    return HdrParticle(
-        texture_color, input.corner_alpha.rgb, source_scale, coverage, unlit_white_nits, scene_paper_white, (input.particle_sprite & 2) != 0);
+    return ComposeParticle(
+        texture_color, input.corner_alpha.rgb * hdr_unlit_color_multiplier(input), source_scale, coverage, (input.particle_sprite & 2) != 0);
 }
 
-hdr_particle_output render_unlit_hdr_argb(vertex_output input, float opacity)
+particle_pixel_output render_unlit_hdr_argb(vertex_output input, float opacity)
 {
     Texture2D static_texture = ResourceDescriptorHeap[NonUniformResourceIndex(input.texture_index)];
     float4 sampled = sample_static_texture(static_texture, input);
@@ -49,11 +54,11 @@ hdr_particle_output render_unlit_hdr_argb(vertex_output input, float opacity)
     float source_scale = (input.particle_sprite & 4) != 0
         ? sampled.a * opacity
         : coverage;
-    return HdrParticle(
-        sampled.rgb, input.corner_alpha.rgb, source_scale, coverage, unlit_white_nits, scene_paper_white, (input.particle_sprite & 2) != 0);
+    return ComposeParticle(
+        sampled.rgb, input.corner_alpha.rgb * hdr_unlit_color_multiplier(input), source_scale, coverage, (input.particle_sprite & 2) != 0);
 }
 
-hdr_particle_output render_unlit_hdr_alpha_mask(vertex_output input, float opacity)
+particle_pixel_output render_unlit_hdr_alpha_mask(vertex_output input, float opacity)
 {
     Texture2D static_texture = ResourceDescriptorHeap[NonUniformResourceIndex(input.texture_index)];
     float mask = sample_static_texture(static_texture, input).a;
@@ -64,20 +69,23 @@ hdr_particle_output render_unlit_hdr_alpha_mask(vertex_output input, float opaci
     float source_scale = (input.particle_sprite & 4) != 0
         ? mask * opacity
         : coverage;
-    return HdrParticle(1.0f.xxx, input.corner_alpha.rgb, source_scale, coverage, unlit_white_nits, scene_paper_white, (input.particle_sprite & 2) != 0);
+    return ComposeParticle(1.0f.xxx, input.corner_alpha.rgb * hdr_unlit_color_multiplier(input), source_scale, coverage, (input.particle_sprite & 2) != 0);
 }
 
-hdr_particle_output ps_transparent_unlit_hdr_rgb(vertex_output input)
+[earlydepthstencil]
+particle_pixel_output ps_transparent_unlit_hdr_rgb(vertex_output input)
 {
     return render_unlit_hdr_rgb(input, player_occluder_opacity(input));
 }
 
-hdr_particle_output ps_transparent_unlit_hdr_argb(vertex_output input)
+[earlydepthstencil]
+particle_pixel_output ps_transparent_unlit_hdr_argb(vertex_output input)
 {
     return render_unlit_hdr_argb(input, player_occluder_opacity(input));
 }
 
-hdr_particle_output ps_transparent_unlit_hdr_alpha_mask(vertex_output input)
+[earlydepthstencil]
+particle_pixel_output ps_transparent_unlit_hdr_alpha_mask(vertex_output input)
 {
     return render_unlit_hdr_alpha_mask(input, player_occluder_opacity(input));
 }
@@ -89,7 +97,7 @@ pixel_output render_unlit_hdr(vertex_output input, float opacity)
     pixel_output output;
     float coverage = tex.a;
     float source_scale = (input.particle_sprite & 4) != 0 ? opacity : coverage;
-    output.color = float4(HdrArtColor(tex.rgb, unlit_white_nits, scene_paper_white) * source_scale,
+    output.color = float4(tex.rgb * source_scale * hdr_unlit_color_multiplier(input),
         (input.particle_sprite & 2) != 0 ? 0.0f : coverage);
     return output;
 }
@@ -116,6 +124,6 @@ pixel_output ps_unlit_hdr_opaque(vertex_output input)
 {
     float4 tex = sample_static_pixel(input, 1.0f);
     pixel_output output;
-    output.color = float4(HdrArtColor(tex.rgb, unlit_white_nits, scene_paper_white), 1.0f);
+    output.color = float4(tex.rgb * unlit_white_nits, 1.0f);
     return output;
 }

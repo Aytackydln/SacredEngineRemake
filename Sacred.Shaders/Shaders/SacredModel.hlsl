@@ -211,14 +211,7 @@ float4 ps_hdr(vs_output input) : SV_Target
     float3 ambient = model_surface_lighting(input.position.xy);
     float3 diffuse = light_color_and_diffuse_intensity.rgb * (diffuse_amount * light_color_and_diffuse_intensity.w);
     float3 specular = 0;
-    float3 hdr = SdrLitTextureToScrgb(
-        base_color.rgb,
-        ambient,
-        diffuse,
-        specular,
-        hdr_display.x,
-        hdr_display.z,
-        hdr_display.w);
+    float3 hdr = compose_sdr_model_lighting(base_color.rgb, ambient, diffuse, specular);
     return float4(hdr, base_color.a);
 }
 
@@ -234,4 +227,18 @@ float4 ps_hdr_opaque(vs_output input) : SV_Target
     float4 color = ps_hdr(input);
     color.a = 1.0f;
     return color;
+}
+
+// Selected only for coverage proven opaque (no cutouts, alpha overlays or animation).
+// Early depth writes are safe for these materials and reject hidden lighting work.
+[earlydepthstencil]
+float4 ps_sdr_solid(vs_output input) : SV_Target
+{
+    return ps_sdr_opaque(input);
+}
+
+[earlydepthstencil]
+float4 ps_hdr_solid(vs_output input) : SV_Target
+{
+    return ps_hdr_opaque(input);
 }

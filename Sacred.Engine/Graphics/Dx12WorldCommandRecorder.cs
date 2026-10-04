@@ -97,7 +97,7 @@ internal sealed class Dx12WorldCommandRecorder
         ID3D12PipelineState terrainPipeline,
         ID3D12PipelineState liquidCoverPipeline,
         ID3D12PipelineState shadowOverlayPipeline,
-        Dx12DisplayProfile displayProfile,
+        Dx12SceneColorProfile displayProfile,
         int renderWidth,
         int renderHeight)
     {
@@ -133,6 +133,7 @@ internal sealed class Dx12WorldCommandRecorder
             renderWidth,
             renderHeight,
             worldSpriteRevision);
+        _sprites.SetParticleColorMultiplier(displayProfile.ParticleColorMultiplier);
         var surfaceLightCount = _lightHalos.SurfaceLightCount;
         _surfaceLights.Record(
             surfaceLightCount,
@@ -172,7 +173,7 @@ internal sealed class Dx12WorldCommandRecorder
                 rootSignature,
                 terrainPipeline,
                 liquidCoverPipeline,
-                displayProfile.ScenePaperWhiteNits,
+                displayProfile.SceneWhiteScale,
                 renderWidth,
                 renderHeight);
 
@@ -181,37 +182,45 @@ internal sealed class Dx12WorldCommandRecorder
                 _sprites.RecordLiquid(
                     liquidRange,
                     scene.Lighting.WorldSurfaceAmbientColour,
-                    displayProfile.ScenePaperWhiteNits,
+                    displayProfile.SceneWhiteScale,
                     frame,
                     renderWidth,
                     renderHeight);
             }
 
-            RecordTerrainLayer(
-                texture.LiquidCoverSrvSlot,
-                drawPosition.X,
-                drawPosition.Y,
-                drawWidth,
-                drawHeight,
-                scene.Lighting.WorldSurfaceAmbientColour,
-                true,
-                constants,
-                rootSignature,
-                terrainPipeline,
-                liquidCoverPipeline,
-                displayProfile.ScenePaperWhiteNits,
-                renderWidth,
-                renderHeight);
+            if (texture.HasLiquidCover)
+            {
+                RecordTerrainLayer(
+                    texture.LiquidCoverSrvSlot,
+                    drawPosition.X,
+                    drawPosition.Y,
+                    drawWidth,
+                    drawHeight,
+                    scene.Lighting.WorldSurfaceAmbientColour,
+                    true,
+                    constants,
+                    rootSignature,
+                    terrainPipeline,
+                    liquidCoverPipeline,
+                    displayProfile.SceneWhiteScale,
+                    renderWidth,
+                    renderHeight);
+            }
 
             if (scene.Debug.BlockedAreasVisible && image.HasBlockedAreaDebugData)
             {
                 _terrainDebug.Record(_commandList, image, image.BlockedAreaDebugTiles,
                     image.BlockedAreaDebugOffsetX, image.BlockedAreaDebugOffsetY,
                     screenTransform, frame, sceneColor.Description.Format,
-                    displayProfile.ScenePaperWhiteNits, renderWidth, renderHeight);
+                    displayProfile.SceneWhiteScale, renderWidth, renderHeight);
                 _commandList.SetDescriptorHeaps(1, shaderVisibleDescriptorHeaps);
             }
         }
+
+        // Native Floor sprites precede the Shadows queue; Floor2 and Objects follow it.
+        _commandList.OMSetRenderTargets(renderTarget, depthStencil);
+        _commandList.ClearDepthStencilView(depthStencil, ClearFlags.Depth, 1.0f, 0, 0, []);
+        _worldPainter.RecordFloor(spriteBatch, camera, scene, displayProfile, frame, renderWidth, renderHeight);
 
         _shadowMap.Begin(renderWidth, renderHeight);
         _sprites.RecordStaticShadows(
@@ -239,7 +248,7 @@ internal sealed class Dx12WorldCommandRecorder
             _commandList.OMSetRenderTargets(renderTarget, null);
             _terrainDebug.RecordSectors(_commandList, sectorImages, _sectorTextures, TerrainDebugLayer.Stairs,
                 screenTransform, frame, sceneColor.Description.Format,
-                displayProfile.ScenePaperWhiteNits, renderWidth, renderHeight);
+                displayProfile.SceneWhiteScale, renderWidth, renderHeight);
             _commandList.SetDescriptorHeaps(1, shaderVisibleDescriptorHeaps);
             _commandList.OMSetRenderTargets(renderTarget, depthStencil);
             _commandList.ClearDepthStencilView(depthStencil, ClearFlags.Depth, 1.0f, 0, 0, []);
@@ -250,7 +259,7 @@ internal sealed class Dx12WorldCommandRecorder
             _commandList.OMSetRenderTargets(renderTarget, null);
             _terrainDebug.RecordSectors(_commandList, sectorImages, _sectorTextures, TerrainDebugLayer.Topology,
                 screenTransform, frame, sceneColor.Description.Format,
-                displayProfile.ScenePaperWhiteNits, renderWidth, renderHeight);
+                displayProfile.SceneWhiteScale, renderWidth, renderHeight);
             _commandList.SetDescriptorHeaps(1, shaderVisibleDescriptorHeaps);
             _commandList.OMSetRenderTargets(renderTarget, depthStencil);
             _commandList.ClearDepthStencilView(depthStencil, ClearFlags.Depth, 1.0f, 0, 0, []);
@@ -260,8 +269,8 @@ internal sealed class Dx12WorldCommandRecorder
         _sprites.RecordTransparentStatic(
             spriteBatch,
             scene.Lighting.WorldSurfaceAmbientColour,
-            displayProfile.ScenePaperWhiteNits,
-            displayProfile.UnlitSpriteNits,
+            displayProfile.SceneWhiteScale,
+            displayProfile.UnlitSpriteScale,
             frame,
             renderWidth,
             renderHeight);
@@ -275,7 +284,7 @@ internal sealed class Dx12WorldCommandRecorder
         _lightHalos.Record(
             lightHaloInstanceCount,
             scene.Lighting.NightBlend,
-            displayProfile.UnlitSpriteNits,
+            displayProfile.ParticleColorMultiplier,
             frame,
             renderWidth,
             renderHeight);
@@ -291,12 +300,12 @@ internal sealed class Dx12WorldCommandRecorder
             _debugOverlay.RecordSceneDim(
                 renderWidth,
                 renderHeight,
-                displayProfile.ScenePaperWhiteNits);
+                displayProfile.SceneWhiteScale);
 
             _commandList.OMSetRenderTargets(renderTarget, depthStencil);
             var highlightNits = MathF.Max(
                 MinimumHighlightNits,
-                displayProfile.UnlitSpriteNits * 1.5f);
+                displayProfile.UnlitSpriteScale * 1.5f);
             _sprites.RecordHighlightedStatic(
                 spriteBatch,
                 highlightNits,
@@ -368,7 +377,7 @@ internal sealed class Dx12WorldCommandRecorder
         Dx12FrameContext frame,
         ID3D12RootSignature rootSignature,
         ID3D12PipelineState terrainPipeline,
-        Dx12DisplayProfile displayProfile,
+        Dx12SceneColorProfile displayProfile,
         int outputWidth,
         int outputHeight)
     {
@@ -378,15 +387,15 @@ internal sealed class Dx12WorldCommandRecorder
             WorldQuadShaderLayout.SurfaceLightMapRootParameter,
             _surfaceLights.ShaderResourceHandle);
         if (scene.Debug.OverlaysVisible)
-            _debugOverlay.RecordDebugOverlay(outputWidth, outputHeight, displayProfile.UiPaperWhiteNits);
+            _debugOverlay.RecordDebugOverlay(outputWidth, outputHeight, displayProfile.UiWhiteScale);
         if (scene.Minimap.IsVisible)
             _minimap.Record(
                 rootSignature,
                 terrainPipeline,
                 outputWidth,
                 outputHeight,
-                displayProfile.UiPaperWhiteNits);
-        _imgui.Record(frame, displayProfile.UiPaperWhiteNits);
+                displayProfile.UiWhiteScale);
+        _imgui.Record(frame, displayProfile.UiWhiteScale);
     }
 
     private unsafe void RecordTerrainLayer(
