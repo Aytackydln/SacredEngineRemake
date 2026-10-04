@@ -35,16 +35,18 @@ internal sealed class Dx12GpuParticlePass : IParticleGpuBackend, IDisposable
     private ID3D12Resource? _output;
     private int _capacity;
     private int _drawCount;
+    public Dx12WorldEmission WorldEmission { get; }
+    public IReadOnlyList<WorldGpuEmitter> WorldEmitters { get; set; } = Array.Empty<WorldGpuEmitter>();
     private ulong _outputCommittedBytes;
     private ResourceStates _outputState = ResourceStates.UnorderedAccess;
     public Dx12GpuParticlePass(ID3D12Device device, Dx12TextureUploader uploader, AssetManager assets,
         Dx12SpritePass sprites, Action waitForGpu)
-    { _device=device; _uploader=uploader; _assets=assets; _sprites=sprites; _waitForGpu=waitForGpu; }
+    { _device=device; _uploader=uploader; _assets=assets; _sprites=sprites; _waitForGpu=waitForGpu; WorldEmission=new(device,uploader,waitForGpu); }
     public bool IsAvailable => _kernels is not null && _draw is not null;
     public string Status => $"GPU particles available {IsAvailable}; batches {_buffers.Count}; " +
         $"persistent state/color bytes {_buffers.Values.Sum(b=>b.Bytes)}; draw buffer bytes {_output?.Description.Width ?? 0}; " +
         $"committed state/color bytes {_buffers.Values.Sum(b=>(long)b.CommittedBytes)}; committed draw bytes {_outputCommittedBytes}; " +
-        $"sorted draw slots {_drawCount}; cumulative birth upload bytes {_kernels?.UploadedBytes ?? 0}; snapshots {SnapshotCount}";
+        $"sorted draw slots {_drawCount}; cumulative birth upload bytes {_kernels?.UploadedBytes ?? 0}; snapshots {SnapshotCount}; {WorldEmission.Status}";
     public int SnapshotCount { get; private set; }
 
     public void CreatePipelines(bool hdr, Format target, Format depth)
@@ -62,6 +64,7 @@ internal sealed class Dx12GpuParticlePass : IParticleGpuBackend, IDisposable
     }
     public void DisposePipelines()
     {
+        WorldEmission.ResetPipelines();
         if (_draw is null) return;
         foreach (var p in _draw.Pipelines.Values) p.Dispose(); _draw.RootSignature.Dispose(); _draw=null;
     }
@@ -94,6 +97,10 @@ internal sealed class Dx12GpuParticlePass : IParticleGpuBackend, IDisposable
         foreach (var batch in _buffers.Keys.Where(b=>!active.Contains(b)).ToArray())
         { _buffers[batch].Retire(frame); _buffers.Remove(batch); }
         _drawCount=0;
+        WorldEmission.DrawReady=IsAvailable;
+        WorldEmission.EnsureReady();
+        using(timings.Measure(AnimationGpuStage.ParticleEmission))
+            WorldEmission.Prepare(commands,enabled ? WorldEmitters : Array.Empty<WorldGpuEmitter>(),frame);
         if (!enabled)
         {
             if (_output is not null) frame.RetireResource(_output);
@@ -102,7 +109,8 @@ internal sealed class Dx12GpuParticlePass : IParticleGpuBackend, IDisposable
         }
         if (!IsAvailable) return;
         using var cpuScope=AnimationPerformance.Measure(AnimationCpuStage.ParticleGpuPreparation);
-        var count=checked(cpuParticles.Count+groups.Sum(g=>g.Batch.Capacity));
+        var count=checked(cpuParticles.Count+groups.Sum(g=>g.Batch.Capacity)+
+            (WorldEmission.IsAvailable ? WorldEmitters.Sum(e=>checked(e.Parameters.Length*e.Definition.Capacity+(e.Definition.Halo is null?0:1))) : 0));
         if (count==0) return;
         var needed=1; while(needed<count) needed=checked(needed*2);
         if (_output is null || needed>_capacity)
@@ -159,6 +167,8 @@ internal sealed class Dx12GpuParticlePass : IParticleGpuBackend, IDisposable
         AnimationPerformance.RecordParticleUpload(checked((int)(_kernels.UploadedBytes-before)));
         using(timings.Measure(AnimationGpuStage.ParticleSort))
         {
+            commands.SetComputeRootSignature(_kernels.Root);
+            commands.SetComputeRootUnorderedAccessView(2,_output.GPUVirtualAddress);
             foreach(var group in groups)
             {
                 Texture(group.Sprite,out var texture,out var encoding);
@@ -169,6 +179,9 @@ internal sealed class Dx12GpuParticlePass : IParticleGpuBackend, IDisposable
                 _kernels.Dispatch(commands,"project_particles",constants,group.Batch.Capacity);
                 offset+=group.Batch.Capacity;
             }
+            if(WorldEmission.IsAvailable)
+                WorldEmission.Project(commands,_kernels,WorldEmitters,camera,width,height,ref offset,reference=>
+                { Texture(reference,out var texture,out var encoding); return (texture,encoding); });
             Dx12ParticleKernels.Barrier(commands,_output);
             for(var k=2;k<=needed;k*=2)
             for(var j=k/2;j>0;j/=2)
@@ -197,5 +210,5 @@ internal sealed class Dx12GpuParticlePass : IParticleGpuBackend, IDisposable
         commands.DrawInstanced(6,(uint)_drawCount,0,0);
     }
     public void Dispose()
-    { DisposePipelines(); _kernels?.Dispose(); _output?.Dispose(); foreach(var b in _buffers.Values)b.Dispose(); _buffers.Clear(); }
+    { DisposePipelines(); WorldEmission.Dispose(); _kernels?.Dispose(); _output?.Dispose(); foreach(var b in _buffers.Values)b.Dispose(); _buffers.Clear(); }
 }

@@ -1,8 +1,10 @@
 using System;
 using System.Numerics;
 using Sacred.Granny.Animation;
+using Sacred.Granny.Diagnostics;
 using Sacred.Granny.Meshes;
 using Sacred.Particles;
+using Sacred.Particles.Diagnostics;
 
 namespace Sacred.Inventory.Effects;
 
@@ -42,6 +44,7 @@ internal sealed class NativeModelEffectSimulation
 
     public void Update(Mesh mesh, GrnAnimatedMesh? pose, float deltaSeconds)
     {
+        using var scope = AnimationPerformance.Measure(AnimationCpuStage.NativeEffects);
         var start = Transform(pose, _start);
         var end = Transform(pose, _end);
         var direction = _direction;
@@ -173,6 +176,8 @@ internal sealed class NativeModelEffectSimulation
         _accumulator += dt;
         while (emission.EmissionInterval > 0 && _accumulator >= emission.EmissionInterval)
         {
+            using var birthScope = ParticlePerformance.Measure(ParticleCpuStage.Births);
+            ParticlePerformance.RecordBirths(1);
             _accumulator -= emission.EmissionInterval;
             var i = _nextParticle++ % _positions.Length;
             _ages[i] = 0;

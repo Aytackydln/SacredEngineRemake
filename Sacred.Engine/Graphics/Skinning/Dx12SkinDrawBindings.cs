@@ -34,14 +34,18 @@ internal sealed class Dx12SkinDrawBindings : IDisposable
         if (_sceneBuffers[slot] is null) _sceneBuffers[slot] = _uploader.CreateUploadBuffer(bytes);
         else Dx12TextureUploader.UpdateUploadBuffer(_sceneBuffers[slot]!, bytes);
     }
-    public bool TryGet(SceneModel model, int slot, out ModelGpuSkinSource source, out ModelGpuSkinInstance instance) =>
-        _cache.TryGet(model.Geometry, slot, out source, out instance);
+    public bool TryGet(SceneModel model, int slot, out ModelGpuSkinSource source, out ModelGpuSkinInstance instance)
+    {
+        source = null!;
+        instance = null!;
+        return IsReady && _cache.TryGet(model.Geometry, slot, out source, out instance);
+    }
     public void Bind(ID3D12GraphicsCommandList commands, ModelGpuSkinSource source, ModelGpuSkinInstance instance, int slot, bool scene)
     {
         commands.SetGraphicsRootShaderResourceView(SkinningShaderLayout.VertexRoot, source.Vertices.GPUVirtualAddress);
         commands.SetGraphicsRootShaderResourceView(SkinningShaderLayout.InfluenceRoot, source.Influences.GPUVirtualAddress);
         commands.SetGraphicsRootShaderResourceView(SkinningShaderLayout.ProjectionRoot, source.Projection.GPUVirtualAddress);
-        var address = instance.Buffer(slot)!.GPUVirtualAddress;
+        var address = instance.Buffer(slot)!.GPUVirtualAddress + (ulong)instance.PaletteOffsetBytes;
         commands.SetGraphicsRootShaderResourceView(SkinningShaderLayout.RegularRoot, address);
         commands.SetGraphicsRootShaderResourceView(SkinningShaderLayout.RigidRoot, address + (ulong)instance.PaletteStrideBytes);
         if (scene) commands.SetGraphicsRootConstantBufferView(ModelShaderLayout.SceneConstantsRootParameter, _sceneBuffers[slot]!.GPUVirtualAddress);

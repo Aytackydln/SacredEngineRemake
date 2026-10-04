@@ -41,6 +41,8 @@ public sealed class GrnSkinningData
     public ReadOnlySpan<GrnBone> Bones => _bones;
     public ReadOnlySpan<GrnSkinningVertex> Vertices => _vertices;
     public ReadOnlySpan<GrnSkinInfluence> Influences => _influences;
+    public ReadOnlySpan<Matrix4x4> InverseBindTransforms => _inverseBind;
+    public ReadOnlySpan<Matrix4x4> InverseRigidBindTransforms => _inverseRigidBind;
     public GrnMeshProjection Projection { get; }
     public GrnSkinBounds Bounds => _bounds.Value;
     public bool TryFindBone(string name, out int index) => _bonesByName.TryGetValue(name, out index);

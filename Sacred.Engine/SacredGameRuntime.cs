@@ -14,6 +14,7 @@ using Sacred.Engine.Scene.InGame;
 using Sacred.Granny.Abstractions;
 using Sacred.Granny.Diagnostics;
 using Sacred.Particles;
+using Sacred.Particles.Diagnostics;
 
 namespace Sacred.Engine;
 
@@ -278,6 +279,7 @@ internal sealed class SacredGameRuntime : IDisposable
                 _inGameScene?.PlayerMovementSpeedMultiplier ?? _initialSaveState.PlayerMovementSpeedMultiplier,
             ParticleQuality = _inGameScene?.ParticleQuality ?? _initialSaveState.ParticleQuality,
             ParticleSimulation = _inGameScene?.ParticleSimulation ?? _initialSaveState.ParticleSimulation,
+            SkinningMode = _renderer.WorldInitialized ? _renderer.SkinningMode : _initialSaveState.SkinningMode,
             CharacterName = _inGameScene?.SelectedCharacterName ?? _initialSaveState.CharacterName,
             LastLocation = _inGameScene?.PlayerWorldPosition ?? _initialSaveState.LastLocation
         };
@@ -318,6 +320,7 @@ internal sealed class SacredGameRuntime : IDisposable
                 : SacredParticleQuality.High,
             ParticleSimulation = Enum.IsDefined(state.ParticleSimulation)
                 ? state.ParticleSimulation : ParticleSimulationMode.Auto,
+            SkinningMode = Enum.IsDefined(state.SkinningMode) ? state.SkinningMode : SkinningMode.Auto,
             HdrBrightness = (state.HdrBrightness ?? HdrBrightnessSettings.Default).Normalized(),
             FramePacingMode = Enum.IsDefined(state.FramePacingMode)
                 ? state.FramePacingMode
@@ -425,6 +428,7 @@ internal sealed class SacredGameRuntime : IDisposable
         try
         {
             _renderer.InitializeWorld(resources.Assets, resources.WorldArchive);
+            _renderer.SetSkinningMode(_initialSaveState.SkinningMode);
             var scene = new InGameScene(
                 resources,
                 _renderer,
@@ -457,9 +461,12 @@ internal sealed class SacredGameRuntime : IDisposable
             case HelpCheatCommand:
                 EngineLog.WriteLine("Timing cheats: set frame-log <on|off> reports frame pacing; set animation-log <on|off> reports CPU animation stages, upload bytes and completed GPU model/shadow timestamps every two seconds.");
                 EngineLog.WriteLine("GPU preparation cheat: set skin-preparation <on|off> prepares resources independently of model skinning selection.");
-                EngineLog.WriteLine("Model skinning: set skinning <auto|cpu|gpu> (default Auto); set gpu-skinning <on|off> aliases Gpu/Cpu. GPU requests fall back to CPU while unavailable. set skin-crowd <0..128> adds independent asset-driven poses; set skin-stats show reports resource bytes; set shader-reload now; set quit now.");
+                EngineLog.WriteLine("Door diagnostics: set door-list show lists decoded loaded playback positions and clip availability.");
+                EngineLog.WriteLine("Pose processing: set gpu-pose <on|off> opts independent/world models into GPU sampling/hierarchy/palettes; set gpu-pose-status show reports remaining CPU consumers. Default off; visibility is fail-open until GPU bounds are implemented.");
+                EngineLog.WriteLine("World particle emission: set world-gpu-emission <on|off> selects GPU birth/RNG/lifetime ownership for script/sector objects; set particle-stats show reports readiness and memory; set world-particle-step <0..0.1|off> controls fixed-step validation. Default off; switching off explicitly snapshots current state.");
+                EngineLog.WriteLine("Model skinning: set skinning <auto|cpu|gpu|gpuonly> (default Auto); set gpu-skinning <on|off> aliases Gpu/Cpu. GpuOnly skips unavailable draws; set gpu-only <on|off> controls both skinning and particles. set skin-crowd <0..128> adds independent asset-driven poses; set skin-stats show reports resource bytes; set shader-reload now; set quit now.");
                 EngineLog.WriteLine("Particle cheats: set player-panel <on|off>; set particle-panel <on|off|play|toggles>; set particle-list <all|filter>; set particle-target <self|x,y>; set particle-follow <on|off>; set particle-play <FX name>; set particle-enable <FX name>; set particle-disable <FX name>; set particle-model <on|off>; set particle-stop all; set particle-crowd <0..64> creates asset-driven stress previews.");
-                EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set particles <on|off>; set particle-simulation <Auto|CpuSimd|CpuScalar|Gpu>; set particle-stats show; set item-flags <hex>; set character next; set facing <degrees>; set door toggle; set hdr <on|off>; set pacing <vrr|vsync|limit|manual>; set fps <30-1000>; set latency <off|on|boost>; set resolution <percentage|auto>; set autoscale <on|off>; set scaling <none|bilinear|fsr1|fsr2|fsr1motionadaptive>; set granny <managed|native>.");
+                EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set particles <on|off>; set particle-simulation <Auto|CpuSimd|CpuScalar|Gpu|GpuOnly>; set particle-stats show; set item-flags <hex>; set character next; set facing <degrees>; set door toggle; set hdr <on|off>; set pacing <vrr|vsync|limit|manual>; set fps <30-1000>; set latency <off|on|boost>; set resolution <percentage|auto>; set autoscale <on|off>; set scaling <none|bilinear|fsr1|fsr2|fsr1motionadaptive>; set granny <managed|native>.");
                 return;
             case TeleportCheatCommand teleport:
                 if (_inGameScene is null)
@@ -600,6 +607,7 @@ internal sealed class SacredGameRuntime : IDisposable
             case "animation-log" when TryParseBoolean(value, out var animationLog):
                 _renderer.FrameTiming.Animation.Reset();
                 AnimationPerformance.Enabled = animationLog;
+                ParticlePerformance.Enabled = animationLog;
                 message = $"animation timing log {(animationLog ? "enabled" : "disabled")}";
                 return true;
             case "skin-preparation" when TryParseBoolean(value, out var skinPreparation):
@@ -624,12 +632,32 @@ internal sealed class SacredGameRuntime : IDisposable
             case "skinning" when Enum.TryParse<SkinningMode>(value, true, out var skinningMode) && Enum.IsDefined(skinningMode):
                 if (!_renderer.WorldInitialized) { message = "model skinning requires a loaded world"; return false; }
                 _renderer.SetSkinningMode(skinningMode);
-                message = $"model skinning set to {skinningMode}; GPU requests fall back to CPU until ready";
+                message = $"model skinning set to {skinningMode}; " +
+                    (skinningMode == SkinningMode.GpuOnly ? "CPU fallback disabled; unavailable GPU draws skipped" : "CPU fallback allowed");
+                return true;
+            case "gpu-only" when TryParseBoolean(value, out var gpuOnly):
+                if (!_renderer.WorldInitialized || _inGameScene is null) { message = "GPU-only requires a loaded world"; return false; }
+                _renderer.SetSkinningMode(gpuOnly ? SkinningMode.GpuOnly : SkinningMode.Auto);
+                _inGameScene.SetParticleSimulation(gpuOnly ? ParticleSimulationMode.GpuOnly : ParticleSimulationMode.Auto);
+                message = gpuOnly ? "GPU-only enabled; CPU skinning/simulation fallbacks disabled; pose sampling, particle births and lifetime accounting remain on CPU" : "GPU-only disabled; automatic GPU selection with CPU fallback restored";
                 return true;
             case "gpu-skinning" when TryParseBoolean(value, out var gpuSkinning):
                 if (!_renderer.WorldInitialized) { message = "GPU skinning requires a loaded world"; return false; }
                 _renderer.SetGpuSkinning(gpuSkinning);
                 message = gpuSkinning ? "GPU skeletal drawing requested; pose-only playback when ready" : "CPU skeletal drawing requested; current poses prepared before drawing";
+                return true;
+            case "gpu-pose" when TryParseBoolean(value, out var gpuPose):
+                if (!_renderer.WorldInitialized) { message = "GPU pose playback requires a loaded world"; return false; }
+                _renderer.SetGpuPosePlayback(gpuPose);
+                message = gpuPose ? "GPU pose playback requested for independent/world models; remaining CPU consumers are reported by gpu-pose-status" : "CPU pose playback restored at the current requested sample";
+                return true;
+            case "gpu-pose-status":
+                message = _renderer.GpuPoseStatus;
+                return true;
+            case "world-gpu-emission" when TryParseBoolean(value, out var worldEmission):
+                if (_inGameScene is null || !_renderer.WorldInitialized) { message = "World emission requires a loaded world"; return false; }
+                _inGameScene.SetWorldEmission(worldEmission);
+                message = worldEmission ? "GPU-owned world-object emission enabled; previews/equipment retain their selected backends" : "World-object emission explicitly restored to its previous simulation backend";
                 return true;
             case "pacing" when TryParseFramePacing(value, out var pacingMode):
                 _framePacing.SetMode(pacingMode);

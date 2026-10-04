@@ -29,6 +29,7 @@ internal static class ModelFrustumCuller
         float worldRadius,
         float padding)
     {
+        if (float.IsPositiveInfinity(worldRadius)) return true;
         var viewCenter = Vector3.Transform(worldCenter, camera.View);
         var radius = worldRadius + padding;
         var projection = camera.Projection;

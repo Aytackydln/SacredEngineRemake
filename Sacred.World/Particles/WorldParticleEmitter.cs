@@ -1,5 +1,6 @@
 using System.Numerics;
 using Sacred.Particles;
+using Sacred.Particles.Diagnostics;
 using Sacred.World.Geometry;
 
 namespace Sacred.World.Particles;
@@ -16,7 +17,7 @@ internal sealed class WorldParticleEmitter
     private int _particleCount;
     private readonly ParticleSpriteReference _sprite;
     private readonly SacredParticleProjection _projection;
-    private readonly Random _random;
+    private readonly SeededParticleRandom _random;
     private readonly int _capacity;
     private int _nextDrawOrder;
     private Vector2? _origin;
@@ -55,18 +56,35 @@ internal sealed class WorldParticleEmitter
             });
             _particleCount++;
         }
-        _random = new Random(unchecked(placement.ScriptOffset * 397 ^ (int)placement.Creation.TypeId));
+        _random = new SeededParticleRandom(unchecked(placement.ScriptOffset * 397 ^ (int)placement.Creation.TypeId));
 
     }
 
     public bool CanEmit => _parameterSets.Length > 0;
+    internal WorldParticleScriptPlacement Placement => _placement;
+    internal WorldParticleEmissionSnapshot Capture()
+    {
+        foreach (var batch in _batches) batch.RestoreCpu();
+        return new(_random.Capture(), _emissionElapsed, _nextDrawOrder,
+            _batches.Select(batch => Enumerable.Range(0, batch.Count).Select(i => batch[i]).ToArray()).ToArray());
+    }
+    internal WorldParticleEmitter(WorldParticleScriptPlacement placement, float units,
+        SacredParticleProjection projection, WorldParticleEmissionSnapshot snapshot) : this(placement, units, projection)
+    {
+        _random.Restore(snapshot.RandomState); _emissionElapsed = snapshot.Elapsed;
+        _nextDrawOrder = snapshot.NextDrawOrder;
+        _batches = _parameterSets.Select(p => new ParticleSimulationBatch(p, _capacity)).ToArray();
+        _particleCount = 0;
+        for (var set = 0; set < _batches.Length; set++)
+        foreach (var particle in snapshot.Particles[set]) { _batches[set].Add(particle); _particleCount++; }
+    }
     private ParticleSimulationMode _simulationMode = ParticleSimulationMode.CpuSimd;
     public ParticleSimulationMode SimulationMode
     {
         get => _simulationMode;
         set
         {
-            if (value != ParticleSimulationMode.Gpu)
+            if (value is not (ParticleSimulationMode.Gpu or ParticleSimulationMode.GpuOnly))
                 foreach (var batch in _batches) batch.RestoreCpu();
             _simulationMode = value;
         }
@@ -95,8 +113,10 @@ internal sealed class WorldParticleEmitter
 
     public void SeedModel(IReadOnlyList<Vector3> vertices)
     {
+        using var scope = ParticlePerformance.Measure(ParticleCpuStage.Births);
         var count = Math.Min(vertices.Count, Math.Min(_capacity, _placement.Definition.ModelBurstCount));
         if (count == 0) return;
+        ParticlePerformance.RecordBirths(count);
         var stride = Math.Max(1, vertices.Count / count);
         var parameters = _parameterSets[0];
         var emission = parameters.Emission;
@@ -129,6 +149,8 @@ internal sealed class WorldParticleEmitter
 
     public void Update(float deltaSeconds, List<WorldParticle> output, bool emitting = true)
     {
+        if (SimulationMode == ParticleSimulationMode.GpuOnly &&
+            _batches.Any(batch => batch.GpuBackend is not { IsAvailable: true })) return;
         // Preserve each native updater's birth/integration order.
         if (emitting && _placement.Definition.EmitBeforeMovement) EmitParticles(deltaSeconds);
         UpdateParticles(deltaSeconds);
@@ -182,6 +204,7 @@ internal sealed class WorldParticleEmitter
 
     private void AddHalo(SacredParticleHaloDefinition halo, List<WorldParticle> output)
     {
+        using var scope = ParticlePerformance.Measure(ParticleCpuStage.Halos);
         var origin = _origin ?? new Vector2(_placement.WorldX, _placement.WorldY);
         var height = (_heightOffset ?? _placement.Creation.HeightOffset ?? 0) *
                      _projection.HeightFactor * _projection.VerticalScale;
@@ -237,6 +260,8 @@ internal sealed class WorldParticleEmitter
 
     private void Spawn(SacredParticleParameterSet parameters)
     {
+        using var scope = ParticlePerformance.Measure(ParticleCpuStage.Births);
+        ParticlePerformance.RecordBirths(1);
         var emission = parameters.Emission;
         var particle = new ParticleSimulationState
         {
@@ -256,8 +281,9 @@ internal sealed class WorldParticleEmitter
             DrawOrder = _nextDrawOrder++
         };
         // Timed native births are advanced by the unconsumed part of this interval.
-        ParticleCpuSimulation.Advance(ref particle, parameters.Motion, _emissionElapsed,
-            GravityDirection(parameters), applyInwardAcceleration: false);
+        using (ParticlePerformance.Measure(ParticleCpuStage.SpawnPreAdvance))
+            ParticleCpuSimulation.Advance(ref particle, parameters.Motion, _emissionElapsed,
+                GravityDirection(parameters), applyInwardAcceleration: false);
         foreach (var batch in _batches)
         {
             if (!ReferenceEquals(batch.Parameters, parameters)) continue;

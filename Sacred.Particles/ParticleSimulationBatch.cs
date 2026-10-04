@@ -1,4 +1,5 @@
 using System.Numerics;
+using Sacred.Particles.Diagnostics;
 
 namespace Sacred.Particles;
 
@@ -14,6 +15,7 @@ public sealed class ParticleSimulationBatch
     private int _count;
     private ParticleGroundCollision? _gpuCollision;
     private IParticleGpuBackend? _gpuBackend;
+    private bool _gpuOnly;
     public int Count => Gpu?.Count ?? _count;
     public ParticleGpuBatch? Gpu { get; private set; }
     public IParticleGpuBackend? GpuBackend
@@ -21,7 +23,11 @@ public sealed class ParticleSimulationBatch
         get => _gpuBackend;
         set
         {
-            if (!ReferenceEquals(value, _gpuBackend)) RestoreCpu();
+            if (!ReferenceEquals(value, _gpuBackend))
+            {
+                if (_gpuOnly) DiscardGpu();
+                else RestoreCpu();
+            }
             _gpuBackend = value;
         }
     }
@@ -29,6 +35,7 @@ public sealed class ParticleSimulationBatch
 
     public ParticleSimulationBatch(SacredParticleParameterSet parameters, int capacity)
     {
+        using var scope = ParticlePerformance.Measure(ParticleCpuStage.SimulationStorage);
         ArgumentNullException.ThrowIfNull(parameters);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
         Parameters = parameters;
@@ -78,12 +85,18 @@ public sealed class ParticleSimulationBatch
             throw new ArgumentOutOfRangeException(nameof(deltaSeconds));
         if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode));
         if (!Enum.IsDefined(collision)) throw new ArgumentOutOfRangeException(nameof(collision));
+        _gpuOnly = mode == ParticleSimulationMode.GpuOnly;
+        if (_gpuOnly && GpuBackend is not { IsAvailable: true }) return;
         if (mode == ParticleSimulationMode.Auto)
             mode = GpuBackend is { IsAvailable: true } ? ParticleSimulationMode.Gpu : ParticleSimulationMode.CpuSimd;
-        if (mode == ParticleSimulationMode.Gpu && GpuBackend is { IsAvailable: true })
+        if (mode is ParticleSimulationMode.Gpu or ParticleSimulationMode.GpuOnly && GpuBackend is { IsAvailable: true })
         {
             // Native emitters keep this fixed. Explicit tool changes need fresh vertical lifetime state.
-            if (Gpu is not null && _gpuCollision != collision) RestoreCpu();
+            if (Gpu is not null && _gpuCollision != collision)
+            {
+                if (_gpuOnly) DiscardGpu();
+                else RestoreCpu();
+            }
             if (Gpu is null)
             {
                 var initial = new ParticleSimulationState[_count];
@@ -112,6 +125,15 @@ public sealed class ParticleSimulationBatch
         _gpuCollision = null;
         _count = 0;
         foreach (var particle in snapshot) Add(particle);
+    }
+
+    // A strict GPU backend replacement cannot read particles back through the CPU fallback.
+    private void DiscardGpu()
+    {
+        if (Gpu is null) return;
+        Gpu = null;
+        _gpuCollision = null;
+        _count = 0;
     }
 
     // Stable, linear compaction preserves birth ordering and avoids repeated List.RemoveAt shifts.

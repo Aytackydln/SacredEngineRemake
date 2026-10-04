@@ -22,6 +22,7 @@ internal sealed class Dx12ModelGeometryCache : IDisposable
     private readonly Dx12GeometryUploader _geometryUploader;
     private readonly AssetManager _assets;
     private readonly int _frameCount;
+    private readonly ID3D12Device _device;
     private readonly Dictionary<Mesh, ModelGpuMesh> _meshes = new(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<Mesh, Task<ModelGpuMesh>> _loads = new(ReferenceEqualityComparer.Instance);
     private readonly HashSet<Mesh> _failedMeshes = new(ReferenceEqualityComparer.Instance);
@@ -30,6 +31,7 @@ internal sealed class Dx12ModelGeometryCache : IDisposable
     public Dx12ModelGeometryCache(AssetManager assets, ID3D12Device device, Dx12TextureUploader uploader, int frameCount)
     {
         _assets = assets;
+        _device = device;
         _uploader = uploader;
         _geometryUploader = new Dx12GeometryUploader(device, uploader);
         _frameCount = frameCount;
@@ -37,6 +39,9 @@ internal sealed class Dx12ModelGeometryCache : IDisposable
 
     public long ResidentBytes => _meshes.Values.Sum(mesh =>
         mesh.VertexBuffers.Distinct().Sum(buffer => checked((long)buffer.Description.Width)) + checked((long)mesh.IndexBuffer.Description.Width));
+    public long CommittedBytes => _meshes.Values.Sum(mesh =>
+        mesh.VertexBuffers.Distinct().Sum(Allocation) + Allocation(mesh.IndexBuffer));
+    private long Allocation(ID3D12Resource resource) => checked((long)_device.GetResourceAllocationInfo(0, resource.Description).SizeInBytes);
 
     public bool Prepare(IReadOnlyList<SceneModel> models)
     {

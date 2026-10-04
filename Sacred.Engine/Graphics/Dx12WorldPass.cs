@@ -40,12 +40,27 @@ internal sealed class Dx12WorldPass : IDisposable
     private readonly Dx12SkinDrawBindings _skinDraw;
     public bool SkinPreparationEnabled { get; set; }
     private readonly SkinningBackendSelection _skinning = new();
+    private readonly GpuPoseBackendSelection _poseSelection = new();
+    private string? _poseFailure;
+    public bool GpuPosePlaybackEnabled
+    {
+        get => _poseSelection.Enabled;
+        set { _poseSelection.Enabled = value; _poseFailure = null; }
+    }
+    public string GpuPoseStatus => $"GPU pose requested {_poseSelection.Enabled}; GPU {_poseSelection.GpuCount}, CPU {_poseSelection.CpuCount}; " +
+        $"sources {_skinPreparation.Poses.SourceCount}, instances {_skinPreparation.Poses.InstanceCount}, source bytes {_skinPreparation.Poses.SourceBytes}, " +
+        $"committed source bytes {_skinPreparation.Poses.SourceCommittedBytes}; output bytes {_skinPreparation.Poses.OutputBytes}, committed output bytes {_skinPreparation.Poses.OutputCommittedBytes}; " +
+        $"evaluations {_skinPreparation.Poses.Evaluations}; failure {_poseFailure ?? "none"}; " +
+        "player/attachments/equipment/seeds/surface queries retain CPU until phases 9-10; GPU pose visibility fail-open";
     private string? _skinningFailure;
     public SkinningMode SkinningMode { get => _skinning.Mode; set => _skinning.Mode = value; }
     private readonly Dx12ModelPass _models;
     private readonly Dx12SpritePass _sprites;
     private readonly Dx12GpuParticlePass _gpuParticles;
     public IParticleGpuBackend ParticleGpuBackend => _gpuParticles;
+    public IWorldParticleEmissionBackend WorldEmissionBackend => _gpuParticles.WorldEmission;
+    public void SetWorldEmission(bool enabled)
+    { _gpuParticles.WorldEmission.Enabled = enabled; _gpuParticles.WorldEmission.DrawReady = _gpuParticles.IsAvailable; _gpuParticles.WorldEmission.EnsureReady(); }
     public string ParticleGpuStatus => _gpuParticles.Status;
     private readonly Dx12SurfaceLightMapPass _surfaceLights;
     private readonly Dx12ShadowMap _shadowMap;
@@ -117,6 +132,7 @@ internal sealed class Dx12WorldPass : IDisposable
             _playerOcclusionMap.ShaderResourceHandle,
             Dx12DeviceContext.FrameCount);
         _gpuParticles = new(graphics.Device,textureUploader,assets,_sprites,() => graphics.WaitForGpu(ReleaseRetiredResources));
+        _graphics.FrameSubmitted += _gpuParticles.WorldEmission.CommitSubmission;
         _lightHalos = new Dx12LightHaloPass(
             graphics.Device,
             graphics.CommandList,
@@ -196,9 +212,10 @@ internal sealed class Dx12WorldPass : IDisposable
         _worldUi = new Dx12WorldUiPass(graphics, _commandRecorder, _minimap, _debugOverlay, _imgui, _debugPanel);
     }
 
-    public string SkinningStatus => $"mode {SkinningMode}; animated models GPU {_skinning.GpuModelCount}, CPU {_skinning.CpuModelCount}; pipelines {(_skinDraw.IsReady ? "ready" : "unavailable")}; " +
+    public string SkinningStatus => $"mode {SkinningMode}; animated models GPU {_skinning.GpuModelCount}, CPU {_skinning.CpuModelCount}, skipped {_skinning.SkippedModelCount}; pipelines {(_skinDraw.IsReady ? "ready" : "unavailable")}; " +
         $"GPU sources {_skinPreparation.SourceCount}, instances {_skinPreparation.InstanceCount}, source bytes {_skinPreparation.SourceBytes}, palette bytes {_skinPreparation.PaletteBytes}; " +
-        $"CPU/static/equipment geometry bytes {_modelGeometry.ResidentBytes}; failure {_skinningFailure ?? "none"}";
+        $"committed source bytes {_skinPreparation.SourceCommittedBytes}, committed palette bytes {_skinPreparation.PaletteCommittedBytes}; " +
+        $"CPU/static/equipment geometry bytes {_modelGeometry.ResidentBytes}, committed geometry bytes {_modelGeometry.CommittedBytes}; failure {_skinningFailure ?? "none"}";
 
     public WorldPreparationStatus LastPreparationStatus { get; private set; } =
         WorldPreparationStatus.NotStarted;
@@ -293,6 +310,7 @@ internal sealed class Dx12WorldPass : IDisposable
             _graphics.CurrentFrame,
             _terrain.WorldSpriteRevision);
         _lightHalos.PrepareTexture(prepared.WorldLights, _graphics.CurrentFrame);
+        _gpuParticles.WorldEmitters=scene.GpuWorldEmitters;
         _gpuParticles.Prepare(_graphics.CommandList,scene.GpuParticleBatches,scene.CpuParticleInputs,scene.GpuParticlesEnabled,
             camera,_graphics.CurrentFrame,_graphics.RenderWidth,_graphics.RenderHeight,_graphics.GpuAnimationTimings);
         if (scene.Minimap.IsVisible)
@@ -395,6 +413,8 @@ internal sealed class Dx12WorldPass : IDisposable
         _terrainDebug.DisposePipeline();
         _models.DisposePipeline();
         _skinDraw.DisposePipelines();
+        _skinPreparation.Poses.DisposePipelines();
+        _poseFailure = null;
         _gpuParticles.DisposePipelines();
         _sprites.DisposePipeline();
         _lightHalos.DisposePipeline();
@@ -438,6 +458,7 @@ internal sealed class Dx12WorldPass : IDisposable
         _modelGeometry.Dispose();
         _skinPreparation.Dispose();
         _skinDraw.Dispose();
+        _graphics.FrameSubmitted -= _gpuParticles.WorldEmission.CommitSubmission;
         _gpuParticles.Dispose();
         _modelTextures.Dispose();
         _sprites.Dispose();
@@ -453,12 +474,26 @@ internal sealed class Dx12WorldPass : IDisposable
     {
         var prepareGpu = _skinningFailure is null && _skinDraw.IsReady &&
             (SkinPreparationEnabled || SkinningMode != SkinningMode.Cpu);
+        if (_poseSelection.Enabled && prepareGpu && _poseFailure is null)
+        {
+            try { _skinPreparation.Poses.EnsurePipelines(); }
+            catch (Exception error)
+            {
+                _graphics.Device.DeviceRemovedReason.CheckError();
+                _poseFailure = error.Message;
+                EngineLog.WriteLine($"GPU pose pipeline unavailable: {_poseFailure}");
+            }
+        }
+        _poseSelection.Apply(scene, _skinPreparation.Poses.IsReady && _poseFailure is null && prepareGpu,
+            _poseFailure, SkinningMode != SkinningMode.Cpu);
         try
         {
-            _skinPreparation.Prepare(prepareGpu ? scene.Models : Array.Empty<SceneModel>(), _graphics.CurrentFrame);
+            _skinPreparation.Prepare(prepareGpu ? scene.Models : Array.Empty<SceneModel>(), _graphics.CurrentFrame,
+                _graphics.CommandList, _graphics.GpuAnimationTimings);
         }
         catch (Exception error)
         {
+            _graphics.Device.DeviceRemovedReason.CheckError();
             _skinningFailure = $"GPU resource preparation failed: {error.Message}";
             EngineLog.WriteLine($"Skinning fallback: {_skinningFailure}");
         }

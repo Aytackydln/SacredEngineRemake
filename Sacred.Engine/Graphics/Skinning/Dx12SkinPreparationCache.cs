@@ -23,26 +23,36 @@ internal sealed class Dx12SkinPreparationCache : IDisposable
     private readonly Dx12TextureUploader _uploader;
     private readonly Func<Func<ModelGpuSkinSource>, Task<ModelGpuSkinSource>> _schedule;
     private readonly int _frameCount;
+    private readonly ID3D12Device _device;
+    public Dx12GpuPoseCache Poses { get; }
     public Dx12SkinPreparationCache(ID3D12Device device, Dx12TextureUploader uploader, int frameCount,
         Func<Func<ModelGpuSkinSource>, Task<ModelGpuSkinSource>> schedule)
-    { _copies = new(device, uploader); _uploader = uploader; _frameCount = frameCount; _schedule = schedule; }
+    { _device = device; _copies = new(device, uploader); _uploader = uploader; _frameCount = frameCount; _schedule = schedule; Poses = new(device, _copies, frameCount); }
     public int SourceCount => _sources.Count;
     public int InstanceCount => _instances.Count;
     public long PaletteBytes => _instances.Values.Sum(instance =>
         Enumerable.Range(0, _frameCount).Sum(slot => instance.Buffer(slot) is { } buffer ? checked((long)buffer.Description.Width) : 0L));
     public long SourceBytes => _sources.Values.Sum(s => s.ByteCount);
+    public long SourceCommittedBytes => _sources.Values.Sum(s => Allocation(s.Vertices) + Allocation(s.Influences) + Allocation(s.Projection) + Allocation(s.Indices));
+    public long PaletteCommittedBytes => _instances.Values.Sum(instance =>
+        Enumerable.Range(0, _frameCount).Sum(slot => instance.Buffer(slot) is { } buffer ? Allocation(buffer) : 0L));
+    private long Allocation(ID3D12Resource resource) => checked((long)_device.GetResourceAllocationInfo(0, resource.Description).SizeInBytes);
     public long UploadedPaletteBytes { get; private set; }
     public bool HasFailed(SceneModelGeometry geometry) => geometry.Animation is { } animation &&
         _failed.Contains(new(animation.BindMesh, animation.Pose.Data));
 
     // Called once after AcquireFrame's existing fence wait, before any surface/shadow draws.
     public void Prepare(IReadOnlyList<SceneModel> models, Dx12FrameContext retiredFrame)
+        => Prepare(models, retiredFrame, null, null);
+    public void Prepare(IReadOnlyList<SceneModel> models, Dx12FrameContext retiredFrame,
+        ID3D12GraphicsCommandList? commands, Dx12GpuAnimationTimings? timings)
     {
+        if (commands is not null && timings is not null) Poses.Prepare(models, commands, retiredFrame, timings);
         var active = new HashSet<Key>();
-        var poses = new Dictionary<GrnPose, Key>(ReferenceEqualityComparer.Instance);
+        var poses = new Dictionary<GrnPose, (Key Key, GrnPosePlayback Playback)>(ReferenceEqualityComparer.Instance);
         foreach (var model in models)
             if (model.Geometry.Animation is { } animation && animation.BindMesh.Vertices.Length > 0 && animation.BindMesh.Indices.Length > 0)
-            { var key = new Key(animation.BindMesh, animation.Pose.Data); active.Add(key); poses.TryAdd(animation.Pose, key); }
+            { var key = new Key(animation.BindMesh, animation.Pose.Data); active.Add(key); poses.TryAdd(animation.Pose, (key, animation.Playback)); }
         foreach (var key in _sources.Keys.Where(k => !active.Contains(k)).ToArray())
         { _sources[key].Retire(retiredFrame); _sources.Remove(key); }
         foreach (var pose in _instances.Keys.Where(p => !poses.ContainsKey(p)).ToArray())
@@ -65,8 +75,11 @@ internal sealed class Dx12SkinPreparationCache : IDisposable
         {
             var pose = pair.Key;
             if (!_instances.TryGetValue(pose, out var instance)) _instances.Add(pose, instance = new(pose, _frameCount));
+            var playback = pair.Value.Playback;
+            instance.GpuPose = playback.Sink is GpuPoseRequestSink && Poses.TryGet(playback, out var gpuPose) ? gpuPose : null;
+            if (playback.Sink is GpuPoseRequestSink) continue;
             // Do not upload palettes for a source that is still copying.
-            if (!_sources.ContainsKey(pair.Value)) continue;
+            if (!_sources.ContainsKey(pair.Value.Key)) continue;
             var before = instance.UploadedBytes; instance.Update(_uploader, retiredFrame);
             UploadedPaletteBytes += instance.UploadedBytes - before;
         }
@@ -75,10 +88,13 @@ internal sealed class Dx12SkinPreparationCache : IDisposable
     {
         source = null!; instance = null!;
         return geometry.Animation is { } animation && _sources.TryGetValue(new(animation.BindMesh, animation.Pose.Data), out source!) &&
-            _instances.TryGetValue(animation.Pose, out instance!) && animation.Pose.IsEvaluated && instance.Revision(slot) == animation.Pose.Revision;
+            _instances.TryGetValue(animation.Pose, out instance!) &&
+            (animation.Playback.Sink is GpuPoseRequestSink
+                ? animation.Playback.LastRequest is { } request && instance.GpuPose is { } gpu && gpu.IsCurrent(slot, request)
+                : animation.Pose.IsEvaluated && instance.Revision(slot) == animation.Pose.Revision);
     }
     public void WaitForPendingLoads()
     { foreach (var task in _loads.Values) { try { task.GetAwaiter().GetResult().Dispose(); } catch { } } _loads.Clear(); }
     public void Dispose()
-    { WaitForPendingLoads(); foreach (var source in _sources.Values) source.Dispose(); foreach (var instance in _instances.Values) instance.Dispose(); _sources.Clear(); _instances.Clear(); _copies.Dispose(); }
+    { WaitForPendingLoads(); Poses.Dispose(); foreach (var source in _sources.Values) source.Dispose(); foreach (var instance in _instances.Values) instance.Dispose(); _sources.Clear(); _instances.Clear(); _copies.Dispose(); }
 }

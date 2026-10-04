@@ -130,11 +130,15 @@ public sealed partial class Dx12Renderer : IDisposable
     public bool WorldInitialized => _worldPass is not null;
     public void SetSkinPreparation(bool enabled) => GetWorldPass().SkinPreparationEnabled = enabled;
     public IParticleGpuBackend ParticleGpuBackend => GetWorldPass().ParticleGpuBackend;
+    public IWorldParticleEmissionBackend WorldEmissionBackend => GetWorldPass().WorldEmissionBackend;
+    public void SetWorldEmission(bool enabled) => GetWorldPass().SetWorldEmission(enabled);
     public string ParticleGpuStatus => _worldPass?.ParticleGpuStatus ?? "world not initialized";
     public string SkinningStatus => _worldPass?.SkinningStatus ?? "world not initialized";
     public SkinningMode SkinningMode => _worldPass?.SkinningMode ?? SkinningMode.Auto;
     public void SetSkinningMode(SkinningMode mode) => GetWorldPass().SkinningMode = mode;
     public void SetGpuSkinning(bool enabled) => SetSkinningMode(enabled ? SkinningMode.Gpu : SkinningMode.Cpu);
+    public void SetGpuPosePlayback(bool enabled) => GetWorldPass().GpuPosePlaybackEnabled = enabled;
+    public string GpuPoseStatus => _worldPass?.GpuPoseStatus ?? "world not initialized";
     public WorldPreparationStatus LastWorldPreparationStatus =>
         _worldPass?.LastPreparationStatus ?? WorldPreparationStatus.NotStarted;
 

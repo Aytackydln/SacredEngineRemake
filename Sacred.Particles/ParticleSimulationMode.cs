@@ -6,5 +6,7 @@ public enum ParticleSimulationMode
     CpuSimd,
     CpuScalar,
     Gpu,
-    Auto
+    Auto,
+    /// <summary>Disable CPU simulation fallback; pause while the GPU backend is unavailable.</summary>
+    GpuOnly
 }

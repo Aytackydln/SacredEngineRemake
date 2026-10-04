@@ -15,6 +15,7 @@ public sealed class DoorMotionPlayback
     private float _timeSeconds;
     private bool _playing;
     private bool _usesAnimation;
+    private IGrnPoseRequestSink? _poseRequestSink;
 
     public DoorMotionPlayback(Mesh mesh, GrnMeshSkin? skin, GrnAnimationClip? open, GrnAnimationClip? close)
     {
@@ -27,6 +28,16 @@ public sealed class DoorMotionPlayback
     public Mesh Mesh => _usesAnimation ? _animatedMesh!.Mesh : _sourceMesh;
     public GrnAnimatedMesh? AnimatedMesh => _usesAnimation ? _animatedMesh : null;
     public GrnPose? Pose => AnimatedMesh?.Pose;
+    /// <summary>Can be selected before the first door pose is submitted.</summary>
+    public IGrnPoseRequestSink? PoseRequestSink
+    {
+        get => _poseRequestSink;
+        set
+        {
+            _poseRequestSink = value;
+            if (_animatedMesh is not null) _animatedMesh.Playback.Sink = value ?? _animatedMesh.Playback.Cpu;
+        }
+    }
     private bool _materializeCpuVertices = true;
     public bool MaterializeCpuVertices
     {
@@ -39,6 +50,7 @@ public sealed class DoorMotionPlayback
         }
     }
     public bool CanReset => _skin is not null && _close is not null;
+    public bool CanActivate => _skin is not null && _open is not null;
 
     public void SetInitialState(bool open)
     {
@@ -57,11 +69,12 @@ public sealed class DoorMotionPlayback
 
         _clip = clip;
         _animatedMesh ??= new GrnAnimatedMesh(_sourceMesh, _skin, clip);
+        _animatedMesh.Playback.Sink = _poseRequestSink ?? _animatedMesh.Playback.Cpu;
         if (!_materializeCpuVertices) _animatedMesh.MaterializeCpuVertices = false;
         _animatedMesh.SetAnimation(clip);
         _usesAnimation = true;
         _timeSeconds = applyImmediately ? clip.DurationSeconds : 0.0f;
-        ApplyCurrentPose();
+        SubmitCurrentPose();
         _playing = !applyImmediately;
     }
 
@@ -71,13 +84,12 @@ public sealed class DoorMotionPlayback
             return;
 
         _timeSeconds = MathF.Min(_timeSeconds + deltaSeconds, _clip.DurationSeconds);
-        ApplyCurrentPose();
+        SubmitCurrentPose();
         _playing = _timeSeconds < _clip.DurationSeconds;
     }
 
-    private void ApplyCurrentPose()
+    private void SubmitCurrentPose()
     {
-        _animatedMesh!.EvaluatePoseClamped(_timeSeconds);
-        if (MaterializeCpuVertices) _animatedMesh.MaterializeCpuMesh();
+        _animatedMesh!.RequestPose(_timeSeconds, GrnPoseTimeMode.Clamp);
     }
 }

@@ -33,26 +33,32 @@ public sealed class EquipmentEffectScene
         _vertexDetachesAfterSpawn = vertexDetachesAfterSpawn;
         _particleSpawnCycles = new int[bindPositions.Length];
         Array.Fill(_particleSpawnCycles, int.MinValue);
+        Playback = new(this);
     }
 
     public Mesh Mesh { get; }
+    public EquipmentEffectPlayback Playback { get; }
     public static EquipmentEffectScene Empty { get; } = new(null!, [], [], [], []);
     public IReadOnlyList<EquipmentEffectSurface> Surfaces { get; }
     internal IReadOnlyList<NativeModelEffectSimulation> NativeEffects { get; init; } = [];
 
-    public void ResetNativeEffects()
+    public void ResetNativeEffects() => Playback.Submit(EquipmentEffectOperation.Reset);
+    internal void ResetCpu()
     {
         foreach (var effect in NativeEffects) effect.Reset();
     }
 
     /// <summary>Advances effects on a standalone model that has no character skeleton pose.</summary>
-    public void Advance(float deltaSeconds)
+    public void Advance(float deltaSeconds) => Playback.Submit(EquipmentEffectOperation.Advance, deltaSeconds: deltaSeconds);
+    internal void AdvanceCpu(float deltaSeconds)
     {
         foreach (var effect in NativeEffects)
             effect.Update(Mesh, null, deltaSeconds);
     }
 
     public void RebaseNativeEffects(Matrix4x4 previousWorld, Matrix4x4 currentWorld)
+        => Playback.Submit(EquipmentEffectOperation.Rebase, previousWorld: previousWorld, currentWorld: currentWorld);
+    internal void RebaseCpu(Matrix4x4 previousWorld, Matrix4x4 currentWorld)
     {
         if (!Matrix4x4.Invert(currentWorld, out var inverse)) return;
         var change = previousWorld * inverse;
@@ -66,11 +72,14 @@ public sealed class EquipmentEffectScene
 
     /// <summary>Updates bound effects and emits a new fire/poison particle at each particle's next lifetime.</summary>
     public void ApplyPose(GrnAnimatedMesh animatedMesh, float deltaSeconds = 0.0f)
+        => Playback.Submit(EquipmentEffectOperation.Pose, animatedMesh, deltaSeconds);
+    internal void ApplyPoseCpu(GrnAnimatedMesh animatedMesh, float deltaSeconds)
     {
         using var measurement = AnimationPerformance.Measure(
             AnimationCpuStage.Effects);
         foreach (var effect in NativeEffects)
             effect.Update(Mesh, animatedMesh, deltaSeconds);
+        using var vertices = AnimationPerformance.Measure(AnimationCpuStage.EquipmentVertices);
         _particleElapsedSeconds += Math.Max(0.0f, deltaSeconds);
         var changed = false;
         for (var index = 0; index < _bindPositions.Length; index++)

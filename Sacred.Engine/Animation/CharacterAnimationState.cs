@@ -41,7 +41,7 @@ internal sealed class CharacterAnimationState
         if (asset.Mesh is not null && asset.Skin is not null)
         {
             _animatedMesh = new GrnAnimatedMesh(asset.Mesh, asset.Skin, animations.Idle);
-            _animatedMesh.Apply(0.0f);
+            _animatedMesh.RequestPose(0.0f);
             _fallbackMesh = _animatedMesh.Mesh;
         }
         else
@@ -105,7 +105,7 @@ internal sealed class CharacterAnimationState
         if (_timeSinceLastPose >= MinimumPoseIntervalSeconds)
         {
             _timeSinceLastPose %= MinimumPoseIntervalSeconds;
-            ApplyCurrentPose(_stateTimeSeconds);
+            SubmitCurrentPose(_stateTimeSeconds);
         }
         _equipmentEffects?.ApplyPose(_animatedMesh, deltaSeconds);
     }
@@ -122,7 +122,7 @@ internal sealed class CharacterAnimationState
             return;
 
         _animatedMesh.SetAnimation(AnimationFor(state));
-        ApplyCurrentPose(0.0f);
+        SubmitCurrentPose(0.0f);
         _equipmentEffects?.ApplyPose(_animatedMesh);
     }
 
@@ -136,9 +136,8 @@ internal sealed class CharacterAnimationState
         _ => throw new ArgumentOutOfRangeException(nameof(state))
     };
 
-    private void ApplyCurrentPose(float time)
+    private void SubmitCurrentPose(float time)
     {
-        _animatedMesh!.EvaluatePose(time);
-        if (MaterializeCpuVertices) _animatedMesh.MaterializeCpuMesh();
+        _animatedMesh!.RequestPose(time);
     }
 }

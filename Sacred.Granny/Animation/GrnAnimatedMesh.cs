@@ -19,12 +19,14 @@ public sealed class GrnAnimatedMesh
         BindMesh = sourceMesh;
         _cpuMesh = sourceMesh.CreateInstance();
         Evaluator = new GrnPoseEvaluator(data, animation);
+        Playback = new(this, animation);
     }
 
     public Mesh BindMesh { get; }
     public GrnPoseEvaluator Evaluator { get; }
+    public GrnPosePlayback Playback { get; }
     public GrnPose Pose => Evaluator.Pose;
-    public GrnAnimationClip Animation => Evaluator.Animation;
+    public GrnAnimationClip Animation => Playback.Animation;
     public ulong CpuPoseRevision { get; private set; }
     private bool _materializeCpuVertices = true;
     /// <summary>Playback policy. Enabling prepares the current pose, including held endpoints.</summary>
@@ -45,9 +47,11 @@ public sealed class GrnAnimatedMesh
     public Mesh Mesh => IsCpuMeshCurrent ? _cpuMesh : throw new InvalidOperationException(
         "CPU vertices are stale for the evaluated pose. Call MaterializeCpuMesh explicitly.");
 
-    public void SetAnimation(GrnAnimationClip animation) => Evaluator.SetAnimation(animation);
-    public GrnPose EvaluatePose(float timeSeconds) => Evaluator.Evaluate(timeSeconds);
-    public GrnPose EvaluatePoseClamped(float timeSeconds) => Evaluator.EvaluateClamped(timeSeconds);
+    public void SetAnimation(GrnAnimationClip animation) => Playback.SetAnimation(animation);
+    public GrnPose EvaluatePose(float timeSeconds) => Playback.EvaluateCpu(timeSeconds, GrnPoseTimeMode.Loop);
+    public GrnPose EvaluatePoseClamped(float timeSeconds) => Playback.EvaluateCpu(timeSeconds, GrnPoseTimeMode.Clamp);
+    public GrnPoseRequest RequestPose(float timeSeconds, GrnPoseTimeMode mode = GrnPoseTimeMode.Loop)
+        => Playback.Request(timeSeconds, mode, MaterializeCpuVertices);
 
     public Mesh MaterializeCpuMesh()
     {

@@ -16,6 +16,7 @@ public sealed class SceneState
     private readonly List<SceneModel> _models = new(capacity: 32);
 
     public bool GpuParticlesEnabled { get; set; }
+    public IReadOnlyList<WorldGpuEmitter> GpuWorldEmitters { get; set; } = Array.Empty<WorldGpuEmitter>();
     public IReadOnlyList<WorldGpuParticleBatch> GpuParticleBatches { get; set; } = Array.Empty<WorldGpuParticleBatch>();
     public IReadOnlyList<WorldParticle> CpuParticleInputs { get; set; } = Array.Empty<WorldParticle>();
 

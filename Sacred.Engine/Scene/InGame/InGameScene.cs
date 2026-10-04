@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Linq;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -52,6 +53,7 @@ internal sealed class InGameScene : IGameScene
         _worldStreamer = new WorldStreamer(resources.WorldArchive);
         _particles = new WorldParticleSystem(resources.WorldArchive.ParticleScript, saveState.ParticleQuality);
         _particles.GpuBackend = renderer.ParticleGpuBackend;
+        _particles.EmissionBackend = renderer.WorldEmissionBackend;
         _particles.SetSimulationMode(saveState.ParticleSimulation);
         _playerParticles = new PlayerParticleEffectsController(_particles, _scene, new WorldElevationSampler(_worldStreamer));
         _camera = SacredCamera.CreateDefault(window.ClientWidth, window.ClientHeight);
@@ -100,6 +102,11 @@ internal sealed class InGameScene : IGameScene
 
     internal void SetParticleQuality(SacredParticleQuality quality) => _particles.SetQuality(quality);
     internal void SetParticleSimulation(ParticleSimulationMode mode) => _particles.SetSimulationMode(mode);
+    internal void SetWorldEmission(bool enabled)
+    {
+        if (enabled) { Renderer.SetWorldEmission(true); _particles.SetGpuEmission(true); }
+        else { _particles.SetGpuEmission(false); Renderer.SetWorldEmission(false); }
+    }
 
     internal void SetCollisionMode(CollisionCheatMode mode) => _inputController.SetCollisionMode(mode);
 
@@ -197,6 +204,21 @@ internal sealed class InGameScene : IGameScene
                 EngineLog.WriteLine($"Debug input: character facing set to {facingDegrees:F1} degrees.");
                 message = $"character facing set to {facingDegrees:F1} degrees";
                 return true;
+            case "world-particle-step" when value.Equals("off", StringComparison.OrdinalIgnoreCase):
+                _particles.SetFixedStep(null); message = "World particle step follows frame time"; return true;
+            case "world-particle-step" when float.TryParse(value, NumberStyles.Float,
+                CultureInfo.InvariantCulture, out var fixedParticleStep) && float.IsFinite(fixedParticleStep) && fixedParticleStep is >= 0 and <= .1f:
+                _particles.SetFixedStep(fixedParticleStep); message = $"World particle fixed step {fixedParticleStep} seconds"; return true;
+            case "particle-quality" when Enum.TryParse<SacredParticleQuality>(value, true, out var particleQuality) && Enum.IsDefined(particleQuality):
+                _particles.SetQuality(particleQuality); message = $"World particle quality {particleQuality}"; return true;
+            case "indoor-floor" when value.Equals("off", StringComparison.OrdinalIgnoreCase):
+                _scene.Indoor.ActiveGroup = null; message = "Indoor floor override cleared"; return true;
+            case "indoor-floor" when byte.TryParse(value, out var floorLevel):
+                var floor = _worldStreamer.VisibleWorld.Sectors.SelectMany(s => s.IndoorTileGroups.Groups)
+                    .FirstOrDefault(g => g.SurfaceLevel == floorLevel && g.TryGetAuthoredLocalTile(
+                        (int)MathF.Floor(_camera.WorldCenter.X), (int)MathF.Floor(_camera.WorldCenter.Y), out _, out _));
+                if (floor is null) { message = "No decoded floor at the current tile and level"; return false; }
+                _scene.Indoor.ActiveGroup = floor; message = $"Indoor floor override: {floor.Id}; level {floorLevel}"; return true;
             case "particles" when TryParseBoolean(value, out var particlesEnabled):
                 _particles.Enabled = particlesEnabled;
                 message = $"world particles {(particlesEnabled ? "enabled" : "disabled")}";
@@ -210,8 +232,13 @@ internal sealed class InGameScene : IGameScene
                 message = toggled ? "nearest door toggled" : "no loaded animated door within interaction distance";
                 EngineLog.WriteLine($"Debug input: {message}.");
                 return true;
+            case "door-list":
+                foreach (var door in _doors.DebugDoors.OrderBy(d => Vector2.DistanceSquared(d.Position, _camera.WorldCenter)))
+                    EngineLog.WriteLine($"Door playback: {door.Id}; world {door.Position.X.ToString("R", CultureInfo.InvariantCulture)},{door.Position.Y.ToString("R", CultureInfo.InvariantCulture)}; open {door.Playback.CanActivate}; close {door.Playback.CanReset}; pose {door.Playback.Pose?.Revision ?? 0}");
+                message = "loaded door playback candidates listed";
+                return true;
             default:
-                message = "Unknown in-game option. Use overlays <on|off>, debug-panel <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, collision <walk|fly|noclip>, noclip <on|off>, tessellation <on|off>, particles <on|off>, particle-simulation <Auto|CpuSimd|CpuScalar|Gpu>, item-flags <hex>, character <next|index>, zoom <0.25..3>, facing <degrees>, door toggle, or animation attack.";
+                message = "Unknown in-game option. Use overlays <on|off>, debug-panel <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, collision <walk|fly|noclip>, noclip <on|off>, tessellation <on|off>, particles <on|off>, particle-simulation <Auto|CpuSimd|CpuScalar|Gpu|GpuOnly>, item-flags <hex>, character <next|index>, zoom <0.25..3>, facing <degrees>, door toggle, or animation attack.";
                 return false;
         }
     }
@@ -243,7 +270,8 @@ internal sealed class InGameScene : IGameScene
         using (AnimationPerformance.Measure(AnimationCpuStage.Particles))
         _particles.Update(deltaSeconds, _worldStreamer.VisibleWorld, _scene.Indoor.ActiveGroup,
             _camera.WorldCenter, _playerParticles.SelfHeight);
-        _scene.GpuParticlesEnabled = _particles.SelectedSimulationMode == ParticleSimulationMode.Gpu;
+        _scene.GpuParticlesEnabled = _particles.GpuEmissionEnabled || _particles.SelectedSimulationMode is ParticleSimulationMode.Gpu or ParticleSimulationMode.GpuOnly;
+        _scene.GpuWorldEmitters = _particles.GpuEmitters;
         _scene.GpuParticleBatches = _particles.GpuBatches;
         UpdateRegionDisplayName();
     }

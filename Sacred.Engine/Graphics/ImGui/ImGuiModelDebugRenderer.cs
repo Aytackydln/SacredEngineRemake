@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Sacred.Engine.Graphics.Skinning;
 using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
 using DearImGui = ImGuiNET.ImGui;
@@ -31,7 +32,7 @@ internal static class ImGuiModelDebugRenderer
                 continue;
 
             drawList.AddText(screen, Colour(LabelColour),
-                $"{model.Name}\nP {model.Position.X:0.##},{model.Position.Y:0.##},{model.Position.Z:0.##}  " +
+                $"{model.Name}{(model.Geometry.Animation?.Playback.Sink is GpuPoseRequestSink ? " (coarse GPU pose anchor)" : "")}\nP {model.Position.X:0.##},{model.Position.Y:0.##},{model.Position.Z:0.##}  " +
                 $"R {model.Rotation.Z * (180.0f / MathF.PI):0.#}°  V{model.Geometry.BindMesh.Vertices.Length} I{model.Geometry.BindMesh.Indices.Length}");
         }
     }

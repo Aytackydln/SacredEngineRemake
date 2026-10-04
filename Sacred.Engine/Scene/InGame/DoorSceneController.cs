@@ -68,6 +68,9 @@ internal sealed class DoorSceneController
     }
 
     public bool IsDoorAt(Vector2 worldPosition) => FindInteractiveAt(worldPosition) is not null;
+    public IEnumerable<(uint Id, Vector2 Position, DoorMotionPlayback Playback)> DebugDoors =>
+        _doorAnimations.Where(pair => _desiredModels.ContainsKey(pair.Key)).Select(pair =>
+            (pair.Key, WorldModelPose.TilePosition(_desiredModels[pair.Key].StaticObject), pair.Value));
 
     public bool HasPendingLoads
     {

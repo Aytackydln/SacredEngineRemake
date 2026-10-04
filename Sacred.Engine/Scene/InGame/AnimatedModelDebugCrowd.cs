@@ -27,7 +27,7 @@ internal sealed class AnimatedModelDebugCrowd
                 for (var i = 0; i < Count; i++)
                 {
                     var animation = new GrnAnimatedMesh(source.BindMesh, source.Pose.Data, source.Animation);
-                    animation.Apply(i * .037f);
+                    animation.RequestPose(i * .037f);
                     var model = new SceneModel($"Debug instance {i + 1}: {player.Name}", animation.Mesh,
                         player.Position, player.Rotation, player.Scale, player.TextureAliases,
                         groundPlaneZ: player.GroundPlaneZ, blockRadius: (uint)player.GroundShadowRadius);
@@ -42,8 +42,7 @@ internal sealed class AnimatedModelDebugCrowd
             var model = _models[i];
             var animation = model.Geometry.Animation!;
             if (!ReferenceEquals(animation.Animation, source!.Animation)) animation.SetAnimation(source.Animation);
-            animation.EvaluatePose(_time + i * .037f);
-            if (animation.MaterializeCpuVertices) animation.MaterializeCpuMesh();
+            animation.RequestPose(_time + i * .037f);
             var offset = new Vector2((i % 8 - 3.5f) * .65f, (i / 8 + 1) * .65f);
             model.SetPose(player.Position + new Vector3(offset, 0), player.Rotation,
                 player.DepthAnchor + offset, player.GroundPlaneZ);

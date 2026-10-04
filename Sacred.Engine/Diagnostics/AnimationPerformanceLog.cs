@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Linq;
 using Sacred.Engine.Graphics.Frames;
 using Sacred.Granny.Diagnostics;
+using Sacred.Particles.Diagnostics;
 
 namespace Sacred.Engine.Diagnostics;
 
@@ -17,6 +18,7 @@ internal sealed class AnimationPerformanceLog
         _start = 0;
         _frames = 0;
         AnimationPerformance.CaptureAndReset();
+        ParticlePerformance.CaptureAndReset();
         ReadGpuTimings?.Invoke();
     }
 
@@ -33,8 +35,12 @@ internal sealed class AnimationPerformanceLog
         if (Stopwatch.GetElapsedTime(_start).TotalSeconds < 2) return;
         var cpu = AnimationPerformance.CaptureAndReset();
         var cpuStages = string.Join(", ", Enum.GetValues<AnimationCpuStage>().Select(stage =>
-            $"{stage} {cpu.Milliseconds[(int)stage] / _frames:0.000} ms/frame ({cpu.Calls[(int)stage]} calls)"));
+            $"{stage} {cpu.Milliseconds[(int)stage] / _frames:0.000} ms/frame ({cpu.Calls[(int)stage]} calls, {cpu.AllocatedBytes[(int)stage] / (double)_frames:0} allocated bytes/frame)"));
         EngineLog.WriteLine($"Animation CPU: {cpuStages}; vertex uploads {cpu.UploadedVertexBytes / (double)_frames:0} bytes/frame; palette uploads {cpu.UploadedPaletteBytes / (double)_frames:0} bytes/frame; particle uploads {cpu.UploadedParticleBytes / (double)_frames:0} bytes/frame; {_frames} frames.");
+        var particle = ParticlePerformance.CaptureAndReset();
+        var particleStages = string.Join(", ", Enum.GetValues<ParticleCpuStage>().Select(stage =>
+            $"{stage} {particle.Milliseconds[(int)stage] / _frames:0.000} ms/frame ({particle.Calls[(int)stage]} calls, {particle.AllocatedBytes[(int)stage] / (double)_frames:0} allocated bytes/frame)"));
+        EngineLog.WriteLine($"Particle CPU work: {particleStages}; births {particle.Births}; {_frames} frames; nested scopes overlap.");
         if (ReadGpuTimings?.Invoke() is { } gpu)
         {
             var stages = string.Join(", ", Enum.GetValues<AnimationGpuStage>().Select(stage =>

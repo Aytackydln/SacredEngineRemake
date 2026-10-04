@@ -17,14 +17,16 @@ internal sealed class ModelGpuSkinInstance : IDisposable
     public ModelGpuSkinInstance(GrnPose pose, int frameCount)
     { Pose = pose; _buffers = new ID3D12Resource[frameCount]; _revisions = new ulong[frameCount]; _snapshot = new Matrix4x4[Math.Max(1, pose.Data.Bones.Length) * 2]; }
     public GrnPose Pose { get; }
+    public ModelGpuPoseInstance? GpuPose { get; set; }
     public long UploadedBytes { get; private set; }
-    public int PaletteStrideBytes => _snapshot.Length / 2 * 64;
+    public int PaletteStrideBytes => GpuPose?.PaletteStride ?? _snapshot.Length / 2 * 64;
+    public int PaletteOffsetBytes => GpuPose?.PaletteOffset ?? 0;
     public ulong Revision(int slot) => _revisions[slot];
-    public ID3D12Resource? Buffer(int slot) => _buffers[slot];
+    public ID3D12Resource? Buffer(int slot) => GpuPose is { } gpu ? gpu.Buffer(slot) : _buffers[slot];
     public bool Update(Dx12TextureUploader uploader, Dx12FrameContext retiredFrame)
     {
         var slot = retiredFrame.Index;
-        if (!Pose.IsEvaluated || _revisions[slot] == Pose.Revision) return false;
+        if (GpuPose is not null || !Pose.IsEvaluated || _revisions[slot] == Pose.Revision) return false;
         using var measurement = AnimationPerformance.Measure(AnimationCpuStage.PaletteUpload);
         var revision = Pose.Revision;
         Pose.SkinTransforms.CopyTo(_snapshot);

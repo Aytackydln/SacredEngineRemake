@@ -20,6 +20,7 @@ namespace Sacred.Engine.Graphics;
 internal sealed partial class Dx12DeviceContext : IDisposable
 {
     public const int FrameCount = 2;
+    public event Action? FrameSubmitted;
     public const Format DepthBufferFormat = Format.D32_Float;
     private const FeatureLevel MinimumFeatureLevel = FeatureLevel.Level_11_0;
 
@@ -157,6 +158,7 @@ internal sealed partial class Dx12DeviceContext : IDisposable
 
     public void AcquireFrame(CancellationToken cancellationToken, Action<Dx12FrameContext> releaseRetiredResources)
     {
+        _device.DeviceRemovedReason.CheckError();
         if (_currentFrame is not null)
             throw new InvalidOperationException("The previous Direct3D frame was not submitted.");
 
@@ -172,6 +174,7 @@ internal sealed partial class Dx12DeviceContext : IDisposable
             WaitForFence(cancellationToken);
         }
 
+        _device.DeviceRemovedReason.CheckError();
         GpuAnimationTimings.ReadCompletedFrame(frame.Index);
         releaseRetiredResources(frame);
         _currentFrame = frame;
@@ -217,6 +220,7 @@ internal sealed partial class Dx12DeviceContext : IDisposable
         var fenceValue = ++_fenceValue;
         _commandQueue.Signal(_fence, fenceValue).CheckError();
         CurrentFrame.FenceValue = fenceValue;
+        FrameSubmitted?.Invoke();
 
         _latency.Mark(LatencyMarker.PresentStart, frameId);
         var presentStart = Stopwatch.GetTimestamp();

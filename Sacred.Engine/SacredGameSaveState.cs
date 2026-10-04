@@ -1,5 +1,6 @@
 using System.Numerics;
 using Sacred.Engine.Graphics;
+using Sacred.Engine.Graphics.Skinning;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Scene.InGame;
 using Sacred.Granny.Abstractions;
@@ -37,6 +38,7 @@ public sealed record SacredGameSaveState
     public float PlayerMovementSpeedMultiplier { get; init; } = 1.0f;
     public SacredParticleQuality ParticleQuality { get; init; } = SacredParticleQuality.High;
     public ParticleSimulationMode ParticleSimulation { get; init; } = ParticleSimulationMode.Auto;
+    public SkinningMode SkinningMode { get; init; } = SkinningMode.Auto;
     public string? CharacterName { get; init; }
     public Vector2? LastLocation { get; init; }
 }

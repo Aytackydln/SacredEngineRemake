@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Sacred.Assets.Paks.Texture;
+using Sacred.Engine.Graphics.Skinning;
 using Sacred.Granny.Animation;
 using Sacred.Granny.Diagnostics;
 using Sacred.Granny.Meshes;
@@ -68,7 +69,9 @@ public sealed class SceneModel : ISceneModelBounds
     public Vector2 GroundShadowHalfExtents => new(
         GroundShadowRadius * Scale * MathF.Abs(_modelProjection.M11),
         GroundShadowRadius * Scale * MathF.Abs(_modelProjection.M22));
-    public SceneBoundsSnapshot VisibilityBounds => _bounds.Get(Geometry.Pose, _transform, _localBoundsRadius * Scale * MathF.Max(
+    public SceneBoundsSnapshot VisibilityBounds => Geometry.Animation?.Playback.Sink is GpuPoseRequestSink
+        ? new(OcclusionProbeCenter, float.PositiveInfinity, 0)
+        : _bounds.Get(Geometry.Pose, _transform, _localBoundsRadius * Scale * MathF.Max(
         MathF.Abs(_modelProjection.M11), MathF.Max(MathF.Abs(_modelProjection.M22), MathF.Abs(_modelProjection.M33))));
     public float WorldBoundsRadius => VisibilityBounds.Radius;
     public float GroundPlaneZ { get; private set; }

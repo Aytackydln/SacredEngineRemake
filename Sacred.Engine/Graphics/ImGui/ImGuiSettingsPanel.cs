@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Sacred.Engine.Graphics.Skinning;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Scene.InGame;
 using Sacred.Particles;
@@ -55,11 +56,20 @@ internal static class ImGuiSettingsPanel
             controls.ParticleQuality,
             value => controls.RequestedParticleQuality = value,
             FormatParticleQuality);
+        Checkbox("GPU-only (disable CPU fallbacks)",
+            controls.SkinningMode == SkinningMode.GpuOnly && controls.ParticleSimulation == ParticleSimulationMode.GpuOnly,
+            value =>
+            {
+                controls.RequestedSkinningMode = value ? SkinningMode.GpuOnly : SkinningMode.Auto;
+                controls.RequestedParticleSimulation = value ? ParticleSimulationMode.GpuOnly : ParticleSimulationMode.Auto;
+            });
+        DearImGui.TextDisabled("GPU-only skips unavailable GPU work. Pose sampling, births and lifetime accounting still use CPU.");
         EnumCombo("Model skinning", controls.SkinningMode,
-            value => controls.RequestedSkinningMode = value, mode => mode.ToString());
+            value => controls.RequestedSkinningMode = value,
+            mode => mode == SkinningMode.GpuOnly ? "GPU only (no fallback)" : mode.ToString());
         EnumCombo("Particle simulation", controls.ParticleSimulation,
             value => controls.RequestedParticleSimulation = value,
-            mode => mode switch { ParticleSimulationMode.Auto => "Auto (prefer GPU)", ParticleSimulationMode.CpuSimd => "CPU (SIMD)", ParticleSimulationMode.Gpu => "GPU", _ => "CPU (scalar)" });
+            mode => mode switch { ParticleSimulationMode.Auto => "Auto (prefer GPU)", ParticleSimulationMode.CpuSimd => "CPU (SIMD)", ParticleSimulationMode.Gpu => "GPU", ParticleSimulationMode.GpuOnly => "GPU only (no fallback)", _ => "CPU (scalar)" });
         Checkbox("Auto resolution (1:1 tiles)", controls.AutoRenderResolution,
             value =>
             {

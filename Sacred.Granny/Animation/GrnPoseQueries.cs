@@ -1,4 +1,5 @@
 using System.Numerics;
+using Sacred.Granny.Diagnostics;
 
 namespace Sacred.Granny.Animation;
 
@@ -7,6 +8,7 @@ public static class GrnPoseQueries
 {
     public static bool TryTransformRigidPoint(GrnPose pose, string boneName, Vector3 bind, out Vector3 result)
     {
+        using var scope = AnimationPerformance.Measure(AnimationCpuStage.Attachments);
         if (!pose.Data.TryFindBone(boneName, out var index)) { result = bind; return false; }
         if (!pose.IsEvaluated) throw new InvalidOperationException("Evaluate a pose before querying attachments.");
         var projection = pose.Data.Projection;
@@ -16,6 +18,7 @@ public static class GrnPoseQueries
 
     public static bool TryTransformRigidDirection(GrnPose pose, string boneName, Vector3 bind, out Vector3 result)
     {
+        using var scope = AnimationPerformance.Measure(AnimationCpuStage.Attachments);
         if (!pose.Data.TryFindBone(boneName, out var index)) { result = bind; return false; }
         if (!pose.IsEvaluated) throw new InvalidOperationException("Evaluate a pose before querying attachments.");
         var projection = pose.Data.Projection;

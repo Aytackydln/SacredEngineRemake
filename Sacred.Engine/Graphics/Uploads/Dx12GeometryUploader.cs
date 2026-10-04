@@ -57,6 +57,7 @@ internal sealed class Dx12GeometryUploader : IDisposable
                     _fence.SetEventOnCompletion(fenceValue, _completed.SafeWaitHandle.DangerousGetHandle()).CheckError();
                     _completed.WaitOne();
                 }
+                _device.DeviceRemovedReason.CheckError();
                 // Staging is released only after the GPU copy has finished.
                 return buffer;
             }

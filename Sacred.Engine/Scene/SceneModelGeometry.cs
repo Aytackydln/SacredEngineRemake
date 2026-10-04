@@ -33,7 +33,13 @@ public sealed class SceneModelGeometry
     }
 
     /// <summary>Explicit on-demand CPU snapshot for tools, not an implicit draw-time fallback.</summary>
-    public Mesh MaterializeCpuMesh() => Animation?.MaterializeCpuMesh() ?? _mesh;
+    public Mesh MaterializeCpuMesh()
+    {
+        if (Animation is not { } animation) return _mesh;
+        if (animation.Playback.LastRequest is { } request && animation.Playback.Cpu.EvaluatedSequence != request.Sequence)
+            animation.Playback.Cpu.Evaluate(request with { MaterializeCpuVertices = false });
+        return animation.MaterializeCpuMesh();
+    }
     public bool TryGetRadialSweep(MeshSurface surface, out Vector4 parameters) => Animation is { } animation
         ? animation.TryGetRadialSweep(surface, out parameters)
         : MeshSurfaceRadialSweep.TryCalculate(_mesh, surface, out parameters);
