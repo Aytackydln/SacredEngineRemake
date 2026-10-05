@@ -86,6 +86,7 @@ internal sealed class InGameScene : IGameScene
             () => renderer.RenderHeight,
             renderer.OutputToRender,
             window.SetHandCursor);
+        _inputController.SetPlayerMovementSpeedMultiplier(saveState.PlayerMovementSpeedMultiplier);
         _inputController.Portals = new PortalTraversalController(resources.WorldArchive.Portals);
         _portalScript = resources.WorldArchive.Portals;
         Bootstrap();

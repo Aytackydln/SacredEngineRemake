@@ -93,7 +93,9 @@ internal sealed class Dx12MinimapPass : IDisposable
         _requestedCoords.Clear();
         var slotIndex = 0;
         var horizontalSectorCount = CalculateHorizontalSectorCount(renderWidth, renderHeight);
-        var firstVerticalOffset = -Dx12MinimapFrameResources.LoadedVerticalSectorCount / 2;
+        // Odd columns are shifted upward by half a texture, so keep the extra
+        // row below the center to cover the panel as the player moves south.
+        var firstVerticalOffset = 1 - Dx12MinimapFrameResources.LoadedVerticalSectorCount / 2;
         var firstHorizontalOffset = 1 - horizontalSectorCount / 2;
         for (var row = 0; row < Dx12MinimapFrameResources.LoadedVerticalSectorCount; row++)
         for (var column = 0; column < horizontalSectorCount; column++)
