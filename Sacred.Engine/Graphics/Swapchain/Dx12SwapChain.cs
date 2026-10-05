@@ -17,7 +17,9 @@ internal abstract class Dx12SwapChain : IDisposable
     {
         SwapChain = swapChain;
         using var swapChain2 = SwapChain.QueryInterface<IDXGISwapChain2>();
-        swapChain2.MaximumFrameLatency = 1;
+        // Match the two frame contexts so CPU preparation can overlap GPU execution.
+        // A one-frame queue serializes them in composed presentation.
+        swapChain2.MaximumFrameLatency = Dx12DeviceContext.FrameCount;
         _frameLatencyWaitableObject = swapChain2.FrameLatencyWaitableObject;
         if (_frameLatencyWaitableObject == 0)
             throw new InvalidOperationException("DXGI did not provide a frame-latency waitable object.");

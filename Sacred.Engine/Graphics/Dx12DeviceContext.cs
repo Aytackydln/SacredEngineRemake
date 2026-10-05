@@ -10,7 +10,6 @@ using Sacred.Shaders;
 using Vortice.Direct3D;
 using Vortice.Direct3D12;
 using Vortice.DXGI;
-using Vortice.Mathematics;
 using static Vortice.Direct3D12.D3D12;
 using static Vortice.DXGI.DXGI;
 
@@ -21,10 +20,9 @@ internal sealed partial class Dx12DeviceContext : IDisposable
 {
     public const int FrameCount = 2;
     public event Action? FrameSubmitted;
+    public event Action? OutputResized;
     public const Format DepthBufferFormat = Format.D32_Float;
     private const FeatureLevel MinimumFeatureLevel = FeatureLevel.Level_11_0;
-
-    private static readonly TimeSpan ResizeDebounce = TimeSpan.FromMilliseconds(150);
 
     private readonly Win32Window? _window;
     private readonly LowLatencySystem _latency;
@@ -99,7 +97,11 @@ internal sealed partial class Dx12DeviceContext : IDisposable
 
     public float RenderResolutionPercentage { get; private set; } = 1;
 
+    public bool IsOffscreen => _window is null;
     public bool VariableRefreshRateSupported => _allowTearing;
+    public bool MeasureFrameWaits { get; set; }
+    public double LastSlotWaitMilliseconds { get; private set; }
+    public double LastFenceWaitMilliseconds { get; private set; }
     public double LastPresentMilliseconds { get; private set; }
     public bool IsHdrEnabled => _swapChain is Dx12HdrSwapChain;
     // Both HDR formats preserve additive headroom. Packed RGB trades blend precision
@@ -171,7 +173,10 @@ internal sealed partial class Dx12DeviceContext : IDisposable
 
         ResizeIfNeeded(releaseRetiredResources);
         RecreateSceneColorIfNeeded(releaseRetiredResources);
+        var waitStarted = MeasureFrameWaits ? Stopwatch.GetTimestamp() : 0;
         if (_window is not null) _swapChain.WaitForPresentSlot(cancellationToken);
+        LastSlotWaitMilliseconds = waitStarted == 0 ? 0 : Stopwatch.GetElapsedTime(waitStarted).TotalMilliseconds;
+        waitStarted = MeasureFrameWaits ? Stopwatch.GetTimestamp() : 0;
 
         var frame = _frames[BackBufferIndex];
         var fenceValue = frame.FenceValue;
@@ -181,6 +186,7 @@ internal sealed partial class Dx12DeviceContext : IDisposable
             WaitForFence(cancellationToken);
         }
 
+        LastFenceWaitMilliseconds = waitStarted == 0 ? 0 : Stopwatch.GetElapsedTime(waitStarted).TotalMilliseconds;
         _device.DeviceRemovedReason.CheckError();
         GpuAnimationTimings.ReadCompletedFrame(frame.Index);
         releaseRetiredResources(frame);
@@ -228,17 +234,17 @@ internal sealed partial class Dx12DeviceContext : IDisposable
         _commandQueue.ExecuteCommandLists(1, _submittedCommandLists);
         _latency.Mark(LatencyMarker.RenderSubmitEnd, frameId);
 
-        var fenceValue = ++_fenceValue;
-        _commandQueue.Signal(_fence, fenceValue).CheckError();
-        CurrentFrame.FenceValue = fenceValue;
-        FrameSubmitted?.Invoke();
-
         _latency.Mark(LatencyMarker.PresentStart, frameId);
         var presentStart = Stopwatch.GetTimestamp();
         if (_window is null) _offscreenFrameIndex = (_offscreenFrameIndex + 1) % FrameCount;
         else _swapChain.Present(verticalSyncEnabled, _allowTearing);
         _latency.Mark(LatencyMarker.PresentEnd, frameId);
         LastPresentMilliseconds = Stopwatch.GetElapsedTime(presentStart).TotalMilliseconds;
+        // Present can enqueue work on the same queue. Include it in frame retirement.
+        var fenceValue = ++_fenceValue;
+        _commandQueue.Signal(_fence, fenceValue).CheckError();
+        CurrentFrame.FenceValue = fenceValue;
+        FrameSubmitted?.Invoke();
         _submissionOpen = false;
         _currentFrame = null;
 
@@ -249,7 +255,9 @@ internal sealed partial class Dx12DeviceContext : IDisposable
 
     public void WaitForGpu(Action<Dx12FrameContext> releaseRetiredResources)
     {
-        if (_fenceValue != 0 && _fence.CompletedValue < _fenceValue)
+        // Drain the current queue tail, including presentation work, before destroying targets.
+        _commandQueue.Signal(_fence, ++_fenceValue).CheckError();
+        if (_fence.CompletedValue < _fenceValue)
         {
             _fence.SetEventOnCompletion(_fenceValue, _fenceEvent).CheckError();
             Kernel32.WaitForSingleObject(_fenceEvent, Kernel32.Infinite);
@@ -273,6 +281,14 @@ internal sealed partial class Dx12DeviceContext : IDisposable
 
         _requestedSwapChainMode = requestedMode;
         CreateSwapChain();
+        OutputResized?.Invoke();
+        RenderWidth = _requestedRenderWidth;
+        RenderHeight = _requestedRenderHeight;
+        RenderResolutionPercentage = (float)RenderHeight / OutputHeight;
+        _sceneResolutionChanged = false;
+        _pendingOutputWidth = OutputWidth;
+        _pendingOutputHeight = OutputHeight;
+        _currentFrame = _currentFrame is null ? null : _frames[BackBufferIndex];
         CreateBackBuffers();
         CreateSceneColor();
         CreateDepthBuffer();
@@ -409,81 +425,6 @@ internal sealed partial class Dx12DeviceContext : IDisposable
         if (_fenceEvent == 0)
             throw new InvalidOperationException("Failed to create D3D12 fence event.");
         GpuAnimationTimings = new Dx12GpuAnimationTimings(_device, _commandQueue, _commandList, FrameCount);
-    }
-
-    private void CreateSceneColor()
-    {
-        var description = new ResourceDescription(ResourceDimension.Texture2D, 0, (ulong)RenderWidth, (uint)RenderHeight,
-            1, 1, BackBufferFormat, 1, 0, TextureLayout.Unknown,
-            ResourceFlags.AllowRenderTarget);
-        var clear = new ClearValue(BackBufferFormat, new Color4(0, 0, 0, 1));
-        _sceneColor = _device.CreateCommittedResource(new HeapProperties(HeapType.Default, 0, 0), HeapFlags.None,
-            description, ResourceStates.PixelShaderResource, clear);
-        _device.CreateRenderTargetView(_sceneColor, null, SceneRenderTarget);
-        _device.CreateShaderResourceView(_sceneColor, null, SceneColorSrvCpuHandle);
-    }
-
-    private void DisposeSceneColor()
-    {
-        _sceneColor?.Dispose();
-        _sceneColor = null;
-    }
-
-    private void RecreateSceneColorIfNeeded(Action<Dx12FrameContext> releaseRetiredResources)
-    {
-        if (!_sceneResolutionChanged)
-            return;
-
-        _sceneResolutionChanged = false;
-
-        WaitForGpu(releaseRetiredResources);
-        _depthBuffer?.Dispose();
-        _depthBuffer = null;
-        DisposeSceneColor();
-
-        RenderWidth = _requestedRenderWidth;
-        RenderHeight = _requestedRenderHeight;
-        RenderResolutionPercentage = (float)RenderHeight / Math.Max(1, OutputHeight);
-        if (_window is not null || RenderWidth != OutputWidth || RenderHeight != OutputHeight)
-            CreateSceneColor();
-        CreateDepthBuffer();
-    }
-
-    private void ResizeIfNeeded(Action<Dx12FrameContext> releaseRetiredResources)
-    {
-        if (_window is null)
-        {
-            ResizeOffscreenIfNeeded(releaseRetiredResources);
-            return;
-        }
-        var width = _window.ClientWidth;
-        var height = _window.ClientHeight;
-        if (width <= 0 || height <= 0)
-            return;
-        if (width == OutputWidth && height == OutputHeight)
-        {
-            return;
-        }
-        if (width != _pendingOutputWidth || height != _pendingOutputHeight)
-        {
-            _pendingOutputWidth = width;
-            _pendingOutputHeight = height;
-            _lastResizeRequestTimestamp = Stopwatch.GetTimestamp();
-            return;
-        }
-        if (Stopwatch.GetElapsedTime(_lastResizeRequestTimestamp) < ResizeDebounce)
-            return;
-
-        WaitForGpu(releaseRetiredResources);
-        DisposeBackBuffers();
-        DisposeSceneColor();
-        _swapChain.ResizeBuffers(FrameCount, _pendingOutputWidth, _pendingOutputHeight, _swapChainFlags);
-        OutputWidth = _pendingOutputWidth;
-        OutputHeight = _pendingOutputHeight;
-        RenderResolutionPercentage = (float)RenderHeight / _pendingOutputHeight;
-        CreateBackBuffers();
-        CreateSceneColor();
-        CreateDepthBuffer();
     }
 
     private void WaitForFence(CancellationToken cancellationToken)

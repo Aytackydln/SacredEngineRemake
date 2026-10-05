@@ -5,7 +5,7 @@ using Sacred.Engine.Extern;
 
 namespace Sacred.Engine.Platform;
 
-public sealed class Win32Window : IDisposable
+public sealed partial class Win32Window : IDisposable
 {
     private const int BlackBrush = 4;
     private const int ScreenWidthMetric = 0;

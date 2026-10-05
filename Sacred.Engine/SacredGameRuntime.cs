@@ -234,7 +234,7 @@ internal sealed class SacredGameRuntime : IDisposable
         _debugUiControls.CollisionMode = _inGameScene?.CollisionMode ?? CollisionCheatMode.Walk;
         _debugUiControls.PlayerMovementSpeedMultiplier =
             _inGameScene?.PlayerMovementSpeedMultiplier ?? _initialSaveState.PlayerMovementSpeedMultiplier;
-        _debugUiControls.RenderResolutionPercentage = (int)(_renderer.RenderResolutionPercentage * 100);
+        _debugUiControls.RenderResolutionPercentage = (int)MathF.Round(_renderer.RenderResolutionPercentage * 100);
         _debugUiControls.AutoRenderResolution = _renderer.AutoRenderResolution;
         _debugUiControls.AutoRenderResolutionMinimumPercentage =
             _renderer.AutoRenderResolutionMinimumPercentage;
@@ -265,7 +265,7 @@ internal sealed class SacredGameRuntime : IDisposable
             FramePacingMode = _framePacing.Mode,
             ManualFrameRate = _framePacing.ManualFrameRate,
             LowLatencyMode = _latency.Mode,
-            RenderResolutionPercentage = (int)(_renderer.RenderResolutionPercentage * 100),
+            RenderResolutionPercentage = (int)MathF.Round(_renderer.RenderResolutionPercentage * 100),
             AutoRenderResolution = _renderer.AutoRenderResolution,
             AutoRenderResolutionMinimumPercentage = _renderer.AutoRenderResolutionMinimumPercentage,
             AutoRenderResolutionMaximumPercentage = _renderer.AutoRenderResolutionMaximumPercentage,
@@ -460,7 +460,7 @@ internal sealed class SacredGameRuntime : IDisposable
         switch (command)
         {
             case HelpCheatCommand:
-                EngineLog.WriteLine("Timing cheats: set frame-log <on|off> reports frame pacing; set animation-log <on|off> reports CPU animation stages, upload bytes and completed GPU model/shadow timestamps every two seconds.");
+                EngineLog.WriteLine("Viewport cheats: set window-size <width>x<height> resizes without activation; set viewport show reports client/output/scene dimensions. Timing cheats: set frame-log <on|off> reports frame pacing; set animation-log <on|off> reports CPU animation stages, upload bytes and completed GPU model/shadow timestamps every two seconds.");
                 EngineLog.WriteLine("GPU preparation cheat: set skin-preparation <on|off> prepares resources independently of model skinning selection.");
                 EngineLog.WriteLine("Door diagnostics: set door-list show lists decoded loaded playback positions and clip availability.");
                 EngineLog.WriteLine("Pose processing: set gpu-pose <on|off> opts independent/world models into GPU sampling/hierarchy/palettes; set gpu-pose-status show reports remaining CPU consumers. Default off; visibility is fail-open until GPU bounds are implemented.");
@@ -639,6 +639,22 @@ internal sealed class SacredGameRuntime : IDisposable
                 _renderer.SetSkinPreparation(skinPreparation);
                 message = $"GPU skin preparation {(skinPreparation ? "enabled" : "disabled")}; independent of model skinning selection";
                 return true;
+            case "window-size":
+                var dimensions = value.Split('x', StringSplitOptions.TrimEntries);
+                if (dimensions.Length != 2 || !int.TryParse(dimensions[0], out var windowWidth) ||
+                    !int.TryParse(dimensions[1], out var windowHeight) ||
+                    windowWidth is < 320 or > 16384 || windowHeight is < 320 or > 16384 ||
+                    _window.IsBorderlessFullscreen || _window.WindowedMaximized)
+                {
+                    message = "window-size requires <width>x<height> (320..16384) in a restored window";
+                    return false;
+                }
+                _window.SetWindowedSize(windowWidth, windowHeight);
+                message = $"window resized to {windowWidth}x{windowHeight}";
+                return true;
+            case "viewport":
+                message = $"viewport client {_window.ClientWidth}x{_window.ClientHeight}, output {_renderer.OutputWidth}x{_renderer.OutputHeight}, scene {_renderer.RenderWidth}x{_renderer.RenderHeight}, resolution {_renderer.RenderResolutionPercentage * 100:0.##}%, auto {_renderer.AutoRenderResolution}";
+                return true;
             case "quit":
                 _window.RequestQuit();
                 message = "shutdown requested";
@@ -705,7 +721,7 @@ internal sealed class SacredGameRuntime : IDisposable
                 return true;
             case "resolution" or "res" when int.TryParse(value, out var resolutionPercentage):
                 _renderer.SetRenderResolutionPercentage(Math.Clamp(resolutionPercentage, 25, 200));
-                message = $"render resolution set to {_renderer.RenderResolutionPercentage}%";
+                message = $"render resolution set to {_renderer.RenderResolutionPercentage * 100:0.##}%";
                 return true;
             case "autoscale" or "autoresolution" or "auto-resolution" when TryParseBoolean(value, out var autoScale):
                 _renderer.SetAutoRenderResolution(autoScale);

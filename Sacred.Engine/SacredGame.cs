@@ -107,7 +107,9 @@ public sealed class SacredGame : IDisposable
                     Math.Max(0, _lastCompletedFrameTimeMilliseconds - _renderer.LastPresentMilliseconds),
                     _renderer.LastPresentMilliseconds,
                     $"{_scenes.ActiveSceneId}, HDR {_renderer.IsHdrEnabled}, {_renderer.RenderWidth}x{_renderer.RenderHeight}, {_framePacing.Status}, {_latency.ActiveBackendName} {_latency.Mode}",
-                    _renderer.LastStreamingDispatchMilliseconds);
+                    _renderer.LastStreamingDispatchMilliseconds,
+                    _framePacing.LastCpuWaitMilliseconds, _framePacing.LastLatencyWaitMilliseconds,
+                    _renderer.LastSlotWaitMilliseconds, _renderer.LastFenceWaitMilliseconds);
             frameId++;
         }
     }

@@ -84,6 +84,7 @@ public sealed partial class Dx12Renderer : IDisposable
             Dx12DescriptorLayout.TotalCount,
             hdrEnabled,
             hdrBrightnessSettings ?? HdrBrightnessSettings.Default);
+        _graphics.OutputResized += HandleOutputResize;
         _textureUploader = new Dx12TextureUploader(_graphics.Device);
         FrameTiming.Animation.ReadGpuTimings = _graphics.GpuAnimationTimings.CaptureAndReset;
         _screenPass = new Dx12ScreenPass(
@@ -112,6 +113,8 @@ public sealed partial class Dx12Renderer : IDisposable
     public bool VariableRefreshRateSupported => _graphics.VariableRefreshRateSupported;
     public bool IsHdrEnabled => _graphics.IsHdrEnabled;
     internal FrameTimingLog FrameTiming { get; } = new();
+    internal double LastSlotWaitMilliseconds => _graphics.LastSlotWaitMilliseconds;
+    internal double LastFenceWaitMilliseconds => _graphics.LastFenceWaitMilliseconds;
     internal double LastPresentMilliseconds => _graphics.LastPresentMilliseconds;
     internal double LastStreamingDispatchMilliseconds { get; private set; }
     public HdrBrightnessSettings HdrBrightnessSettings => _graphics.HdrBrightnessSettings;
@@ -121,7 +124,8 @@ public sealed partial class Dx12Renderer : IDisposable
     public int OutputHeight => _graphics.OutputHeight;
     public int RenderWidth => _graphics.RenderWidth;
     public int RenderHeight => _graphics.RenderHeight;
-    public float RenderResolutionPercentage => _graphics.RenderResolutionPercentage;
+    public float RenderResolutionPercentage => AutoRenderResolution || _graphics.IsOffscreen
+        ? _graphics.RenderResolutionPercentage : _manualResolutionPercentage / 100.0f;
     public bool AutoRenderResolution { get; private set; }
     public int AutoRenderResolutionMinimumPercentage { get; private set; }
     public int AutoRenderResolutionMaximumPercentage { get; private set; }
@@ -147,61 +151,6 @@ public sealed partial class Dx12Renderer : IDisposable
     public Task StartWorldPreparation() => GetWorldPass().StartPreparation();
 
     public void QueueScreenshot(string? label) => _pendingScreenshotLabels.Enqueue(label);
-
-    public void SetRenderResolutionPercentage(int percentage)
-    {
-        AutoRenderResolution = false;
-        var ratio = (float)percentage / 100;
-        var width = (int)(OutputWidth * ratio);
-        var height = (int)(OutputHeight * ratio);
-        _graphics.SetRenderResolution(width, height);
-    }
-
-    public void SetAutoRenderResolution(bool enabled) => AutoRenderResolution = enabled;
-
-    public void SetAutoRenderResolutionRange(int minimumPercentage, int maximumPercentage)
-    {
-        minimumPercentage = Math.Clamp(
-            minimumPercentage,
-            TileResolutionScaling.MinimumPercentage,
-            TileResolutionScaling.MaximumPercentage);
-        maximumPercentage = Math.Clamp(
-            maximumPercentage,
-            TileResolutionScaling.MinimumPercentage,
-            TileResolutionScaling.MaximumPercentage);
-        AutoRenderResolutionMinimumPercentage = Math.Min(minimumPercentage, maximumPercentage);
-        AutoRenderResolutionMaximumPercentage = Math.Max(minimumPercentage, maximumPercentage);
-    }
-
-    public void SetAutoRenderResolutionStepSnapping(bool enabled, int stepPercentage)
-    {
-        AutoRenderResolutionStepSnapping = enabled;
-        AutoRenderResolutionStepPercentage = Math.Clamp(
-            stepPercentage,
-            TileResolutionScaling.MinimumStepPercentage,
-            TileResolutionScaling.MaximumStepPercentage);
-    }
-
-    public void UpdateAutoRenderResolution(float zoom)
-    {
-        if (!AutoRenderResolution)
-            return;
-
-        if (OutputHeight == 0)
-        {
-            return;
-        }
-
-        var height = TileResolutionScaling.CalculateRenderHeight(
-            zoom,
-            OutputHeight,
-            AutoRenderResolutionMinimumPercentage,
-            AutoRenderResolutionMaximumPercentage,
-            AutoRenderResolutionStepSnapping,
-            AutoRenderResolutionStepPercentage);
-        var width = height * OutputWidth / OutputHeight;
-        _graphics.SetRenderResolution(width, height);
-    }
 
     public void SetRenderScalingMode(RenderScalingMode mode)
     {
@@ -322,7 +271,9 @@ public sealed partial class Dx12Renderer : IDisposable
 
     internal void PrepareFrame(CancellationToken cancellationToken)
     {
+        if (!_graphics.IsOffscreen) UpdateRenderResolution();
         ReloadShadersIfRequested();
+        _graphics.MeasureFrameWaits = FrameTiming.Enabled;
         _graphics.AcquireFrame(cancellationToken, _releaseRetiredResources);
     }
 

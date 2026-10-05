@@ -18,6 +18,10 @@ internal sealed class FrameTimingLog
     private readonly List<double> _frameTimes = [];
     private double _maximumWait;
     private double _maximumDispatch;
+    private double _cpuWait;
+    private double _driverWait;
+    private double _slotWait;
+    private double _fenceWait;
 
     public bool Enabled
     {
@@ -32,10 +36,12 @@ internal sealed class FrameTimingLog
             _maximumDispatch = 0;
             _count = 0;
             _wait = _update = _present = 0;
+            _cpuWait = _driverWait = _slotWait = _fenceWait = 0;
         }
     }
 
-    public void Record(double wait, double update, double present, string context, double streamingDispatch = 0)
+    public void Record(double wait, double update, double present, string context, double streamingDispatch = 0,
+        double cpuWait = 0, double driverWait = 0, double slotWait = 0, double fenceWait = 0)
     {
         Animation.RecordFrame();
         if (!Enabled)
@@ -44,6 +50,7 @@ internal sealed class FrameTimingLog
             _activeTimes.Clear();
             _count = 0;
             _wait = _update = _present = 0;
+            _cpuWait = _driverWait = _slotWait = _fenceWait = 0;
             return;
         }
 
@@ -53,6 +60,10 @@ internal sealed class FrameTimingLog
         _wait += wait;
         _update += update;
         _present += present;
+        _cpuWait += cpuWait;
+        _driverWait += driverWait;
+        _slotWait += slotWait;
+        _fenceWait += fenceWait;
         _activeTimes.Add(update + present);
         _frameTimes.Add(wait + update + present);
         _maximumWait = Math.Max(_maximumWait, wait);
@@ -66,6 +77,7 @@ internal sealed class FrameTimingLog
         var median = _activeTimes[_activeTimes.Count / 2];
         var tail = _activeTimes[Math.Min(_activeTimes.Count - 1, (int)(_activeTimes.Count * .95))];
         EngineLog.WriteLine($"Frame timing: {_count / elapsed:0.0} FPS; wait {_wait / _count:0.00} ms; update/render {_update / _count:0.00} ms; present {_present / _count:0.00} ms; active median {median:0.000} ms; p95 {tail:0.000} ms; {context}");
+        EngineLog.WriteLine($"Frame waits: CPU {_cpuWait / _count:0.000} ms; driver {_driverWait / _count:0.000} ms; DXGI slot {_slotWait / _count:0.000} ms; GPU fence {_fenceWait / _count:0.000} ms (averages per frame).");
         EngineLog.WriteLine($"Frame stalls: total p99 {_frameTimes[Math.Min(_frameTimes.Count - 1, (int)(_frameTimes.Count * .99))]:0.000} ms; max {_frameTimes[^1]:0.000} ms; active max {_activeTimes[^1]:0.000} ms; wait max {_maximumWait:0.000} ms; streaming dispatch max {_maximumDispatch:0.000} ms (included in active work).");
         _activeTimes.Clear();
         _frameTimes.Clear();
@@ -74,5 +86,6 @@ internal sealed class FrameTimingLog
         _start = 0;
         _count = 0;
         _wait = _update = _present = 0;
+        _cpuWait = _driverWait = _slotWait = _fenceWait = 0;
     }
 }
