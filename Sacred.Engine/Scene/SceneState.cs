@@ -5,6 +5,7 @@ using Sacred.Core.Pak.Items;
 using Sacred.Core.World;
 using Sacred.Core.World.Pathing;
 using Sacred.Core.World.Sector;
+using Sacred.Engine.Rendering;
 using Sacred.Granny.Animation;
 using Sacred.Granny.Meshes;
 using Sacred.World.Particles;
@@ -16,6 +17,8 @@ public sealed class SceneState
     private readonly List<SceneModel> _models = new(capacity: 32);
 
     public bool GpuParticlesEnabled { get; set; }
+    public IReadOnlyList<TerrainStaticSprite> FootprintSprites { get; set; } = Array.Empty<TerrainStaticSprite>();
+    public ulong FootprintRevision { get; set; }
     public IReadOnlyList<WorldGpuEmitter> GpuWorldEmitters { get; set; } = Array.Empty<WorldGpuEmitter>();
     public IReadOnlyList<WorldGpuParticleBatch> GpuParticleBatches { get; set; } = Array.Empty<WorldGpuParticleBatch>();
     public IReadOnlyList<WorldParticle> CpuParticleInputs { get; set; } = Array.Empty<WorldParticle>();

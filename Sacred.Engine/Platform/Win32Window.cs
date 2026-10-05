@@ -238,7 +238,11 @@ public sealed class Win32Window : IDisposable
         EngineLog.WriteLine($"Window mode: {(enabled ? "borderless fullscreen" : $"windowed {_windowedWidth}x{_windowedHeight}")}");
     }
 
-    public void RequestFocus() => User32.SetFocus(Hwnd);
+    public bool FocusRequestsEnabled { get; set; } = true;
+    public void RequestFocus()
+    {
+        if (FocusRequestsEnabled) User32.SetFocus(Hwnd);
+    }
 
     public void SetHandCursor(bool enabled)
     {

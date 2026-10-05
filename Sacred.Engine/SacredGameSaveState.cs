@@ -11,6 +11,8 @@ namespace Sacred.Engine;
 /// <summary>Remake runtime values that can be restored between launches.</summary>
 public sealed record SacredGameSaveState
 {
+    /// <summary>Allows console-driven validation without explicitly focusing the window.</summary>
+    public bool RequestWindowFocus { get; init; } = true;
     /// <summary>Whether the game uses a borderless window that fills the primary display.</summary>
     public bool BorderlessFullscreen { get; init; }
     /// <summary>Outer dimensions restored when leaving borderless fullscreen.</summary>

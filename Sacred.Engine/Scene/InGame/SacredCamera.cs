@@ -9,7 +9,8 @@ namespace Sacred.Engine.Scene.InGame;
 public sealed class SacredCamera
 {
     public const float WalkingBaseSpeed = 2.0f;
-    public const float RunningBaseSpeed = 10.0f;
+    public const float RunningBaseSpeed = 5.0f;
+    private const float RunningAnimationBaseSpeed = 4.0f;
     private const float JoystickDeadzone = 0.1f;
     private const float JoystickAntiDeadzone = 0.2f;
     private const float JoystickMaximumMovementInput = 0.8f;
@@ -193,7 +194,8 @@ public sealed class SacredCamera
         }
 
         if (CurrentMovementSpeed > 0.0f)
-            LocomotionAnimationSpeed = CurrentMovementSpeed / baseSpeed;
+            LocomotionAnimationSpeed = CurrentMovementSpeed /
+                (input.IsWalkModifierDown ? WalkingBaseSpeed : RunningAnimationBaseSpeed);
 
         if (input.IsDown(VirtualKey.Q)) Zoom *= MathF.Pow(0.985f, dt * 60f);
         if (input.IsDown(VirtualKey.E)) Zoom *= MathF.Pow(1.015f, dt * 60f);

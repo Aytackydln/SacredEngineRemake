@@ -48,7 +48,9 @@ internal sealed class Dx12WorldPainterPass(Dx12SpritePass sprites, Dx12ModelPass
                 var queue = sprite.IsParticleSprite ? (int)WorldRenderLayer.Objects : sprite.QueueIndex;
                 if (queue < (int)firstLayer || queue > (int)lastLayer) continue;
                 _submissions.Add(new Submission(queue,
-                    sprite.ParticleDepthKey ?? sprite.TileDepth, sprite.TileWorldX,
+                    // Native renderObjects emits its entire temporary-animation
+                    // patch list before walking the Objects queue.
+                    sprite.IsGroundDecal ? float.NegativeInfinity : sprite.ParticleDepthKey ?? sprite.TileDepth, sprite.TileWorldX,
                     sprite.ChainDepth, sprite.InsertionOrder, null,
                     range with { StartInstance = submission.Instance, InstanceCount = 1 }));
             }

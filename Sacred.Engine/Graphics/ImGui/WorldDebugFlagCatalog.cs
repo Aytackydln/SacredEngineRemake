@@ -40,7 +40,7 @@ internal static class WorldDebugFlagCatalog
         Option(WorldPathFlags.Town, "Town", 1),
         Option(WorldPathFlags.Trigger, "Trigger", 2),
         Option(WorldPathFlags.RuntimeBlocked, "Runtime blocked", 3),
-        Option(WorldPathFlags.Byte10, "Byte10", 4),
+        Option(WorldPathFlags.FootprintAnimation, "Temporary 2D animation", 4),
         Option(WorldPathFlags.Byte20, "Byte20", 5),
         Option(WorldPathFlags.Byte40, "Byte40", 6),
         Option(WorldPathFlags.Byte80, "Byte80", 7),

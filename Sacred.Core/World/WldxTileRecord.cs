@@ -55,6 +55,19 @@ public readonly record struct WldxTileProperties
     public WldxTileFlags TileFlags => (WldxTileFlags)(_value & TileFlagsMask);
     public WldxTerrainSurface TerrainSurface => (WldxTerrainSurface)(_value & TerrainSurfaceMask);
 
+    /// <summary>
+    /// Visual track selector at Demo 0x5A7962 / Gold 0x6392AE. It is independent
+    /// of the footstep sound slot; other sand/stone codes do not leave tracks.
+    /// </summary>
+    public TerrainFootprintKind FootprintKind => TerrainSurface switch
+    {
+        WldxTerrainSurface.Surface10 => TerrainFootprintKind.Desert,
+        WldxTerrainSurface.Surface20 => TerrainFootprintKind.Snow,
+        WldxTerrainSurface.Surface50 => TerrainFootprintKind.Swamp,
+        WldxTerrainSurface.LiquidA or WldxTerrainSurface.LiquidB => TerrainFootprintKind.Water,
+        _ => TerrainFootprintKind.None
+    };
+
     /// <summary>Native footstep sound slot selected by the complete terrain code.</summary>
     public TerrainFootstepKind FootstepKind => TerrainSurface switch
     {

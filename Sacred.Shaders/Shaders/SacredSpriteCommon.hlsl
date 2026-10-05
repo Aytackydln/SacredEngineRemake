@@ -83,8 +83,9 @@ vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_Instan
         float cosine;
         sincos(instance.particle_rotation, sine, cosine);
         float2 local = (uv - 0.5f) * instance.rect.zw;
-        pixel = instance.rect.xy + instance.rect.zw * 0.5f +
-            float2(cosine * local.x - sine * local.y, sine * local.x + cosine * local.y);
+        float2 rotated = float2(cosine * local.x - sine * local.y, sine * local.x + cosine * local.y);
+        if ((instance.particle_sprite & 8u) != 0) rotated.y *= 0.5f;
+        pixel = instance.rect.xy + instance.rect.zw * 0.5f + rotated;
     }
     float2 clip = float2(
         pixel.x / viewport_size.x * 2.0f - 1.0f,

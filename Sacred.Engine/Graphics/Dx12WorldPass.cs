@@ -254,6 +254,8 @@ internal sealed class Dx12WorldPass : IDisposable
     {
         camera.SetViewportSize(_graphics.RenderWidth, _graphics.RenderHeight);
         scene.CpuParticleInputs = particles ?? Array.Empty<WorldParticle>();
+        _terrain.FootprintSprites = scene.FootprintSprites;
+        _terrain.FootprintRevision = scene.FootprintRevision;
         var prepared = new Dx12PreparedWorldFrame(
             _terrain.PrepareVisibleWorld(world, scene.Indoor.ActiveGroup),
             _terrain.PrepareVisibleLiquidSprites(),

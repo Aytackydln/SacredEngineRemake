@@ -25,6 +25,7 @@ internal sealed class InGameScene : IGameScene
     private readonly WorldStreamer _worldStreamer;
     private readonly WorldParticleSystem _particles;
     private readonly PlayerParticleEffectsController _playerParticles;
+    private readonly PlayerFootprintController _footprints;
     private readonly SacredCamera _camera;
     private readonly SceneState _scene = new();
     private readonly PlayerCharacterController _player;
@@ -57,6 +58,7 @@ internal sealed class InGameScene : IGameScene
         _particles.SetSimulationMode(saveState.ParticleSimulation);
         _playerParticles = new PlayerParticleEffectsController(_particles, _scene, new WorldElevationSampler(_worldStreamer));
         _camera = SacredCamera.CreateDefault(window.ClientWidth, window.ClientHeight);
+        _footprints = new PlayerFootprintController(_assets, _worldStreamer, _scene);
         _player = new PlayerCharacterController(_assets, _scene, saveState.CharacterName);
         _doors = new DoorSceneController(_assets, _scene);
         _worldLighting = new WorldLightingController(saveState.WorldLightingMode);
@@ -130,7 +132,11 @@ internal sealed class InGameScene : IGameScene
     internal Task<TextureAsset> LoadTextureAsync(string textureName, CancellationToken cancellationToken) =>
         _assets.LoadTextureAsync(textureName, cancellationToken);
 
-    internal void Teleport(Vector2 destination) => _inputController.Teleport(destination);
+    internal void Teleport(Vector2 destination)
+    {
+        _inputController.Teleport(destination);
+        _footprints.Reset(destination);
+    }
 
     internal bool TryStartElevationTrace(string route, out string message) =>
         _inputController.TryStartElevationTrace(route, out message);
@@ -138,8 +144,18 @@ internal sealed class InGameScene : IGameScene
     internal bool TrySetCheatOption(string option, string value, out string message)
     {
         if (_playerParticles.TrySetCheatOption(option, value, _camera.WorldCenter, out message)) return true;
+        if (PlayerMovementCheats.TrySetOption(option, value, _camera, _inputController, out message)) return true;
         switch (option.ToLowerInvariant())
         {
+            case "footprints" when TryParseBoolean(value, out var footprintsEnabled):
+                _footprints.Enabled = footprintsEnabled;
+                _footprints.Clear();
+                message = _footprints.Status;
+                return true;
+            case "footprints" when value.Equals("clear", StringComparison.OrdinalIgnoreCase):
+                _footprints.Clear(); message = _footprints.Status; return true;
+            case "footprints" when value.Equals("status", StringComparison.OrdinalIgnoreCase):
+                message = _footprints.Status; return true;
             case "overlays" or "debug-overlay" when TryParseBoolean(value, out var overlaysVisible):
                 _scene.Debug.OverlaysVisible = overlaysVisible;
                 message = $"debug overlays {(overlaysVisible ? "visible" : "hidden")}";
@@ -263,6 +279,7 @@ internal sealed class InGameScene : IGameScene
     public void Update(float deltaSeconds)
     {
         _inputController.Update(deltaSeconds);
+        _footprints.Update(deltaSeconds, _camera);
         Renderer.UpdateAutoRenderResolution(_camera.Zoom);
         _doors.Update(_worldStreamer.VisibleWorld, _camera.WorldCenter, deltaSeconds, _scene.Indoor.ActiveGroup);
         _debugCrowd.Update(_scene, deltaSeconds);

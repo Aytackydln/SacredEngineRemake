@@ -132,6 +132,10 @@ public sealed class TerrainRenderer : IDisposable
         return _visibleSectorImages;
     }
 
+    public IReadOnlyList<TerrainStaticSprite> FootprintSprites { get; set; } = Array.Empty<TerrainStaticSprite>();
+    public ulong FootprintRevision { get; set; }
+    private ulong _preparedFootprintRevision;
+
     public IReadOnlyList<TerrainStaticSprite> PrepareVisibleStaticSprites(
         IReadOnlyList<WorldParticle>? particles = null,
         ulong particleRevision = 0)
@@ -155,7 +159,8 @@ public sealed class TerrainRenderer : IDisposable
         particles ??= Array.Empty<WorldParticle>();
         var particlesChanged = _preparedParticleRevision != particleRevision ||
                                _particleSpriteBuilder.HasPendingAssetRequests;
-        if (!preparation.Changed && !particlesChanged)
+        var footprintsChanged = _preparedFootprintRevision != FootprintRevision;
+        if (!preparation.Changed && !particlesChanged && !footprintsChanged)
             return _visibleWorldSprites;
 
         if (particlesChanged)
@@ -177,6 +182,8 @@ public sealed class TerrainRenderer : IDisposable
                 _visibleWorldSprites[index] = sprite with { IsEmbeddedInTerrain = false };
         }
         _visibleWorldSprites.AddRange(_particleSpriteBuilder.Sprites);
+        _visibleWorldSprites.AddRange(FootprintSprites);
+        _preparedFootprintRevision = FootprintRevision;
 
         if (preparation.Changed)
         {
@@ -368,6 +375,8 @@ public readonly record struct TerrainStaticSprite(
 {
     /// <summary>Identifies an atlas-backed mini object from the Items.pak graphic type.</summary>
     public bool IsMiniObject { get; init; }
+    /// <summary>Planar contact art; lit and drawn after floors, before the Objects queue.</summary>
+    public bool IsGroundDecal { get; init; }
     public bool UsesSpriteDepth { get; init; }
     public byte HeightLevel { get; init; }
     /// <summary>Identifies scenery authored to render after the water pass.</summary>
