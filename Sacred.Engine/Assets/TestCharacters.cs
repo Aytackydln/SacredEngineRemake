@@ -112,7 +112,7 @@ internal static class TestCharacters
         new(Seraphim, SacredCharacterClass.Seraphim, "Seraphim beam", new Dictionary<ItemSlot, uint>(SeraphimItems) { [ItemSlot.RightHand] = 3072 }),
         new(Daemon, SacredCharacterClass.Daemon, "Daemon small torch", new Dictionary<ItemSlot, uint>(DaemonItems) { [ItemSlot.RightHand] = 5632 }),
         new(Seraphim, SacredCharacterClass.Seraphim, "Seraphim inherited effects", new Dictionary<ItemSlot, uint>(SeraphimItems)
-            { [ItemSlot.RightHand] = 2304, [ItemSlot.Wings] = 3111 }),
+            { [ItemSlot.RightHand] = 1742, [ItemSlot.Wings] = 3111 }),
         new(Vampiress, SacredCharacterClass.Vampiress, "Vampiress inherited worms", new Dictionary<ItemSlot, uint>(VampiressDItems)
             { [ItemSlot.RightHand] = 7219 }),
         new(Seraphim, SacredCharacterClass.Seraphim, "Seraphim Belwen wings", new Dictionary<ItemSlot, uint>(SeraphimItems)

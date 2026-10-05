@@ -15,6 +15,7 @@ internal sealed class EffectMeshBuilder
     private readonly List<bool> _vertexDetachesAfterSpawn = [];
     private string? _attachmentBoneName;
     private readonly List<NativeModelEffectSimulation> _nativeEffects = [];
+    private readonly List<NativeBillboardSizeAnimation> _billboardAnimations = [];
 
     public void AddNativeEffect(SacredModelEffectDefinition definition, Vector3 start, Vector3 end,
         string? boneName, Vector3 direction)
@@ -58,7 +59,8 @@ internal sealed class EffectMeshBuilder
             var count = Math.Max(1, (int)(Vector3.Distance(start, end) * density));
             for (var i = 0; i < count; i++)
                 AddBillboard(Vector3.Lerp(start, end, (float)i / count), halfSize * 2, halfSize * 2,
-                    definition.TextureName, NativeModelEffectSimulation.Unpack(color), ParticleTextureMode.NativeModel);
+                    definition.TextureName, NativeModelEffectSimulation.Unpack(color), ParticleTextureMode.NativeModel,
+                    sizeAnimation: definition.BeamSizeAnimation);
         }
     }
 
@@ -82,7 +84,8 @@ internal sealed class EffectMeshBuilder
         ParticleTextureMode textureMode,
         float phase = 0.0f,
         bool bindToAttachment = true,
-        string? boneName = null)
+        string? boneName = null,
+        SacredBillboardSizeAnimation? sizeAnimation = null)
     {
         var halfWidth = width * 0.5f;
         var halfHeight = height * 0.5f;
@@ -95,6 +98,8 @@ internal sealed class EffectMeshBuilder
         {
             EnsureVertexCapacity();
             var start = (ushort)_vertices.Count;
+            if (sizeAnimation is not null)
+                _billboardAnimations.Add(new NativeBillboardSizeAnimation(start, sizeAnimation));
             AddVertex(center, new Vector3(-halfWidth, -halfHeight, vertexMarker), new Vector2(0.0f, 1.0f), bindToAttachment, boneName);
             AddVertex(center, new Vector3( halfWidth, -halfHeight, vertexMarker), new Vector2(1.0f, 1.0f), bindToAttachment, boneName);
             AddVertex(center, new Vector3( halfWidth,  halfHeight, vertexMarker), new Vector2(1.0f, 0.0f), bindToAttachment, boneName);
@@ -152,7 +157,7 @@ internal sealed class EffectMeshBuilder
             _surfaces.ToArray(),
             Array.ConvertAll(vertices, static vertex => vertex.Position),
             _vertexBoneNames.ToArray(),
-            _vertexDetachesAfterSpawn.ToArray()) { NativeEffects = _nativeEffects.ToArray() };
+            _vertexDetachesAfterSpawn.ToArray()) { NativeEffects = _nativeEffects.ToArray(), BillboardAnimations = _billboardAnimations.ToArray() };
     }
 
     private void AddSurface(

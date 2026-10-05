@@ -30,6 +30,8 @@ public sealed record SacredModelEffectDefinition(
     /// <summary>Texture selected by the native <c>stdLensflare</c> draw, when present.</summary>
     public string? LensFlareTextureName { get; init; }
     public float HaloHalfSize { get; init; }
+    public SacredBillboardSizeAnimation? HaloSizeAnimation { get; init; }
+    public SacredBillboardSizeAnimation? BeamSizeAnimation { get; init; }
     public uint HaloColor { get; init; }
     public float BeamDensity { get; init; }
     public float HaloDensity { get; init; }
@@ -47,6 +49,9 @@ public static class SacredModelEffectCatalogue
 
     public static SacredStandardModelEffectDefinition StandardGlow =>
         EmbeddedModelEffects.StandardGlow;
+
+    public static SacredBillboardSizeAnimation ItemBillboardSizeAnimation =>
+        EmbeddedModelEffects.ItemBillboardSizeAnimation;
 
     public static IReadOnlyList<SacredModelEffectDefinition> MagicWeaponDefinitions =>
         EmbeddedModelEffects.MagicWeaponDefinitions;

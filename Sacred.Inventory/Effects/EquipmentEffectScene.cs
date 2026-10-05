@@ -18,6 +18,7 @@ public sealed class EquipmentEffectScene
     private readonly bool[] _vertexDetachesAfterSpawn;
     private readonly int[] _particleSpawnCycles;
     private float _particleElapsedSeconds;
+    private float _billboardElapsedSeconds;
 
     internal EquipmentEffectScene(
         Mesh mesh,
@@ -41,17 +42,30 @@ public sealed class EquipmentEffectScene
     public static EquipmentEffectScene Empty { get; } = new(null!, [], [], [], []);
     public IReadOnlyList<EquipmentEffectSurface> Surfaces { get; }
     internal IReadOnlyList<NativeModelEffectSimulation> NativeEffects { get; init; } = [];
+    internal IReadOnlyList<NativeBillboardSizeAnimation> BillboardAnimations { get; init; } = [];
+
+    private void UpdateBillboardSizes(float deltaSeconds)
+    {
+        if (BillboardAnimations.Count == 0) return;
+        _billboardElapsedSeconds += Math.Max(0, deltaSeconds);
+        foreach (var animation in BillboardAnimations)
+            animation.Update(Mesh, _billboardElapsedSeconds);
+        Mesh.NotifyVerticesChanged();
+    }
 
     public void ResetNativeEffects() => Playback.Submit(EquipmentEffectOperation.Reset);
     internal void ResetCpu()
     {
         foreach (var effect in NativeEffects) effect.Reset();
+        _billboardElapsedSeconds = 0;
+        UpdateBillboardSizes(0);
     }
 
     /// <summary>Advances effects on a standalone model that has no character skeleton pose.</summary>
     public void Advance(float deltaSeconds) => Playback.Submit(EquipmentEffectOperation.Advance, deltaSeconds: deltaSeconds);
     internal void AdvanceCpu(float deltaSeconds)
     {
+        UpdateBillboardSizes(deltaSeconds);
         foreach (var effect in NativeEffects)
             effect.Update(Mesh, null, deltaSeconds);
     }
@@ -75,6 +89,7 @@ public sealed class EquipmentEffectScene
         => Playback.Submit(EquipmentEffectOperation.Pose, animatedMesh, deltaSeconds);
     internal void ApplyPoseCpu(GrnAnimatedMesh animatedMesh, float deltaSeconds)
     {
+        UpdateBillboardSizes(deltaSeconds);
         using var measurement = AnimationPerformance.Measure(
             AnimationCpuStage.Effects);
         foreach (var effect in NativeEffects)

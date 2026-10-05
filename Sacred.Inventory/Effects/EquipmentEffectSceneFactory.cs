@@ -85,7 +85,7 @@ public static class EquipmentEffectSceneFactory
         if (definition.LensFlareTextureName is { } flare)
             builder.AddBillboard(anchor.Position, definition.HaloHalfSize * 2, definition.HaloHalfSize * 2,
                 flare, NativeModelEffectSimulation.Unpack(definition.HaloColor),
-                ParticleTextureMode.NativeLensFlare, boneName: boneName);
+                ParticleTextureMode.NativeLensFlare, boneName: boneName, sizeAnimation: definition.HaloSizeAnimation);
         Console.WriteLine($"[magic weapon effect] item={attachment.ItemId} variant={(byte)variant} anchor={anchor.Name} texture={definition.TextureName} native=0x{definition.PredicateAddress:X}");
     }
 
@@ -154,7 +154,7 @@ public static class EquipmentEffectSceneFactory
     {
         // renderItemEffects compares the Items.pak descriptor selector with 9,
         // then probes these four literal model helpers. The native half-size is
-        // 3 + rand()/32768; use its stable midpoint for retained scene geometry.
+        // 3 + rand()/32767, sampled again for every draw.
         if (attachment.ItemEffectSelector != 9)
             return;
 
@@ -166,7 +166,8 @@ public static class EquipmentEffectSceneFactory
             builder.AddBillboard(anchor.Position, 7f, 7f,
                 SacredModelEffectCatalogue.StandardGlow.TextureName, Vector4.One,
                 ParticleTextureMode.NativeModel,
-                boneName: attachment.RigidAttachBoneName ?? anchor.AnimationBoneName);
+                boneName: attachment.RigidAttachBoneName ?? anchor.AnimationBoneName,
+                sizeAnimation: SacredModelEffectCatalogue.ItemBillboardSizeAnimation);
         }
     }
 

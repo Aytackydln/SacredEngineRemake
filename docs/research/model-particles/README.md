@@ -5,7 +5,8 @@ Research date: 2026-09-09. This work follows the executable catalogue research i
 an extracted catalogue and CPU simulations feeding Sacred.Engine's item-particle
 shader. This is a working reconstruction, with fidelity gaps listed below.
 
-Latest continuation: [color, trail state, and inherited equipment](color-and-inheritance.md).
+Latest continuations: [color, trail state, and inherited equipment](color-and-inheritance.md)
+and [animated glow sizes](glow-size-animation.md).
 It corrects the earlier blend diagnosis and establishes the raw Weapon.pak layout.
 
 ## Evidence and selection
@@ -315,13 +316,11 @@ It also checks the serialized layout sizes. The current results are 50 quads for
    PQ. It preserves emissive accumulation without using a PQ code directly as
    screen coverage, but remains an approximation of native SDR source-alpha
    additive output.
-2. `renderGlowLine` randomizes the worm blade-glow half-size from 3 to 4 on each
-   draw. The retained remake mesh currently uses 3.
-3. The native random generator and exact random-call ordering remain to recover.
+2. The native random generator and exact random-call ordering remain to recover.
    Torch rotation, its 4×4 age atlas, and the separate type-3 lens flare are now
    implemented. Quality-dependent model presets have not been generalized into
    the runtime quality selector.
-4. Static archives do not contain the live merged modifier rows consumed by the
+3. Static archives do not contain the live merged modifier rows consumed by the
    original selector. MageStaff generation-group suffixes are used only for the
    equipment preview; literal resolved modifier codes remain exact.
 
