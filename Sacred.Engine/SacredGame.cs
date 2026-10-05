@@ -73,6 +73,11 @@ public sealed class SacredGame : IDisposable
 
     public SacredGameSaveState CaptureSaveState() => _runtime.CaptureSaveState();
 
+    /// <summary>Queues a campaign switch for the game thread. Available after world loading completes.
+    /// The loading screen rebuilds scene state; completion and rejection are logged to the console.</summary>
+    public void RequestCampaignChange(string campaignScriptsDirectory) =>
+        _runtime.RequestCampaignChange(campaignScriptsDirectory);
+
     public void Dispose()
     {
         if (_disposed)

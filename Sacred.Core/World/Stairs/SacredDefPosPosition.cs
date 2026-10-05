@@ -36,11 +36,15 @@ public readonly struct SacredDefPosPositionLayout
     [FieldOffset(0x44)] public readonly int X;
     /// <summary>World Y coordinate.</summary>
     [FieldOffset(0x48)] public readonly int Y;
-    /// <summary>World Z coordinate or authored elevation value.</summary>
+    /// <summary>Legacy name for the random position radius at 0x4C.</summary>
     [FieldOffset(0x4C)] public readonly int Z;
+    /// <summary>Random X/Y offset radius. Gold 0x474557..0x474604 samples offsets when positive.</summary>
+    [FieldOffset(0x4C)] public readonly int Radius;
 
-    /// <summary>Native DefStru.p[3]; meaning depends on the definition kind.</summary>
+    /// <summary>Native DefStru.p[3]; surface level for position definitions.</summary>
     [FieldOffset(0x50)] public readonly int Parameter3;
+    /// <summary>Position surface level. Gold 0x474610..0x474634 clamps negative values to zero.</summary>
+    [FieldOffset(0x50)] public readonly int SurfaceLevel;
     /// <summary>Native DefStru.p[4]; meaning depends on the definition kind.</summary>
     [FieldOffset(0x54)] public readonly int Parameter4;
     /// <summary>Native DefStru.p[5]; meaning depends on the definition kind.</summary>
@@ -51,7 +55,7 @@ public readonly struct SacredDefPosPositionLayout
     [FieldOffset(0x60)] public readonly int Parameter7;
 }
 
-/// <summary>A named world position from the first table in NetScript/DefPos.bin.</summary>
+/// <summary>A named campaign position. Z retains the legacy name for its random radius.</summary>
 public readonly record struct SacredDefPosPosition(
     string Name,
     int X,
@@ -59,6 +63,8 @@ public readonly record struct SacredDefPosPosition(
     int Z)
 {
     private const int HeaderSize = SacredDefPosHeaderLayout.SerializedSize;
+    public int Radius => Z;
+    public int SurfaceLevel { get; init; }
     private const int RecordSize = SacredDefPosPositionLayout.SerializedSize;
     private const int NameOffset = 4;
     private const int NameLength = 64;
@@ -96,7 +102,7 @@ public readonly record struct SacredDefPosPosition(
 
             positions.Add(new SacredDefPosPosition(
                 Encoding.Latin1.GetString(nameBytes),
-                layout.X, layout.Y, layout.Z));
+                layout.X, layout.Y, layout.Radius) { SurfaceLevel = Math.Max(0, layout.SurfaceLevel) });
         }
 
         return positions;

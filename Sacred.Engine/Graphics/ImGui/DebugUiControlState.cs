@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Sacred.Core.GameBin.Scripts;
 using Sacred.Engine.Graphics.Skinning;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Scene.InGame;
@@ -9,6 +10,12 @@ namespace Sacred.Engine.Graphics.ImGui;
 /// <summary>Bridges ImGui requests to the normal engine update path.</summary>
 internal sealed class DebugUiControlState
 {
+    public IReadOnlyList<SacredCampaignFiles> Campaigns { get; set; } = [];
+    public string? CampaignDirectoryPath { get; set; }
+    public string CampaignDisplayName { get; set; } = SacredCampaignFiles.DefaultDirectoryName;
+    public bool CampaignChangeAvailable { get; set; }
+    public string? RequestedCampaign { get; set; }
+    public bool RequestedCampaignListRefresh { get; set; }
     public bool HdrEnabled { get; set; }
     public FramePacingMode FramePacingMode { get; set; }
     public int ManualFrameRate { get; set; } = 60;

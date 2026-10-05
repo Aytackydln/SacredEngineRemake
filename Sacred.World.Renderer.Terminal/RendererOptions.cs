@@ -1,4 +1,5 @@
 using System.Globalization;
+using Sacred.Core.GameBin.Scripts;
 
 namespace Sacred.World.Renderer.Terminal;
 
@@ -12,6 +13,7 @@ internal sealed record RendererOptions(
     float Zoom)
 {
     public bool OpenDoors { get; init; }
+    public string CampaignScriptsDirectory { get; init; } = SacredCampaignFiles.DefaultDirectoryName;
     public byte? IndoorLevel { get; init; }
     public bool AllSectors { get; init; }
     public int? SectorX { get; init; }
@@ -29,6 +31,7 @@ internal sealed record RendererOptions(
     public static RendererOptions Parse(string[] args)
     {
         string? gameDirectory = null;
+        var campaign = SacredCampaignFiles.DefaultDirectoryName;
         var outputDirectory = Path.Combine(Directory.GetCurrentDirectory(), "world-debug-images");
         float? worldX = null;
         float? worldY = null;
@@ -63,6 +66,7 @@ internal sealed record RendererOptions(
             switch (argument)
             {
                 case "--game": gameDirectory = Read(args, ref index, argument); break;
+                case "--campaign": campaign = Read(args, ref index, argument); break;
                 case "--output": outputDirectory = Read(args, ref index, argument); break;
                 case "--world-x": worldX = ParseFloat(Read(args, ref index, argument), argument); break;
                 case "--world-y": worldY = ParseFloat(Read(args, ref index, argument), argument); break;
@@ -138,6 +142,7 @@ internal sealed record RendererOptions(
             zoom)
         {
             OpenDoors = openDoors, IndoorLevel = indoorLevel, AllSectors = allSectors,
+            CampaignScriptsDirectory = campaign,
             SectorX = sectorX, SectorY = sectorY, Format = format, ParticleSeconds = particleSeconds,
             TextureCacheMegabytes = textureCacheMegabytes, SkipExisting = skipExisting,
             ResolutionScale = resolutionScale, Supersampling = supersampling, Verbose = verbose, Backend = backend
@@ -146,6 +151,7 @@ internal sealed record RendererOptions(
 
     public static string Help =>
         "Sacred.World.Renderer.Terminal <game-directory> [options]\n" +
+        "  --campaign <name|path> Script directory under bin, or absolute path (default: NetScriptCamp)\n" +
         "  --output <directory>  Image destination (default: ./world-debug-images)\n" +
         "  --format <tga|bmp>    Output format (default: tga)\n" +
         "  --renderer <software|gpu|auto> Default: software; auto currently selects software\n" +

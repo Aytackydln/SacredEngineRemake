@@ -7,6 +7,8 @@ namespace Sacred.Core.World.Portals;
 public sealed record SacredPortalTrigger(string Name, int MinimumX, int MinimumY, int MaximumX,
     int MaximumY, byte SurfaceLevel, SacredScriptPosition Destination)
 {
+    /// <summary>Presentation metadata; stairs also use unmarked OnMoveOver teleports.</summary>
+    public bool HasPortalMapIcon { get; init; }
     public bool Contains(Vector2 position, byte surfaceLevel) => surfaceLevel == SurfaceLevel &&
         position.X >= MinimumX && position.X < MaximumX + 1 &&
         position.Y >= MinimumY && position.Y < MaximumY + 1;

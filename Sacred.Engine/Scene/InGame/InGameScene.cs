@@ -36,6 +36,7 @@ internal sealed class InGameScene : IGameScene
     private readonly InGameInputController _inputController;
     private readonly Win32Window _window;
     private readonly SacredGameSaveState _saveState;
+    internal WorldCampaignScripts? CampaignScripts { get; }
     private Task? _worldPreparationTask;
     private string _lastRegionDisplayName = string.Empty;
     private bool _disposed;
@@ -53,6 +54,7 @@ internal sealed class InGameScene : IGameScene
         Renderer = renderer;
         _window = window;
         _saveState = saveState;
+        CampaignScripts = resources.WorldArchive.CampaignScripts;
         _worldStreamer = new WorldStreamer(resources.WorldArchive);
         _particles = new WorldParticleSystem(resources.WorldArchive.ParticleScript, saveState.ParticleQuality);
         _particles.GpuBackend = renderer.ParticleGpuBackend;
@@ -154,10 +156,16 @@ internal sealed class InGameScene : IGameScene
         {
             case "portals" when value.Equals("status", StringComparison.OrdinalIgnoreCase):
                 foreach (var portal in _portalScript.Billboards)
-                    EngineLog.WriteLine($"Portal billboard: world {portal.Position.X:0.###},{portal.Position.Y:0.###}; tile {portal.TileX},{portal.TileY}; script 0x{portal.ScriptOffset:X}; unlit animated.");
-                foreach (var trigger in _portalScript.Triggers)
+                    EngineLog.WriteLine($"Portal billboard: world {portal.Position.X:0.###},{portal.Position.Y:0.###}; tile {portal.TileX},{portal.TileY}; {(portal.IsStartup ? "StartCode" : "FunkCode")}+0x{portal.ScriptOffset:X}; {portal.Variant}; unlit animated.");
+                foreach (var trigger in _portalScript.Triggers.Where(t => t.HasPortalMapIcon))
                     EngineLog.WriteLine($"Portal trigger: {trigger.Name}; {trigger.MinimumX},{trigger.MinimumY}..{trigger.MaximumX},{trigger.MaximumY}; level {trigger.SurfaceLevel}; destination {trigger.Destination.X},{trigger.Destination.Y},{trigger.Destination.Z}.");
-                message = $"default portals: {_portalScript.Billboards.Count} billboards, {_portalScript.Triggers.Count} triggers";
+                message = $"default portals: {_portalScript.Billboards.Count} billboards, {_portalScript.Triggers.Count(t => t.HasPortalMapIcon)} marked triggers; {_portalScript.Triggers.Count} total script transitions";
+                return true;
+            case "transitions" when value.Equals("status", StringComparison.OrdinalIgnoreCase):
+                foreach (var trigger in _portalScript.Triggers.Where(t =>
+                    Math.Abs(t.MinimumX - _camera.WorldCenter.X) < 32 && Math.Abs(t.MinimumY - _camera.WorldCenter.Y) < 32))
+                    EngineLog.WriteLine($"Nearby script transition: {trigger.Name}; {trigger.MinimumX},{trigger.MinimumY}..{trigger.MaximumX},{trigger.MaximumY}; level {trigger.SurfaceLevel}; target {trigger.Destination.X},{trigger.Destination.Y} level {trigger.Destination.Z}.");
+                message = $"player {_camera.WorldCenter.X:0.##},{_camera.WorldCenter.Y:0.##}; surface {_scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0}; group {_scene.Indoor.ActiveGroup?.Id.ToString() ?? "exterior"}";
                 return true;
             case "footprints" when TryParseBoolean(value, out var footprintsEnabled):
                 _footprints.Enabled = footprintsEnabled;

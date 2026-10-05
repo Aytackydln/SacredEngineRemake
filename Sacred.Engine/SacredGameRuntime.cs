@@ -19,14 +19,14 @@ using Sacred.Particles.Diagnostics;
 namespace Sacred.Engine;
 
 /// <summary>Owns scene construction, engine-wide input, cheats, and persistent runtime state.</summary>
-internal sealed class SacredGameRuntime : IDisposable
+internal sealed partial class SacredGameRuntime : IDisposable
 {
     private readonly Win32Window _window;
     private readonly LowLatencySystem _latency;
     private readonly Dx12Renderer _renderer;
     private readonly FramePacingController _framePacing;
     private readonly SceneManager _scenes;
-    private readonly GameResourceLoader _resourceLoader;
+    private GameResourceLoader _resourceLoader;
     private readonly GamepadInputSource _gamepad = new();
     private readonly EngineInputController _engineInput;
     private readonly CheatsController _cheats;
@@ -59,7 +59,11 @@ internal sealed class SacredGameRuntime : IDisposable
         _debugUiControls = renderer.DebugUiControls;
         _framePacing = framePacing;
         _scenes = scenes;
-        _resourceLoader = new GameResourceLoader(gameDirectories, _grannyBackend);
+        InitializeCampaignSelection(gameDirectories, initialSaveState);
+        _resourceLoader = new GameResourceLoader(gameDirectories, _grannyBackend)
+        {
+            CampaignScriptsDirectory = _campaignSelection
+        };
         _engineInput = new EngineInputController(
             window.Input,
             renderer,
@@ -80,6 +84,7 @@ internal sealed class SacredGameRuntime : IDisposable
 
     public void Update(float deltaSeconds)
     {
+        ApplyCampaignRequests();
         ApplyDebugUiRequests();
         _gamepad.Poll(_window.Input);
         _cheats.Update(ExecuteCheat);
@@ -227,6 +232,7 @@ internal sealed class SacredGameRuntime : IDisposable
 
     private void SynchronizeDebugUiControls()
     {
+        SynchronizeCampaignControls();
         _debugUiControls.HdrEnabled = _renderer.IsHdrEnabled;
         _debugUiControls.FramePacingMode = _framePacing.Mode;
         _debugUiControls.ManualFrameRate = _framePacing.ManualFrameRate;
@@ -288,6 +294,7 @@ internal sealed class SacredGameRuntime : IDisposable
             ParticleSimulation = _inGameScene?.ParticleSimulation ?? _initialSaveState.ParticleSimulation,
             SkinningMode = _renderer.WorldInitialized ? _renderer.SkinningMode : _initialSaveState.SkinningMode,
             CharacterName = _inGameScene?.SelectedCharacterName ?? _initialSaveState.CharacterName,
+            CampaignScriptsDirectory = _campaignSelection,
             LastLocation = _inGameScene?.PlayerWorldPosition ?? _initialSaveState.LastLocation
         };
     }
@@ -386,11 +393,7 @@ internal sealed class SacredGameRuntime : IDisposable
             preserveInMemory: false);
         _scenes.Register(
             GameSceneId.GameLoading,
-            () => new GameLoadingScene(
-                _resourceLoader,
-                _gameDirectory,
-                InitializeRuntime,
-                _scenes.RequestSwitch),
+            CreateGameLoadingScene,
             preserveInMemory: false);
         _scenes.Register(
             GameSceneId.MainMenu,
@@ -434,8 +437,13 @@ internal sealed class SacredGameRuntime : IDisposable
         var resources = _resourceLoader.TransferToRuntime();
         try
         {
+            if (_inGameScene is not null)
+            {
+                _renderer.ResetWorld();
+                _inGameScene.Dispose();
+            }
             _renderer.InitializeWorld(resources.Assets, resources.WorldArchive);
-            _renderer.SetSkinningMode(_initialSaveState.SkinningMode);
+            _renderer.SetSkinningMode(_campaignLoadState.SkinningMode);
             var scene = new InGameScene(
                 resources,
                 _renderer,
@@ -445,9 +453,10 @@ internal sealed class SacredGameRuntime : IDisposable
                 () =>
                 {
                 },
-                _initialSaveState);
-            _scenes.RegisterInstance(scene);
+                _campaignLoadState);
+            _scenes.ReplaceInactiveInstance(scene);
             _inGameScene = scene;
+            _campaignReloadPending = false;
             return scene;
         }
         catch
@@ -466,6 +475,7 @@ internal sealed class SacredGameRuntime : IDisposable
         switch (command)
         {
             case HelpCheatCommand:
+                EngineLog.WriteLine("Campaigns: set campaign list; set campaign status; set campaign <bin-directory-name|absolute-path> reloads the world using that script set (default NetScriptCamp).");
                 EngineLog.WriteLine("Viewport cheats: set window-size <width>x<height> resizes without activation; set viewport show reports client/output/scene dimensions. Timing cheats: set frame-log <on|off> reports frame pacing; set animation-log <on|off> reports CPU animation stages, upload bytes and completed GPU model/shadow timestamps every two seconds.");
                 EngineLog.WriteLine("GPU preparation cheat: set skin-preparation <on|off> prepares resources independently of model skinning selection.");
                 EngineLog.WriteLine("Door diagnostics: set door-list show lists decoded loaded playback positions and clip availability.");
@@ -476,6 +486,7 @@ internal sealed class SacredGameRuntime : IDisposable
                 EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set particles <on|off>; set particle-simulation <Auto|CpuSimd|CpuScalar|Gpu|GpuOnly>; set particle-stats show; set item-flags <hex>; set character next; set facing <degrees>; set door toggle; set hdr <on|off>; set hdr-brightness <nits|os>; set hdr-scene-format <packed|fp16>; set hdr-unlit-multiplier <0-4>; set hdr-particle-multiplier <0-4>; set pacing <vrr|vsync|limit|manual>; set fps <30-1000>; set latency <off|on|boost>; set resolution <percentage|auto>; set autoscale <on|off>; set scaling <none|bilinear|fsr1|fsr2|fsr1motionadaptive>; set granny <managed|native>.");
                 EngineLog.WriteLine("Footprints: set footprints <on|off|clear|status>; set move <x,y|stop|status> moves through the normal camera/collision path without simulated input.");
                 EngineLog.WriteLine("Portals: set portals status lists default-open script billboards, triggers and destinations.");
+                EngineLog.WriteLine("World transitions: set transitions status lists nearby script stairs/teleports and the current surface level.");
                 return;
             case TeleportCheatCommand teleport:
                 if (_inGameScene is null)
@@ -538,7 +549,8 @@ internal sealed class SacredGameRuntime : IDisposable
 
     private void ExecuteSetOptionCheat(SetOptionCheatCommand command)
     {
-        if (TrySetEngineCheatOption(command.Option, command.Value, out var engineMessage))
+        if (TrySetEngineCheatOption(command.Option, command.Value, out var engineMessage) ||
+            command.Option.Equals("campaign", StringComparison.OrdinalIgnoreCase))
         {
             EngineLog.WriteLine($"Cheat: {engineMessage}");
             return;
@@ -589,6 +601,8 @@ internal sealed class SacredGameRuntime : IDisposable
     {
         switch (option.ToLowerInvariant())
         {
+            case "campaign":
+                return TrySetCampaign(value, out message);
             case "particle-panel" when value is "play" or "toggles":
                 _debugUiControls.PlayerPanelVisible = true;
                 _debugUiControls.RequestedParticlePanelOpen = true;

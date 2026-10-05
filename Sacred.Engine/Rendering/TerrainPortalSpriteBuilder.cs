@@ -31,7 +31,7 @@ internal sealed class TerrainPortalSpriteBuilder(AssetManager assets)
         foreach (var portal in portals.GetBillboards(sector.Coord))
         {
             if (floor is not null || portal.SurfaceLevel != 0) continue;
-            var textures = _textures.GetOrRequest();
+            var textures = _textures.GetOrRequest(portal.Variant);
             if (textures is null) continue;
             var anchor = IsometricProjection.WorldToIso(portal.Position) + IsometricProjection.TileAnchorOffset;
             var heightScale = _projection.HeightFactor * _projection.VerticalScale;
@@ -53,7 +53,7 @@ internal sealed class TerrainPortalSpriteBuilder(AssetManager assets)
                 {
                     IsPortalBillboard = true,
                     ParticleBlendFlags = flags,
-                    ParticleAtlasCell = portal.ScriptOffset,
+                    ParticleAtlasCell = portal.AnimationSeed,
                     ParticleDepthKey = WorldPainterDepth.FromWorld(portal.Position)
                 });
             }

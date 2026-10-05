@@ -12,13 +12,18 @@ internal sealed class StairsArrivalGuard
     private readonly HashSet<(int X, int Y)> _tiles = [];
 
     public StairsArrivalGuard(WorldStairsLink link)
+        : this(link.TargetZone, new Vector2(link.Destination.X, link.Destination.Y))
     {
-        _surfaceLevel = link.TargetZone.Anchor.Metadata;
-        foreach (var cell in link.TargetZone.Cells)
+    }
+
+    public StairsArrivalGuard(WorldStairsZone zone, Vector2 destination)
+    {
+        _surfaceLevel = zone.Anchor.Metadata;
+        foreach (var cell in zone.Cells)
             _tiles.Add((cell.Position.X, cell.Position.Y));
 
         // DefPos arrival markers may lie outside the linked stairs zone.
-        _tiles.Add(((int)MathF.Floor(link.Destination.X), (int)MathF.Floor(link.Destination.Y)));
+        _tiles.Add(((int)MathF.Floor(destination.X), (int)MathF.Floor(destination.Y)));
     }
 
     public bool BlocksTile(Vector2 position, byte surfaceLevel) =>

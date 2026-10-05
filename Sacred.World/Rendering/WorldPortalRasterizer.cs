@@ -32,13 +32,14 @@ public sealed class WorldPortalRasterizer(SacredWorldArchive world, ITextureSour
             ?? WorldModelOcclusion.BuildAsync(staticSprites, sectors, center, image.Width, image.Height, zoom, floor));
         var transform = IsometricProjection.CreateScreenTransform(center, zoom, image.Width, image.Height);
         var projection = SacredParticleCatalogue.LoadEmbedded().Projection;
-        var whirlOne = await textures.LoadTextureAsync(SacredPortalAppearance.FirstWhirlTexture);
-        var whirlTwo = await textures.LoadTextureAsync(SacredPortalAppearance.SecondWhirlTexture);
         foreach (var portal in placements.OrderBy(p => WorldPainterDepth.FromWorld(p.Position)))
         {
+            var surfaces = SacredPortalAppearance.GetSurfaceTextures(portal.Variant);
+            var whirlOne = await textures.LoadTextureAsync(SacredPortalAppearance.GetFirstWhirlTexture(portal.Variant));
+            var whirlTwo = await textures.LoadTextureAsync(SacredPortalAppearance.GetSecondWhirlTexture(portal.Variant));
             var cycle = (uint)(seconds / 5);
-            var first = await textures.LoadTextureAsync(SacredPortalAppearance.SurfaceTextures[TextureIndex((uint)portal.ScriptOffset, cycle)]);
-            var second = await textures.LoadTextureAsync(SacredPortalAppearance.SurfaceTextures[TextureIndex((uint)portal.ScriptOffset, cycle + 1)]);
+            var first = await textures.LoadTextureAsync(surfaces[TextureIndex((uint)portal.AnimationSeed, cycle)]);
+            var second = await textures.LoadTextureAsync(surfaces[TextureIndex((uint)portal.AnimationSeed, cycle + 1)]);
             var anchor = IsometricProjection.WorldToIso(portal.Position) + IsometricProjection.TileAnchorOffset;
             var heightScale = projection.HeightFactor * projection.VerticalScale;
             var screen = transform.ToScreen(anchor.X,

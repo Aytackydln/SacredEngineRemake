@@ -173,6 +173,8 @@ internal sealed class ImGuiDebugPanel(
         }
 
         DearImGui.PushFont(renderer.BodyFont);
+        if (DearImGui.CollapsingHeader("Campaign", ImGuiTreeNodeFlags.DefaultOpen))
+            ImGuiCampaignPanel.Draw(controls);
         if (DearImGui.CollapsingHeader("Cheats", ImGuiTreeNodeFlags.DefaultOpen))
             ImGuiCheatsPanel.Draw(controls);
         if (DearImGui.CollapsingHeader("Settings", ImGuiTreeNodeFlags.DefaultOpen))
@@ -245,6 +247,7 @@ internal sealed class ImGuiDebugPanel(
         DearImGui.Text($"Visible sectors {world.Sectors.Count} (loading {world.LoadingSectors})");
         DearImGui.Text($"Actor terrain Z {scene.Debug.ActorTerrainHeight:0.00}");
         DearImGui.Text($"Indoor group    {scene.Indoor.ActiveGroup?.Id.ToString() ?? "none"}");
+        DearImGui.Text($"Surface level   {scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0}");
         DearImGui.Text($"Active model    {FormatActiveModel(scene)}");
     }
 

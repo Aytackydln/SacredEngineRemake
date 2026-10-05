@@ -185,6 +185,19 @@ public sealed partial class Dx12Renderer : IDisposable
         CreateWorldPipeline(Dx12RendererPipelineFactory.Compile(_graphics.Shaders, _graphics.IsHdrEnabled));
     }
 
+    /// <summary>Retires all world GPU work before scene-owned archives and assets are released.</summary>
+    internal void ResetWorld()
+    {
+        if (_worldPass is null) return;
+        _worldPass.StopBackgroundWork();
+        _graphics.WaitForGpu(_releaseRetiredResources);
+        DisposePipelineResources();
+        _worldPass.Dispose();
+        _worldPass = null;
+        ResetFsr2History();
+        CreatePipeline();
+    }
+
     public ValueTask RenderScreenFrameAsync(
         ScreenFrame screen,
         bool verticalSyncEnabled,

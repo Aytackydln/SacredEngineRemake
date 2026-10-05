@@ -42,5 +42,6 @@ public sealed record SacredGameSaveState
     public ParticleSimulationMode ParticleSimulation { get; init; } = ParticleSimulationMode.Auto;
     public SkinningMode SkinningMode { get; init; } = SkinningMode.Auto;
     public string? CharacterName { get; init; }
+    public string? CampaignScriptsDirectory { get; init; }
     public Vector2? LastLocation { get; init; }
 }

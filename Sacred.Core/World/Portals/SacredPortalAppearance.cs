@@ -21,4 +21,23 @@ public static class SacredPortalAppearance
         "MINIMAP044041.TGA", "MINIMAP045044.TGA", "MINIMAP050036.TGA", "MINIMAP050035.TGA",
         "MINIMAP050037.TGA", "MINIMAP051034.TGA", "MINIMAP051035.TGA", "MINIMAP051036.TGA"
     });
+
+    // Gold's Underworld constructor (0x7C5C10) uses the same mesh and animation,
+    // with this sixteen-slot texture table (including its intentional repetitions).
+    public static IReadOnlyList<string> UnderworldSurfaceTextures { get; } = Array.AsReadOnly(new[]
+    {
+        "MINIMAP005005.TGA", "MINIMAP005026.TGA", "MINIMAP024018.TGA", "MINIMAP033009.TGA",
+        "MINIMAP027022.TGA", "MINIMAP009015.TGA", "MINIMAP050070.TGA", "MINIMAP005005.TGA",
+        "MINIMAP005026.TGA", "MINIMAP024018.TGA", "MINIMAP033009.TGA", "MINIMAP027022.TGA",
+        "MINIMAP009015.TGA", "MINIMAP050070.TGA", "MINIMAP027022.TGA", "MINIMAP024018.TGA"
+    });
+
+    public static IReadOnlyList<string> GetSurfaceTextures(SacredPortalVariant variant) =>
+        variant == SacredPortalVariant.Underworld ? UnderworldSurfaceTextures : SurfaceTextures;
+
+    public static string GetFirstWhirlTexture(SacredPortalVariant variant) =>
+        variant == SacredPortalVariant.Underworld ? "FX_WHIRL03.TGA" : FirstWhirlTexture;
+
+    public static string GetSecondWhirlTexture(SacredPortalVariant variant) =>
+        variant == SacredPortalVariant.Underworld ? "FX_WHIRL04.TGA" : SecondWhirlTexture;
 }

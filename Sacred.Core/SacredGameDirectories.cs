@@ -12,9 +12,12 @@ public class SacredGameDirectories
 
     /// <summary>
     /// Optional explicit path to the named arrival positions used to link two-way stairs.
-    /// Engine clients infer <c>bin\NetScript\DefPos.bin</c> when omitted.
+    /// Engine clients use the selected campaign's <c>DefPos.bin</c> when omitted.
     /// </summary>
     public string? DefPosPath { get; init; }
+
+    /// <summary>A bin subdirectory name or absolute script directory. Defaults to NetScriptCamp.</summary>
+    public string? CampaignScriptsDirectory { get; init; }
 
     /// <summary>
     /// Optional explicit path to Sacred's item-set table. Engine clients infer

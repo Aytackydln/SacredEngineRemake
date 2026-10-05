@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Sacred.Engine.Assets;
@@ -25,11 +26,21 @@ internal sealed class GameLoadingScene : IGameScene
         string gameDirectory,
         Func<InGameScene> initializeRuntime,
         Action<GameSceneId> requestSwitch)
+        : this(resources.CreateGameLoadSteps(), resources.PakDirectory, gameDirectory, initializeRuntime, requestSwitch)
     {
-        _loads = new ResourceLoadSequence(resources.CreateGameLoadSteps());
+    }
+
+    public GameLoadingScene(
+        IReadOnlyList<ResourceLoadStep> steps,
+        string pakDirectory,
+        string gameDirectory,
+        Func<InGameScene> initializeRuntime,
+        Action<GameSceneId> requestSwitch)
+    {
+        _loads = new ResourceLoadSequence(steps);
         _rasterizer = new LoadingScreenRasterizer(
-            Path.Combine(resources.PakDirectory, "LoadingUW01.bmp"),
-            Path.Combine(resources.PakDirectory, "loading0.bmp"),
+            Path.Combine(pakDirectory, "LoadingUW01.bmp"),
+            Path.Combine(pakDirectory, "loading0.bmp"),
             gameDirectory);
         _initializeRuntime = initializeRuntime ?? throw new ArgumentNullException(nameof(initializeRuntime));
         _requestSwitch = requestSwitch ?? throw new ArgumentNullException(nameof(requestSwitch));

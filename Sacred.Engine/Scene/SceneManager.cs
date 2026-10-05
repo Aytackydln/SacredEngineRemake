@@ -47,6 +47,18 @@ internal sealed class SceneManager : IDisposable
 
     public void RequestSwitch(GameSceneId id) => _requestedScene = id;
 
+    /// <summary>Replaces a retained scene while a loading scene is active.</summary>
+    public void ReplaceInactiveInstance(IGameScene scene)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(scene);
+        if (_activeScene?.Id == scene.Id)
+            throw new InvalidOperationException("Switch away from a scene before replacing it.");
+        if (_registrations.TryGetValue(scene.Id, out var previous))
+            previous.Instance?.Dispose();
+        _registrations[scene.Id] = new SceneRegistration(() => scene, true) { Instance = scene };
+    }
+
     public void Update(float deltaSeconds)
     {
         ActiveScene.Update(deltaSeconds);

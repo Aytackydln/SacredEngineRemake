@@ -57,6 +57,7 @@ Generate one minimap texture or all sectors from the original game world files:
 | Argument | Default | Description |
 | --- | --- | --- |
 | `--game <directory>` | Sacred Gold Steam installation on `E:` if present | Game installation folder; also accepted as the first positional argument. |
+| `--campaign <name or path>` | `NetScriptCamp` | Script subdirectory under `bin`, or an absolute script directory. |
 | `--output <directory>` | `./world-debug-images` | Folder for exported images. |
 | `--format <tga, bmp>` | `tga` | Image format. |
 | `--renderer <software, gpu, auto>` | `software` | Rendering backend. GPU requires Windows; `auto` currently selects software. |

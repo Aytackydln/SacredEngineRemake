@@ -41,6 +41,7 @@ public sealed class SacredWorldArchive : IDisposable
     public WorldParticleScriptIndex ParticleScript { get; }
     public WorldObjectScriptIndex ObjectScript { get; }
     public WorldPortalScriptIndex Portals { get; internal set; } = WorldPortalScriptIndex.Empty;
+    public WorldCampaignScripts? CampaignScripts { get; internal set; }
     public IReadOnlyList<SectorCoord> SectorCoordinates => _sectorIdByGrid.Keys.OrderBy(c => c.Y).ThenBy(c => c.X).ToArray();
 
     /// <summary>Releases decoded sector data between offline batches. No sector loads may be in flight.</summary>

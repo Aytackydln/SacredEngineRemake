@@ -119,6 +119,7 @@ internal static class SacredEngineRemakeConfig
                 ParticleSimulation = ReadEnum(values, ParticleSimulationKey, ParticleSimulationMode.Auto),
                 SkinningMode = ReadEnum(values, SkinningModeKey, SkinningMode.Auto),
                 CharacterName = ReadString(values, CharacterKey),
+                CampaignScriptsDirectory = ReadString(values, "CAMPAIGN_SCRIPTS_DIRECTORY"),
                 LastLocation = location
             };
 
@@ -205,6 +206,7 @@ internal static class SacredEngineRemakeConfig
             $"{ParticleSimulationKey} : {state.ParticleSimulation}",
             $"{SkinningModeKey} : {state.SkinningMode}",
             $"{CharacterKey} : {SanitizeLineValue(state.CharacterName)}",
+            $"CAMPAIGN_SCRIPTS_DIRECTORY : {SanitizeLineValue(state.CampaignScriptsDirectory)}",
             $"{LocationXKey} : {FormatLocationComponent(state.LastLocation?.X)}",
             $"{LocationYKey} : {FormatLocationComponent(state.LastLocation?.Y)}"
         ];

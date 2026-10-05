@@ -59,6 +59,7 @@ internal sealed class GameResourceLoader : IDisposable
     }
 
     public string PakDirectory => _pakDirectory;
+    public string? CampaignScriptsDirectory { get; init; }
 
     public IReadOnlyList<ResourceLoadStep> CreateInitialLoadSteps() =>
     [
@@ -154,7 +155,9 @@ internal sealed class GameResourceLoader : IDisposable
         EngineLog.WriteLine($"Item sets loaded: {_itemSets.Count} records from {path}.");
     }
 
-    private void LoadWorldArchive() => _worldArchive = SacredWorldArchiveFactory.Load(_gameDirectory);
+    private void LoadWorldArchive() => _worldArchive = SacredWorldArchiveFactory.Load(_gameDirectory,
+        CampaignScriptsDirectory ?? _directories.CampaignScriptsDirectory,
+        _directories.StairsMapPath, _directories.DefPosPath);
 
     private void LoadResources()
     {

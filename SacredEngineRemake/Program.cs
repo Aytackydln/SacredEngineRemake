@@ -46,7 +46,6 @@ try
     {
         GlobalResourcesPath = Path.Combine(scriptsDir, "us", "global.res"),
         StairsMapPath = Path.Combine(gameDir, "bin", "treppe.bin"),
-        DefPosPath = Path.Combine(gameDir, "bin", "NetScript", "DefPos.bin"),
         WeaponsPakPath = Path.Combine(pakDir, "Weapon.pak"),
         ItemsPakPath = Path.Combine(pakDir, "Items.pak"),
         TexturesPakPath = Path.Combine(pakDir, "Texture.pak"),

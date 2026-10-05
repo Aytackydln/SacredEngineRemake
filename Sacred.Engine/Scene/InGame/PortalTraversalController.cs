@@ -51,7 +51,7 @@ internal sealed class PortalTraversalController(WorldPortalScriptIndex portals)
         camera.StopMoving();
         camera.CenterOnTile(destination.X, destination.Y);
         _previousPosition = destination;
-        EngineLog.WriteLine($"Portal transition: {trigger.Name}; {current.X:0.##},{current.Y:0.##} level {level} -> {target.X},{target.Y} level {destinationLevel}.");
+        EngineLog.WriteLine($"Script transition: {trigger.Name}; {current.X:0.##},{current.Y:0.##} level {level} -> {target.X},{target.Y} level {destinationLevel}.");
         return true;
     }
 }

@@ -12,10 +12,27 @@ internal sealed class IndoorTraversalController(WorldStreamer worldStreamer, Ind
 {
     private WorldTile? _lastTile;
     private IndoorTileGroup? _pendingEntranceGroup;
+    private (WorldTile Tile, byte? SurfaceLevel)? _pendingReset;
+
+    public byte SurfaceLevel => state.ActiveGroup?.SurfaceLevel ?? _pendingReset?.SurfaceLevel ?? 0;
 
     public bool Update(Vector2 playerPosition)
     {
         var tile = WorldTile.From(playerPosition);
+        if (_pendingReset is { } pending)
+        {
+            state.ActiveGroup = FindInteriorGroup(tile, pending.SurfaceLevel);
+            var sectorLoaded = worldStreamer.VisibleWorld.Sectors.Any(sector =>
+                sector.Coord.X == tile.X / WorldStreamer.SectorTileCount &&
+                sector.Coord.Y == tile.Y / WorldStreamer.SectorTileCount);
+            if (state.ActiveGroup is { } restored)
+            {
+                _pendingReset = null;
+                EngineLog.WriteLine($"Indoor surface restored after streaming: group {restored.Id}, level {restored.SurfaceLevel} at {tile.X},{tile.Y}.");
+            }
+            else if (sectorLoaded && (pending.SurfaceLevel is null or 0 || tile != pending.Tile))
+                _pendingReset = null;
+        }
         if (_lastTile == tile)
             return false;
         _lastTile = tile;
@@ -59,9 +76,10 @@ internal sealed class IndoorTraversalController(WorldStreamer worldStreamer, Ind
         _lastTile = tile;
         _pendingEntranceGroup = null;
         state.ActiveGroup = FindInteriorGroup(tile, surfaceLevel);
+        _pendingReset = state.ActiveGroup is null ? (tile, surfaceLevel) : null;
         EngineLog.WriteLine(state.ActiveGroup is { } group
             ? $"Indoor surface reset: group {group.Id}, visibility state {group.SurfaceRenderLayer} at {tile.X},{tile.Y}."
-            : $"Indoor surface reset: exterior at {tile.X},{tile.Y}.");
+            : $"Indoor surface reset: awaiting streamed tiles at {tile.X},{tile.Y}, requested level {surfaceLevel?.ToString() ?? "automatic"}.");
     }
 
     private IndoorTileGroup? FindEntranceGroup(WorldTile tile)

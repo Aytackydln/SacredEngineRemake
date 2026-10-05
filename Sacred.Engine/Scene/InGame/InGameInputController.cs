@@ -74,8 +74,8 @@ internal sealed class InGameInputController
         _setHandCursor = setHandCursor;
         _camera.ManualMovementSegment = (start, end) =>
         {
-            _stairs.ObserveMovement(start, end, _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0);
-            Portals?.ObserveMovement(start, end, _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0);
+            _stairs.ObserveMovement(start, end, _indoors.SurfaceLevel);
+            Portals?.ObserveMovement(start, end, _indoors.SurfaceLevel);
         };
     }
 
@@ -152,15 +152,18 @@ internal sealed class InGameInputController
             CollisionMode,
             PlayerMovementSpeedMultiplier,
             movementInput);
-        var surfaceLevel = _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0;
-        if (Portals?.Update(_camera, surfaceLevel, out var portalDestinationLevel) == true)
+        var surfaceLevel = _indoors.SurfaceLevel;
+        var portalDestinationLevel = surfaceLevel;
+        var scriptTransition = Portals?.Update(_camera, surfaceLevel, out portalDestinationLevel) == true;
+        if (scriptTransition)
         {
             _clickToMove.StopMoving();
             _postStairsMovementInput.BlockUntilNewInput(_input);
             _indoors.Reset(_camera.WorldCenter, portalDestinationLevel);
             surfaceLevel = portalDestinationLevel;
+            _stairs.Reset(_camera.WorldCenter, surfaceLevel);
         }
-        if (_stairs.Update(_camera, surfaceLevel, out var destinationSurfaceLevel))
+        if (!scriptTransition && _stairs.Update(_camera, surfaceLevel, out var destinationSurfaceLevel))
         {
             _clickToMove.StopMoving();
             _postStairsMovementInput.BlockUntilNewInput(_input);
@@ -202,8 +205,8 @@ internal sealed class InGameInputController
             _viewportHeight());
         _setHandCursor(!uiWantsMouse &&
             (_doors.IsDoorAt(mouseWorld) ||
-             Portals?.IsPortalAt(mouseWorld, _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0) == true ||
-             _stairs.IsStairsAt(mouseWorld, _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0)));
+              Portals?.IsPortalAt(mouseWorld, _indoors.SurfaceLevel) == true ||
+              _stairs.IsStairsAt(mouseWorld, _indoors.SurfaceLevel)));
     }
 
     public void OnActivated() => _mapInput.OnActivated();
@@ -233,6 +236,7 @@ internal sealed class InGameInputController
             (int)MathF.Floor(destination.Y / WorldStreamer.SectorTileCount));
         _camera.CenterOnTile(destination.X, destination.Y);
         _indoors.Reset(destination);
+        _stairs.Reset(destination, _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0);
 
         var terrain = _elevation.SampleOrZero(_camera.WorldCenter);
         _scene.Debug.ActorTerrainHeight = terrain.Height;

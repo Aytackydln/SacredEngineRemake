@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Sacred.Assets.Paks.Texture;
@@ -9,22 +10,22 @@ namespace Sacred.Engine.Assets;
 /// <summary>Shares the native portal textures between all instances; produces no files.</summary>
 internal sealed class PortalSpriteLoader(AssetManager assets)
 {
-    private Task<StaticSpriteAsset[]?>? _load;
-    private bool _observedCompletion;
-    public bool Pending => _load is not null && !_observedCompletion;
-    public StaticSpriteAsset[]? GetOrRequest()
+    private readonly Dictionary<SacredPortalVariant, Task<StaticSpriteAsset[]?>> _loads = [];
+    private readonly HashSet<SacredPortalVariant> _observedCompletion = [];
+    public bool Pending => _loads.Keys.Any(variant => !_observedCompletion.Contains(variant));
+    public StaticSpriteAsset[]? GetOrRequest(SacredPortalVariant variant)
     {
-        _load ??= LoadAsync();
-        if (!_load.IsCompleted) return null;
-        _observedCompletion = true;
-        return _load.IsCompletedSuccessfully ? _load.Result : null;
+        if (!_loads.TryGetValue(variant, out var load)) _loads[variant] = load = LoadAsync(variant);
+        if (!load.IsCompleted) return null;
+        _observedCompletion.Add(variant);
+        return load.IsCompletedSuccessfully ? load.Result : null;
     }
 
-    private async Task<StaticSpriteAsset[]?> LoadAsync()
+    private async Task<StaticSpriteAsset[]?> LoadAsync(SacredPortalVariant variant)
     {
         try
         {
-            var frames = await Task.WhenAll(SacredPortalAppearance.SurfaceTextures.Select(name => assets.LoadTextureAsync(name)))
+            var frames = await Task.WhenAll(SacredPortalAppearance.GetSurfaceTextures(variant).Select(name => assets.LoadTextureAsync(name)))
                 .ConfigureAwait(false);
             var width = frames[0].Width;
             var height = frames[0].Height;
@@ -39,9 +40,9 @@ internal sealed class PortalSpriteLoader(AssetManager assets)
                     frames[i].Rgba8.AsSpan(y * width * 4, width * 4).CopyTo(pixels.AsSpan(
                         ((i / columns * height + y) * width * columns + i % columns * width) * 4, width * 4));
             }
-            var first = await assets.LoadTextureAsync(SacredPortalAppearance.FirstWhirlTexture).ConfigureAwait(false);
-            var second = await assets.LoadTextureAsync(SacredPortalAppearance.SecondWhirlTexture).ConfigureAwait(false);
-            EngineLog.WriteLine($"Portal billboards loaded: {frames.Length} minimaps, two unlit animated whirl layers.");
+            var first = await assets.LoadTextureAsync(SacredPortalAppearance.GetFirstWhirlTexture(variant)).ConfigureAwait(false);
+            var second = await assets.LoadTextureAsync(SacredPortalAppearance.GetSecondWhirlTexture(variant)).ConfigureAwait(false);
+            EngineLog.WriteLine($"Portal billboards loaded ({variant}): {frames.Length} minimaps, two unlit animated whirl layers.");
             return [new(0, width, height, 0, 0, pixels, frames.Length, 1),
                 new(0, first.Width, first.Height, 0, 0, first.Rgba8),
                 new(0, second.Width, second.Height, 0, 0, second.Rgba8)];

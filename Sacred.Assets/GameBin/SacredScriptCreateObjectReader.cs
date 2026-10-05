@@ -5,11 +5,18 @@ using Sacred.Core.GameBin.Scripts;
 
 namespace Sacred.Assets.GameBin;
 
-/// <summary>Decodes the recovered literal subset of opcode 8. An unsupported operand
+/// <summary>Decodes recovered literal and named-position operands of opcode 8. An unsupported operand
 /// rejects the whole instruction; callers must not use partial results as placements.</summary>
 public static partial class SacredScriptCreateObjectReader
 {
     public static bool TryRead(SacredScriptCommand command,
+        [NotNullWhen(true)] out SacredScriptCreateObject? creation, out string? diagnostic)
+        => TryRead(command, null, out creation, out diagnostic);
+
+    /// <summary>Decodes complete creation operands, resolving named tile positions from the
+    /// caller's current deterministic DefPos definitions.</summary>
+    public static bool TryRead(SacredScriptCommand command,
+        IReadOnlyDictionary<string, SacredScriptPosition>? definitions,
         [NotNullWhen(true)] out SacredScriptCreateObject? creation, out string? diagnostic)
     {
         creation = null;
@@ -60,13 +67,19 @@ public static partial class SacredScriptCreateObjectReader
                 case SacredScriptArgumentKind.WorldPosition:
                     if (payload.Length < 4) return Truncated(offset, out diagnostic);
                     var x = BinaryPrimitives.ReadInt32LittleEndian(payload);
-                    if (tag == SacredScriptArgumentKind.TilePosition && x == -2)
+                    if (tag == SacredScriptArgumentKind.TilePosition && x == SacredScriptSymbolicPositionArgumentLayout.SymbolicSentinel)
                     {
                         var symbolicName = payload[4..].IndexOf((byte)0);
                         if (symbolicName < 0)
                             return Fail($"Unterminated symbolic tile position at +0x{offset:X}.", out diagnostic);
                         symbolicTilePosition = Encoding.Latin1.GetString(payload.Slice(4, symbolicName));
-                        offset += symbolicName + 6;
+                        if (definitions is not null)
+                        {
+                            if (!definitions.TryGetValue(symbolicTilePosition, out var resolved))
+                                return Fail($"Unresolved tile position '{symbolicTilePosition}'.", out diagnostic);
+                            tile = resolved;
+                        }
+                        offset += symbolicName + SacredScriptSymbolicPositionArgumentLayout.PrefixSize + 1;
                         break;
                     }
                     if (payload.Length < 12) return Truncated(offset, out diagnostic);
@@ -138,13 +151,13 @@ public static partial class SacredScriptCreateObjectReader
                     continue;
                 case SacredScriptArgumentKind.TilePosition or SacredScriptArgumentKind.WorldPosition when payload.Length >= 12:
                     var x = BinaryPrimitives.ReadInt32LittleEndian(payload);
-                    if (tag == SacredScriptArgumentKind.TilePosition && x == -2)
+                    if (tag == SacredScriptArgumentKind.TilePosition && x == SacredScriptSymbolicPositionArgumentLayout.SymbolicSentinel)
                     {
                         var symbolicName = payload[4..].IndexOf((byte)0);
                         if (symbolicName < 0)
                             return false;
                         symbolicTilePosition = Encoding.Latin1.GetString(payload.Slice(4, symbolicName));
-                        offset += symbolicName + 6;
+                        offset += symbolicName + SacredScriptSymbolicPositionArgumentLayout.PrefixSize + 1;
                         continue;
                     }
                     var position = new SacredScriptPosition(x,

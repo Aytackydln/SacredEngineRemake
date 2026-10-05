@@ -31,7 +31,7 @@ try
     RendererLog.Info($"Loading Sacred world from: {options.GameDirectory}");
     var pakDirectory = Path.Combine(options.GameDirectory, "pak");
     using var textures = TexturePakArchive.LoadFromDirectory(pakDirectory);
-    using var world = SacredWorldArchiveFactory.Load(options.GameDirectory);
+    using var world = SacredWorldArchiveFactory.Load(options.GameDirectory, options.CampaignScriptsDirectory);
     using var renderer = new WorldRenderSession(pakDirectory, world, textures);
     Directory.CreateDirectory(options.OutputDirectory);
     if (options.AllSectors || options.SectorX.HasValue)

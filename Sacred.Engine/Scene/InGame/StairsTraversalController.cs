@@ -9,6 +9,13 @@ internal sealed class StairsTraversalController(SacredStairsMap stairsMap)
     private StairsArrivalGuard? _arrivalGuard;
     private WorldStairsLink? _movementLink;
 
+    public void Reset(Vector2 position, byte surfaceLevel)
+    {
+        _movementLink = null;
+        _arrivalGuard = stairsMap.TryGetZone(position.X, position.Y, surfaceLevel, out var zone)
+            ? new StairsArrivalGuard(zone, position) : null;
+    }
+
     public void ObserveMovement(Vector2 start, Vector2 end, byte surfaceLevel)
     {
         if (_movementLink is not null)

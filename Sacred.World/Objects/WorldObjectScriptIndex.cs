@@ -44,8 +44,8 @@ public sealed class WorldObjectScriptIndex
                     item.ModelDesc.Category is not (SacredItemCategory.Container or SacredItemCategory.Door))
                     continue;
                 var position = creation.TilePosition ?? creation.WorldPosition ??
-                    (creation.SymbolicTilePosition is { } name && positionsByName.TryGetValue(name, out var resolved)
-                        ? new SacredScriptPosition(resolved.X, resolved.Y, resolved.Z)
+                    (creation.SymbolicTilePosition is { } name && positionsByName.TryGetValue(name, out var resolved) && resolved.Radius <= 0
+                        ? new SacredScriptPosition(resolved.X, resolved.Y, resolved.SurfaceLevel)
                         : (SacredScriptPosition?)null);
                 if (position is null)
                     continue;

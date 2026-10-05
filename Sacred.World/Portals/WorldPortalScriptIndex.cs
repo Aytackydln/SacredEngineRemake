@@ -39,21 +39,25 @@ public sealed class WorldPortalScriptIndex
         var code = File.ReadAllBytes(Path.Combine(scriptDirectory, "FunkCode.bin"));
         var functions = SacredScriptFunctionReader.Read(File.ReadAllBytes(functionsPath), code.Length);
         var definitions = SacredDefPosPosition.ReadMany(File.ReadAllBytes(Path.Combine(scriptDirectory, "DefPos.bin")))
-            .ToDictionary(p => p.Name, p => new SacredScriptPosition(p.X, p.Y, p.Z), StringComparer.OrdinalIgnoreCase);
+            .Where(p => p.Radius <= 0)
+            .ToDictionary(p => p.Name, p => new SacredScriptPosition(p.X, p.Y, p.SurfaceLevel), StringComparer.OrdinalIgnoreCase);
         // The type comes from the native effect's Items.pak name, not an invented ID mapping.
         var portalTypes = items.Where(item => item.ModelDesc.Category == SacredItemCategory.Effect &&
-                item.ModelName.Equals("FX_STARGATE", StringComparison.OrdinalIgnoreCase))
-            .Select(item => (uint)item.ItemIndex).ToHashSet();
+                (item.ModelName.Equals("FX_STARGATE", StringComparison.OrdinalIgnoreCase) ||
+                 item.ModelName.Equals("FX_STARGATE_UW", StringComparison.OrdinalIgnoreCase)))
+            .ToDictionary(item => (uint)item.ItemIndex, item =>
+                item.ModelName.Equals("FX_STARGATE_UW", StringComparison.OrdinalIgnoreCase)
+                    ? SacredPortalVariant.Underworld : SacredPortalVariant.Ancaria);
         var billboards = ReadBillboards(functions, code, portalTypes);
         var triggers = ReadTriggers(File.ReadAllBytes(Path.Combine(scriptDirectory, "StartCode.bin")),
-            functions, code, definitions);
+            functions, code, definitions, portalTypes, billboards);
         var result = new WorldPortalScriptIndex(billboards, triggers);
-        Console.WriteLine($"Default portals loaded: {billboards.Count} sector-script billboards, {triggers.Count} startup teleport triggers.");
+        Console.WriteLine($"World script transitions loaded: {billboards.Count} portal billboards, {triggers.Count} startup teleport triggers.");
         return result;
     }
 
     private static List<SacredPortalBillboard> ReadBillboards(IReadOnlyList<SacredScriptFunction> functions,
-        byte[] code, HashSet<uint> portalTypes)
+        byte[] code, IReadOnlyDictionary<uint, SacredPortalVariant> portalTypes)
     {
         var result = new List<SacredPortalBillboard>();
         var units = SacredParticleCatalogue.LoadEmbedded().WorldUnitsPerTile;
@@ -67,7 +71,7 @@ public sealed class WorldPortalScriptIndex
             foreach (var command in commands)
             {
                 if (!SacredScriptCreateObjectReader.TryRead(command, out var creation, out _) ||
-                    !portalTypes.Contains(creation.TypeId) || creation.TilePosition is not { } tile) continue;
+                    !portalTypes.ContainsKey(creation.TypeId) || creation.TilePosition is not { } tile) continue;
                 // Gold dispatches each sector's Enter function using this generated name.
                 var name = string.Create(CultureInfo.InvariantCulture,
                     $"Sector{tile.X / Sector.TileCount}{tile.Y / Sector.TileCount:D3}Enter");
@@ -76,14 +80,16 @@ public sealed class WorldPortalScriptIndex
                     ? new Vector2(world.X / units, world.Y / units)
                     : new Vector2(tile.X, tile.Y);
                 result.Add(new(function.Start + command.FileOffset, creation.TypeId, position, tile.X, tile.Y,
-                    (byte)(tile.Z is >= 0 and <= 16 ? tile.Z : 0), creation.HeightOffset ?? 0));
+                    (byte)(tile.Z is >= 0 and <= 16 ? tile.Z : 0), creation.HeightOffset ?? 0)
+                    { Variant = portalTypes[creation.TypeId] });
             }
         }
         return result;
     }
 
     private static List<SacredPortalTrigger> ReadTriggers(byte[] startup,
-        IReadOnlyList<SacredScriptFunction> functions, byte[] code, Dictionary<string, SacredScriptPosition> definitions)
+        IReadOnlyList<SacredScriptFunction> functions, byte[] code, Dictionary<string, SacredScriptPosition> definitions,
+        IReadOnlyDictionary<uint, SacredPortalVariant> portalTypes, List<SacredPortalBillboard> billboards)
     {
         var rectangles = new Dictionary<string, (SacredScriptPosition First, SacredScriptPosition Last)>(StringComparer.OrdinalIgnoreCase);
         var callbacks = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -94,6 +100,17 @@ public sealed class WorldPortalScriptIndex
             if (command.Opcode == SacredScriptPortalOpcodes.If) { conditionalDepth++; continue; }
             if (command.Opcode == SacredScriptPortalOpcodes.EndBlock && conditionalDepth > 0) { conditionalDepth--; continue; }
             if (conditionalDepth > 0) continue;
+            if (SacredScriptCreateObjectReader.TryRead(command, definitions, out var creation, out _) &&
+                portalTypes.TryGetValue(creation.TypeId, out var variant) && creation.TilePosition is { } tile)
+            {
+                var units = SacredParticleCatalogue.LoadEmbedded().WorldUnitsPerTile;
+                var position = creation.WorldPosition is { } world
+                    ? new Vector2(world.X / units, world.Y / units) : new Vector2(tile.X, tile.Y);
+                billboards.Add(new(command.FileOffset, creation.TypeId, position, tile.X, tile.Y,
+                    (byte)(tile.Z is >= 0 and <= 16 ? tile.Z : 0), creation.HeightOffset ?? 0)
+                    { Variant = variant, IsStartup = true });
+                continue;
+            }
             if (command.Opcode is not (SacredScriptPortalOpcodes.DefinePosition or
                 SacredScriptPortalOpcodes.SetBaseTrigger or SacredScriptPortalOpcodes.DeleteBaseTrigger or
                 SacredScriptPortalOpcodes.OnMoveOver or SacredScriptPortalOpcodes.SetMapIcon)) continue;
@@ -102,7 +119,10 @@ public sealed class WorldPortalScriptIndex
             switch (command.Opcode)
             {
                 case SacredScriptPortalOpcodes.DefinePosition when args.Name is { } name && args.Integers.Count >= 2:
-                    definitions[name] = new(args.Integers[0], args.Integers[1], args.Integers.Count >= 3 ? args.Integers[2] : 0);
+                    // DefPos's third literal is a random radius; its fourth is the surface.
+                    if (args.Integers.Count >= 3 && args.Integers[2] > 0) definitions.Remove(name);
+                    else definitions[name] = new(args.Integers[0], args.Integers[1],
+                        args.Integers.Count >= 4 ? Math.Max(0, args.Integers[3]) : 0);
                     break;
                 case SacredScriptPortalOpcodes.SetBaseTrigger when args.Name is { } name && args.Positions.Count > 0:
                     var first = args.Positions.GetValueOrDefault((byte)0x0C, args.Positions.Values.First());
@@ -134,7 +154,7 @@ public sealed class WorldPortalScriptIndex
                 Math.Min(rectangle.First.Y, rectangle.Last.Y), Math.Max(rectangle.First.X, rectangle.Last.X),
                 Math.Max(rectangle.First.Y, rectangle.Last.Y),
                 (byte)(rectangle.Last.Z is >= 0 and <= 16 ? rectangle.Last.Z : 0), destination);
-            if (markers.Any(marker => trigger.Contains(marker, trigger.SurfaceLevel))) result.Add(trigger);
+            result.Add(trigger with { HasPortalMapIcon = markers.Any(marker => trigger.Contains(marker, trigger.SurfaceLevel)) });
         }
         return result;
     }
