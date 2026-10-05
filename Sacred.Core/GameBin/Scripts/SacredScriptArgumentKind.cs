@@ -8,6 +8,12 @@ public enum SacredScriptArgumentKind : byte
     TypeId = 0x02,
     Facing = 0x03,
     TilePosition = 0x04,
+    /// <summary>Tagged Int32 literal (including function indices and map icon coordinates).</summary>
+    Integer = 0x0B,
+    /// <summary>First inclusive SetBaseTrigger corner: X, Y, surface level.</summary>
+    TriggerFirstCorner = 0x0C,
+    /// <summary>Second inclusive SetBaseTrigger corner; omitted for a singleton cell.</summary>
+    TriggerLastCorner = 0x0D,
     WorldPosition = 0x20,
     /// <summary>Null-terminated object reference used by CreateObj instructions.</summary>
     ObjectReference = 0x29,

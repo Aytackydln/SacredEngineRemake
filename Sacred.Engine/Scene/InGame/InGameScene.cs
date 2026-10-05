@@ -15,6 +15,7 @@ using Sacred.Granny.Diagnostics;
 using Sacred.Particles;
 using Sacred.World;
 using Sacred.World.Particles;
+using Sacred.World.Portals;
 
 namespace Sacred.Engine.Scene.InGame;
 
@@ -26,6 +27,7 @@ internal sealed class InGameScene : IGameScene
     private readonly WorldParticleSystem _particles;
     private readonly PlayerParticleEffectsController _playerParticles;
     private readonly PlayerFootprintController _footprints;
+    private readonly WorldPortalScriptIndex _portalScript;
     private readonly SacredCamera _camera;
     private readonly SceneState _scene = new();
     private readonly PlayerCharacterController _player;
@@ -82,6 +84,8 @@ internal sealed class InGameScene : IGameScene
             () => renderer.RenderHeight,
             renderer.OutputToRender,
             window.SetHandCursor);
+        _inputController.Portals = new PortalTraversalController(resources.WorldArchive.Portals);
+        _portalScript = resources.WorldArchive.Portals;
         Bootstrap();
     }
 
@@ -148,6 +152,13 @@ internal sealed class InGameScene : IGameScene
         if (PlayerMovementCheats.TrySetOption(option, value, _camera, _inputController, out message)) return true;
         switch (option.ToLowerInvariant())
         {
+            case "portals" when value.Equals("status", StringComparison.OrdinalIgnoreCase):
+                foreach (var portal in _portalScript.Billboards)
+                    EngineLog.WriteLine($"Portal billboard: world {portal.Position.X:0.###},{portal.Position.Y:0.###}; tile {portal.TileX},{portal.TileY}; script 0x{portal.ScriptOffset:X}; unlit animated.");
+                foreach (var trigger in _portalScript.Triggers)
+                    EngineLog.WriteLine($"Portal trigger: {trigger.Name}; {trigger.MinimumX},{trigger.MinimumY}..{trigger.MaximumX},{trigger.MaximumY}; level {trigger.SurfaceLevel}; destination {trigger.Destination.X},{trigger.Destination.Y},{trigger.Destination.Z}.");
+                message = $"default portals: {_portalScript.Billboards.Count} billboards, {_portalScript.Triggers.Count} triggers";
+                return true;
             case "footprints" when TryParseBoolean(value, out var footprintsEnabled):
                 _footprints.Enabled = footprintsEnabled;
                 _footprints.Clear();

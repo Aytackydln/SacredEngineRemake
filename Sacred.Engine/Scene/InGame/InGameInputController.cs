@@ -30,6 +30,7 @@ internal sealed class InGameInputController
     private readonly Action<bool> _setHandCursor;
     private readonly PostStairsMovementInputGate _postStairsMovementInput = new();
     private ElevationMovementTrace? _elevationTrace;
+    public PortalTraversalController? Portals { get; set; }
 
     public CollisionCheatMode CollisionMode { get; private set; }
     public float PlayerMovementSpeedMultiplier { get; private set; } = 1.0f;
@@ -72,7 +73,10 @@ internal sealed class InGameInputController
         _outputToViewport = outputToViewport;
         _setHandCursor = setHandCursor;
         _camera.ManualMovementSegment = (start, end) =>
+        {
             _stairs.ObserveMovement(start, end, _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0);
+            Portals?.ObserveMovement(start, end, _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0);
+        };
     }
 
     public void Update(float deltaSeconds)
@@ -149,6 +153,13 @@ internal sealed class InGameInputController
             PlayerMovementSpeedMultiplier,
             movementInput);
         var surfaceLevel = _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0;
+        if (Portals?.Update(_camera, surfaceLevel, out var portalDestinationLevel) == true)
+        {
+            _clickToMove.StopMoving();
+            _postStairsMovementInput.BlockUntilNewInput(_input);
+            _indoors.Reset(_camera.WorldCenter, portalDestinationLevel);
+            surfaceLevel = portalDestinationLevel;
+        }
         if (_stairs.Update(_camera, surfaceLevel, out var destinationSurfaceLevel))
         {
             _clickToMove.StopMoving();
@@ -191,6 +202,7 @@ internal sealed class InGameInputController
             _viewportHeight());
         _setHandCursor(!uiWantsMouse &&
             (_doors.IsDoorAt(mouseWorld) ||
+             Portals?.IsPortalAt(mouseWorld, _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0) == true ||
              _stairs.IsStairsAt(mouseWorld, _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0)));
     }
 
@@ -213,6 +225,7 @@ internal sealed class InGameInputController
 
     public void Teleport(Vector2 destination)
     {
+        Portals?.Reset(destination);
         _clickToMove.StopMoving();
         _camera.StopMoving();
         _worldStreamer.CenterOnSector(
@@ -248,7 +261,11 @@ internal sealed class InGameInputController
         return true;
     }
 
-    public void InitializeLocation(Vector2 location) => _indoors.Reset(location);
+    public void InitializeLocation(Vector2 location)
+    {
+        Portals?.Reset(location);
+        _indoors.Reset(location);
+    }
 
     private static string FormatVisibility(bool visible) => visible ? "visible" : "hidden";
 }

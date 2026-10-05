@@ -93,7 +93,7 @@ internal sealed class Dx12WorldPass : IDisposable
         }
 
         _textureUploads = new Dx12TextureUploadWorker(graphics.Device);
-        _terrain = new TerrainRenderer(assets);
+        _terrain = new TerrainRenderer(assets) { Portals = worldArchive.Portals };
         _terrainDebug = new Dx12TerrainDebugPass(graphics.Device, textureUploader);
         _sectorTextures = new Dx12SectorTextureCache(
             graphics.Device,

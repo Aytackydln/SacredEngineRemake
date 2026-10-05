@@ -4,6 +4,7 @@ using Sacred.Assets.World.Static;
 using Sacred.Core.World.Stairs;
 using Sacred.World.Objects;
 using Sacred.World.Particles;
+using Sacred.World.Portals;
 
 namespace Sacred.World;
 
@@ -24,6 +25,9 @@ public static class SacredWorldArchiveFactory
             floorPak = FloorPakArchive.Load(Path.Combine(worldDirectory, "Floor.pak"));
             staticPak = StaticPakArchive.Load(Path.Combine(worldDirectory, "Static.pak"));
             wldxStream = OpenWldx(Path.Combine(worldDirectory, "sectors.wldx"));
+            var items = ItemsPakArchive.Load(Path.Combine(fullGameDirectory, "pak", "Items.pak")).ToArray();
+            var portals = WorldPortalScriptIndex.Load(
+                Path.Combine(fullGameDirectory, "bin", "NetScript"), items);
             var result = Create(
                 File.ReadAllBytes(Path.Combine(worldDirectory, "sectors.keyx")),
                 wldxStream,
@@ -35,7 +39,8 @@ public static class SacredWorldArchiveFactory
                 WorldParticleScriptIndex.Load(Path.Combine(fullGameDirectory, "bin", "sgf.bin")),
                 WorldObjectScriptIndex.Load(
                     FindWorldObjectScriptSources(fullGameDirectory),
-                    ItemsPakArchive.Load(Path.Combine(fullGameDirectory, "pak", "Items.pak"))));
+                    items));
+            result.Portals = portals;
             wldxStream = null;
             floorPak = null;
             staticPak = null;

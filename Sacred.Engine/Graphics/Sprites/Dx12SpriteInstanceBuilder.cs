@@ -297,7 +297,7 @@ internal sealed class Dx12SpriteInstanceBuilder
             {
                 var requiresAlphaBlend = sprite.RequiresAlphaBlend;
                 var isPostModel = sprite.RequiresPostModelPass;
-                SacredTextureChannelEncoding? particleEncoding = sprite.IsParticleSprite && !sprite.IsGroundDecal
+                SacredTextureChannelEncoding? particleEncoding = sprite.IsParticleSprite && !sprite.IsGroundDecal && !sprite.IsPortalBillboard
                     ? sprite.Sprite.ChannelEncoding
                     : null;
                 if (staticRangeStart < 0)

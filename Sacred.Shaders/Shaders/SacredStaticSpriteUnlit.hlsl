@@ -27,6 +27,10 @@ pixel_output ps_transparent_unlit_sdr(vertex_output input)
 
 float hdr_unlit_color_multiplier(vertex_output input)
 {
+    // Portal layers are one native composited image (including minimap colours).
+    // Amplifying each layer before blending washes out the surface and additive
+    // halo. Keep their authored RGB; frame-white still supplies HDR brightness.
+    if ((input.particle_sprite & 112u) != 0) return 1.0f;
     return input.particle_sprite != 0 ? particle_color_multiplier : unlit_white_nits;
 }
 

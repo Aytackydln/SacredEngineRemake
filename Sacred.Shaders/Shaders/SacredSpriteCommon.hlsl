@@ -81,9 +81,20 @@ vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_Instan
     {
         float sine;
         float cosine;
-        sincos(instance.particle_rotation, sine, cosine);
+        float angle = instance.particle_rotation;
+        bool portal_whirl = (instance.particle_sprite & 48u) != 0;
+        if (portal_whirl)
+            angle = animation_time * ((instance.particle_sprite & 16u) != 0 ? 0.3f : 0.4f);
+        sincos(angle, sine, cosine);
         float2 local = (uv - 0.5f) * instance.rect.zw;
         float2 rotated = float2(cosine * local.x - sine * local.y, sine * local.x + cosine * local.y);
+        // Gold rotates in the vertical billboard plane BEFORE applying its unequal X/Z scales.
+        if (portal_whirl)
+        {
+            // Square corners start at pi/4, with unit radius (rather than sqrt(2)).
+            local = (uv - 0.5f) * 0.7071067812f;
+            rotated = float2(cosine * local.x - sine * local.y, sine * local.x + cosine * local.y) * instance.rect.zw;
+        }
         if ((instance.particle_sprite & 8u) != 0) rotated.y *= 0.5f;
         pixel = instance.rect.xy + instance.rect.zw * 0.5f + rotated;
     }

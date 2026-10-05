@@ -8,6 +8,7 @@ using Sacred.Core.World.Sector;
 using Sacred.Core.World.Stairs;
 using Sacred.World.Objects;
 using Sacred.World.Particles;
+using Sacred.World.Portals;
 
 namespace Sacred.World;
 
@@ -39,6 +40,7 @@ public sealed class SacredWorldArchive : IDisposable
     public SacredStairsMap StairsMap { get; }
     public WorldParticleScriptIndex ParticleScript { get; }
     public WorldObjectScriptIndex ObjectScript { get; }
+    public WorldPortalScriptIndex Portals { get; internal set; } = WorldPortalScriptIndex.Empty;
     public IReadOnlyList<SectorCoord> SectorCoordinates => _sectorIdByGrid.Keys.OrderBy(c => c.Y).ThenBy(c => c.X).ToArray();
 
     /// <summary>Releases decoded sector data between offline batches. No sector loads may be in flight.</summary>

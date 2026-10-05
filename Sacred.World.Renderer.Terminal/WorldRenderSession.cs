@@ -29,6 +29,7 @@ internal sealed class WorldRenderSession : IDisposable
     private DayWorldRasterizer _terrain = null!;
     private WorldModelRasterizer _modelRenderer = null!;
     private WorldParticleRasterizer _particles = null!;
+    private WorldPortalRasterizer _portals = null!;
     private readonly WorldSpriteOcclusionCache _spriteOcclusion = new();
 
     public WorldRenderSession(string pakDirectory, SacredWorldArchive world, TexturePakArchive textures)
@@ -79,6 +80,7 @@ internal sealed class WorldRenderSession : IDisposable
 #endif
         var models = await _modelRenderer.RenderAsync(terrain.Image, center, zoom, options.OpenDoors, indoorGroup);
         var complete = await _particles.RenderAsync(models, center, zoom, options.ParticleSeconds, indoorGroup);
+        complete = await _portals.RenderAsync(complete, center, zoom, options.ParticleSeconds, indoorGroup);
         _spriteOcclusion.Reset();
         return (terrain, complete);
     }
@@ -144,6 +146,7 @@ internal sealed class WorldRenderSession : IDisposable
         _modelRenderer = new WorldModelRasterizer(_world, _items, _models, textures)
             { StaticSprites = sprites, SpriteOcclusionCache = _spriteOcclusion };
         _particles = new WorldParticleRasterizer(_world, textures, sprites) { SpriteOcclusionCache = _spriteOcclusion };
+        _portals = new WorldPortalRasterizer(_world, textures, sprites) { SpriteOcclusionCache = _spriteOcclusion };
     }
 
     public void Dispose()

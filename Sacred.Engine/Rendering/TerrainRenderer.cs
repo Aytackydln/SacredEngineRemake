@@ -7,6 +7,7 @@ using Sacred.Core.Pak.Items;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
 using Sacred.World.Particles;
+using Sacred.World.Portals;
 
 namespace Sacred.Engine.Rendering;
 
@@ -21,6 +22,8 @@ public sealed class TerrainRenderer : IDisposable
     private readonly TerrainLiquidSpriteBuilder _liquidSpriteBuilder;
     private readonly TerrainStaticPreparationWorker _staticSpriteBuilder;
     private readonly TerrainParticleSpriteBuilder _particleSpriteBuilder;
+    private readonly TerrainPortalSpriteBuilder _portalSpriteBuilder;
+    public WorldPortalScriptIndex Portals { get; set; } = WorldPortalScriptIndex.Empty;
     private readonly PrioritizedAssetLoadScheduler _sectorBuildScheduler =
         new("Sacred sector builder");
     private readonly Dictionary<SectorCoord, TerrainSectorComposition> _sectorCache = new();
@@ -46,7 +49,7 @@ public sealed class TerrainRenderer : IDisposable
     public bool HasPendingSpriteAssetRequests =>
         _staticSpriteBuilder.HasPendingAssetRequests ||
         _liquidSpriteBuilder.HasPendingAssetRequests ||
-        _particleSpriteBuilder.HasPendingAssetRequests;
+        _particleSpriteBuilder.HasPendingAssetRequests || _portalSpriteBuilder.HasPendingAssetRequests;
 
     public TerrainRenderer(AssetManager assets)
     {
@@ -55,6 +58,7 @@ public sealed class TerrainRenderer : IDisposable
         _liquidSpriteBuilder = new TerrainLiquidSpriteBuilder(assets);
         _staticSpriteBuilder = new TerrainStaticPreparationWorker(assets);
         _particleSpriteBuilder = new TerrainParticleSpriteBuilder(assets);
+        _portalSpriteBuilder = new TerrainPortalSpriteBuilder(assets);
     }
 
     public IReadOnlyList<TerrainSectorComposition> PrepareVisibleWorld(
@@ -160,7 +164,8 @@ public sealed class TerrainRenderer : IDisposable
         var particlesChanged = _preparedParticleRevision != particleRevision ||
                                _particleSpriteBuilder.HasPendingAssetRequests;
         var footprintsChanged = _preparedFootprintRevision != FootprintRevision;
-        if (!preparation.Changed && !particlesChanged && !footprintsChanged)
+        var portalsChanged = _portalSpriteBuilder.Prepare(Portals, _candidateSectors, _activeIndoorGroup, _worldChangedThisFrame);
+        if (!preparation.Changed && !particlesChanged && !footprintsChanged && !portalsChanged)
             return _visibleWorldSprites;
 
         if (particlesChanged)
@@ -183,6 +188,7 @@ public sealed class TerrainRenderer : IDisposable
         }
         _visibleWorldSprites.AddRange(_particleSpriteBuilder.Sprites);
         _visibleWorldSprites.AddRange(FootprintSprites);
+        _visibleWorldSprites.AddRange(_portalSpriteBuilder.Sprites);
         _preparedFootprintRevision = FootprintRevision;
 
         if (preparation.Changed)
@@ -375,6 +381,7 @@ public readonly record struct TerrainStaticSprite(
 {
     /// <summary>Identifies an atlas-backed mini object from the Items.pak graphic type.</summary>
     public bool IsMiniObject { get; init; }
+    public bool IsPortalBillboard { get; init; }
     /// <summary>Planar contact art; lit and drawn after floors, before the Objects queue.</summary>
     public bool IsGroundDecal { get; init; }
     public bool UsesSpriteDepth { get; init; }
