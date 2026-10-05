@@ -124,6 +124,7 @@ internal sealed class InGameScene : IGameScene
         _playerParticles.Execute(request, _camera.WorldCenter);
 
     internal bool RemovePlayerEquipment(int slotIndex) => _player.RemoveEquipment(slotIndex);
+    internal bool RemoveAllPlayerEquipment() => _player.RemoveAllEquipment();
 
     internal bool EquipPlayerItemSet(int setIndex) => _player.EquipItemSet(setIndex);
 

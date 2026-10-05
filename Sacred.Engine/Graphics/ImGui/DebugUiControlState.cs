@@ -51,6 +51,7 @@ internal sealed class DebugUiControlState
     public (bool Enabled, int StepPercentage)? RequestedAutoRenderResolutionStepSnapping { get; set; }
     public RenderScalingMode? RequestedRenderScalingMode { get; set; }
     public int? RequestedPlayerEquipmentRemoval { get; set; }
+    public bool RequestedPlayerRemoveAllEquipment { get; set; }
     public int? RequestedPlayerItemSet { get; set; }
     public uint? RequestedPlayerCharacter { get; set; }
     public bool ScreenshotRequested { get; set; }

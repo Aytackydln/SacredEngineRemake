@@ -12,6 +12,7 @@ using Sacred.Assets.Paks.Models;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Assets.Paks.Tiles;
 using Sacred.Core.GameBin.Sets;
+using Sacred.Core.GameRes;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Pak.Weapon;
 using Sacred.Engine.Graphics.Sprites;
@@ -81,6 +82,7 @@ public sealed class AssetManager : IDisposable
 
     public float PlayableCharacterLightRadius { get; }
     public IReadOnlyList<SacredSetEntry> ItemSets { get; }
+    public GameResStore Resources { get; }
 
     internal AssetManager(
         TexturePakArchive texturePak,
@@ -89,7 +91,8 @@ public sealed class AssetManager : IDisposable
         IReadOnlyList<SacredEquipment> equipment,
         IReadOnlyList<SacredSetEntry> itemSets,
         MixedPakArchive mixedPak,
-        ModelsPakArchive modelsPak)
+        ModelsPakArchive modelsPak,
+        GameResStore? resources = null)
     {
         ArgumentNullException.ThrowIfNull(texturePak);
         ArgumentNullException.ThrowIfNull(tilesPak);
@@ -104,6 +107,7 @@ public sealed class AssetManager : IDisposable
         _itemsByModelId = items.ToFrozenDictionary(static item => item.ItemIndex);
         PlayableCharacterLightRadius = FindLargestAuthoredLightRadius(items);
         ItemSets = itemSets;
+        Resources = resources ?? GameResStore.Empty;
         _equipmentByModelId = SacredEquipmentVisualResolver.Resolve(_itemsByModelId, equipment)
             .ToFrozenDictionary(static item => checked((ushort)item.IdemId));
         _itemsByModelId = items.Select(item => _equipmentByModelId.TryGetValue(item.ItemIndex, out var entry)

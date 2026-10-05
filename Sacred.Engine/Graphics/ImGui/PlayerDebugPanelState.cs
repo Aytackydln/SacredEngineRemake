@@ -21,5 +21,6 @@ internal readonly record struct PlayerEquipmentSlotState(
 internal readonly record struct PlayerItemSetState(
     int SetIndex,
     uint SetIdentifier,
+    string SetName,
     int ItemCount,
     int ResolvedEquipmentCount);

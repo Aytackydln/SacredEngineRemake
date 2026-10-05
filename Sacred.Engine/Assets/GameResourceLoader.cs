@@ -3,6 +3,7 @@ using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Sacred.Assets;
 using Sacred.Assets.GameBin.Sets;
 using Sacred.Assets.Paks.Items;
 using Sacred.Assets.Paks.Mixed;
@@ -12,6 +13,7 @@ using Sacred.Assets.Paks.Tiles;
 using Sacred.Assets.Paks.Weapon;
 using Sacred.Core;
 using Sacred.Core.GameBin.Sets;
+using Sacred.Core.GameRes;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Pak.Weapon;
 using Sacred.Granny.Abstractions;
@@ -39,6 +41,7 @@ internal sealed class GameResourceLoader : IDisposable
     private TilesPakArchive? _tilesPak;
     private SacredEquipment[]? _equipment;
     private IReadOnlyList<SacredSetEntry>? _itemSets;
+    private GameResStore? _resources;
     private SacredWorldArchive? _worldArchive;
     private bool _ownershipTransferred;
     private bool _disposed;
@@ -70,6 +73,7 @@ internal sealed class GameResourceLoader : IDisposable
         new("Tiles.pak", LoadTilesPak),
         new("Weapons.pak", LoadWeaponsPak),
         new("sets.bin", LoadItemSets),
+        new("global.res", LoadResources),
         new("world files", LoadWorldArchive)
     ];
 
@@ -86,13 +90,14 @@ internal sealed class GameResourceLoader : IDisposable
         var tilesPak = Require(_tilesPak, "Tiles.pak");
         var equipment = Require(_equipment, "Weapons.pak");
         var itemSets = Require(_itemSets, "sets.bin");
+        var resources = Require(_resources, "global.res");
         var worldArchive = Require(_worldArchive, "world sectors");
 
         AssetManager? assets = null;
         SacredWorldArchive? world = null;
         try
         {
-            assets = new AssetManager(texturePak, tilesPak, items, equipment, itemSets, mixedPak, modelsPak);
+            assets = new AssetManager(texturePak, tilesPak, items, equipment, itemSets, mixedPak, modelsPak, resources);
             world = worldArchive;
             _ownershipTransferred = true;
             ReleaseTransferredReferences();
@@ -151,6 +156,12 @@ internal sealed class GameResourceLoader : IDisposable
 
     private void LoadWorldArchive() => _worldArchive = SacredWorldArchiveFactory.Load(_gameDirectory);
 
+    private void LoadResources()
+    {
+        _resources = new GameResStore(SacredResUnpack.UnpackAsDictionary(_directories.GlobalResourcesPath));
+        EngineLog.WriteLine($"Localized resources loaded: {_resources.Strings.Count} strings from {_directories.GlobalResourcesPath}.");
+    }
+
     private static T Require<T>(T? value, string resourceName) where T : class =>
         value ?? throw new InvalidOperationException($"{resourceName} has not been loaded.");
 
@@ -164,6 +175,7 @@ internal sealed class GameResourceLoader : IDisposable
         _tilesPak = null;
         _equipment = null;
         _itemSets = null;
+        _resources = null;
         _worldArchive = null;
     }
 

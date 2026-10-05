@@ -197,6 +197,12 @@ internal sealed class SacredGameRuntime : IDisposable
             _inGameScene?.RemovePlayerEquipment(equipmentSlot);
         }
 
+        if (_debugUiControls.RequestedPlayerRemoveAllEquipment)
+        {
+            _debugUiControls.RequestedPlayerRemoveAllEquipment = false;
+            _inGameScene?.RemoveAllPlayerEquipment();
+        }
+
         if (_debugUiControls.RequestedPlayerItemSet is { } itemSet)
         {
             _debugUiControls.RequestedPlayerItemSet = null;

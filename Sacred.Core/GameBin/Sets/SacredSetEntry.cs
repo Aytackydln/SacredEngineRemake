@@ -42,7 +42,7 @@ public readonly struct SacredSetEntryLayout
     /// <summary>Tenth item identifier in the set's ten-slot item table.</summary>
     [FieldOffset(0x24)] public readonly uint ItemId9;
 
-    /// <summary>Identifier of the item set.</summary>
+    /// <summary>Identifier of the item set; its low 31 bits identify the set name in global.res.</summary>
     [FieldOffset(0x28)] public readonly uint SetIdentifier;
 
     /// <summary>Set-table index in the high 24 bits and item count in the low byte.</summary>
@@ -64,6 +64,9 @@ public readonly record struct SacredSetEntry(
 
     public bool IsEmpty => SetIdentifier == EmptyRecordSentinel
                            && PackedSetIndexAndItemCount == EmptyRecordSentinel;
+
+    /// <summary>Localized set-name resource identifier from record offset 0x28.</summary>
+    public uint NameResourceId => SetIdentifier & 0x7FFF_FFFF;
 
     public int DeclaredSetIndex => IsEmpty
         ? 0

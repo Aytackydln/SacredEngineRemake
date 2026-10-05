@@ -145,6 +145,7 @@ internal sealed class PlayerCharacterController : IDisposable
             itemSets[index] = new PlayerItemSetState(
                 index,
                 set.SetIdentifier,
+                _assets.Resources.Strings.GetValueOrDefault(set.NameResourceId, $"set {index}"),
                 set.ItemIds.Count,
                 _assets.ResolveItemSetEquipment(index).Count);
         }
@@ -177,6 +178,26 @@ internal sealed class PlayerCharacterController : IDisposable
         var slot = _loadout.Actor.EquipmentSlots[slotIndex];
         EngineLog.WriteLine($"Player equipment removed: {slot.Type} {slot.Equipment!.Value.Name}.");
         slot.Unequip();
+        RequestModel(_loadout);
+        return true;
+    }
+
+    public bool RemoveAllEquipment()
+    {
+        var removed = 0;
+        foreach (var slot in _loadout.Actor.EquipmentSlots)
+        {
+            if (slot.Equipment is null)
+                continue;
+
+            slot.Unequip();
+            removed++;
+        }
+
+        if (removed == 0)
+            return false;
+
+        EngineLog.WriteLine($"Player equipment removed: all {removed} equipped slot(s).");
         RequestModel(_loadout);
         return true;
     }

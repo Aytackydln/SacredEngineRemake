@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using ImGuiNET;
 using Sacred.Core.Pak.Items;
@@ -116,6 +117,11 @@ internal sealed class ImGuiDebugPanel(
 
         DearImGui.Separator();
         DearImGui.TextDisabled("Equipment");
+        DearImGui.SameLine();
+        DearImGui.BeginDisabled(!player.EquipmentSlots.Any(static slot => slot.EquipmentItemId.HasValue));
+        if (DearImGui.SmallButton("Remove all##equipment"))
+            controls.RequestedPlayerRemoveAllEquipment = true;
+        DearImGui.EndDisabled();
         foreach (var slot in player.EquipmentSlots)
         {
             DearImGui.Text($"{slot.SlotName}: {slot.EquipmentName ?? "Empty"}");
@@ -133,7 +139,7 @@ internal sealed class ImGuiDebugPanel(
         DearImGui.TextDisabled("Item sets");
         foreach (var set in player.ItemSets)
         {
-            var label = $"Equip set {set.SetIndex}##set-{set.SetIndex}";
+            var label = $"{set.SetName}###set-{set.SetIndex}";
             DearImGui.BeginDisabled(set.ResolvedEquipmentCount == 0);
             if (DearImGui.Button(label))
                 controls.RequestedPlayerItemSet = set.SetIndex;
