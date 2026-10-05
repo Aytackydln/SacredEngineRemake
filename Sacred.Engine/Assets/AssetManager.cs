@@ -1329,6 +1329,8 @@ public sealed class AssetManager : IDisposable
         (EquipmentSlotType.LeftHand, SacredEquipmentType.Shield) => ("Bip01 L Forearm", "Bone_weapon_02"),
         (EquipmentSlotType.LeftHand, _) => ("Bip01 L Hand", "Bone_weapon_02"),
         (EquipmentSlotType.RightHand, _) => ("Bip01 R Hand", "Bone_weapon_01"),
+        // Native wing slots attach their authored pivot rather than retargeting a wearable skeleton.
+        (EquipmentSlotType.Wings, SacredEquipmentType.Wings) => ("Bip01 Spine2", "Bone_spine"),
         _ => (null, null)
     };
 

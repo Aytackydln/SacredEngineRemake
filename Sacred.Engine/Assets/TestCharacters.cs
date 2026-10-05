@@ -121,13 +121,12 @@ internal static class TestCharacters
 
     public static uint ResolveEntryId(string? displayName)
     {
-        if (!string.IsNullOrWhiteSpace(displayName))
+        if (string.IsNullOrWhiteSpace(displayName)) return 1;
+
+        for (var index = 0; index < All.Count; index++)
         {
-            for (var index = 0; index < All.Count; index++)
-            {
-                if (string.Equals(All[index].DisplayName, displayName, StringComparison.OrdinalIgnoreCase))
-                    return checked((uint)index + 1);
-            }
+            if (string.Equals(All[index].DisplayName, displayName, StringComparison.OrdinalIgnoreCase))
+                return checked((uint)index + 1);
         }
 
         return 1;
