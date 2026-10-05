@@ -65,8 +65,9 @@ using the selected backend). `world-day` remains a software diagnostic view.
 Map and world views retain their position markers. Omitted coordinates use the
 world archive's start-sector center.
 
-Use `--open-doors` to sample the final pose of each door's authored activation
-sequence. Use `--indoor-level <n>` with coordinates inside an authored indoor grid
+Use `--open-doors` to sample ordinary doors' authored activation sequences at
+their final pose. Script-locked doors retain their initial state; initially open
+doors are open by default. Use `--indoor-level <n>` with coordinates inside an authored indoor grid
 to select that floor's state. Exterior output omits indoor models.
 
 ## Single-sector minimap generation

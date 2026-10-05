@@ -17,10 +17,13 @@ public sealed class WorldObjectScriptIndex
     public static WorldObjectScriptIndex Empty { get; } = new([]);
     public int Count { get; }
     public IReadOnlyList<WorldObjectScriptPlacement> Placements { get; }
+    public IReadOnlyDictionary<uint, WorldDoorDefinition> Doors { get; }
 
     private WorldObjectScriptIndex(IReadOnlyList<WorldObjectScriptPlacement> placements)
     {
         Placements = placements.ToArray();
+        Doors = Placements.Where(p => p.Door is not null).Select(p => p.Door!)
+            .DistinctBy(d => d.Id).ToFrozenDictionary(d => d.Id);
         Count = Placements.Count;
         _bySector = Placements.GroupBy(p => new SectorCoord((int)MathF.Floor(p.WorldX / Sector.TileCount), (int)MathF.Floor(p.WorldY / Sector.TileCount)))
             .ToFrozenDictionary(g => g.Key, g => (IReadOnlyList<WorldObjectScriptPlacement>)g.ToArray());
@@ -32,12 +35,18 @@ public sealed class WorldObjectScriptIndex
     {
         var byType = items.ToDictionary(item => item.ItemIndex);
         var placements = new List<WorldObjectScriptPlacement>();
+        var sourceData = sources.Select(source => (Source: source,
+            Commands: SacredCompiledScriptReader.Read(File.ReadAllBytes(source.ScriptPath)).ToArray())).ToArray();
+        var startup = sourceData.Where(data => Path.GetFileName(data.Source.ScriptPath)
+                .Equals("StartCode.bin", StringComparison.OrdinalIgnoreCase))
+            .SelectMany(data => data.Commands).ToArray();
         var sourceIndex = 0u;
-        foreach (var source in sources)
+        foreach (var (source, commands) in sourceData)
         {
             var positionsByName = SacredDefPosPosition.ReadMany(File.ReadAllBytes(source.DefPosPath))
                 .ToDictionary(position => position.Name, StringComparer.OrdinalIgnoreCase);
-            foreach (var command in SacredCompiledScriptReader.Read(File.ReadAllBytes(source.ScriptPath)))
+            var doors = new WorldDoorScriptReader(commands, sourceIndex * 0x04000000u, startup);
+            foreach (var command in commands)
             {
                 if (!SacredScriptCreateObjectReader.TryReadLiteralPlacement(command, out var creation) ||
                     creation.TypeId > ushort.MaxValue || !byType.TryGetValue((ushort)creation.TypeId, out var item) ||
@@ -57,7 +66,9 @@ public sealed class WorldObjectScriptIndex
                     creation.TypeId, position.Value.X, position.Value.Y, position.Value.Z)
                     {
                         PreciseWorldPosition = precisePosition,
-                        FacingDegrees = creation.FacingDegrees
+                        FacingDegrees = creation.FacingDegrees,
+                        Door = item.ModelDesc.Category == SacredItemCategory.Door
+                            ? doors.Resolve(creation, command.FileOffset) : null
                     });
             }
             sourceIndex++;
@@ -68,7 +79,8 @@ public sealed class WorldObjectScriptIndex
             item.ModelDesc.Category == SacredItemCategory.Door);
         Console.WriteLine(
             $"Interactive world objects loaded: {result.Count:N0} placements from {sourceIndex} scripts " +
-            $"({doorCount:N0} doors).");
+            $"({doorCount:N0} doors; {result.Doors.Values.Count(d => d.Locked)} locked, " +
+            $"{result.Doors.Values.Count(d => d.InitiallyOpen)} initially open).");
         return result;
     }
 
@@ -82,6 +94,8 @@ public readonly record struct WorldObjectScriptPlacement(uint ScriptOffset, uint
 
     /// <summary>Instance facing override from compiled CreateObj operand 0x03.</summary>
     public ushort? FacingDegrees { get; init; }
+
+    public WorldDoorDefinition? Door { get; init; }
 
     public bool UsesTileCellPosition => !PreciseWorldPosition.HasValue;
 }

@@ -17,7 +17,7 @@ namespace Sacred.Engine.Graphics.Sprites;
 internal sealed class Dx12SpritePass : IDisposable
 {
     public const int MaximumTextureCount = Dx12SpriteTextureCache.MaximumTextureCount;
-    public void SetAnimationTime(float seconds) => _batchRecorder.AnimationTimeOverride = seconds;
+    public void SetAnimationTime(float seconds) => _batchRecorder.AnimationTimeOverride = float.IsFinite(seconds) ? seconds : null;
     public void SetParticleColorMultiplier(float value) => _batchRecorder.ParticleColorMultiplier = value;
 
     private readonly Dx12SpriteTextureCache _textureCache;

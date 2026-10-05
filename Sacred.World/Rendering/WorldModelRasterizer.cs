@@ -43,7 +43,9 @@ public sealed class WorldModelRasterizer(
         {
             if (!items.TryGetValue((ushort)placement.TypeId, out var item) || string.IsNullOrWhiteSpace(item.ModelName))
                 continue;
-            var geometry = await LoadMesh(placement.TypeId, item, openDoors);
+            var doorOpen = placement.DoorTriggerId is { } id && world.ObjectScript.Doors.TryGetValue(id, out var door)
+                ? door.InitiallyOpen || (openDoors && !door.Locked) : false;
+            var geometry = await LoadMesh(placement.TypeId, item, doorOpen);
             if (geometry is null) continue;
             AddTriangles(triangles, geometry.Value, placement, item.ModelDesc.Angle3D, center, terrain.Width, terrain.Height, zoom);
         }
@@ -205,7 +207,6 @@ public sealed class WorldModelRasterizer(
     private readonly record struct Triangle(Point A, Point B, Point C, TextureAsset? Texture);
     private readonly record struct ModelGeometry(Mesh Mesh, Vector3 SourceOriginOffset, TextureAsset?[] Textures);
 }
-
 
 
 

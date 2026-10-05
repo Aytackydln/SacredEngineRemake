@@ -12,8 +12,15 @@ internal static class PlayerMovementCheats
         message = string.Empty;
         switch (option.ToLowerInvariant())
         {
+            case "path" when value.Split(',') is [var pathX, var pathY] &&
+                float.TryParse(pathX, NumberStyles.Float, CultureInfo.InvariantCulture, out var targetX) &&
+                float.TryParse(pathY, NumberStyles.Float, CultureInfo.InvariantCulture, out var targetY) &&
+                float.IsFinite(targetX) && float.IsFinite(targetY):
+                input.NavigateTo(new Vector2(targetX, targetY));
+                message = $"pathfinding toward {targetX},{targetY}";
+                return true;
             case "move" when value.Equals("stop", StringComparison.OrdinalIgnoreCase):
-                camera.StopMoving(); message = "movement stopped"; return true;
+                input.CancelInteraction(); camera.StopMoving(); message = "movement stopped"; return true;
             case "move" when value.Equals("status", StringComparison.OrdinalIgnoreCase):
                 message = $"player {camera.WorldCenter.X:F3},{camera.WorldCenter.Y:F3}; " +
                     $"movement {camera.CurrentMovementSpeed:F3} units/s; animation {camera.LocomotionAnimationSpeed:F3}x";

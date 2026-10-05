@@ -104,7 +104,8 @@ internal sealed class Dx12WorldUiPass(
             graphics.IsHdrEnabled,
             graphics.RenderWidth,
             graphics.RenderHeight,
-            graphics.CurrentFrame.TransientResources);
+            graphics.CurrentFrame.TransientResources,
+            scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0);
         if (imgui.IsFrameBegun)
         {
             debugPanel.Build(

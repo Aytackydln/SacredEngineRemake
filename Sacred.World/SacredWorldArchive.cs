@@ -262,6 +262,7 @@ public sealed class SacredWorldArchive : IDisposable
                     PreciseWorldPosition = placement.PreciseWorldPosition,
                     UsesTileCellPosition = placement.UsesTileCellPosition,
                     ScriptFacingDegrees = placement.FacingDegrees,
+                    DoorTriggerId = placement.Door?.Id,
                     ScriptSurfaceLevel = (byte)Math.Clamp(placement.WorldZ, 0, byte.MaxValue)
                 });
         }

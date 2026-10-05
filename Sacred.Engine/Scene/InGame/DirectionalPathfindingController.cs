@@ -11,8 +11,9 @@ namespace Sacred.Engine.Scene.InGame;
 /// </summary>
 internal sealed class DirectionalPathfindingController
 {
-    private const float LookAheadDistance = 4.0f;
-    private const float RepathDistance = 0.5f;
+    private const float LookAheadDistance = 10.0f;
+    private const float DirectApproachDistance = 1.0f;
+    private const float RepathDistance = 3.0f;
     private const float WaypointArrivalRadius = 0.03f;
     private const float DirectionChangeDotThreshold = 0.9848f; // Ten degrees.
 
@@ -29,9 +30,22 @@ internal sealed class DirectionalPathfindingController
         var normalizedDirection = Vector2.Normalize(direction);
         DiscardReachedWaypoints(position);
 
-        var movedSincePlan = Vector2.DistanceSquared(position, _plannedFrom) >= RepathDistance * RepathDistance;
         var directionChanged = Vector2.Dot(normalizedDirection, _plannedDirection) < DirectionChangeDotThreshold;
-        if (_route.Count == 0 || movedSincePlan || directionChanged)
+        // A speculative goal beyond a closed door must not send the player around its building.
+        // Follow the held direction while the immediate approach is clear; retain an active obstacle detour.
+        var directApproach = position + normalizedDirection * DirectApproachDistance;
+        if ((_route.Count <= 1 || directionChanged) && collision.CanMoveDirectly(position, directApproach))
+        {
+            Reset();
+            waypoint = directApproach;
+            return true;
+        }
+        // Finish obstacle detours before moving the directional goal again. Replanning
+        // every half tile could reverse the chosen side of a wall indefinitely.
+        var movedSincePlan = _route.Count <= 1 &&
+            Vector2.DistanceSquared(position, _plannedFrom) >= RepathDistance * RepathDistance;
+        var routeBlocked = _route.TryPeek(out var next) && !collision.CanMoveDirectly(position, next);
+        if (_route.Count == 0 || movedSincePlan || directionChanged || routeBlocked)
             RebuildRoute(position, normalizedDirection, collision);
 
         return _route.TryPeek(out waypoint);

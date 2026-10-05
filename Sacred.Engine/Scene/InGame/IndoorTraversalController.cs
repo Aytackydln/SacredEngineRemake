@@ -7,7 +7,7 @@ using Sacred.World;
 
 namespace Sacred.Engine.Scene.InGame;
 
-/// <summary>Switches the visible indoor grid when the player crosses one of its entrance cells.</summary>
+/// <summary>Resolves ground-floor membership by coordinates and preserves explicit upper-floor traversal.</summary>
 internal sealed class IndoorTraversalController(WorldStreamer worldStreamer, IndoorSceneState state)
 {
     private WorldTile? _lastTile;
@@ -19,6 +19,7 @@ internal sealed class IndoorTraversalController(WorldStreamer worldStreamer, Ind
     public bool Update(Vector2 playerPosition)
     {
         var tile = WorldTile.From(playerPosition);
+        var previousGroup = state.ActiveGroup;
         if (_pendingReset is { } pending)
         {
             state.ActiveGroup = FindInteriorGroup(tile, pending.SurfaceLevel);
@@ -30,11 +31,24 @@ internal sealed class IndoorTraversalController(WorldStreamer worldStreamer, Ind
                 _pendingReset = null;
                 EngineLog.WriteLine($"Indoor surface restored after streaming: group {restored.Id}, level {restored.SurfaceLevel} at {tile.X},{tile.Y}.");
             }
-            else if (sectorLoaded && (pending.SurfaceLevel is null or 0 || tile != pending.Tile))
+            else if (sectorLoaded && (pending.SurfaceLevel is null or 0 or 1 || tile != pending.Tile))
                 _pendingReset = null;
         }
+        // Exterior (level 0) and the ground indoor grid (level 1) share the
+        // same physical floor. No entrance crossing is required to select it.
+        // Recheck even while stationary: streaming can supply its authored cells.
+        if (SurfaceLevel <= 1)
+        {
+            state.ActiveGroup = FindInteriorGroup(tile, 1);
+            _lastTile = tile;
+            _pendingEntranceGroup = null;
+            var changed = previousGroup?.Id != state.ActiveGroup?.Id;
+            if (changed)
+                EngineLog.WriteLine($"Indoor coordinate check: group {state.ActiveGroup?.Id.ToString() ?? "exterior"}, level {SurfaceLevel} at {tile.X},{tile.Y}.");
+            return changed;
+        }
         if (_lastTile == tile)
-            return false;
+            return previousGroup?.Id != state.ActiveGroup?.Id;
         _lastTile = tile;
 
         var entranceGroup = FindEntranceGroup(tile);
@@ -72,6 +86,9 @@ internal sealed class IndoorTraversalController(WorldStreamer worldStreamer, Ind
 
     public void Reset(Vector2 playerPosition, byte? surfaceLevel = null)
     {
+        // An ordinary teleport selects the ground floor, never an overlapping
+        // upper grid. Stairs and scripted portals provide their destination level.
+        surfaceLevel ??= 0;
         var tile = WorldTile.From(playerPosition);
         _lastTile = tile;
         _pendingEntranceGroup = null;
@@ -98,11 +115,12 @@ internal sealed class IndoorTraversalController(WorldStreamer worldStreamer, Ind
 
     private IndoorTileGroup? FindInteriorGroup(WorldTile tile, byte? surfaceLevel = null)
     {
+        if (surfaceLevel is null or 0)
+            surfaceLevel = 1;
         var visited = new HashSet<IndoorTileGroupId>();
         foreach (var sector in worldStreamer.VisibleWorld.Sectors)
         foreach (var group in sector.IndoorTileGroups.Groups)
             if (visited.Add(group.Id) &&
-                (surfaceLevel.HasValue || group.Entrances.Any()) &&
                 (!surfaceLevel.HasValue || group.SurfaceLevel == surfaceLevel.Value) &&
                 IsInteriorZone(group, tile))
                 return group;

@@ -17,9 +17,18 @@ public sealed class ClickToMoveController
 
     public static bool InstantlyStopAfterHoldClickMovement = true;
 
+    internal void NavigateTo(SacredCamera camera, WorldCollisionResolver collision,
+        Vector2 target, CollisionCheatMode mode)
+    {
+        StopMoving();
+        SetRouteTo(camera, collision, target, mode);
+        EngineLog.WriteLine($"Navigation requested: {camera.WorldCenter} to {target}; {_route.Count} waypoints.");
+    }
+
     private Vector2? _singleClickTarget;
     private readonly Queue<Vector2> _route = new();
     private Vector2? _routeTarget;
+    private int _doorStateRevision;
     private float _heldSeconds;
     private bool _isHoldClickMovement;
 
@@ -76,18 +85,18 @@ public sealed class ClickToMoveController
             return;
         }
 
+        if (_routeTarget is { } previousTarget && _doorStateRevision != collision.DoorStateRevision)
+            SetRouteTo(camera, collision, previousTarget, collisionMode);
         AdvanceRoute(camera);
 
         if (movementInput.Mouse && input.TryConsumeLeftClick(out var clickPosition))
         {
             var worldTarget = GameActorElevation.ScreenToWorldOnSurface(
                 camera, elevation, outputToViewport(clickPosition), viewportWidth, viewportHeight);
-            if (tryInteractAt(worldTarget))
-            {
-                StopMoving();
-                camera.StopMoving();
-            }
-            else
+            // An interaction can start an approach route; clear the old route before invoking it.
+            StopMoving();
+            camera.StopMoving();
+            if (!tryInteractAt(worldTarget))
             {
                 BeginClick(camera, collision, worldTarget, collisionMode);
             }
@@ -174,6 +183,7 @@ public sealed class ClickToMoveController
         Vector2 target,
         CollisionCheatMode collisionMode)
     {
+        _doorStateRevision = collision.DoorStateRevision;
         var direction = target - camera.WorldCenter;
         if (direction.LengthSquared() <= RotationOnlyRadius * RotationOnlyRadius)
         {

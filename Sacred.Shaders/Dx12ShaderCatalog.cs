@@ -225,6 +225,7 @@ public static class Dx12ShaderCatalog
             name,
             [
                 () => EmbeddedShaderAssemblyReloader.ReadAllBytes(HdrCommon.GetResourceName()),
+                () => EmbeddedShaderAssemblyReloader.ReadAllBytes(EmbeddedResource_Shaders.SacredObjectFocus_hlsl.GetResourceName()),
                 () => EmbeddedShaderAssemblyReloader.ReadAllBytes(resource.GetResourceName())
             ],
             entryPoint,

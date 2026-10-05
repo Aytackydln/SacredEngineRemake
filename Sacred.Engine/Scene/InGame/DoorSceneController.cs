@@ -3,11 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using System.Threading.Tasks;
-using Sacred.Assets.Paks.Texture;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
-using Sacred.Granny.Meshes;
+using Sacred.World;
 using Sacred.World.Geometry;
 using Sacred.World.Objects;
 using Sacred.World.Rendering;
@@ -17,13 +16,14 @@ namespace Sacred.Engine.Scene.InGame;
 /// <summary>
 /// Maintains model-backed world-object families for streamed sectors and their local door state.
 /// </summary>
-internal sealed class DoorSceneController
+internal sealed partial class DoorSceneController
 {
     private const int MaximumConcurrentModelLoads = 2;
     private const float DoorClickRadiusTiles = 2.0f;
 
     private readonly AssetManager _assets;
     private readonly SceneState _scene;
+    private readonly Func<Vector2> _playerPosition;
     private readonly Dictionary<uint, Task<WorldModelAsset?>> _loads = [];
     private readonly HashSet<uint> _failedLoads = [];
     private readonly Dictionary<uint, SceneModel> _models = [];
@@ -39,10 +39,15 @@ internal sealed class DoorSceneController
     private readonly HashSet<SectorCoord> _visibleSectorCoordinates = [];
     private IndoorTileGroupId? _activeIndoorGroupId;
 
-    public DoorSceneController(AssetManager assets, SceneState scene)
+    public WorldDoorStateLayer States { get; }
+
+    public DoorSceneController(AssetManager assets, SceneState scene, WorldDoorStateLayer states,
+        Func<Vector2> playerPosition)
     {
         _assets = assets;
         _scene = scene;
+        States = states;
+        _playerPosition = playerPosition;
     }
 
     public void Update(
@@ -71,6 +76,11 @@ internal sealed class DoorSceneController
     public IEnumerable<(uint Id, Vector2 Position, DoorMotionPlayback Playback)> DebugDoors =>
         _doorAnimations.Where(pair => _desiredModels.ContainsKey(pair.Key)).Select(pair =>
             (pair.Key, WorldModelPose.TilePosition(_desiredModels[pair.Key].StaticObject), pair.Value));
+    public IEnumerable<(uint Id, uint Trigger, Vector2 Position, bool Open, bool Locked)> DebugStates =>
+        _desiredModels.Values.Where(p => p.StaticObject.DoorTriggerId.HasValue).Select(p =>
+            (p.StaticObject.StaticId, p.StaticObject.DoorTriggerId!.Value,
+                WorldModelPose.TilePosition(p.StaticObject),
+                States.IsOpen(p.StaticObject.DoorTriggerId.Value), States.IsLocked(p.StaticObject.DoorTriggerId.Value)));
 
     public bool HasPendingLoads
     {
@@ -89,17 +99,46 @@ internal sealed class DoorSceneController
         if (placement is not { } target)
             return false;
 
-        if (!_doorAnimations.ContainsKey(target.StaticObject.StaticId))
-            return false;
+        return TryToggle(target);
+    }
 
-        var wasOpen = GetDoorState(target.StaticObject.StaticId) == DoorState.Open;
+    private bool TryToggle(WorldModelPlacement target)
+    {
+
+        if (!target.Item.ModelDesc.IsSelectable ||
+            !_models.TryGetValue(target.StaticObject.StaticId, out var model) ||
+            !WorldObjectInteractionReach.Contains(model, _playerPosition())) return false;
+
+        if (target.Item.ModelDesc.Category == SacredItemCategory.Door &&
+            (target.StaticObject.DoorTriggerId is not { } triggerId || States.IsLocked(triggerId)))
+        {
+            EngineLog.WriteLine($"Door locked: static {target.StaticObject.StaticId}; script state does not permit interaction.");
+            return true;
+        }
+
+        if (!_doorAnimations.TryGetValue(target.StaticObject.StaticId, out var playback))
+            return true;
+
+        var wasOpen = GetDoorState(target.StaticObject) == DoorState.Open;
+        if (!wasOpen && !playback.CanActivate) return true;
         if (wasOpen && !CanClose(target))
             return true;
 
         var nextState = wasOpen ? DoorState.Closed : DoorState.Open;
         _doorStates[target.StaticObject.StaticId] = nextState;
 
-        if (_doorAnimations.TryGetValue(target.StaticObject.StaticId, out var animation))
+        if (target.StaticObject.DoorTriggerId is { } doorId)
+        {
+            if (wasOpen && States.WouldOverlap(doorId, _playerPosition(),
+                WorldCollisionResolver.CharacterRadius, _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0))
+                return true;
+            States.TrySetOpen(doorId, !wasOpen);
+            foreach (var linked in _desiredModels.Values.Where(p => p.StaticObject.DoorTriggerId == doorId))
+                if (_doorAnimations.TryGetValue(linked.StaticObject.StaticId, out var linkedAnimation))
+                    linkedAnimation.SetState(!wasOpen);
+        }
+
+        else if (_doorAnimations.TryGetValue(target.StaticObject.StaticId, out var animation))
             animation.SetState(nextState == DoorState.Open);
 
         PublishModels();
@@ -186,7 +225,7 @@ internal sealed class DoorSceneController
             return;
 
         var state = IsInteractive(value)
-            ? GetDoorState(staticObject.StaticId)
+            ? GetDoorState(staticObject)
             : DoorState.Closed;
         _desiredModels[staticObject.StaticId] = new WorldModelPlacement(staticObject, value, state);
     }
@@ -238,14 +277,14 @@ internal sealed class DoorSceneController
             }
 
             var placement = _desiredModels[staticId];
-            var model = CreateSceneModel(placement, mesh, asset.TextureAliases,
+            var model = WorldSceneModelFactory.Create(placement.StaticObject, placement.Item, mesh, asset.TextureAliases,
                 asset.Model.Diagnostics?.SourceOriginOffset ?? Vector3.Zero);
             _models[staticId] = model;
             if (asset.OpenAnimation is not null || asset.CloseAnimation is not null)
             {
                 var animation = new DoorMotionPlayback(mesh, asset.Model.Skin, asset.OpenAnimation, asset.CloseAnimation);
                 _doorAnimations[staticId] = animation;
-                animation.SetInitialState(GetDoorState(staticId) == DoorState.Open);
+                animation.SetInitialState(GetDoorState(placement.StaticObject) == DoorState.Open);
                 model.SetMesh(animation.Mesh);
                 if (animation.AnimatedMesh is { } animatedMesh) model.SetAnimatedMesh(animatedMesh);
             }
@@ -280,33 +319,6 @@ internal sealed class DoorSceneController
             _orderedModels.Add(pair.Value);
         _scene.SetWorldModels(_orderedModels);
         EngineLog.WriteLine($"World models visible: {_orderedModels.Count}, loading: {_loads.Count}.");
-    }
-
-    private static SceneModel CreateSceneModel(
-        WorldModelPlacement placement,
-        Mesh mesh,
-        IReadOnlyDictionary<string, ModelTextureReference> textureAliases,
-        Vector3 sourceOriginOffset)
-    {
-        // Script-created objects retain their absolute tile anchor in the static-object
-        // record. ProjectedX/Y are sprite-space values and must never be inverted for a
-        // model transform: doing so makes a distant object share the player's 3D area.
-        var label = IsInteractive(placement.Item) ? "Interactive model" : "World object";
-        var model = new SceneModel(
-            $"{label}: static {placement.StaticObject.StaticId}, item {placement.Item.ItemIndex}, {placement.Item.ModelName}",
-            mesh,
-            ModelPosition(placement),
-            new Vector3(0.0f, 0.0f, WorldModelPose.RotationRadians(
-                placement.Item.ModelDesc.Angle3D,
-                placement.StaticObject.ScriptFacingDegrees)),
-            WorldModelPose.Scale,
-            textureAliases,
-            sourceOriginOffset: sourceOriginOffset,
-            blockRadius: placement.Item.ModelDesc.BlockRadius) { IsWorldObject = true };
-        model.SetPose(model.Position, model.Rotation,
-            new Vector2(placement.StaticObject.TileWorldX, placement.StaticObject.TileWorldY));
-        model.SetModelProjection(WorldModelPose.CameraProjection);
-        return model;
     }
 
     private void UpdateDoorAnimations(float deltaSeconds)
@@ -349,8 +361,10 @@ internal sealed class DoorSceneController
         return closest;
     }
 
-    private DoorState GetDoorState(uint staticId) =>
-        _doorStates.GetValueOrDefault(staticId, DoorState.Closed);
+    private DoorState GetDoorState(StaticWorldObject placement) =>
+        placement.DoorTriggerId is { } id
+            ? States.IsOpen(id) ? DoorState.Open : DoorState.Closed
+            : _doorStates.GetValueOrDefault(placement.StaticId, DoorState.Closed);
 
     private static Vector3 ModelPosition(WorldModelPlacement placement)
     {
@@ -366,7 +380,7 @@ internal sealed class DoorSceneController
             SacredItemCategory.Effect;
 
     private static bool IsInteractive(ItemsPakEntry item) =>
-        item.ModelDesc.Category is SacredItemCategory.Door or SacredItemCategory.Container or SacredItemCategory.WorldObject;
+        item.ModelDesc.IsSelectable;
 
     private bool CanClose(WorldModelPlacement placement) =>
         _doorAnimations.TryGetValue(placement.StaticObject.StaticId, out var animation) && animation.CanReset;

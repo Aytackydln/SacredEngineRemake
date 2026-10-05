@@ -44,6 +44,9 @@ public readonly struct ItemsPakEntryModelDescLayout
     [FieldOffset(0)]
     public readonly SacredItemGraphicType GraphicType;
 
+    /// <summary>The native world-selection predicate, authored at offset 0x00, bit 8.</summary>
+    public bool IsSelectable => (GraphicType & SacredItemGraphicType.Selectable) != 0;
+
     /// <summary>
     /// Rendering flags stored separately from <see cref="GraphicType"/>.
     /// </summary>

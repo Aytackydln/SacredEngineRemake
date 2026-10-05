@@ -30,10 +30,20 @@ internal sealed class InGameInputController
     private readonly Action<bool> _setHandCursor;
     private readonly PostStairsMovementInputGate _postStairsMovementInput = new();
     private ElevationMovementTrace? _elevationTrace;
+    internal WorldFocusController Focus { get; }
+    private readonly WorldInteractionController _interaction;
     public PortalTraversalController? Portals { get; set; }
 
     public CollisionCheatMode CollisionMode { get; private set; }
     public float PlayerMovementSpeedMultiplier { get; private set; } = 1.0f;
+
+    public void NavigateTo(Vector2 target)
+    { _interaction.Cancel(); _clickToMove.NavigateTo(_camera, _collision, target, CollisionMode); }
+
+    internal bool RequestInteraction() => _interaction.Request(Focus.Target, _indoors.SurfaceLevel, CollisionMode);
+
+    internal void CancelInteraction()
+    { _interaction.Cancel(); _clickToMove.StopMoving(); _camera.StopMoving(); }
 
     public InGameInputController(
         InputState input,
@@ -61,7 +71,7 @@ internal sealed class InGameInputController
         _stairs = stairs;
         _doors = doors;
         _worldStreamer = worldStreamer;
-        _collision = new WorldCollisionResolver(worldStreamer, () => scene.Indoor.ActiveGroup);
+        _collision = new WorldCollisionResolver(worldStreamer, () => scene.Indoor.ActiveGroup, doors.States);
         _elevation = new WorldElevationSampler(worldStreamer);
         _indoors = new IndoorTraversalController(worldStreamer, scene.Indoor);
         _scene = scene;
@@ -72,6 +82,9 @@ internal sealed class InGameInputController
         _viewportHeight = viewportHeight;
         _outputToViewport = outputToViewport;
         _setHandCursor = setHandCursor;
+        Focus = new WorldFocusController(doors, stairs);
+        _interaction = new WorldInteractionController(doors, stairs, camera, clickToMove, _collision);
+        _camera.ManualMovementAssist = intent => Focus.AssistManualMovement(_camera.WorldCenter, intent);
         _camera.ManualMovementSegment = (start, end) =>
         {
             _stairs.ObserveMovement(start, end, _indoors.SurfaceLevel);
@@ -91,6 +104,14 @@ internal sealed class InGameInputController
             return;
 
         var movementInput = _postStairsMovementInput.Update(_input);
+        UpdateFocus(movementInput);
+        if (_camera.GetManualDirection(_input, movementInput) != Vector2.Zero || uiWantsMouse || _input.IsDefendDown)
+            _interaction.Cancel();
+        if (!_input.UiWantsKeyboard && (_input.ConsumePressed(VirtualKey.F) || _gamepad.WasPressed(GamepadButtons.A)) &&
+            RequestInteraction())
+        {
+            EngineLog.WriteLine($"Debug input: interact; {Focus.Status}");
+        }
 
         if (!uiWantsMouse && (_input.ConsumeXButtonCyclePressed() ||
             _gamepad.WasPressed(GamepadButtons.B)))
@@ -137,7 +158,7 @@ internal sealed class InGameInputController
                 _collision,
                 _elevation,
                 CollisionMode,
-                _doors.TryToggleAt,
+                _ => RequestInteraction(),
                 deltaSeconds,
                 movementInput);
         }
@@ -152,11 +173,15 @@ internal sealed class InGameInputController
             CollisionMode,
             PlayerMovementSpeedMultiplier,
             movementInput);
+        _interaction.Update(_indoors.SurfaceLevel);
         var surfaceLevel = _indoors.SurfaceLevel;
         var portalDestinationLevel = surfaceLevel;
         var scriptTransition = Portals?.Update(_camera, surfaceLevel, out portalDestinationLevel) == true;
         if (scriptTransition)
         {
+            _camera.DebugManualDirection = null;
+            Focus.Clear();
+            _interaction.Cancel();
             _clickToMove.StopMoving();
             _postStairsMovementInput.BlockUntilNewInput(_input);
             _indoors.Reset(_camera.WorldCenter, portalDestinationLevel);
@@ -165,6 +190,9 @@ internal sealed class InGameInputController
         }
         if (!scriptTransition && _stairs.Update(_camera, surfaceLevel, out var destinationSurfaceLevel))
         {
+            _camera.DebugManualDirection = null;
+            Focus.Clear();
+            _interaction.Cancel();
             _clickToMove.StopMoving();
             _postStairsMovementInput.BlockUntilNewInput(_input);
             _indoors.Reset(_camera.WorldCenter, destinationSurfaceLevel);
@@ -204,14 +232,23 @@ internal sealed class InGameInputController
             _viewportWidth(),
             _viewportHeight());
         _setHandCursor(!uiWantsMouse &&
-            (_doors.IsDoorAt(mouseWorld) ||
+            (Focus.Target is not null ||
               Portals?.IsPortalAt(mouseWorld, _indoors.SurfaceLevel) == true ||
               _stairs.IsStairsAt(mouseWorld, _indoors.SurfaceLevel)));
     }
 
+    private void UpdateFocus(MovementInputAvailability availability)
+    {
+        var screen = Focus.DebugMouseScreen ?? _outputToViewport(_input.MousePosition);
+        var world = GameActorElevation.ScreenToWorldOnSurface(_camera, _elevation, screen,
+            _viewportWidth(), _viewportHeight());
+        Focus.Update(_input, _camera, screen, world, _viewportWidth(), _viewportHeight(), _indoors.SurfaceLevel,
+            _input.UiWantsKeyboard ? availability with { Keyboard = false } : availability);
+    }
+
     public void OnActivated() => _mapInput.OnActivated();
 
-    public void OnDeactivated() => _mapInput.OnDeactivated();
+    public void OnDeactivated() { _camera.DebugManualDirection = null; Focus.Clear(); _interaction.Cancel(); _mapInput.OnDeactivated(); }
 
     public void SetCollisionMode(CollisionCheatMode mode)
     {
@@ -219,6 +256,7 @@ internal sealed class InGameInputController
             return;
 
         CollisionMode = mode;
+        _interaction.Cancel();
         _clickToMove.StopMoving();
         _camera.StopMoving();
     }
@@ -228,6 +266,9 @@ internal sealed class InGameInputController
 
     public void Teleport(Vector2 destination)
     {
+        _camera.DebugManualDirection = null;
+        Focus.Clear();
+        _interaction.Cancel();
         Portals?.Reset(destination);
         _clickToMove.StopMoving();
         _camera.StopMoving();

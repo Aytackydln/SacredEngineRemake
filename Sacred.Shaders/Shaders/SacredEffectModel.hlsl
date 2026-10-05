@@ -70,7 +70,8 @@ float surface_light_at(float2 pixel_position)
 float3 model_surface_lighting(float2 pixel_position)
 {
     float3 ambient = ambient_color_and_intensity.rgb * ambient_color_and_intensity.w;
-    return min(ambient + surface_light_at(pixel_position), 1.0f);
+    return min((ambient + surface_light_at(pixel_position)) *
+        world_focus_light_scale(texture_flags.x, scene_elapsed_seconds), 1.0f);
 }
 
 float3 compose_sdr_model_lighting(float3 base_color, float3 surface_lighting, float3 diffuse, float3 specular)
@@ -83,17 +84,17 @@ float3 compose_sdr_model_lighting(float3 base_color, float3 surface_lighting, fl
 
 bool has_texture()
 {
-    return texture_flags.x > texture_mode_has_texture_threshold;
+    return focused_texture_mode(texture_flags.x) > texture_mode_has_texture_threshold;
 }
 
 bool has_hdr_texture()
 {
-    return texture_flags.x > hdr_texture_mode_has_texture_threshold;
+    return focused_texture_mode(texture_flags.x) > hdr_texture_mode_has_texture_threshold;
 }
 
 bool has_effect_overlay_texture()
 {
-    return texture_flags.x > texture_mode_multitexture_fill_threshold;
+    return focused_texture_mode(texture_flags.x) > texture_mode_multitexture_fill_threshold;
 }
 
 float texture_animation_value()

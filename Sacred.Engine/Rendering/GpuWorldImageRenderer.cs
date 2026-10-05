@@ -139,7 +139,9 @@ public sealed class GpuWorldImageRenderer : IDisposable
             if (asset?.Model.Mesh is not { } mesh)
                 continue;
             GrnAnimatedMesh? animatedMesh = null;
-            if (openDoors && value.ModelDesc.Category == SacredItemCategory.Door)
+            if (value.ModelDesc.Category == SacredItemCategory.Door && placement.DoorTriggerId is { } doorId &&
+                _world.ObjectScript.Doors.TryGetValue(doorId, out var door) &&
+                (door.InitiallyOpen || (openDoors && !door.Locked)))
             {
                 var motion = new DoorMotionPlayback(mesh, asset.Model.Skin, asset.OpenAnimation, asset.CloseAnimation);
                 motion.SetInitialState(true);

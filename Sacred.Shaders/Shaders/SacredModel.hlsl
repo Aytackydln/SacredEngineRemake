@@ -17,6 +17,7 @@ cbuffer SceneConstants : register(b1)
     float4 ambient_color_and_intensity;
     float4 light_color_and_diffuse_intensity;
     float4 hdr_display; // x: scene paper white, y: surface-light influence, z: sun diffuse nits, w: sun specular nits
+    float scene_elapsed_seconds;
 }
 
 Texture2D model_texture : register(t0);
@@ -64,7 +65,8 @@ float surface_light_at(float2 pixel_position)
 float3 model_surface_lighting(float2 pixel_position)
 {
     float3 ambient = ambient_color_and_intensity.rgb * ambient_color_and_intensity.w;
-    return min(ambient + surface_light_at(pixel_position), 1.0f);
+    return min((ambient + surface_light_at(pixel_position)) *
+        world_focus_light_scale(texture_flags.x, scene_elapsed_seconds), 1.0f);
 }
 
 float3 compose_sdr_model_lighting(float3 base_color, float3 surface_lighting, float3 diffuse, float3 specular)
@@ -79,18 +81,18 @@ float3 compose_sdr_model_lighting(float3 base_color, float3 surface_lighting, fl
 
 bool has_texture()
 {
-    return texture_flags.x > texture_mode_has_texture_threshold;
+    return focused_texture_mode(texture_flags.x) > texture_mode_has_texture_threshold;
 }
 
 bool has_alpha_overlay_texture()
 {
-    return texture_flags.x > texture_mode_alpha_overlay_min &&
-        texture_flags.x < texture_mode_alpha_overlay_max;
+    return focused_texture_mode(texture_flags.x) > texture_mode_alpha_overlay_min &&
+        focused_texture_mode(texture_flags.x) < texture_mode_alpha_overlay_max;
 }
 
 bool has_multitexture_fill_overlay()
 {
-    return texture_flags.x > texture_mode_multitexture_fill_threshold;
+    return focused_texture_mode(texture_flags.x) > texture_mode_multitexture_fill_threshold;
 }
 
 float4 alpha_blend(float4 base_color, float4 overlay_color)

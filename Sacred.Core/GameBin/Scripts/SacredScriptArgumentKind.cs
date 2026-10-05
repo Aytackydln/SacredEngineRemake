@@ -15,7 +15,9 @@ public enum SacredScriptArgumentKind : byte
     /// <summary>Second inclusive SetBaseTrigger corner; omitted for a singleton cell.</summary>
     TriggerLastCorner = 0x0D,
     WorldPosition = 0x20,
-    /// <summary>Null-terminated object reference used by CreateObj instructions.</summary>
+    /// <summary>NUL-terminated linked trigger name (OC_UseTrigger), separate from the object name.</summary>
     ObjectReference = 0x29,
+    /// <summary>TriggerPatch cell: three Int32 values (tile X, Y, surface).</summary>
+    TriggerPatchPosition = 0x2A,
     HeightOffset = 0x7E
 }

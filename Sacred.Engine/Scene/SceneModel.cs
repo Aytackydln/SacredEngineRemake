@@ -61,6 +61,8 @@ public sealed class SceneModel : ISceneModelBounds
     public Vector2 DepthAnchor { get; private set; }
     /// <summary>World props use their authored tile ordering without the character occlusion bias.</summary>
     public bool IsWorldObject { get; init; }
+    /// <summary>World focus changes lighting without invalidating geometry or material caches.</summary>
+    public bool IsFocused { get; internal set; }
     public Vector3 Rotation { get; private set; }
     public float Scale { get; }
     /// <summary>Resolved Items.pak blocking radius in authored model units, independent of the pose.</summary>

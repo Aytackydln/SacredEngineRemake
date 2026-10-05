@@ -1,6 +1,7 @@
 using System.Numerics;
 using Sacred.Core.World;
 using Sacred.Core.World.Sector;
+using Sacred.World.Objects;
 
 namespace Sacred.World;
 
@@ -11,9 +12,11 @@ namespace Sacred.World;
 /// </summary>
 public sealed class WorldCollisionResolver(
     WorldStreamer worldStreamer,
-    Func<IndoorTileGroup?> activeIndoorGroup)
+    Func<IndoorTileGroup?> activeIndoorGroup,
+    WorldDoorStateLayer? doors = null)
 {
     public const float CharacterRadius = 0.28f;
+    public int DoorStateRevision => doors?.Revision ?? 0;
 
     private const float ContactSkin = 0.001f;
     private const float ContactApproachEpsilon = 0.000001f;
@@ -259,6 +262,8 @@ public sealed class WorldCollisionResolver(
 
     private bool IsMovementBlockedFromCache(int worldTileX, int worldTileY)
     {
+        if (doors?.IsBlocked(worldTileX, worldTileY, activeIndoorGroup()?.SurfaceLevel ?? 0) == true)
+            return true;
         if (TryGetIndoorTile(worldTileX, worldTileY, out var indoorGroup, out var indoorX, out var indoorY))
             return indoorGroup.Pathing.IsBlocked(indoorX, indoorY);
 
@@ -268,6 +273,8 @@ public sealed class WorldCollisionResolver(
 
     private bool IsFlightBlockedFromCache(int worldTileX, int worldTileY)
     {
+        if (doors?.IsBlocked(worldTileX, worldTileY, activeIndoorGroup()?.SurfaceLevel ?? 0) == true)
+            return true;
         if (TryGetIndoorTile(worldTileX, worldTileY, out var indoorGroup, out var indoorX, out var indoorY))
             return HasMovementBlockerA(indoorGroup.Pathing[indoorX, indoorY].TileFlags);
 

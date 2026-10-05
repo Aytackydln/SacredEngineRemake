@@ -1,4 +1,4 @@
-﻿namespace Sacred.Engine.Platform;
+namespace Sacred.Engine.Platform;
 
 public enum VirtualKey : uint
 {
@@ -15,11 +15,12 @@ public enum VirtualKey : uint
     A = 0x41,
     D = 0x44,
     E = 0x45,
+    F = 0x46,
     M = 0x4D,
     Q = 0x51,
     S = 0x53,
     W = 0x57,
-    
+
     Z = 0x5A,
     X = 0x58,
 

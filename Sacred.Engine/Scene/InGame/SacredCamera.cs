@@ -6,7 +6,7 @@ using Sacred.World.Geometry;
 
 namespace Sacred.Engine.Scene.InGame;
 
-public sealed class SacredCamera
+public sealed partial class SacredCamera
 {
     public const float WalkingBaseSpeed = 2.0f;
     public const float RunningBaseSpeed = 5.0f;
@@ -33,6 +33,7 @@ public sealed class SacredCamera
     private Vector2? _movementTarget;
 
     internal Action<Vector2, Vector2>? ManualMovementSegment { get; set; }
+    internal Func<Vector2, Vector2?>? ManualMovementAssist { get; set; }
 
     public Vector2 CameraSpeedUnitVector { get; private set; } = Vector2.Zero;
     public Vector2 CharacterFacingUnitVector { get; private set; } = Vector2.Zero;
@@ -138,6 +139,7 @@ public sealed class SacredCamera
             movementInput,
             out var joystickMovementScale,
             out var joystickRotationOnly);
+        ApplyConsoleMovement(ref delta, ref joystickMovementScale, ref joystickRotationOnly);
         CurrentMovementSpeed = 0.0f;
         LocomotionAnimationSpeed = 1.0f;
 
@@ -163,7 +165,13 @@ public sealed class SacredCamera
         else if (delta.LengthSquared() > 0)
         {
             _movementTarget = null;
-            if (joystickMovementScale > 0.0f)
+            if (ManualMovementAssist?.Invoke(delta) is { } assistedDirection)
+            {
+                _gamepadPathfinding.Reset();
+                MoveInDirection(assistedDirection, baseSpeed * (joystickMovementScale > 0 ? joystickMovementScale : 1),
+                    dt, collision, collisionMode);
+            }
+            else if (joystickMovementScale > 0.0f)
             {
                 var speed = baseSpeed * joystickMovementScale;
                 if (collisionMode is CollisionCheatMode.Fly or CollisionCheatMode.NoClip)
@@ -322,7 +330,7 @@ public sealed class SacredCamera
         }
         if (movementInput.Controller && joystickLengthSquared >= JoystickRotationDeadzone * JoystickRotationDeadzone)
             joystickRotationOnly = Vector2.Transform(joystick, IsometricRotation);
-        
+
         var delta = Vector2.Zero;
 
         if (!movementInput.Keyboard)

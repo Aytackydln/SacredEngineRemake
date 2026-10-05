@@ -206,8 +206,7 @@ internal sealed class Dx12ModelPass
             if (renderMesh.Surfaces.Count == 0)
             {
                 _commandList.SetPipelineState(skinned ? SkinDraw!.Pipeline(Dx12PipelineKind.SolidModel) : _solidPipeline!);
-                if (skinned) RecordUntexturedMeshCount(indexCount, constants, modelGeometryDepth);
-                else RecordUntexturedMesh(mesh!, constants, modelGeometryDepth);
+                RecordUntexturedMeshCount(indexCount, constants, modelGeometryDepth, model.IsFocused);
             }
             else
             {
@@ -273,7 +272,7 @@ internal sealed class Dx12ModelPass
 
                         _shaderConstants.WriteTextureFlags(
                             constants + ModelShaderLayout.TextureFlagsOffset,
-                            textureMode,
+                            ModelShaderVariables.PackWorldFocus(textureMode, model.IsFocused),
                             ModelShaderVariables.PackTextureAnimation(
                                 animation.IsAnimated,
                                 animation.Mode == TextureAnimationMode.RadialSweepBlackKey,
@@ -310,11 +309,11 @@ internal sealed class Dx12ModelPass
     private unsafe void RecordUntexturedMesh(ModelGpuMesh mesh, float* constants, float modelSceneDepth) =>
         RecordUntexturedMeshCount(mesh.IndexCount, constants, modelSceneDepth);
 
-    private unsafe void RecordUntexturedMeshCount(int indexCount, float* constants, float modelSceneDepth)
+    private unsafe void RecordUntexturedMeshCount(int indexCount, float* constants, float modelSceneDepth, bool focused = false)
     {
         _shaderConstants.WriteTextureFlags(
             constants + ModelShaderLayout.TextureFlagsOffset,
-            ModelShaderVariables.TextureModeNoTexture,
+            ModelShaderVariables.PackWorldFocus(ModelShaderVariables.TextureModeNoTexture, focused),
             ModelShaderVariables.TextureAnimationNone,
             modelSceneDepth,
             animationTimeScale: 0.0f);

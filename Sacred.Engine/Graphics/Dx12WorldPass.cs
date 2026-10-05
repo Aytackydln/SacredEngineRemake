@@ -224,7 +224,7 @@ internal sealed class Dx12WorldPass : IDisposable
     public void SetAnimationTime(float seconds)
     {
         _sprites.SetAnimationTime(seconds);
-        _models.AnimationTimeOverride = seconds;
+        _models.AnimationTimeOverride = float.IsFinite(seconds) ? seconds : null;
     }
 
     public Task StartPreparation()

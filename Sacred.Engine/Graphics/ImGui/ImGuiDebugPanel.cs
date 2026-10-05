@@ -242,7 +242,7 @@ internal sealed class ImGuiDebugPanel(
 
     private static void DrawWorld(SacredCamera camera, VisibleWorld world, SceneState scene)
     {
-        DearImGui.Text($"Camera          {camera.WorldCenter.X:0.00}, {camera.WorldCenter.Y:0.00}");
+        DearImGui.Text($"Camera          {camera.WorldCenter.X:0.00}, {camera.WorldCenter.Y:0.00}  Floor {scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0}");
         DearImGui.Text($"Center sector   {world.CenterSector.X}, {world.CenterSector.Y}");
         DearImGui.Text($"Visible sectors {world.Sectors.Count} (loading {world.LoadingSectors})");
         DearImGui.Text($"Actor terrain Z {scene.Debug.ActorTerrainHeight:0.00}");

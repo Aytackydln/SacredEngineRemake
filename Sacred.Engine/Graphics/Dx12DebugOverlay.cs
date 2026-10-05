@@ -66,7 +66,8 @@ public unsafe class Dx12DebugOverlay : IDisposable
         bool hdrEnabled,
         int renderWidth,
         int renderHeight,
-        List<ID3D12Resource> transientResources)
+        List<ID3D12Resource> transientResources,
+        byte surfaceLevel = 0)
     {
         EnsureSceneDimTexture(transientResources);
         CompleteDebugRasterIfReady();
@@ -77,7 +78,7 @@ public unsafe class Dx12DebugOverlay : IDisposable
             ref _debugOverlayState,
             _debugOverlayCpuHandle,
             transientResources);
-        QueueDebugRaster(camera, world, rendererStats, hdrEnabled, renderWidth, renderHeight);
+        QueueDebugRaster(camera, world, rendererStats, hdrEnabled, renderWidth, renderHeight, surfaceLevel);
     }
 
     private void EnsureSceneDimTexture(List<ID3D12Resource> transientResources)
@@ -215,7 +216,8 @@ public unsafe class Dx12DebugOverlay : IDisposable
         Dx12DebugOverlayStats rendererStats,
         bool hdrEnabled,
         int renderWidth,
-        int renderHeight)
+        int renderHeight,
+        byte surfaceLevel)
     {
         _framesSinceTitleUpdate++;
         if (_debugRasterTask is not null || _debugOverlayDirty)
@@ -237,7 +239,7 @@ public unsafe class Dx12DebugOverlay : IDisposable
         {
             $"FPS {_fps:0.0}  FRAME {rendererStats.FrameTimeMilliseconds:0.00} MS  {rendererStats.FramePacingStatus}",
             $"HDR {(hdrEnabled ? "ON" : "OFF")}  RENDER RESOLUTION {renderWidth}x{renderHeight}",
-            $"WORLD {camera.WorldCenter.X:0.00}, {camera.WorldCenter.Y:0.00}  SECTOR {world.CenterSector.X}, {world.CenterSector.Y}"
+            $"WORLD {camera.WorldCenter.X:0.00}, {camera.WorldCenter.Y:0.00}  FLOOR {surfaceLevel}  SECTOR {world.CenterSector.X}, {world.CenterSector.Y}"
         };
 
         _debugRasterTask = Task.Run(() => _debugOverlay.SetLines(lines));

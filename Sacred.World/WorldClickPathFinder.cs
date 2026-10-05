@@ -3,12 +3,12 @@ using System.Numerics;
 namespace Sacred.World;
 
 /// <summary>
-/// Finds short, click-sized routes through the currently streamed WLDX navigation grid.
-/// Search bounds scale with zoom because a more distant click can be made when zoomed out.
+/// Finds routes through the streamed WLDX grid and live door patches. Detour bounds
+/// scale with both click distance and zoom, with one bounded search for target fallbacks.
 /// </summary>
 public sealed class WorldClickPathFinder(WorldCollisionResolver collision)
 {
-    private const int MaximumSearchNodes = 12_000;
+    private const int MaximumSearchNodes = 48_000;
     private const int TargetSearchRadius = 8;
     private const int MaximumTargetCandidates = 16;
     private const int TargetPositionRefinementIterations = 12;
@@ -48,21 +48,8 @@ public sealed class WorldClickPathFinder(WorldCollisionResolver collision)
             return false;
         }
 
-        List<TileCoordinate>? tiles = null;
-        var selectedTarget = target;
-        var candidateCount = Math.Min(targetCandidates.Count, MaximumTargetCandidates);
-        for (var index = 0; index < candidateCount; index++)
-        {
-            var candidate = targetCandidates[index];
-            if (TryFindTileRoute(start, startTile, candidate.Tile, bounds, out var candidateRoute))
-            {
-                tiles = candidateRoute;
-                selectedTarget = candidate.Position;
-                break;
-            }
-        }
-
-        if (tiles is null)
+        if (!TryFindTileRoute(start, startTile, targetCandidates, target, bounds,
+                out var tiles, out var selectedTarget))
         {
             route = Array.Empty<Vector2>();
             return false;
@@ -139,14 +126,21 @@ public sealed class WorldClickPathFinder(WorldCollisionResolver collision)
     private bool TryFindTileRoute(
         Vector2 start,
         TileCoordinate startTile,
-        TileCoordinate targetTile,
+        IReadOnlyList<TargetCandidate> candidates,
+        Vector2 target,
         SearchBounds bounds,
-        out List<TileCoordinate> route)
+        out List<TileCoordinate> route,
+        out Vector2 selectedTarget)
     {
         var open = new PriorityQueue<TileCoordinate, float>();
         var cameFrom = new Dictionary<TileCoordinate, TileCoordinate>();
         var costs = new Dictionary<TileCoordinate, float> { [startTile] = 0.0f };
-        open.Enqueue(startTile, EstimateCost(startTile, targetTile.ToWorld()));
+        open.Enqueue(startTile, EstimateCost(startTile, target));
+        var targets = candidates.Take(MaximumTargetCandidates).Select((candidate, rank) => (candidate, rank))
+            .ToDictionary(pair => pair.candidate.Tile);
+        var bestRank = int.MaxValue;
+        TargetCandidate? best = null;
+        var traversable = new Dictionary<TileCoordinate, bool>();
         var closed = new HashSet<TileCoordinate>();
 
         var inspected = 0;
@@ -158,17 +152,20 @@ public sealed class WorldClickPathFinder(WorldCollisionResolver collision)
             if (++inspected > MaximumSearchNodes)
                 break;
 
-            if (current == targetTile)
+            if (targets.TryGetValue(current, out var goal) && goal.rank < bestRank)
             {
-                route = ReconstructRoute(cameFrom, current);
-                return true;
+                best = goal.candidate;
+                bestRank = goal.rank;
+                // The nearest occupiable target has been reached. Otherwise keep searching
+                // for a closer candidate without restarting A* for each unreachable cell.
+                if (bestRank == 0) break;
             }
 
             var currentWorld = current.ToWorld();
             foreach (var offset in Neighbours)
             {
                 var next = new TileCoordinate(current.X + offset.X, current.Y + offset.Y);
-                if (!bounds.Contains(next) || !IsTraversable(next))
+                if (!bounds.Contains(next) || closed.Contains(next) || !CanTraverse(next))
                     continue;
 
                 var nextWorld = next.ToWorld();
@@ -182,12 +179,27 @@ public sealed class WorldClickPathFinder(WorldCollisionResolver collision)
 
                 costs[next] = nextCost;
                 cameFrom[next] = current;
-                open.Enqueue(next, nextCost + EstimateCost(next, targetTile.ToWorld()));
+                open.Enqueue(next, nextCost + EstimateCost(next, target));
             }
         }
 
+        if (best is { } found)
+        {
+            route = ReconstructRoute(cameFrom, found.Tile);
+            selectedTarget = found.Position;
+            return true;
+        }
         route = [];
+        selectedTarget = target;
         return false;
+
+        bool CanTraverse(TileCoordinate tile)
+        {
+            if (traversable.TryGetValue(tile, out var allowed)) return allowed;
+            allowed = IsTraversable(tile) && collision.CanOccupy(tile.ToWorld());
+            traversable[tile] = allowed;
+            return allowed;
+        }
     }
 
     private bool IsTraversable(TileCoordinate tile) =>
@@ -267,7 +279,8 @@ public sealed class WorldClickPathFinder(WorldCollisionResolver collision)
         public static SearchBounds Create(Vector2 start, Vector2 target, float zoom)
         {
             var safeZoom = Math.Max(zoom, 0.25f);
-            var detourPadding = Math.Clamp((int)MathF.Ceiling(4.0f / safeZoom), 4, 16);
+            var distance = Vector2.Distance(start, target);
+            var detourPadding = Math.Clamp((int)MathF.Ceiling(MathF.Max(24.0f / safeZoom, distance * 0.5f)), 24, 96);
             return new SearchBounds(
                 (int)MathF.Floor(MathF.Min(start.X, target.X)) - detourPadding,
                 (int)MathF.Ceiling(MathF.Max(start.X, target.X)) + detourPadding,

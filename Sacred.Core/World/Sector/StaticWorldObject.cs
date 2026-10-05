@@ -32,6 +32,9 @@ public readonly record struct StaticWorldObject(
     /// <summary>Instance facing override from a compiled CreateObj operand.</summary>
     public ushort? ScriptFacingDegrees { get; init; }
 
+    /// <summary>Script trigger identity shared by linked door models.</summary>
+    public uint? DoorTriggerId { get; init; }
+
     /// <summary>Owning building anchor from the outdoor WLDX tile's 0x1C/0x1D offsets.</summary>
     public (int X, int Y)? IndoorAnchor { get; init; }
 

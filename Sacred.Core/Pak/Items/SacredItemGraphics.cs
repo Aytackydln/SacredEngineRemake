@@ -94,6 +94,11 @@ public enum SacredItemGraphicType : ushort
     /// </summary>
     AllowsTransparency = 0b1_0000,
 
+    /// <summary>Allows world selection. Demo TypeManager::isSelectable (0x413DE0)
+    /// and Gold (0x4263F0) test bit 8 of the descriptor's combined flags,
+    /// independently of category.</summary>
+    Selectable = 0x0100,
+
     /// <summary>
     /// Enables sprite depth testing and writes. Native renderObjects tests
     /// combined mask 0x00000200 and computes corner depth from screen Y and

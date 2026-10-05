@@ -13,4 +13,5 @@ public sealed record SacredScriptCreateObject(
     SacredScriptPosition? WorldPosition,
     short? HeightOffset,
     string? SymbolicTilePosition = null,
-    ushort? FacingDegrees = null);
+    ushort? FacingDegrees = null,
+    string? TriggerReference = null);

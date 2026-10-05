@@ -14,6 +14,7 @@ using Sacred.Engine.Platform;
 using Sacred.Granny.Diagnostics;
 using Sacred.Particles;
 using Sacred.World;
+using Sacred.World.Objects;
 using Sacred.World.Particles;
 using Sacred.World.Portals;
 
@@ -64,7 +65,9 @@ internal sealed class InGameScene : IGameScene
         _camera = SacredCamera.CreateDefault(window.ClientWidth, window.ClientHeight);
         _footprints = new PlayerFootprintController(_assets, _worldStreamer, _scene);
         _player = new PlayerCharacterController(_assets, _scene, saveState.CharacterName);
-        _doors = new DoorSceneController(_assets, _scene);
+        _doors = new DoorSceneController(_assets, _scene, new WorldDoorStateLayer(
+            resources.WorldArchive.ObjectScript.Placements.Where(p => p.Door is not null).Select(p => p.Door!)),
+            () => _camera.WorldCenter);
         _worldLighting = new WorldLightingController(saveState.WorldLightingMode);
         _scene.Debug.StairsMapVisible = saveState.StairsTilesVisible;
         _scene.Debug.BlockedAreasVisible = saveState.BlockedTilesVisible;
@@ -153,8 +156,18 @@ internal sealed class InGameScene : IGameScene
     {
         if (_playerParticles.TrySetCheatOption(option, value, _camera.WorldCenter, out message)) return true;
         if (PlayerMovementCheats.TrySetOption(option, value, _camera, _inputController, out message)) return true;
+        if (WorldFocusCheats.TrySetOption(option, value, _inputController, _doors, _camera,
+                _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0, out message)) return true;
         switch (option.ToLowerInvariant())
         {
+            case "render-time" when value.Equals("live", StringComparison.OrdinalIgnoreCase):
+                Renderer.SetOffscreenAnimationTime(float.NaN);
+                message = "render animation clock resumed"; return true;
+            case "render-time" when float.TryParse(value, NumberStyles.Float,
+                    CultureInfo.InvariantCulture, out var renderTime) &&
+                    float.IsFinite(renderTime) && renderTime >= 0:
+                Renderer.SetOffscreenAnimationTime(renderTime);
+                message = $"render animation clock frozen at {renderTime:0.###} seconds"; return true;
             case "portals" when value.Equals("status", StringComparison.OrdinalIgnoreCase):
                 foreach (var portal in _portalScript.Billboards)
                     EngineLog.WriteLine($"Portal billboard: world {portal.Position.X:0.###},{portal.Position.Y:0.###}; tile {portal.TileX},{portal.TileY}; {(portal.IsStartup ? "StartCode" : "FunkCode")}+0x{portal.ScriptOffset:X}; {portal.Variant}; unlit animated.");
@@ -266,16 +279,18 @@ internal sealed class InGameScene : IGameScene
                 return true;
             case "door" when value.Equals("toggle", StringComparison.OrdinalIgnoreCase):
                 var toggled = _doors.TryToggleAt(_camera.WorldCenter);
-                message = toggled ? "nearest door toggled" : "no loaded animated door within interaction distance";
+                message = toggled ? "nearest door interaction handled" : "no door within interaction distance";
                 EngineLog.WriteLine($"Debug input: {message}.");
                 return true;
             case "door-list":
+                foreach (var door in _doors.DebugStates.OrderBy(d => Vector2.DistanceSquared(d.Position, _camera.WorldCenter)))
+                    EngineLog.WriteLine($"Door state: static {door.Id}; trigger {door.Trigger}; world {door.Position.X:0.###},{door.Position.Y:0.###}; open {door.Open}; locked {door.Locked}.");
                 foreach (var door in _doors.DebugDoors.OrderBy(d => Vector2.DistanceSquared(d.Position, _camera.WorldCenter)))
                     EngineLog.WriteLine($"Door playback: {door.Id}; world {door.Position.X.ToString("R", CultureInfo.InvariantCulture)},{door.Position.Y.ToString("R", CultureInfo.InvariantCulture)}; open {door.Playback.CanActivate}; close {door.Playback.CanReset}; pose {door.Playback.Pose?.Revision ?? 0}");
                 message = "loaded door playback candidates listed";
                 return true;
             default:
-                message = "Unknown in-game option. Use overlays <on|off>, debug-panel <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, collision <walk|fly|noclip>, noclip <on|off>, tessellation <on|off>, particles <on|off>, particle-simulation <Auto|CpuSimd|CpuScalar|Gpu|GpuOnly>, item-flags <hex>, character <next|index>, zoom <0.25..3>, facing <degrees>, door toggle, or animation attack.";
+                message = "Unknown in-game option. Use overlays <on|off>, debug-panel <on|off>, lighting <day|night|cycle|black>, stairs <on|off>, blocked <on|off>, collision <walk|fly|noclip>, noclip <on|off>, tessellation <on|off>, particles <on|off>, particle-simulation <Auto|CpuSimd|CpuScalar|Gpu|GpuOnly>, item-flags <hex>, character <next|index>, zoom <0.25..3>, facing <degrees>, path <x>,<y>, door toggle, door-list show, or animation attack.";
                 return false;
         }
     }

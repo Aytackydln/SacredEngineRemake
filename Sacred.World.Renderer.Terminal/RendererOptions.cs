@@ -169,7 +169,7 @@ internal sealed record RendererOptions(
         "  --width <pixels>      In-game image width (default: 1280)\n" +
         "  --height <pixels>     In-game image height (default: 720)\n" +
         "  --zoom <number>       In-game camera zoom (default: 0.75)\n" +
-        "  --open-doors          Sample authored activation clips at their final pose\n" +
+        "  --open-doors          Open ordinary doors; preserve script locks\n" +
         "  --indoor-level <n>    Select the authored indoor floor containing the world center";
 
     private static string Read(IReadOnlyList<string> args, ref int index, string option)
