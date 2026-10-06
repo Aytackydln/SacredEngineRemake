@@ -143,7 +143,7 @@ public sealed class WorldModelRasterizer(
         {
             var local = Vector3.Transform(mesh.Vertices[i].Position, localTransform);
             var position = new Vector3(origin.X + local.X, origin.Y + local.Y, local.Z);
-            var localPainterDepth = -(local.Y - local.Z) / (24f * MathF.Sqrt(2f));
+            var localPainterDepth = WorldModelDepth.FromPosition(local);
             points[i] = new Point(width * .5f + (position.X - camera.X) * zoom,
                 height * .5f - ((position.Y - camera.Y) + position.Z) / MathF.Sqrt(2) * zoom,
                 -(physicalAnchor + localPainterDepth),
@@ -207,7 +207,6 @@ public sealed class WorldModelRasterizer(
     private readonly record struct Triangle(Point A, Point B, Point C, TextureAsset? Texture);
     private readonly record struct ModelGeometry(Mesh Mesh, Vector3 SourceOriginOffset, TextureAsset?[] Textures);
 }
-
 
 
 

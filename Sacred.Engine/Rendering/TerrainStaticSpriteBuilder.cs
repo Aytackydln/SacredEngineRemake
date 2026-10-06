@@ -242,7 +242,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                     IsAnimatedMiniObject = isAnimatedMiniObject,
                     IsMiniObject = item?.ModelDesc.UsesMiniObjectTexture == true,
                     UsesSpriteDepth = item?.ModelDesc.GraphicType.HasFlag(SacredItemGraphicType.UsesSpriteDepth) == true,
-                    HeightLevel = staticObject.HeightLevelId,
+                    HeightLevel = staticObject.GeometricHeightLayer,
                     IsFrontLayer = item?.ModelDesc.IsFrontLayer == true,
                     RendersOverWater = item?.ModelDesc.GraphicType.HasFlag(
                         SacredItemGraphicType.OverWater) == true

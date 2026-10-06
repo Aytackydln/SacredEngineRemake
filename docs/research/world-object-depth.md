@@ -68,16 +68,19 @@ pivot near 1714.431,3403.706. Moving its mesh into a different painter slot or
 translating its nearest vertex behind the tile incorrectly clips other doors.
 The nearest-vertex translation has been removed.
 
-World-model depth remains physical per vertex, with the original positive
-camera Y-Z scale. In Engine's model-camera coordinates:
+World-model depth remains physical per vertex. Sacred's native camera direction
+is adapted separately from the engine's 45-degree screen view. In Engine's
+model-camera coordinates:
 
-`depth = 0.5 + (worldVertexY - cameraCenterY - worldVertexZ) / (24 * sqrt(2) * 4096)`
+`depth = 0.5 + (worldVertexY - cameraCenterY - worldVertexZ/4) / (24 * sqrt(2) * 4096)`
 
 The world transform includes the extracted asset's restored source origin,
-facing, projection and precise pivot. The shader's existing local vertex-depth
-term is unchanged; its base uses the transformed origin in the same physical
-coordinate system. This changes neither the sign nor the scale of vertex-depth
-differences. Models retain depth writes and self-occlusion.
+facing, projection and precise pivot. The base and each local vertex use the
+same physical coordinate system. The quarter-Z factor follows from the native
+camera's `2Y-Z` direction and the model projection's Y/Z scales `sqrt(2/5)` and
+`sqrt(8/5)`. It makes contact depth agree with `getZFromScreenY` sprite planes;
+using the render view's Y-Z direction instead clips elevated actors into floors.
+Models retain depth writes and self-occlusion.
 
 Sprite/model occlusion is determined by native submission order, not by comparing
 a door's individual vertex depths with constant depths of ordinary wall sprites.
@@ -85,8 +88,11 @@ This is what allows the closed gate through the authored seam while the opened
 gate becomes hidden by the neighboring wall. The terminal renderer reproduces
 this using separate masks for exact painter order and depth-enabled planes.
 
-Characters and their attachments do not use the fixed world-object slot. They
-retain projected per-vertex depth and the existing character bias.
+Characters and their attachments use the same elevated physical origin and
+per-vertex depth as the floor planes. The old character painter bias is removed
+because ordinary sprites already follow submission order, while the bias pushed
+characters behind their supporting floor. See [indoor-navigation.md](indoor-navigation.md)
+for native height projection and camera-following checks.
 
 ### ARGB model cutouts
 

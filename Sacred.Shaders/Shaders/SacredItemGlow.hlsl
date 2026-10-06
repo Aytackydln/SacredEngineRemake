@@ -66,10 +66,10 @@ vs_output vs_main(vs_input input)
     output.position = mul(float4(world_position, 1.0f), view_projection);
     if (texture_flags.y >= 0.0f)
     {
-        float4 projected_origin = mul(mul(float4(0.0f, 0.0f, 0.0f, 1.0f), world), view_projection);
-        float vertex_depth = output.position.z / max(output.position.w, 0.000001f);
-        float origin_depth = projected_origin.z / max(projected_origin.w, 0.000001f);
-        output.position.z = output.position.w * saturate(texture_flags.y + (vertex_depth - origin_depth) * 0.08f);
+        float3 world_origin = mul(float4(0.0f, 0.0f, 0.0f, 1.0f), world).xyz;
+        float3 local = world_position - world_origin;
+        float local_depth = (local.y - local.z * 0.25f) / (24.0f * 1.41421356237f * 4096.0f);
+        output.position.z = output.position.w * saturate(texture_flags.y + local_depth);
     }
     output.tex_coord = input.tex_coord;
     return output;

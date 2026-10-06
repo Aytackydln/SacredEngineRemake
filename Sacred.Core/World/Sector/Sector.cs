@@ -34,6 +34,7 @@ public sealed class Sector(
     public StairsCellLayer StairsCells { get; } = stairsCells;
     public IndoorTileGroupLayer IndoorTileGroups { get; } = indoorTileGroups;
     public WorldPathingLayer Pathing { get; } = pathing;
+    public IndoorAnchorLayer? IndoorAnchors { get; init; }
     public TerrainVisualElevationLayer VisualElevation { get; } = visualElevation;
     public TerrainElevationLayer Elevation { get; } = elevation;
     public TerrainBakedLightLayer BakedLight { get; } = bakedLight;

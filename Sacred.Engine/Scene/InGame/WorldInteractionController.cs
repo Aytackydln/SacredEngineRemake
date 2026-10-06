@@ -8,6 +8,7 @@ internal sealed class WorldInteractionController(DoorSceneController objects, St
 {
     private WorldFocusTarget? _pending;
     private byte _surfaceLevel;
+    public IndoorStairsTraversalController? IndoorStairs { get; init; }
 
     public void Cancel() => _pending = null;
 
@@ -47,7 +48,9 @@ internal sealed class WorldInteractionController(DoorSceneController objects, St
     {
         if (!WorldInteractionApproach.InReach(target, camera.WorldCenter)) return false;
         camera.RotateToward(target.Position - camera.WorldCenter);
-        return target.Stairs is not null
+        return target.IndoorStair is not null
+            ? IndoorStairs?.TryActivate(target, camera.WorldCenter, surfaceLevel) == true
+            : target.Stairs is not null
             ? stairs.TryActivate(target, camera.WorldCenter, surfaceLevel)
             : objects.TryToggleFocused(target.Id);
     }

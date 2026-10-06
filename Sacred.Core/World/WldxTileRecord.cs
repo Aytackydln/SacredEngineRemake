@@ -15,6 +15,20 @@ public enum WldxTileFlags : byte
     Entrance = 0x08,
 }
 
+/// <summary>Exact navigation selector in the low nibble of WLDX tile byte 0x1F.</summary>
+public enum WldxTileBehavior : byte
+{
+    None = 0x00,
+    MovementBlockerA = 0x01,
+    MovementBlockerB = 0x02,
+    StairsUp = 0x05,
+    StairsDown = 0x06,
+    StairsUpTwoLevels = 0x07,
+    StairsDownTwoLevels = 0x08,
+    IndoorEntry = 0x09,
+    IndoorExit = 0x0A,
+}
+
 /// <summary>
 /// Packed terrain-surface value stored in the high nibble of a WLDX tile's byte 0x1F.
 /// Sacred.exe selects terrain behavior, materials, and footsteps from exact composite values.
@@ -53,6 +67,7 @@ public readonly record struct WldxTileProperties
     private readonly byte _value;
 
     public WldxTileFlags TileFlags => (WldxTileFlags)(_value & TileFlagsMask);
+    public WldxTileBehavior Behavior => (WldxTileBehavior)(_value & TileFlagsMask);
     public WldxTerrainSurface TerrainSurface => (WldxTerrainSurface)(_value & TerrainSurfaceMask);
 
     /// <summary>
@@ -84,10 +99,18 @@ public readonly record struct WldxTileProperties
     /// Whether the complete low-nibble value is one of Sacred's two movement blockers.
     /// Door composites 0x09 and 0x0A reuse these bits but remain traversable.
     /// </summary>
-    public bool BlocksMovement => (
-        TileFlags.HasFlag(WldxTileFlags.MovementBlockerA) || TileFlags.HasFlag(WldxTileFlags.MovementBlockerB)) && !TileFlags.HasFlag(WldxTileFlags.Entrance);
-    public bool IsEntrance => TileFlags.HasFlag(WldxTileFlags.Entrance);
-    public bool IsEntranceBoundary => TileFlags is WldxTileFlags.Entrance;
+    public bool BlocksMovement => Behavior is WldxTileBehavior.MovementBlockerA or WldxTileBehavior.MovementBlockerB;
+    public bool IsEntrance => Behavior is WldxTileBehavior.IndoorEntry or WldxTileBehavior.IndoorExit;
+    public bool IsEntranceBoundary => Behavior is WldxTileBehavior.IndoorExit;
+    /// <summary>Native cCreature::ChLayerOnPatch applies these exact stair selectors.</summary>
+    public int SurfaceLevelDelta => Behavior switch
+    {
+        WldxTileBehavior.StairsUp => 1,
+        WldxTileBehavior.StairsDown => -1,
+        WldxTileBehavior.StairsUpTwoLevels => 2,
+        WldxTileBehavior.StairsDownTwoLevels => -2,
+        _ => 0
+    };
     public bool IsLiquid => TerrainSurface is WldxTerrainSurface.LiquidA or WldxTerrainSurface.LiquidB;
 
     public override string ToString() => $"0x{_value:X2}";
@@ -129,22 +152,24 @@ public readonly record struct WldxTileRecord
     /// <summary>Baked terrain brightness at the south-east corner.</summary>
     [FieldOffset(0x17)] public readonly byte BakedBrightnessSouthEast;
     // Verified by exact corner continuity across adjacent elevated WLDX tiles.
-    /// <summary>Signed terrain elevation at the south-west corner.</summary>
+    /// <summary>Signed terrain elevation at the south-west corner, in 2.5 native world units per sample.</summary>
     [FieldOffset(0x18)] public readonly sbyte ElevationSouthWest;
-    /// <summary>Signed terrain elevation at the north-west corner.</summary>
+    /// <summary>Signed terrain elevation at the north-west corner, in 2.5 native world units per sample.</summary>
     [FieldOffset(0x19)] public readonly sbyte ElevationNorthWest;
-    /// <summary>Signed terrain elevation at the north-east corner.</summary>
+    /// <summary>Signed terrain elevation at the north-east corner, in 2.5 native world units per sample.</summary>
     [FieldOffset(0x1A)] public readonly sbyte ElevationNorthEast;
-    /// <summary>Signed terrain elevation at the south-east corner.</summary>
+    /// <summary>Signed terrain elevation at the south-east corner, in 2.5 native world units per sample.</summary>
     [FieldOffset(0x1B)] public readonly sbyte ElevationSouthEast;
     /// <summary>
     /// Signed X delta to the authored anchor tile of a multi-tile indoor surface.
+    /// In indoor navigation grids it also shifts the destination of a stair transition.
     /// On outdoor tiles with the Indoor flag, adding this to world X resolves
     /// the parent building anchor used for static-object visibility selection.
     /// </summary>
     [FieldOffset(0x1C)] public readonly sbyte IndoorAnchorDeltaX;
     /// <summary>
     /// Signed Y delta to the authored anchor tile of a multi-tile indoor surface;
+    /// in indoor navigation grids it also shifts the destination of a stair transition.
     /// paired with 0x1C to resolve an outdoor tile's parent building.
     /// Adding this value to the tile's world Y resolves the shared anchor.
     /// </summary>

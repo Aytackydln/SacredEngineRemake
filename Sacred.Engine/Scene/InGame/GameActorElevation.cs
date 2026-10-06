@@ -64,8 +64,8 @@ internal static class GameActorElevation
         var hasUpperSample = false;
         var upperHeight = 0.0f;
         var upperDifference = 0.0f;
-        for (var candidateHeight = MaximumTerrainHeight;
-             candidateHeight >= MinimumTerrainHeight;
+        for (var candidateHeight = MaximumTerrainHeight + elevation.SurfaceBaseHeight;
+             candidateHeight >= MinimumTerrainHeight + elevation.SurfaceBaseHeight;
              candidateHeight -= SurfaceSearchStep)
         {
             if (!TrySampleDifference(

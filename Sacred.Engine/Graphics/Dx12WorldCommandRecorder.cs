@@ -147,7 +147,7 @@ internal sealed class Dx12WorldCommandRecorder
         // Terrain and sprites use this exact transform for the whole frame. Independently
         // deriving it per pass opens moving seams at float rounding boundaries.
         var screenTransform = IsometricProjection.CreateScreenTransform(
-            camera.WorldCenter,
+            camera.ViewCenter,
             camera.ViewportZoom,
             renderWidth,
             renderHeight);
@@ -361,7 +361,8 @@ internal sealed class Dx12WorldCommandRecorder
             return _frameWorldLights;
 
         var radius = lighting.PlayerLightDiameter * 0.5f;
-        var playerIsoPosition = IsometricProjection.WorldToIso(camera.WorldCenter);
+        var playerIsoPosition = IsometricProjection.WorldToIso(camera.WorldCenter) +
+            IsometricProjection.TileAnchorOffset + TerrainElevationProjection.ScreenOffset(camera.SurfaceHeight, 0, 1);
         _frameWorldLights.Add(new TerrainWorldLight(
             playerIsoPosition.X - radius,
             playerIsoPosition.Y - radius,

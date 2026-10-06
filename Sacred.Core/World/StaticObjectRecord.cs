@@ -22,8 +22,10 @@ public enum StaticObjectFlags : uint
     /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
     Byte00000004 = 0x0000_0004,
     AlternateSurface = 0x0000_0008,
-    /// <summary>Unresolved flag bit used by Sacred.exe's normal-render exclusion test.</summary>
+    /// <summary>Legacy name for the invisible indoor surface parent, excluded from normal rendering.</summary>
     Byte00000010 = 0x0000_0010,
+    /// <summary>Invisible building parent whose content chain selects indoor navigation/height surfaces.</summary>
+    IndoorSurfaceParent = Byte00000010,
     /// <summary>
     /// Uses the mini-object draw-entry path. Forces Floor for floor graphics;
     /// otherwise preserves the ceiling/object queue. Not a general depth bias.
@@ -148,6 +150,8 @@ public readonly record struct StaticObjectRecord
     [FieldOffset(0x17)] public readonly int Quantity;
     /// <summary>Native sObject_Q.content: full signed word at 0x17.</summary>
     [FieldOffset(0x17)] public readonly int Content;
+    /// <summary>First floor child of an IndoorSurfaceParent; successive surfaces follow NextStaticId.</summary>
+    [FieldOffset(0x17)] public readonly uint IndoorSurfaceChainHeadId;
 
     /// <summary>Identifier of the container holding this object.</summary>
     [FieldOffset(0x1B)]
@@ -181,7 +185,7 @@ public readonly record struct StaticObjectRecord
     [FieldOffset(0x2B)]
     public readonly short SurfaceVisibilityState;
 
-    /// <summary>Additional height-level identifier outside the packed world position.</summary>
+    /// <summary>WLDX height-grid descriptor index: zero is outdoors, followed by the indoor grids.</summary>
     [FieldOffset(0x2D)]
     public readonly byte HeightLevelId;
 
@@ -221,6 +225,8 @@ public readonly record struct StaticObjectRecord
     /// </summary>
     [FieldOffset(0x33)]
     public readonly byte SurfaceRenderLayer;
+    /// <summary>Geometric floor height, in steps of 28 native world units, also used for actor surface projection.</summary>
+    [FieldOffset(0x33)] public readonly byte GeometricHeightLayer;
 
     /// <summary>Initial trigger state byte.</summary>
     [FieldOffset(0x34)]

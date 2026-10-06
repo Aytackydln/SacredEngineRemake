@@ -20,6 +20,7 @@ internal sealed class InGameInputController
     private readonly WorldCollisionResolver _collision;
     private readonly WorldElevationSampler _elevation;
     private readonly IndoorTraversalController _indoors;
+    private readonly IndoorStairsTraversalController _indoorStairs;
     private readonly SceneState _scene;
     private readonly WorldLightingController _worldLighting;
     private readonly InGameMapInputController _mapInput;
@@ -71,9 +72,12 @@ internal sealed class InGameInputController
         _stairs = stairs;
         _doors = doors;
         _worldStreamer = worldStreamer;
-        _collision = new WorldCollisionResolver(worldStreamer, () => scene.Indoor.ActiveGroup, doors.States);
-        _elevation = new WorldElevationSampler(worldStreamer);
+        _elevation = new WorldElevationSampler(worldStreamer)
+        { ActiveIndoorGroup = () => scene.Indoor.ActiveGroup };
         _indoors = new IndoorTraversalController(worldStreamer, scene.Indoor);
+        _indoorStairs = new IndoorStairsTraversalController(worldStreamer);
+        _collision = new WorldCollisionResolver(worldStreamer, () => scene.Indoor.ActiveGroup, doors.States)
+        { SurfaceLevelProvider = () => _indoors.SurfaceLevel };
         _scene = scene;
         _worldLighting = worldLighting;
         _mapInput = new InGameMapInputController(input, gamepad, scene.Minimap, requestSwitch);
@@ -82,8 +86,10 @@ internal sealed class InGameInputController
         _viewportHeight = viewportHeight;
         _outputToViewport = outputToViewport;
         _setHandCursor = setHandCursor;
-        Focus = new WorldFocusController(doors, stairs);
-        _interaction = new WorldInteractionController(doors, stairs, camera, clickToMove, _collision);
+        Focus = new WorldFocusController(doors, stairs)
+        { IndoorStairs = _indoorStairs, ActiveIndoorGroup = () => scene.Indoor.ActiveGroup };
+        _interaction = new WorldInteractionController(doors, stairs, camera, clickToMove, _collision)
+        { IndoorStairs = _indoorStairs };
         _camera.ManualMovementAssist = intent => Focus.AssistManualMovement(_camera.WorldCenter, intent);
         _camera.ManualMovementSegment = (start, end) =>
         {
@@ -185,10 +191,14 @@ internal sealed class InGameInputController
             _clickToMove.StopMoving();
             _postStairsMovementInput.BlockUntilNewInput(_input);
             _indoors.Reset(_camera.WorldCenter, portalDestinationLevel);
+            _indoorStairs.Reset();
             surfaceLevel = portalDestinationLevel;
             _stairs.Reset(_camera.WorldCenter, surfaceLevel);
         }
-        if (!scriptTransition && _stairs.Update(_camera, surfaceLevel, out var destinationSurfaceLevel))
+        var destinationSurfaceLevel = surfaceLevel;
+        if (!scriptTransition &&
+            (_stairs.Update(_camera, surfaceLevel, out destinationSurfaceLevel) ||
+             _indoorStairs.Update(_camera, _scene.Indoor.ActiveGroup, out destinationSurfaceLevel)))
         {
             _camera.DebugManualDirection = null;
             Focus.Clear();
@@ -207,6 +217,7 @@ internal sealed class InGameInputController
         if (_worldLighting.Update(deltaSeconds, _scene.Lighting, zone))
             _updateWindowTitle();
         var terrain = _elevation.SampleOrZero(_camera.WorldCenter);
+        _camera.SetSurfaceHeight(terrain.Height);
         _scene.Debug.ActorTerrainHeight = terrain.Height;
         _player.UpdatePose(
             _camera.WorldCenter,
@@ -277,9 +288,11 @@ internal sealed class InGameInputController
             (int)MathF.Floor(destination.Y / WorldStreamer.SectorTileCount));
         _camera.CenterOnTile(destination.X, destination.Y);
         _indoors.Reset(destination);
+        _indoorStairs.Reset();
         _stairs.Reset(destination, _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0);
 
         var terrain = _elevation.SampleOrZero(_camera.WorldCenter);
+        _camera.SetSurfaceHeight(terrain.Height);
         _scene.Debug.ActorTerrainHeight = terrain.Height;
         _player.UpdatePose(
             _camera.WorldCenter,

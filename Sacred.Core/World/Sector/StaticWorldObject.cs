@@ -37,6 +37,8 @@ public readonly record struct StaticWorldObject(
 
     /// <summary>Owning building anchor from the outdoor WLDX tile's 0x1C/0x1D offsets.</summary>
     public (int X, int Y)? IndoorAnchor { get; init; }
+    /// <summary>Static.pak 0x33 geometric height in steps of 28 native units, independent of HeightLevelId's grid index.</summary>
+    public byte GeometricHeightLayer { get; init; }
 
     /// <summary>Floor level from a compiled script placement; absent on Static.pak objects.</summary>
     public byte? ScriptSurfaceLevel { get; init; }

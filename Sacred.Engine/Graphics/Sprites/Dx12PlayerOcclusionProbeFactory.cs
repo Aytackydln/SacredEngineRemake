@@ -9,7 +9,6 @@ namespace Sacred.Engine.Graphics.Sprites;
 internal static class Dx12PlayerOcclusionProbeFactory
 {
     private const float PainterDepthScale = 1.0f / 4096.0f;
-    private const float PlayerDepthBias = 0.0005f;
 
     public static PlayerOcclusionProbe Create(
         SacredCamera camera,
@@ -27,14 +26,13 @@ internal static class Dx12PlayerOcclusionProbeFactory
         var screenPosition = new Vector2(
             (clip.X * inverseW * 0.5f + 0.5f) * renderWidth,
             (0.5f - clip.Y * inverseW * 0.5f) * renderHeight);
-        var depthKey = WorldPainterDepth.FromWorld(playerModel.DepthAnchor);
-        var centerDepthKey = WorldPainterDepth.FromWorld(camera.WorldCenter);
+        var depthKey = WorldModelDepth.FromPosition(playerModel.OcclusionProbeCenter);
+        var centerDepthKey = WorldPainterDepth.FromWorld(camera.ViewCenter);
         var painterDepth = Math.Clamp(
             0.50f - (depthKey - centerDepthKey) * PainterDepthScale,
             0.20f,
             0.72f);
-        var sceneDepth = Math.Clamp(painterDepth + PlayerDepthBias, 0.0f, 1.0f);
-        return new PlayerOcclusionProbe(screenPosition, sceneDepth, true);
+        return new PlayerOcclusionProbe(screenPosition, painterDepth, true);
     }
 }
 

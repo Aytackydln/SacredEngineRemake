@@ -112,7 +112,7 @@ internal sealed class Dx12LightHaloPass : IDisposable
         frame.EnsureLightHaloInstanceCapacity(_device, InstanceStride, Math.Max(1, CandidateCount));
         if (state.Matches(
                 spriteRevision,
-                camera.WorldCenter,
+                camera.ViewCenter,
                 camera.ViewportZoom,
                 renderWidth,
                 renderHeight,
@@ -130,7 +130,7 @@ internal sealed class Dx12LightHaloPass : IDisposable
         {
             state.Remember(
                 spriteRevision,
-                camera.WorldCenter,
+                camera.ViewCenter,
                 camera.ViewportZoom,
                 renderWidth,
                 renderHeight,
@@ -146,7 +146,7 @@ internal sealed class Dx12LightHaloPass : IDisposable
         }
 
         var screenTransform = IsometricProjection.CreateScreenTransform(
-            camera.WorldCenter,
+            camera.ViewCenter,
             camera.ViewportZoom,
             renderWidth,
             renderHeight);
@@ -213,7 +213,7 @@ internal sealed class Dx12LightHaloPass : IDisposable
 
         state.Remember(
             spriteRevision,
-            camera.WorldCenter,
+            camera.ViewCenter,
             screenTransform.Zoom,
             renderWidth,
             renderHeight,

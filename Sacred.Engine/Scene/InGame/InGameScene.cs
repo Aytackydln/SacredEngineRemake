@@ -179,7 +179,7 @@ internal sealed class InGameScene : IGameScene
                 foreach (var trigger in _portalScript.Triggers.Where(t =>
                     Math.Abs(t.MinimumX - _camera.WorldCenter.X) < 32 && Math.Abs(t.MinimumY - _camera.WorldCenter.Y) < 32))
                     EngineLog.WriteLine($"Nearby script transition: {trigger.Name}; {trigger.MinimumX},{trigger.MinimumY}..{trigger.MaximumX},{trigger.MaximumY}; level {trigger.SurfaceLevel}; target {trigger.Destination.X},{trigger.Destination.Y} level {trigger.Destination.Z}.");
-                message = $"player {_camera.WorldCenter.X:0.##},{_camera.WorldCenter.Y:0.##}; surface {_scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0}; group {_scene.Indoor.ActiveGroup?.Id.ToString() ?? "exterior"}";
+                message = $"player {_camera.WorldCenter.X:0.##},{_camera.WorldCenter.Y:0.##}; surface {_scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0}; group {_scene.Indoor.ActiveGroup?.Id.ToString() ?? "exterior"}; height {_scene.Debug.ActorTerrainHeight:0.###}";
                 return true;
             case "footprints" when TryParseBoolean(value, out var footprintsEnabled):
                 _footprints.Enabled = footprintsEnabled;
@@ -197,6 +197,10 @@ internal sealed class InGameScene : IGameScene
             case "debug-panel" or "panel" when TryParseBoolean(value, out var panelVisible):
                 _scene.Debug.PanelVisible = panelVisible;
                 message = $"ImGui debug panel {(panelVisible ? "visible" : "hidden")}";
+                return true;
+            case "indoor-paths" when TryParseBoolean(value, out var indoorPathsVisible):
+                _scene.Debug.IndoorNavigationVisible = indoorPathsVisible;
+                message = $"active floor navigation {(indoorPathsVisible ? "visible" : "hidden")}";
                 return true;
             case "lighting" when TryParseLightingMode(value, out var lightingMode):
                 _worldLighting.SetMode(lightingMode);
@@ -265,7 +269,7 @@ internal sealed class InGameScene : IGameScene
                 _scene.Indoor.ActiveGroup = null; message = "Indoor floor override cleared"; return true;
             case "indoor-floor" when byte.TryParse(value, out var floorLevel):
                 var floor = _worldStreamer.VisibleWorld.Sectors.SelectMany(s => s.IndoorTileGroups.Groups)
-                    .FirstOrDefault(g => g.SurfaceLevel == floorLevel && g.TryGetAuthoredLocalTile(
+                    .FirstOrDefault(g => g.SurfaceLevel == floorLevel && g.TryGetLocalTile(
                         (int)MathF.Floor(_camera.WorldCenter.X), (int)MathF.Floor(_camera.WorldCenter.Y), out _, out _));
                 if (floor is null) { message = "No decoded floor at the current tile and level"; return false; }
                 _scene.Indoor.ActiveGroup = floor; message = $"Indoor floor override: {floor.Id}; level {floorLevel}"; return true;

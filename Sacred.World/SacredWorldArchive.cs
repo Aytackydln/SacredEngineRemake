@@ -133,7 +133,7 @@ public sealed class SacredWorldArchive : IDisposable
         {
             var payload = _wldxLoader.LoadSector(sectorId, entry);
             var sector = CreateSector(coord, entry, payload.OutdoorTiles);
-            LoadIndoorTileGroups(sector.IndoorTileGroups, coord, payload.IndoorGroups);
+            LoadIndoorTileGroups(sector.IndoorTileGroups, coord, payload.IndoorGroups, sector.StaticObjects.Objects);
             AssociateLoadedIndoorGroups(sector);
             if (payload.IndoorGroups.Count > 0)
                 Console.WriteLine($"Sector loaded: {coord.X},{coord.Y}, indoor groups={payload.IndoorGroups.Count}.");
@@ -175,6 +175,7 @@ public sealed class SacredWorldArchive : IDisposable
         var stairsCells = new StairsCellLayer();
         var indoorTileGroups = new IndoorTileGroupLayer();
         var pathing = new WorldPathingLayer(SectorW, SectorH);
+        var indoorAnchors = new IndoorAnchorLayer(SectorW, SectorH);
         var visualElevation = new TerrainVisualElevationLayer(SectorW, SectorH);
         var elevation = new TerrainElevationLayer(SectorW, SectorH);
         var bakedLight = new TerrainBakedLightLayer(SectorW, SectorH);
@@ -187,6 +188,9 @@ public sealed class SacredWorldArchive : IDisposable
                 var tile = WldxTileRecord.FromBytes(tiles.AsSpan(tileOffset, WldxTileRecord.Size));
                 ground[x, y] = tile.GroundTileId;
                 pathing[x, y] = new WorldPathTile(tile.PathFlags, tile.Properties);
+                if (tile.PathFlags.HasFlag(WorldPathFlags.Indoor))
+                    indoorAnchors[x, y] = (coord.X * SectorW + x + tile.IndoorAnchorDeltaX,
+                        coord.Y * SectorH + y + tile.IndoorAnchorDeltaY);
                 visualElevation[x, y] = new TerrainVisualElevationTile(
                     tile.VisualElevationLeft,
                     tile.VisualElevationTop,
@@ -232,7 +236,7 @@ public sealed class SacredWorldArchive : IDisposable
 
         LoadStaticObjectChains(staticObjects, staticTileVisits);
         LoadStaticObjectChains(worldObjects, worldObjectTileVisits);
-        LoadScriptWorldObjects(worldObjects, coord);
+        LoadScriptWorldObjects(worldObjects, coord, indoorAnchors);
         LoadStairsCells(stairsCells, coord);
         return new Sector(
             coord,
@@ -247,10 +251,11 @@ public sealed class SacredWorldArchive : IDisposable
             pathing,
             visualElevation,
             elevation,
-            bakedLight);
+            bakedLight) { IndoorAnchors = indoorAnchors };
     }
 
-    private void LoadScriptWorldObjects(WorldObjectLayer worldObjects, SectorCoord coord)
+    private void LoadScriptWorldObjects(WorldObjectLayer worldObjects, SectorCoord coord,
+        IndoorAnchorLayer indoorAnchors)
     {
         foreach (var placement in ObjectScript.GetPlacements(coord))
         {
@@ -263,20 +268,22 @@ public sealed class SacredWorldArchive : IDisposable
                     UsesTileCellPosition = placement.UsesTileCellPosition,
                     ScriptFacingDegrees = placement.FacingDegrees,
                     DoorTriggerId = placement.Door?.Id,
+                    IndoorAnchor = indoorAnchors[placement.WorldX - coord.X * SectorW,
+                        placement.WorldY - coord.Y * SectorH],
                     ScriptSurfaceLevel = (byte)Math.Clamp(placement.WorldZ, 0, byte.MaxValue)
                 });
         }
     }
-    private void LoadIndoorTileGroups(
-        IndoorTileGroupLayer layer,
+    private void LoadIndoorTileGroups(IndoorTileGroupLayer layer,
         SectorCoord ownerCoord,
-        IReadOnlyList<WldxIndoorGroupPayload> payloads)
+        IReadOnlyList<WldxIndoorGroupPayload> payloads, IReadOnlyList<StaticWorldObject> staticObjects)
     {
         for (var groupIndex = 0; groupIndex < payloads.Count; groupIndex++)
         {
             var payload = payloads[groupIndex];
             var pathing = new WorldPathingLayer(payload.Width, payload.Height);
             var presence = new IndoorTilePresenceLayer(payload.Width, payload.Height);
+            var elevation = new TerrainElevationLayer(payload.Width, payload.Height);
             var triggers = new List<IndoorTriggerTile>();
 
             for (var localY = 0; localY < payload.Height; localY++)
@@ -288,16 +295,21 @@ public sealed class SacredWorldArchive : IDisposable
                 var pathTile = new WorldPathTile(tile.PathFlags, tile.Properties);
                 pathing[localX, localY] = pathTile;
                 presence[localX, localY] = WldxTileRecord.HasAuthoredData(tileBytes);
+                elevation[localX, localY] = new TerrainElevationTile(tile.ElevationNorthWest,
+                    tile.ElevationNorthEast, tile.ElevationSouthWest, tile.ElevationSouthEast);
 
-                // Older indoor sections commonly omit the Trigger flag on their door cells.
-                // The 0x09 entrance composite is the stable authored discriminator in both
-                // the outdoor and indoor grids, so retain it as a trigger regardless.
-                if (pathTile.IsEntrance || tile.PathFlags.HasFlag(WorldPathFlags.Trigger))
+                // Indoor doors and stairs can omit the runtime Trigger flag.
+                if (pathTile.IsEntrance || pathTile.Properties.SurfaceLevelDelta != 0 ||
+                    tile.PathFlags.HasFlag(WorldPathFlags.Trigger))
                 {
                     triggers.Add(new IndoorTriggerTile(
                         payload.WorldX + localX,
                         payload.WorldY + localY,
-                        pathing[localX, localY]));
+                        pathing[localX, localY])
+                    {
+                        DestinationDeltaX = tile.IndoorAnchorDeltaX,
+                        DestinationDeltaY = tile.IndoorAnchorDeltaY
+                    });
                 }
             }
 
@@ -312,6 +324,7 @@ public sealed class SacredWorldArchive : IDisposable
                 }
             }
 
+            var surface = WorldIndoorSurfaceResolver.ResolveFloor(_staticPak, staticObjects, payload, groupIndex + 1);
             layer.Add(new IndoorTileGroup(
                 new IndoorTileGroupId(ownerCoord, groupIndex),
                 payload.WorldX,
@@ -319,10 +332,15 @@ public sealed class SacredWorldArchive : IDisposable
                 payload.Width,
                 payload.Height,
                 payload.Kind,
-                surfaceLevel,
+                surface?.Level ?? surfaceLevel,
                 pathing,
                 presence,
-                triggers));
+                triggers)
+            {
+                Elevation = elevation,
+                BaseHeight = surface?.Height ?? 0,
+                BuildingAnchor = surface?.Anchor
+            });
         }
     }
 
@@ -426,7 +444,11 @@ public sealed class SacredWorldArchive : IDisposable
                     visit.WorldY,
                     visit.WorldX,
                     depth,
-                    getInsertionOrder()) { IndoorAnchor = visit.IndoorAnchor });
+                    getInsertionOrder())
+                {
+                    IndoorAnchor = visit.IndoorAnchor,
+                    GeometricHeightLayer = record.Value.GeometricHeightLayer
+                });
 
                 staticId = record.Value.NextStaticId;
                 depth++;

@@ -18,7 +18,8 @@ public static class WorldObjectSurfaceVisibility
             return staticObject.SurfaceRenderLayer <= ExteriorActiveLayer;
 
         var belongsToActiveBuilding = staticObject.IndoorAnchor is { } anchor &&
-            activeIndoorGroup.TryGetAuthoredLocalTile(anchor.X, anchor.Y, out _, out _);
+            (activeIndoorGroup.BuildingAnchor == anchor || activeIndoorGroup.BuildingAnchor is null &&
+                activeIndoorGroup.ContainsWorldTile(anchor.X, anchor.Y));
         if (staticObject.SurfaceRenderLayer > ExteriorActiveLayer)
         {
             isIndoorSurface = belongsToActiveBuilding &&
@@ -52,11 +53,10 @@ public static class WorldObjectSurfaceVisibility
         var belongsToActiveAuthoredLevel = false;
         foreach (var group in indoorGroups)
         {
-            if (!group.TryGetAuthoredLocalTile(
-                    worldObject.TileWorldX,
-                    worldObject.TileWorldY,
-                    out _,
-                    out _))
+            var belongs = worldObject.IndoorAnchor is { } anchor && group.BuildingAnchor is not null
+                ? group.BuildingAnchor == anchor
+                : group.TryGetAuthoredLocalTile(worldObject.TileWorldX, worldObject.TileWorldY, out _, out _);
+            if (!belongs)
                 continue;
 
             belongsToIndoorFloor = true;

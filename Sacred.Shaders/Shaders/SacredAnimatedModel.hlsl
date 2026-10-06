@@ -145,7 +145,7 @@ vs_output vs_main(vs_input input
         const float local_depth_per_model_unit = 1.0f / (24.0f * 1.41421356237f * 4096.0f);
         float4 world_origin = mul(float4(0.0f, 0.0f, 0.0f, 1.0f), world);
         float local_depth = ((world_position.y - world_origin.y) -
-                             (world_position.z - world_origin.z)) * local_depth_per_model_unit;
+                             (world_position.z - world_origin.z) * 0.25f) * local_depth_per_model_unit;
         output.position.z = output.position.w * saturate(texture_flags.z - 2.0f + local_depth);
     }
     else if (texture_flags.z >= 0.0f)

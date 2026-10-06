@@ -29,8 +29,10 @@ Exterior sprite origins and some wall origins lie in empty indoor-grid border
 cells. Neighboring building grid rectangles also overlap. Neither the sprite's
 presence cell nor a rectangle alone determines ownership. Outdoor WLDX tiles
 with the Indoor bit at 0x1E use the signed offsets at 0x1C/0x1D to resolve the
-parent building anchor (`cWorld::getParentObject`). Test that anchor against
-the active grid's authored cells. For example, exterior 567963 at 2532,2065
+parent building anchor (`cWorld::getParentObject`). Resolve that anchor through
+its Static.pak surface chain and compare it with the active grid's building
+anchor. A parent may occupy a zero-filled grid cell, so nonzero presence alone
+cannot determine ownership. For example, exterior 567963 at 2532,2065
 belongs to anchor 2540,2073, while neighboring exterior 568022 at 2532,2072
 belongs to 2525,2071 and must remain visible despite overlapping rectangles.
 
@@ -46,7 +48,7 @@ Compiled-script 3D doors and containers do not carry Static.pak's `0x2B` state.
 Their placement Z selects the indoor WLDX surface level. Z-zero containers and
 other props belong to level one, while Items.pak category `Door` at Z zero is an
 unscoped entrance portal used by towns such as Bellevue. Resolve floor membership
-with the authored tile anchor and sparse presence cells.
+with the outdoor parent anchor, falling back to authored presence when it is unavailable.
 The model is visible only when that exact indoor group is active. This prevents
 ground-floor models from leaking through the exterior or an upper floor while
 preserving outdoor models whose positions merely overlap a grid rectangle.

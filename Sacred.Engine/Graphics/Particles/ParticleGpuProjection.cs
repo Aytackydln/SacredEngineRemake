@@ -24,16 +24,16 @@ internal static class ParticleGpuProjection
         Dx12ParticleKernels.UInt(c,29,(additive ? 2u : 0u) | ((draw.RawFlags & 0x10) != 0 ? 4u : 0u));
         Dx12ParticleKernels.UInt(c,30,draw.UsesColorTable ? 1u : 0u);
         Dx12ParticleKernels.UInt(c,31,draw.UsesRandomAtlasCell ? 1u : 0u);
-        var screen = IsometricProjection.CreateScreenTransform(camera.WorldCenter,camera.ViewportZoom,width,height);
+        var screen = IsometricProjection.CreateScreenTransform(camera.ViewCenter,camera.ViewportZoom,width,height);
         c[32] = (float)screen.OriginX; c[33] = (float)screen.OriginY; c[34] = screen.Zoom;
-        c[35] = WorldPainterDepth.FromWorld(camera.WorldCenter);
+        c[35] = WorldPainterDepth.FromWorld(camera.ViewCenter);
         Dx12ParticleKernels.UInt(c,36,encoding);
         return c;
     }
     public static ParticleGpuDraw Cpu(WorldParticle particle, SacredCamera camera, int width, int height,
         uint texture, uint encoding, uint sequence)
     {
-        var screen = IsometricProjection.CreateScreenTransform(camera.WorldCenter,camera.ViewportZoom,width,height);
+        var screen = IsometricProjection.CreateScreenTransform(camera.ViewCenter,camera.ViewportZoom,width,height);
         var anchor = IsometricProjection.WorldToIso(particle.WorldX,particle.WorldY)+IsometricProjection.TileAnchorOffset;
         var rect = screen.ToScreen(anchor.X-particle.Size*.5f,anchor.Y-particle.Height-particle.RenderHeight*.5f);
         var depth = particle.PainterDepthKey ?? WorldPainterDepth.FromWorld(new(particle.WorldX,particle.WorldY))+particle.Height/96;
@@ -41,7 +41,7 @@ internal static class ParticleGpuProjection
         return new()
         {
             Sprite = new(rect.X,rect.Y,screen.Scale(particle.Size),screen.Scale(particle.RenderHeight),
-                Math.Clamp(.5f-(depth-WorldPainterDepth.FromWorld(camera.WorldCenter))/4096,.2f,.72f),
+                Math.Clamp(.5f-(depth-WorldPainterDepth.FromWorld(camera.ViewCenter))/4096,.2f,.72f),
                 texture,(uint)particle.Sprite.FrameCount,(uint)particle.AtlasCell,0,0,
                 1u|(particle.Additive?2u:0u)|(particle.SourceColorOnly?4u:0u),0,0,
                 ((color>>16)&255)/255f,((color>>8)&255)/255f,(color&255)/255f,particle.Opacity,

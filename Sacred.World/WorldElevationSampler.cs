@@ -12,6 +12,8 @@ namespace Sacred.World;
 public sealed class WorldElevationSampler(WorldStreamer worldStreamer)
 {
     public const float WorldHeightPerSample = 2.5f;
+    public Func<IndoorTileGroup?>? ActiveIndoorGroup { get; init; }
+    public float SurfaceBaseHeight => ActiveIndoorGroup?.Invoke()?.BaseHeight ?? 0;
 
     private readonly Dictionary<SectorCoord, Sector> _sectors = new(capacity: 9);
     private VisibleWorld? _cachedWorld;
@@ -33,14 +35,28 @@ public sealed class WorldElevationSampler(WorldStreamer worldStreamer)
     {
         var tileX = (int)MathF.Floor(worldPosition.X);
         var tileY = (int)MathF.Floor(worldPosition.Y);
+        var fractionX = worldPosition.X - tileX;
+        var fractionY = worldPosition.Y - tileY;
+        if (ActiveIndoorGroup?.Invoke() is { Elevation: { } indoorElevation } indoor)
+        {
+            if (indoor.TryGetLocalTile(tileX, tileY, out var indoorX, out var indoorY))
+            {
+                sample = new TerrainElevationSample(indoor.BaseHeight +
+                    SampleTile(indoorElevation[indoorX, indoorY], fractionX, fractionY) * WorldHeightPerSample, 0);
+                return true;
+            }
+            if (indoor.SurfaceLevel > 1)
+            {
+                sample = default;
+                return false;
+            }
+        }
         if (!TryGetTile(tileX, tileY, out var sector, out var localX, out var localY))
         {
             sample = default;
             return false;
         }
 
-        var fractionX = worldPosition.X - tileX;
-        var fractionY = worldPosition.Y - tileY;
         var elevation = sector.Elevation[localX, localY];
         var height = SampleTile(elevation, fractionX, fractionY) * WorldHeightPerSample;
         sample = new TerrainElevationSample(height, 0.0f);
@@ -137,4 +153,5 @@ public sealed class WorldElevationSampler(WorldStreamer worldStreamer)
     }
 }
 
+/// <summary>Height in native 3D world units; projection converts it to screen pixels.</summary>
 public readonly record struct TerrainElevationSample(float Height, float HorizontalOffset);

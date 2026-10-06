@@ -119,6 +119,7 @@ public sealed class SceneDebugState
     public bool PanelVisible { get; set; }
     public bool StairsMapVisible { get; set; }
     public bool BlockedAreasVisible { get; set; }
+    public bool IndoorNavigationVisible { get; set; }
     public bool TerrainTopologyVisible { get; set; }
     public bool TileCoordinatesVisible { get; set; }
     public WorldPathFlags VisiblePathFlags { get; set; }

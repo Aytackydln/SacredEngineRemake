@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
 using Sacred.Assets.Paks.Texture;
+using Sacred.Core.World;
 using Sacred.Core.World.Sector;
 using Sacred.World;
 using Sacred.World.Map;
@@ -98,12 +99,21 @@ static async Task<IndoorTileGroup?> FindIndoorGroupAsync(
     for (var x = -1; x <= 1; x++)
         loads.Add(world.TryLoadSector(new SectorCoord(origin.X + x, origin.Y + y)));
 
-    return (await Task.WhenAll(loads))
+    var sectors = await Task.WhenAll(loads);
+    var outdoor = sectors.FirstOrDefault(s => s?.Coord == origin);
+    var anchor = outdoor?.IndoorAnchors?[worldX % Sector.TileCount, worldY % Sector.TileCount];
+    return sectors
         .Where(static sector => sector is not null)
         .SelectMany(static sector => sector!.IndoorTileGroups.Groups)
         .DistinctBy(static group => group.Id)
         .Where(group => group.SurfaceLevel == surfaceLevel &&
-                        group.TryGetAuthoredLocalTile(worldX, worldY, out _, out _))
+                        group.TryGetLocalTile(worldX, worldY, out var localX, out var localY) &&
+                        !group.Pathing.IsBlocked(localX, localY) &&
+                          (surfaceLevel > 1 || !group.Pathing[localX, localY].IsEntranceBoundary &&
+                              (anchor is { } parent && group.BuildingAnchor == parent &&
+                                  (group.Presence[localX, localY] || outdoor!.Pathing[worldX % Sector.TileCount,
+                                      worldY % Sector.TileCount].Properties.Behavior == WldxTileBehavior.MovementBlockerA) ||
+                                  group.Presence[localX, localY] && (anchor is null || group.BuildingAnchor is null))))
         .OrderBy(group => group.Width * group.Height)
         .FirstOrDefault();
 }

@@ -17,14 +17,15 @@ public sealed class WorldCollisionResolver(
 {
     public const float CharacterRadius = 0.28f;
     public int DoorStateRevision => doors?.Revision ?? 0;
+    /// <summary>Keeps an upper surface isolated while its requested floor is still streaming.</summary>
+    public Func<byte>? SurfaceLevelProvider { get; init; }
+    private byte SurfaceLevel => SurfaceLevelProvider?.Invoke() ?? activeIndoorGroup()?.SurfaceLevel ?? 0;
 
     private const float ContactSkin = 0.001f;
     private const float ContactApproachEpsilon = 0.000001f;
     private const int MaximumSlideIterations = 4;
 
-    private readonly Dictionary<SectorCoord, Sector> _sectors = new(capacity: 9);
-    private readonly Dictionary<long, IndoorTileReference> _firstFloorTiles = [];
-    private VisibleWorld? _cachedWorld;
+    private readonly WorldNavigationTileSource _navigation = new(worldStreamer, activeIndoorGroup);
 
     public WorldCollisionResolver(WorldStreamer worldStreamer)
         : this(worldStreamer, static () => null)
@@ -33,15 +34,12 @@ public sealed class WorldCollisionResolver(
 
     public Vector2 ResolveMovement(Vector2 start, Vector2 intendedEnd)
     {
-        RefreshSectorIndex();
-
         return ResolveMovement(start, intendedEnd, IsMovementBlockedFromCache);
     }
 
     /// <summary>Reports each travelled segment, including sliding along blockers.</summary>
     public Vector2 ResolveMovement(Vector2 start, Vector2 intendedEnd, Action<Vector2, Vector2> onSegment)
     {
-        RefreshSectorIndex();
         return ResolveMovement(start, intendedEnd, IsMovementBlockedFromCache, onSegment);
     }
 
@@ -51,8 +49,6 @@ public sealed class WorldCollisionResolver(
     /// </summary>
     public Vector2 ResolveFlightMovement(Vector2 start, Vector2 intendedEnd)
     {
-        RefreshSectorIndex();
-
         return ResolveMovement(start, intendedEnd, IsFlightBlockedFromCache);
     }
 
@@ -105,7 +101,6 @@ public sealed class WorldCollisionResolver(
     /// <summary>Returns whether the actor circle can stand at a position with navigation data loaded.</summary>
     public bool CanOccupy(Vector2 position)
     {
-        RefreshSectorIndex();
         var minimumTileX = (int)MathF.Floor(position.X - CharacterRadius);
         var maximumTileX = (int)MathF.Floor(position.X + CharacterRadius);
         var minimumTileY = (int)MathF.Floor(position.Y - CharacterRadius);
@@ -133,12 +128,9 @@ public sealed class WorldCollisionResolver(
     /// </summary>
     public bool IsBlocked(int worldTileX, int worldTileY)
     {
-        RefreshSectorIndex();
-        if (TryGetIndoorTile(worldTileX, worldTileY, out var indoorGroup, out var indoorX, out var indoorY))
-            return indoorGroup.Pathing.IsBlocked(indoorX, indoorY);
-
-        return TryGetSectorTile(worldTileX, worldTileY, out var sector, out var localX, out var localY) &&
-               sector.Pathing.IsBlocked(localX, localY);
+        return _navigation.TryGetTile(worldTileX, worldTileY, SurfaceLevel, out var tile)
+            ? tile.IsBlocked
+            : SurfaceLevel > 1;
     }
 
     /// <summary>
@@ -147,7 +139,6 @@ public sealed class WorldCollisionResolver(
     /// </summary>
     public bool IsMovementBlocked(int worldTileX, int worldTileY)
     {
-        RefreshSectorIndex();
         return IsMovementBlockedFromCache(worldTileX, worldTileY);
     }
 
@@ -262,124 +253,18 @@ public sealed class WorldCollisionResolver(
 
     private bool IsMovementBlockedFromCache(int worldTileX, int worldTileY)
     {
-        if (doors?.IsBlocked(worldTileX, worldTileY, activeIndoorGroup()?.SurfaceLevel ?? 0) == true)
+        if (doors?.IsBlocked(worldTileX, worldTileY, SurfaceLevel) == true)
             return true;
-        if (TryGetIndoorTile(worldTileX, worldTileY, out var indoorGroup, out var indoorX, out var indoorY))
-            return indoorGroup.Pathing.IsBlocked(indoorX, indoorY);
-
-        return !TryGetSectorTile(worldTileX, worldTileY, out var sector, out var localX, out var localY) ||
-               sector.Pathing.IsBlocked(localX, localY);
+        return !_navigation.TryGetTile(worldTileX, worldTileY, SurfaceLevel, out var tile) || tile.IsBlocked;
     }
 
     private bool IsFlightBlockedFromCache(int worldTileX, int worldTileY)
     {
-        if (doors?.IsBlocked(worldTileX, worldTileY, activeIndoorGroup()?.SurfaceLevel ?? 0) == true)
+        if (doors?.IsBlocked(worldTileX, worldTileY, SurfaceLevel) == true)
             return true;
-        if (TryGetIndoorTile(worldTileX, worldTileY, out var indoorGroup, out var indoorX, out var indoorY))
-            return HasMovementBlockerA(indoorGroup.Pathing[indoorX, indoorY].TileFlags);
-
-        return !TryGetSectorTile(worldTileX, worldTileY, out var sector, out var localX, out var localY) ||
-               HasMovementBlockerA(sector.Pathing[localX, localY].TileFlags);
-    }
-
-    private static bool HasMovementBlockerA(WldxTileFlags tileFlags) =>
-        (tileFlags & WldxTileFlags.MovementBlockerA) != 0;
-
-    private bool TryGetIndoorTile(
-        int worldTileX,
-        int worldTileY,
-        out IndoorTileGroup group,
-        out int localX,
-        out int localY)
-    {
-        if (activeIndoorGroup() is { } active)
-        {
-            if (active.TryGetAuthoredLocalTile(worldTileX, worldTileY, out localX, out localY))
-            {
-                group = active;
-                return true;
-            }
-
-            group = null!;
-            localX = 0;
-            localY = 0;
-            return false;
-        }
-
-        if (_firstFloorTiles.TryGetValue(TileKey(worldTileX, worldTileY), out var firstFloor))
-        {
-            group = firstFloor.Group;
-            localX = firstFloor.LocalX;
-            localY = firstFloor.LocalY;
-            return true;
-        }
-
-        group = null!;
-        localX = 0;
-        localY = 0;
-        return false;
-    }
-
-    private bool TryGetSectorTile(
-        int worldTileX,
-        int worldTileY,
-        out Sector sector,
-        out int localX,
-        out int localY)
-    {
-        var sectorCoord = new SectorCoord(
-            FloorDiv(worldTileX, Sector.TileCount),
-            FloorDiv(worldTileY, Sector.TileCount));
-        localX = worldTileX - sectorCoord.X * Sector.TileCount;
-        localY = worldTileY - sectorCoord.Y * Sector.TileCount;
-        return _sectors.TryGetValue(sectorCoord, out sector!);
-    }
-
-    private void RefreshSectorIndex()
-    {
-        var visibleWorld = worldStreamer.VisibleWorld;
-        if (ReferenceEquals(visibleWorld, _cachedWorld))
-            return;
-
-        _cachedWorld = visibleWorld;
-        _sectors.Clear();
-        _firstFloorTiles.Clear();
-        var indexedIndoorGroups = new HashSet<IndoorTileGroupId>();
-        foreach (var sector in visibleWorld.Sectors)
-        {
-            _sectors[sector.Coord] = sector;
-
-            foreach (var group in sector.IndoorTileGroups.Groups)
-            {
-                if (group.SurfaceLevel != 1 || !indexedIndoorGroups.Add(group.Id))
-                    continue;
-
-                for (var localY = 0; localY < group.Height; localY++)
-                for (var localX = 0; localX < group.Width; localX++)
-                {
-                    if (!group.Presence[localX, localY])
-                        continue;
-
-                    var key = TileKey(group.WorldX + localX, group.WorldY + localY);
-                    _firstFloorTiles.TryAdd(key, new IndoorTileReference(group, localX, localY));
-                }
-            }
-        }
-    }
-
-    private static long TileKey(int worldTileX, int worldTileY) =>
-        ((long)worldTileX << 32) | (uint)worldTileY;
-
-    private static int FloorDiv(int value, int divisor)
-    {
-        var quotient = value / divisor;
-        return value < 0 && value % divisor != 0 ? quotient - 1 : quotient;
+        return !_navigation.TryGetTile(worldTileX, worldTileY, SurfaceLevel, out var tile) ||
+               tile.Properties.Behavior == WldxTileBehavior.MovementBlockerA;
     }
 
     private readonly record struct SweepHit(float Time, Vector2 Normal);
-
-    private readonly record struct IndoorTileReference(
-        IndoorTileGroup Group,
-        int LocalX,
-        int LocalY);
 }

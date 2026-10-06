@@ -6,6 +6,7 @@ using System.Numerics;
 using Sacred.Engine.Graphics.ImGui;
 using Sacred.Particles;
 using Sacred.World;
+using Sacred.World.Geometry;
 using Sacred.World.Particles;
 
 namespace Sacred.Engine.Scene.InGame;
@@ -21,7 +22,7 @@ internal sealed class PlayerParticleEffectsController(WorldParticleSystem partic
     private Vector2 _cheatPoint;
 
     public float SelfHeight => NativeHeight(scene.Debug.ActorTerrainHeight);
-    private float NativeHeight(float height) => height / (particles.Catalogue.Projection.HeightFactor *
+    private float NativeHeight(float height) => TerrainElevationProjection.ScreenHeight(height) / (particles.Catalogue.Projection.HeightFactor *
         particles.Catalogue.Projection.VerticalScale);
 
     public void Update()

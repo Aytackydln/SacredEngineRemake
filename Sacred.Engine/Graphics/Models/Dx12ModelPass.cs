@@ -22,7 +22,6 @@ internal sealed class Dx12ModelPass
     public Dx12SkinDrawBindings? SkinDraw { get; set; }
     public float? AnimationTimeOverride { get; set; }
     private const float PainterDepthScale = 1.0f / 4096.0f;
-    private const float PlayerDepthBias = 0.0005f;
     private readonly ID3D12GraphicsCommandList _commandList;
     private readonly Dx12ModelGeometryCache _geometryCache;
     private readonly Dx12ModelTextureCache _textureCache;
@@ -181,11 +180,7 @@ internal sealed class Dx12ModelPass
             var world = model.Transform;
             var worldViewProjection = world * viewProjection;
             var modelSceneDepth = CalculateSceneDepth(camera, model);
-            var modelGeometryDepth = model.IsWorldObject
-                ? ModelShaderVariables.EncodeFixedPainterDepth(0.5f +
-                    (world.M42 - IsometricProjection.WorldToModel(camera.WorldCenter).Y - world.M43) /
-                    (24f * MathF.Sqrt(2f) * 4096f))
-                : modelSceneDepth;
+            var modelGeometryDepth = ModelShaderVariables.EncodeFixedPainterDepth(modelSceneDepth);
             var defaultModelColor = ModelShaderVariables.ColorFromName(model.Name);
             _shaderConstants.WriteModelBase(
                 constants,
@@ -362,15 +357,15 @@ internal sealed class Dx12ModelPass
 
     private static float CalculateSceneDepth(SacredCamera camera, SceneModel model)
     {
-        // Keep painter ordering tied to the gameplay/collision anchor. Model-local geometry
-        // (weapons, wings, effects) must not move the character between world depth layers.
-        var depthKey = WorldPainterDepth.FromWorld(model.DepthAnchor);
-        var centerDepthKey = WorldPainterDepth.FromWorld(camera.WorldCenter);
+        // Submission order still uses the gameplay anchor. Physical depth must include
+        // the elevated mesh origin so the selected floor cannot occlude its actor.
+        var depthKey = WorldModelDepth.FromPosition(model.Transform.Translation);
+        var centerDepthKey = WorldPainterDepth.FromWorld(camera.ViewCenter);
         var painterDepth = Math.Clamp(
             0.50f - (depthKey - centerDepthKey) * PainterDepthScale,
             0.20f,
             0.72f);
-        return Math.Clamp(painterDepth + (model.IsWorldObject ? 0.0f : PlayerDepthBias), 0.0f, 1.0f);
+        return painterDepth;
     }
 
     private GpuDescriptorHandle SrvGpuHandle(int index) => _srvHeapStart + index * _descriptorSize;

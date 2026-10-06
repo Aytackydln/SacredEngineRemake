@@ -1,3 +1,4 @@
+using Sacred.Core.World.Elevation;
 using Sacred.Core.World.Pathing;
 
 namespace Sacred.Core.World.Sector;
@@ -33,6 +34,12 @@ public sealed class IndoorTileGroup(
     public WorldPathingLayer Pathing { get; } = pathing;
     public IndoorTilePresenceLayer Presence { get; } = presence;
     public IReadOnlyList<IndoorTriggerTile> Triggers { get; } = triggers;
+    /// <summary>Corner heights from this floor's own WLDX tile records.</summary>
+    public TerrainElevationLayer? Elevation { get; init; }
+    /// <summary>Static.pak surface parent's selected child at 0x33, multiplied by 28 native world units.</summary>
+    public float BaseHeight { get; init; }
+    /// <summary>Shared outdoor parent anchor for this building's surface chain.</summary>
+    public (int X, int Y)? BuildingAnchor { get; init; }
     public IEnumerable<IndoorTriggerTile> Entrances => Triggers.Where(static trigger => trigger.IsEntrance);
 
     public bool ContainsWorldTile(int worldX, int worldY) =>
@@ -46,5 +53,13 @@ public sealed class IndoorTileGroup(
         return (uint)localX < (uint)Width &&
                (uint)localY < (uint)Height &&
                Presence[localX, localY];
+    }
+
+    /// <summary>Zero-filled records inside the descriptor are valid, clear native floor cells.</summary>
+    public bool TryGetLocalTile(int worldX, int worldY, out int localX, out int localY)
+    {
+        localX = worldX - WorldX;
+        localY = worldY - WorldY;
+        return (uint)localX < (uint)Width && (uint)localY < (uint)Height;
     }
 }

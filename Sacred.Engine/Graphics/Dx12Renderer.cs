@@ -277,7 +277,7 @@ public sealed partial class Dx12Renderer : IDisposable
             _fsr2History.Reset();
         worldPass.RecordUi(scene, _rootSignature, _terrainPipeline);
         SubmitAndPresent(verticalSyncEnabled, frameId);
-        _previousCameraCenter = camera.WorldCenter;
+        _previousCameraCenter = camera.ViewCenter;
         _previousCameraViewportZoom = camera.GetViewportZoom(_graphics.OutputHeight);
         return ValueTask.CompletedTask;
     }

@@ -71,7 +71,7 @@ internal sealed class Dx12SpriteInstanceBuilder
         if (state.Matches(
                 spriteRevision,
                 _textureCache.ResidencyRevision,
-                camera.WorldCenter,
+                camera.ViewCenter,
                 camera.ViewportZoom,
                 renderWidth,
                 renderHeight,
@@ -90,7 +90,7 @@ internal sealed class Dx12SpriteInstanceBuilder
             state.Remember(
                 spriteRevision,
                 _textureCache.ResidencyRevision,
-                camera.WorldCenter,
+                camera.ViewCenter,
                 camera.ViewportZoom,
                 renderWidth,
                 renderHeight,
@@ -103,7 +103,7 @@ internal sealed class Dx12SpriteInstanceBuilder
         }
 
         var screenTransform = IsometricProjection.CreateScreenTransform(
-            camera.WorldCenter,
+            camera.ViewCenter,
             camera.ViewportZoom,
             renderWidth,
             renderHeight);
@@ -407,7 +407,7 @@ internal sealed class Dx12SpriteInstanceBuilder
         state.Remember(
             spriteRevision,
             _textureCache.ResidencyRevision,
-            camera.WorldCenter,
+            camera.ViewCenter,
             screenTransform.Zoom,
             renderWidth,
             renderHeight,
@@ -449,7 +449,7 @@ internal sealed class Dx12SpriteInstanceBuilder
             sprite.TileWorldX,
             sprite.TileWorldY,
             sprite.ChainDepth);
-        var centerDepthKey = WorldPainterDepth.FromWorld(camera.WorldCenter);
+        var centerDepthKey = WorldPainterDepth.FromWorld(camera.ViewCenter);
         return Math.Clamp(0.50f - (depthKey - centerDepthKey) * PainterDepthScale, 0.20f, 0.72f);
     }
 

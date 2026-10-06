@@ -1,6 +1,8 @@
 using System;
+using System.Linq;
 using System.Numerics;
 using Sacred.Core.World;
+using Sacred.Core.World.Sector;
 using Sacred.Engine.Platform;
 
 namespace Sacred.Engine.Scene.InGame;
@@ -17,6 +19,8 @@ internal sealed class WorldFocusController(DoorSceneController objects, StairsTr
     public Vector2? DebugDirection { get; set; }
     public Vector2? DebugMouseWorld { get; set; }
     public Vector2? DebugMouseScreen { get; set; }
+    public IndoorStairsTraversalController? IndoorStairs { get; init; }
+    public Func<IndoorTileGroup?>? ActiveIndoorGroup { get; init; }
     public WorldFocusTarget? Target { get; private set; }
     public string Status => Target is { } target
         ? $"focus {target.Kind} {target.Id} at {target.Position.X:0.###},{target.Position.Y:0.###}; {(_directional ? "cone" : "mouse")}; cone {HalfAngleDegrees * 2} degrees, range {Range} tiles"
@@ -54,8 +58,12 @@ internal sealed class WorldFocusController(DoorSceneController objects, StairsTr
             if (accepted && IsBetter(candidate, score, best, bestScore)) { best = candidate; bestScore = score; }
         }
         var pointer = DebugMouseWorld ?? mouseWorld;
-        foreach (var candidate in stairs.FocusTargets(_directional ? camera.WorldCenter : pointer, surfaceLevel,
-                     _directional ? Range : 1))
+        var stairOrigin = _directional ? camera.WorldCenter : pointer;
+        var stairRange = _directional ? Range : 1;
+        var targets = stairs.FocusTargets(stairOrigin, surfaceLevel, stairRange);
+        if (IndoorStairs is { } indoorStairs)
+            targets = targets.Concat(indoorStairs.FocusTargets(ActiveIndoorGroup?.Invoke(), stairOrigin, stairRange));
+        foreach (var candidate in targets)
         {
             var score = float.PositiveInfinity;
             var accepted = _directional
@@ -70,7 +78,7 @@ internal sealed class WorldFocusController(DoorSceneController objects, StairsTr
 
     public Vector2? AssistStairs(Vector2 origin, Vector2 intent)
     {
-        if (!_directional || Target is not { Stairs: not null } target ||
+        if (!_directional || Target is not { IsStairs: true } target ||
             !WorldFocusCone.TryScore(origin, intent, target.Position, 1.75f, 30, out _)) return null;
         var offset = target.Position - origin;
         return offset.LengthSquared() > 0.0001f ? Vector2.Normalize(offset) : null;
@@ -87,7 +95,8 @@ internal sealed class WorldFocusController(DoorSceneController objects, StairsTr
     }
 
     public bool TryInteract(Vector2 origin, byte surfaceLevel) => Target is { } target &&
-        (target.Stairs is not null ? stairs.TryActivate(target, origin, surfaceLevel) : objects.TryToggleFocused(target.Id));
+        (target.IndoorStair is not null ? IndoorStairs?.TryActivate(target, origin, surfaceLevel) == true :
+            target.Stairs is not null ? stairs.TryActivate(target, origin, surfaceLevel) : objects.TryToggleFocused(target.Id));
 
     public void Clear()
     {

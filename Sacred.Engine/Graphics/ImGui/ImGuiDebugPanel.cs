@@ -56,6 +56,7 @@ internal sealed class ImGuiDebugPanel(
             outputWidth,
             outputHeight);
         ImGuiModelDebugRenderer.Draw(camera, scene, outputWidth, outputHeight);
+        ImGuiIndoorNavigationRenderer.Draw(camera, scene, outputWidth, outputHeight);
     }
 
     private void DrawToggle(SceneDebugState debug)
@@ -271,6 +272,8 @@ internal sealed class ImGuiDebugPanel(
     private static void DrawTileVisualizers(SceneDebugState debug)
     {
         DearImGui.TextDisabled("Geometry and navigation");
+        Checkbox("Active indoor navigation", debug.IndoorNavigationVisible,
+            value => debug.IndoorNavigationVisible = value);
         Checkbox("Tile tessellation / vertices", debug.TerrainTopologyVisible,
             value => debug.TerrainTopologyVisible = value);
         Checkbox("World tile coordinates", debug.TileCoordinatesVisible,

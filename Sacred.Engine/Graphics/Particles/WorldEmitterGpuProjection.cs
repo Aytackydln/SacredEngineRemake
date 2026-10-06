@@ -25,9 +25,9 @@ internal static class WorldEmitterGpuProjection
         Dx12ParticleKernels.UInt(c, 29, halo ? 6u : (additive ? 2u : 0u) | ((draw.RawFlags & 0x10) != 0 ? 4u : 0u));
         Dx12ParticleKernels.UInt(c, 30, halo || draw.UsesColorTable ? 1u : 0u);
         Dx12ParticleKernels.UInt(c, 31, halo || draw.UsesRandomAtlasCell ? 1u : 0u);
-        var screen = IsometricProjection.CreateScreenTransform(camera.WorldCenter, camera.ViewportZoom, width, height);
+        var screen = IsometricProjection.CreateScreenTransform(camera.ViewCenter, camera.ViewportZoom, width, height);
         c[32] = (float)screen.OriginX; c[33] = (float)screen.OriginY; c[34] = screen.Zoom;
-        c[35] = WorldPainterDepth.FromWorld(camera.WorldCenter); Dx12ParticleKernels.UInt(c, 36, encoding);
+        c[35] = WorldPainterDepth.FromWorld(camera.ViewCenter); Dx12ParticleKernels.UInt(c, 36, encoding);
         return c;
     }
 }

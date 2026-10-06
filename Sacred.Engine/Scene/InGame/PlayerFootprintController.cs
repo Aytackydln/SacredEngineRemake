@@ -69,7 +69,7 @@ internal sealed class PlayerFootprintController
             if (texture is null) continue;
             var pos = contact.Position;
             var anchor = IsometricProjection.WorldToIso(pos.X, pos.Y) + IsometricProjection.TileAnchorOffset;
-            var height = _heights[pos];
+            var height = TerrainElevationProjection.ScreenHeight(_heights[pos]);
             // Native render rotates a planar quad then halves its vertical projection.
             var x = (int)MathF.Floor(pos.X);
             var y = (int)MathF.Floor(pos.Y);

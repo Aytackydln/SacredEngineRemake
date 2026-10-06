@@ -69,7 +69,7 @@ public sealed partial class Dx12Renderer
             return new CameraReprojection(Vector2.Zero, 1.0f);
         }
 
-        var worldDelta = camera.WorldCenter - previousCenter;
+        var worldDelta = camera.ViewCenter - previousCenter;
         // World-center displacement becomes the current pixel's offset into the
         // previous output after isometric projection and output-space scaling.
         var cameraMotionPixels = IsometricProjection.WorldToIso(worldDelta) * previousViewportZoom;

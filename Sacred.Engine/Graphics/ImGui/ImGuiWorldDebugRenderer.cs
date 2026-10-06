@@ -36,7 +36,7 @@ internal static class ImGuiWorldDebugRenderer
             return;
 
         var transform = IsometricProjection.CreateScreenTransform(
-            camera.WorldCenter,
+            camera.ViewCenter,
             camera.GetViewportZoom(outputHeight),
             outputWidth,
             outputHeight);

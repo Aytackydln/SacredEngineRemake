@@ -52,7 +52,7 @@ internal static class WorldModelOcclusion
                 {
                     var isoY = centerIso.Y + (y + .5f - height * .5f) / zoom;
                     surfaceDepths[y * width + x] = MathF.Max(surfaceDepths[y * width + x],
-                        WorldSpriteDepth.FromIsoY(isoY, obj.HeightLevelId));
+                        WorldSpriteDepth.FromIsoY(isoY, obj.GeometricHeightLayer));
                 }
                 else if (isFrontLayer)
                     depths[y * width + x] = long.MaxValue;

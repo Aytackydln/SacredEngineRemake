@@ -19,6 +19,10 @@ public sealed partial class SacredCamera
     private static readonly Matrix3x2 IsometricRotation = Matrix3x2.CreateRotation(-MathF.PI / 4);
 
     public Vector2 WorldCenter { get; private set; }
+    public float SurfaceHeight { get; private set; }
+    /// <summary>Render center following the actor's surface, while WorldCenter remains the movement anchor.</summary>
+    public Vector2 ViewCenter => WorldCenter - new Vector2(
+        TerrainElevationProjection.ScreenHeight(SurfaceHeight) / IsometricProjection.StepHeight);
     public float Zoom { get; private set; } = 1.0f;
     public float ViewportZoom => _viewportZoom;
     public Vector3 EyePosition { get; private set; }
@@ -88,7 +92,14 @@ public sealed partial class SacredCamera
     }
 
     public Vector2 ScreenToWorld(Vector2 screenPosition, int viewportWidth, int viewportHeight) =>
-        IsometricProjection.ScreenToWorld(screenPosition, WorldCenter, GetViewportZoom(viewportHeight), viewportWidth, viewportHeight);
+        IsometricProjection.ScreenToWorld(screenPosition, ViewCenter, GetViewportZoom(viewportHeight), viewportWidth, viewportHeight);
+
+    public void SetSurfaceHeight(float height)
+    {
+        if (SurfaceHeight == height) return;
+        SurfaceHeight = height;
+        RebuildMatrices();
+    }
 
     public void MoveTo(Vector2 worldTarget) => _movementTarget = worldTarget;
 
@@ -385,8 +396,8 @@ public sealed partial class SacredCamera
         // Terrain renders in absolute isometric pixels. Models must use that same
         // space or every model becomes camera-relative to the player tile grid.
         var center = IsometricProjection.WorldToModel(WorldCenter);
-        var eye = new Vector3(center.X, center.Y - 650f, 650f);
-        var target = new Vector3(center, 0f);
+        var target = new Vector3(center, TerrainElevationProjection.ModelVerticalWorldOffset(SurfaceHeight));
+        var eye = target + new Vector3(0f, -650f, 650f);
         EyePosition = eye;
         View = Matrix4x4.CreateLookAt(eye, target, Vector3.UnitZ);
 
