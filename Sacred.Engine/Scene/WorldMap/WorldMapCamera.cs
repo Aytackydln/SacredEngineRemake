@@ -18,6 +18,12 @@ internal sealed class WorldMapCamera
         Clamp(mapWidth, mapHeight, viewportWidth, viewportHeight);
     }
 
+    public void Fit(int mapWidth, int mapHeight, int viewportWidth, int viewportHeight)
+    {
+        Center = new Vector2(mapWidth, mapHeight) * 0.5f;
+        Zoom = MinimumZoom(mapWidth, mapHeight, viewportWidth, viewportHeight);
+    }
+
     public bool Pan(
         Vector2 mapDelta,
         int mapWidth,
@@ -59,6 +65,9 @@ internal sealed class WorldMapCamera
 
     public Vector2 ScreenToMap(Vector2 screenPosition, int viewportWidth, int viewportHeight) =>
         Center + (screenPosition - new Vector2(viewportWidth * 0.5f, viewportHeight * 0.5f)) / Zoom;
+
+    public Vector2 MapToScreen(Vector2 mapPosition, int viewportWidth, int viewportHeight) =>
+        (mapPosition - Center) * Zoom + new Vector2(viewportWidth * 0.5f, viewportHeight * 0.5f);
 
     private void Clamp(int mapWidth, int mapHeight, int viewportWidth, int viewportHeight)
     {

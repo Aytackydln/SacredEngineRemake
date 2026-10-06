@@ -9,6 +9,7 @@ using Sacred.Engine.Graphics.ImGui;
 using Sacred.Engine.Graphics.Skinning;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Platform;
+using Sacred.Engine.Rendering;
 using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
 using Sacred.Granny.Abstractions;
@@ -34,6 +35,7 @@ internal sealed partial class SacredGameRuntime : IDisposable
     private readonly SacredGameSaveState _initialSaveState;
     private readonly DebugUiControlState _debugUiControls;
 
+    private readonly WorldMapControls _worldMapControls = new();
     private InGameScene? _inGameScene;
     private PendingInspection? _pendingInspection;
     private GrnBackendKind _grannyBackend;
@@ -92,6 +94,7 @@ internal sealed partial class SacredGameRuntime : IDisposable
             CaptureScreenshot(null);
         _engineInput.Update();
         _scenes.Update(deltaSeconds);
+        ApplyWorldMapRequest();
         SynchronizeDebugUiControls();
         UpdatePendingInspection();
     }
@@ -428,6 +431,8 @@ internal sealed partial class SacredGameRuntime : IDisposable
                 destination => RuntimeScene.Teleport(destination),
                 (textureName, cancellationToken) => RuntimeScene.LoadTextureAsync(textureName, cancellationToken),
                 () => RuntimeScene.PlayerWorldPosition,
+                () => RuntimeScene.GetMapAnnotations(_gameDirectory),
+                _worldMapControls,
                 _gameDirectory),
             preserveInMemory: true);
     }
@@ -475,6 +480,7 @@ internal sealed partial class SacredGameRuntime : IDisposable
         switch (command)
         {
             case HelpCheatCommand:
+                EngineLog.WriteLine("Map: set map <ancaria|underworld|close|status>; set map-names <on|off>; set map-npcs <on|off>; set map-fit now.");
                 EngineLog.WriteLine("Campaigns: set campaign list; set campaign status; set campaign <bin-directory-name|absolute-path> reloads the world using that script set (default NetScriptCamp).");
                 EngineLog.WriteLine("Viewport cheats: set window-size <width>x<height> resizes without activation; set viewport show reports client/output/scene dimensions. Timing cheats: set frame-log <on|off> reports frame pacing; set animation-log <on|off> reports CPU animation stages, upload bytes and completed GPU model/shadow timestamps every two seconds.");
                 EngineLog.WriteLine("GPU preparation cheat: set skin-preparation <on|off> prepares resources independently of model skinning selection.");
@@ -602,6 +608,20 @@ internal sealed partial class SacredGameRuntime : IDisposable
     {
         switch (option.ToLowerInvariant())
         {
+            case "map-fit" when _scenes.ActiveScene is WorldMapScene mapScene:
+                mapScene.FitMap();
+                message = "map fitted to viewport";
+                return true;
+            case "map":
+                return TrySetWorldMap(value, out message);
+            case "map-names" when TryParseBoolean(value, out var mapNames):
+                _worldMapControls.RegionNamesVisible = mapNames;
+                message = $"map region names {(mapNames ? "visible" : "hidden")}";
+                return true;
+            case "map-npcs" when TryParseBoolean(value, out var mapNpcs):
+                _worldMapControls.RegionNpcsVisible = mapNpcs;
+                message = $"map region NPCs {(mapNpcs ? "visible" : "hidden")}";
+                return true;
             case "campaign":
                 return TrySetCampaign(value, out message);
             case "particle-panel" when value is "play" or "toggles":

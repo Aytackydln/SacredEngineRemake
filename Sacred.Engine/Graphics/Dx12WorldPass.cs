@@ -186,7 +186,8 @@ internal sealed class Dx12WorldPass : IDisposable
             graphics.SrvDescriptorSize,
             Dx12DescriptorLayout.ImGuiFont,
             Dx12DeviceContext.FrameCount,
-            input);
+            input,
+            gameDirectory);
         _debugPanel = new ImGuiDebugPanel(_imgui, _terrain, assets, graphics, debugUiControls);
         _commandRecorder = new Dx12WorldCommandRecorder(
             graphics.CommandList,
@@ -365,7 +366,7 @@ internal sealed class Dx12WorldPass : IDisposable
             _graphics.RenderHeight);
     }
 
-    public void PrepareWorldMap(WorldMapOverlay overlay) => _worldUi.PrepareWorldMap(overlay);
+    public void PrepareWorldMap(WorldMapFrame map) => _worldUi.PrepareWorldMap(map);
 
     public void RecordUi(SceneState scene, ID3D12RootSignature rootSignature, ID3D12PipelineState terrainPipeline) =>
         _worldUi.RecordUi(scene, rootSignature, terrainPipeline);

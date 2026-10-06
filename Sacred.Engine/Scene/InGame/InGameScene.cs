@@ -14,6 +14,7 @@ using Sacred.Engine.Platform;
 using Sacred.Granny.Diagnostics;
 using Sacred.Particles;
 using Sacred.World;
+using Sacred.World.Map;
 using Sacred.World.Objects;
 using Sacred.World.Particles;
 using Sacred.World.Portals;
@@ -38,6 +39,11 @@ internal sealed class InGameScene : IGameScene
     private readonly Win32Window _window;
     private readonly SacredGameSaveState _saveState;
     internal WorldCampaignScripts? CampaignScripts { get; }
+    private WorldMapAnnotations? _mapAnnotations;
+    internal WorldMapAnnotations GetMapAnnotations(string gameDirectory) =>
+        _mapAnnotations ??= CampaignScripts is { } scripts
+            ? WorldMapAnnotations.Load(gameDirectory, scripts, _assets.Resources)
+            : WorldMapAnnotations.Empty;
     private Task? _worldPreparationTask;
     private string _lastRegionDisplayName = string.Empty;
     private bool _disposed;

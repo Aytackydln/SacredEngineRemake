@@ -1,7 +1,10 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
+using Sacred.Assets;
 using Sacred.Assets.Paks.Texture;
+using Sacred.Core.GameBin.Scripts;
+using Sacred.Core.GameRes;
 using Sacred.Core.World;
 using Sacred.Core.World.Sector;
 using Sacred.World;
@@ -55,8 +58,13 @@ try
                       $"{worldCenter.Y.ToString("F2", CultureInfo.InvariantCulture)} (day).");
 
     var stopwatch = Stopwatch.StartNew();
-    var map = await new WorldMapRasterizer(textures).RenderAsync(worldCenter);
-    Write("map", map);
+    var scripts = world.CampaignScripts ?? WorldCampaignScripts.Load(
+        SacredCampaignFiles.Resolve(options.GameDirectory, options.CampaignScriptsDirectory));
+    var annotations = WorldMapAnnotations.Load(options.GameDirectory, scripts,
+        new GameResStore(SacredResUnpack.UnpackAsDictionary(Path.Combine(options.GameDirectory, "scripts", "us", "global.res"))));
+    var map = await new WorldMapRasterizer(textures).RenderAsync(worldCenter, options.Map, annotations, options.MapNpcs);
+    Write(options.Map == WorldMapKind.Ancaria ? "map" : "map-underworld", map);
+    if (options.MapOnly) return 0;
     var minimap = await new MinimapRasterizer(world, textures).RenderAsync(worldCenter);
     Write("minimap", minimap);
     var result = await renderer.RenderAsync(worldCenter, options.Width, options.Height, options.Zoom, options, activeIndoorGroup);

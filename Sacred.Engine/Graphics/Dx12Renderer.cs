@@ -231,7 +231,6 @@ public sealed partial class Dx12Renderer : IDisposable
         CancellationToken cancellationToken = default)
     {
         ResetFsr2History();
-        _worldPass?.DiscardDebugUiFrame();
         var destination = new Vector4(
             _graphics.OutputWidth * 0.5f - map.Center.X * map.Zoom,
             _graphics.OutputHeight * 0.5f - map.Center.Y * map.Zoom,
@@ -240,7 +239,7 @@ public sealed partial class Dx12Renderer : IDisposable
 
         _graphics.BeginRenderSubmission(_screenPipeline);
         _screenPass.Prepare(map.Map, _graphics.CurrentFrame);
-        GetWorldPass().PrepareWorldMap(map.Overlay);
+        GetWorldPass().PrepareWorldMap(map);
         RecordScreenPass(destination, map.Overlay);
         SubmitAndPresent(verticalSyncEnabled, frameId);
         return ValueTask.CompletedTask;

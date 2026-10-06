@@ -1,5 +1,6 @@
 using System.Globalization;
 using Sacred.Core.GameBin.Scripts;
+using Sacred.World.Map;
 
 namespace Sacred.World.Renderer.Terminal;
 
@@ -12,6 +13,9 @@ internal sealed record RendererOptions(
     int Height,
     float Zoom)
 {
+    public WorldMapKind Map { get; init; }
+    public bool MapOnly { get; init; }
+    public bool MapNpcs { get; init; } = true;
     public bool OpenDoors { get; init; }
     public string CampaignScriptsDirectory { get; init; } = SacredCampaignFiles.DefaultDirectoryName;
     public byte? IndoorLevel { get; init; }
@@ -38,6 +42,9 @@ internal sealed record RendererOptions(
         var width = 1280;
         var height = 720;
         var zoom = 0.75f;
+        var map = WorldMapKind.Ancaria;
+        var mapOnly = false;
+        var mapNpcs = true;
         var openDoors = false;
         byte? indoorLevel = null;
         var allSectors = false;
@@ -65,6 +72,13 @@ internal sealed record RendererOptions(
 
             switch (argument)
             {
+                case "--map":
+                    var mapName = Read(args, ref index, argument);
+                    if (!Enum.TryParse(mapName, true, out map) || !Enum.IsDefined(map))
+                        throw new ArgumentException("--map requires ancaria or underworld.");
+                    break;
+                case "--map-only": mapOnly = true; break;
+                case "--no-map-npcs": mapNpcs = false; break;
                 case "--game": gameDirectory = Read(args, ref index, argument); break;
                 case "--campaign": campaign = Read(args, ref index, argument); break;
                 case "--output": outputDirectory = Read(args, ref index, argument); break;
@@ -141,6 +155,7 @@ internal sealed record RendererOptions(
             height,
             zoom)
         {
+            Map = map, MapOnly = mapOnly, MapNpcs = mapNpcs,
             OpenDoors = openDoors, IndoorLevel = indoorLevel, AllSectors = allSectors,
             CampaignScriptsDirectory = campaign,
             SectorX = sectorX, SectorY = sectorY, Format = format, ParticleSeconds = particleSeconds,
@@ -164,6 +179,9 @@ internal sealed record RendererOptions(
         "  --verbose             Include loading, per-sector and rendering diagnostics\n" +
         "  --texture-cache-mb <n> Terminal RAM cache budget (default: 256 MiB; 0 disables retention)\n" +
         "  --particle-seconds <n> Simulated particle warm-up, 0 through 60 (default: 2)\n" +
+        "  --map <ancaria|underworld> Select the authored world map (default: ancaria)\n" +
+        "  --map-only            Render only the map\n" +
+        "  --no-map-npcs         Hide service markers on the map\n" +
         "  --world-x <number>    World X coordinate (default: start-sector center)\n" +
         "  --world-y <number>    World Y coordinate (default: start-sector center)\n" +
         "  --width <pixels>      In-game image width (default: 1280)\n" +

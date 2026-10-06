@@ -5,18 +5,24 @@ namespace Sacred.World.Map;
 public sealed class WorldMapAtlasLoader(
     Func<string, CancellationToken, Task<TextureAsset>> loadTextureAsync)
 {
-    private const int TileRows = 8;
     private const int TileColumns = 8;
     private const string PlayerMarkerTextureName = "WORLDMAP_WAYPOINT.TGA";
 
     public async Task<WorldMapAtlas> LoadAsync(CancellationToken cancellationToken = default)
+    => await LoadAsync(WorldMapKind.Ancaria, cancellationToken).ConfigureAwait(false);
+
+    public async Task<WorldMapAtlas> LoadAsync(WorldMapKind kind, CancellationToken cancellationToken = default)
     {
-        Console.WriteLine("Loading Ancaria world-map tiles.");
-        var loads = new Task<TextureAsset>[TileRows * TileColumns];
-        for (var row = 0; row < TileRows; row++)
+        var tileRows = kind == WorldMapKind.Underworld ? 11 : 8;
+        Console.WriteLine($"Loading {kind} world-map tiles.");
+        var loads = new Task<TextureAsset>[tileRows * TileColumns];
+        for (var row = 0; row < tileRows; row++)
         for (var column = 0; column < TileColumns; column++)
         {
-            var textureName = $"UI_WORLDMAPX{row}{column}.TGA";
+            var underworldRow = kind == WorldMapKind.Underworld && row < 3;
+            var prefix = underworldRow ? "UI_WORLDMAPUW" : "UI_WORLDMAPX";
+            var textureRow = kind == WorldMapKind.Underworld && !underworldRow ? row - 3 : row;
+            var textureName = $"{prefix}{textureRow}{column}.TGA";
             loads[row * TileColumns + column] = loadTextureAsync(textureName, cancellationToken);
         }
 
@@ -26,10 +32,10 @@ public sealed class WorldMapAtlasLoader(
         var tileWidth = tiles[0].Width;
         var tileHeight = tiles[0].Height;
         var width = checked(tileWidth * TileColumns);
-        var height = checked(tileHeight * TileRows);
+        var height = checked(tileHeight * tileRows);
         var rgba = new byte[checked(width * height * 4)];
 
-        for (var row = 0; row < TileRows; row++)
+        for (var row = 0; row < tileRows; row++)
         for (var column = 0; column < TileColumns; column++)
         {
             var tile = tiles[row * TileColumns + column];
@@ -45,8 +51,8 @@ public sealed class WorldMapAtlasLoader(
             }
         }
 
-        Console.WriteLine($"Ancaria world map loaded: {TileColumns}x{TileRows} tiles, {width}x{height} pixels.");
-        return new WorldMapAtlas(width, height, rgba, marker);
+        Console.WriteLine($"{kind} world map loaded: {TileColumns}x{tileRows} tiles, {width}x{height} pixels.");
+        return new WorldMapAtlas(width, height, rgba, marker) { Kind = kind };
     }
 
     private static void ValidateTile(TextureAsset tile, int expectedWidth, int expectedHeight)

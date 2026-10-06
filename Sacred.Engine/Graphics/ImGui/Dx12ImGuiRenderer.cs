@@ -47,7 +47,8 @@ internal sealed unsafe class Dx12ImGuiRenderer : IDisposable
         int srvDescriptorSize,
         int fontSrvSlot,
         int frameCount,
-        InputState input)
+        InputState input,
+        string gameDirectory)
     {
         _device = device;
         _commandList = commandList;
@@ -64,7 +65,7 @@ internal sealed unsafe class Dx12ImGuiRenderer : IDisposable
         _context = ImGuiNET.ImGui.CreateContext();
         ImGuiNET.ImGui.SetCurrentContext(_context);
         ConfigureStyle();
-        ConfigureFonts();
+        ConfigureFonts(gameDirectory);
 
         var io = ImGuiNET.ImGui.GetIO();
         io.BackendFlags |= ImGuiBackendFlags.RendererHasVtxOffset;
@@ -81,6 +82,7 @@ internal sealed unsafe class Dx12ImGuiRenderer : IDisposable
 
     public ImFontPtr TitleFont { get; private set; }
     public ImFontPtr BodyFont { get; private set; }
+    public ImFontPtr MapFont { get; private set; }
 
     public void SetPipeline(Dx12CreatedPipelineGroup pipeline)
     {
@@ -263,11 +265,15 @@ internal sealed unsafe class Dx12ImGuiRenderer : IDisposable
         }
     }
 
-    private void ConfigureFonts()
+    private void ConfigureFonts(string gameDirectory)
     {
         var atlas = ImGuiNET.ImGui.GetIO().Fonts;
         BodyFont = AddFontOrDefault(atlas, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "consola.ttf"), 17.0f);
         TitleFont = AddFontOrDefault(atlas, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "seguisb.ttf"), 20.0f);
+        // Gold's map selects font slot 3: Carolingia. Use the installed game's face.
+        var mapFontPath = Path.Combine(gameDirectory, "font", "CAROLING.TTF");
+        MapFont = AddFontOrDefault(atlas, mapFontPath, 32.0f);
+        EngineLog.WriteLine($"World map font loaded: {mapFontPath}.");
     }
 
     private static ImFontPtr AddFontOrDefault(ImFontAtlasPtr atlas, string path, float size) =>

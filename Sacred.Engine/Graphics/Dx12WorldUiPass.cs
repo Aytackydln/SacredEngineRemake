@@ -19,8 +19,10 @@ internal sealed class Dx12WorldUiPass(
     Dx12ImGuiRenderer imgui,
     ImGuiDebugPanel debugPanel)
 {
-    public void PrepareWorldMap(WorldMapOverlay overlay)
+    public void PrepareWorldMap(WorldMapFrame map)
     {
+        if (imgui.IsFrameBegun) ImGuiWorldMapPanel.Build(map, graphics.OutputWidth, graphics.OutputHeight, imgui.MapFont);
+        var overlay = map.Overlay;
         if (overlay.MinimapVisible)
         {
             minimap.Prepare(
@@ -92,6 +94,7 @@ internal sealed class Dx12WorldUiPass(
                 graphics.OutputHeight,
                 graphics.DisplayProfile.UiWhiteScale);
         }
+        imgui.Record(graphics.CurrentFrame, graphics.DisplayProfile.UiWhiteScale);
     }
 
     public void UpdateDebug(SacredCamera camera, VisibleWorld world, SceneState scene,

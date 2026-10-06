@@ -6,4 +6,7 @@ public sealed record WorldMapAtlas(
     int Width,
     int Height,
     byte[] Rgba,
-    TextureAsset PlayerMarker);
+    TextureAsset PlayerMarker)
+{
+    public WorldMapKind Kind { get; init; }
+}
