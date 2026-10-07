@@ -1,0 +1,236 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
+using System.Threading;
+using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Layout;
+using Avalonia.Media;
+using Avalonia.Threading;
+using Sacred.Granny.Assets;
+
+namespace AssetViewer.ItemViewer;
+
+public sealed class ModelViewerControl : UserControl
+{
+    private readonly Dx12ModelViewportHost _viewport = new();
+    private readonly TextBlock _statusText;
+    private GrnAsset? _asset;
+    private string _status = "Select an item to load its model.";
+    private Vector3 _previewRotation;
+    private ItemPreviewRotationMode _rotationMode = ItemPreviewRotationMode.RawXyz;
+    private ItemPreviewPivotMode _pivotMode = ItemPreviewPivotMode.ModelOrigin;
+    private int _gridWidth = 1;
+    private int _gridHeight = 1;
+    private int _effectTextureCount;
+    private float _userYaw;
+    private float _userPitch;
+    private float _userRoll;
+    private bool _assetPreview;
+    public event Action<float>? HorizontalRotationChanged;
+
+    public ModelViewerControl()
+    {
+        ClipToBounds = true;
+        Focusable = true;
+
+        _statusText = new TextBlock
+        {
+            Text = "Select an item to load its model.",
+            Foreground = new SolidColorBrush(Color.FromRgb(232, 244, 214)),
+            Background = new SolidColorBrush(Color.FromArgb(210, 9, 17, 14)),
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 13,
+            Padding = new Thickness(8, 5),
+            TextWrapping = TextWrapping.Wrap,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+
+        var root = new Grid
+        {
+            RowDefinitions = new RowDefinitions("*,Auto"),
+            Background = new LinearGradientBrush
+            {
+                StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+                EndPoint = new RelativePoint(1, 1, RelativeUnit.Relative),
+                GradientStops =
+                {
+                    new GradientStop(Color.FromRgb(13, 25, 23), 0),
+                    new GradientStop(Color.FromRgb(31, 54, 39), 1)
+                }
+            }
+        };
+        root.Children.Add(_viewport);
+        Grid.SetRow(_viewport, 0);
+        root.Children.Add(_statusText);
+        Grid.SetRow(_statusText, 1);
+
+        Content = root;
+        _viewport.HorizontalRotationChanged += yaw =>
+        {
+            _userYaw = yaw;
+            SetStatusText(_status);
+            HorizontalRotationChanged?.Invoke(yaw);
+        };
+        PointerPressed += (_, _) => Focus();
+    }
+
+    public void ClearModel()
+    {
+        RunOnUiThread(() =>
+        {
+            _asset = null;
+            _previewRotation = Vector3.Zero;
+            _rotationMode = ItemPreviewRotationMode.RawXyz;
+            _pivotMode = ItemPreviewPivotMode.ModelOrigin;
+            _gridWidth = 1;
+            _gridHeight = 1;
+            _effectTextureCount = 0;
+            _viewport.ClearModel();
+            SetStatusText("Select an item to load its model.");
+        });
+    }
+
+    public void ShowModel(
+        GrnAsset asset,
+        Vector3 previewRotation,
+        int gridWidth,
+        int gridHeight,
+        ItemPreviewRotationMode rotationMode,
+        ItemPreviewPivotMode pivotMode,
+        string? pivotBoneName,
+        EquipmentEffectScene effectScene)
+    {
+        RunOnUiThread(() =>
+        {
+            _asset = asset;
+            _previewRotation = previewRotation;
+            _rotationMode = rotationMode;
+            _pivotMode = pivotMode;
+            _gridWidth = Math.Clamp(gridWidth, 1, 4);
+            _gridHeight = Math.Clamp(gridHeight, 1, 5);
+            _effectTextureCount = effectScene.TextureNames.Count;
+            _viewport.ShowModel(asset, previewRotation, _gridWidth, _gridHeight, rotationMode, pivotMode, pivotBoneName, effectScene);
+            SetStatusText(asset.Mesh is null
+                ? $"{asset.Name}: GRN loaded, no mesh extracted."
+                : $"{asset.Name}: {asset.Mesh.Vertices.Length} vertices, {asset.Mesh.Indices.Length / 3} triangles | {asset.Backend} | {_gridWidth}x{_gridHeight} cells | rot {FormatRotation(previewRotation)} | {rotationMode}/{pivotMode}" +
+                  (asset.DefaultAnimation is { } clip ? $" | {clip.Name} ({clip.DurationSeconds:F2}s)" : string.Empty));
+        });
+    }
+
+    public void SetInventoryPlacement(float scale, Vector3 offset)
+    {
+        RunOnUiThread(() => _viewport.SetInventoryPlacement(scale, offset));
+    }
+
+    public void SaveScreenshot(string path) => _viewport.SaveScreenshot(path);
+    public void RotateHorizontally(float radians) => RunOnUiThread(() => _viewport.RotateHorizontally(radians));
+    public void SetAnimationPlaying(bool playing) => RunOnUiThread(() => _viewport.SetAnimationPlaying(playing));
+    public void SetAnimationTime(float seconds) => RunOnUiThread(() => _viewport.SetAnimationTime(seconds));
+
+    public void SetAssetPreview(bool enabled)
+    {
+        _assetPreview = enabled;
+        _viewport.SetAssetPreview(enabled);
+    }
+
+    public void SetUserRotation(float yaw, float pitch, float roll)
+    {
+        RunOnUiThread(() =>
+        {
+            _userYaw = yaw;
+            _userPitch = pitch;
+            _userRoll = roll;
+            _viewport.SetUserRotation(yaw, pitch, roll);
+            SetStatusText(_status);
+        });
+    }
+
+    public void ShowTextureStatus(string status)
+    {
+        RunOnUiThread(() =>
+        {
+            if (_asset is null)
+                SetStatusText(status);
+            else if (_asset.Mesh is null)
+                SetStatusText($"{_asset.Name}: {status}");
+            else
+                SetStatusText($"{_asset.Name}: {_asset.Mesh.Vertices.Length} vertices, {_asset.Mesh.Indices.Length / 3} triangles | {status}" +
+                    (_assetPreview && _asset.Skin is not null ? $" | {_asset.DefaultAnimation?.Name ?? "Bind pose"}" : string.Empty));
+        });
+    }
+
+    public async Task ShowTexturesAsync(
+        IReadOnlyDictionary<string, ModelTextureBinding> textures,
+        int failedCount,
+        CancellationToken cancellationToken = default)
+    {
+        await _viewport.ShowTexturesAsync(textures, cancellationToken);
+        RunOnUiThread(() =>
+        {
+            var total = (_asset?.Mesh?.Surfaces
+                .Select(static surface => surface.TextureName)
+                .Where(static name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count() ?? 0) + _effectTextureCount;
+            total = Math.Max(total, textures.Count);
+            var failedSuffix = failedCount > 0 ? $", {failedCount} failed" : string.Empty;
+            ShowTextureStatus($"{textures.Count}/{total} textures{failedSuffix}");
+        });
+    }
+
+    public void ShowStatus(string status)
+    {
+        RunOnUiThread(() =>
+        {
+            _asset = null;
+            _previewRotation = Vector3.Zero;
+            _rotationMode = ItemPreviewRotationMode.RawXyz;
+            _pivotMode = ItemPreviewPivotMode.ModelOrigin;
+            _gridWidth = 1;
+            _gridHeight = 1;
+            _effectTextureCount = 0;
+            _viewport.ClearModel();
+            SetStatusText(status);
+        });
+    }
+
+    private void SetStatusText(string status)
+    {
+        _status = status;
+        _statusText.Text = _asset is null || _assetPreview
+            ? status
+            : $"{status}\ngrid {_gridWidth}x{_gridHeight}\nmode {_rotationMode}, pivot {_pivotMode}\npreview {FormatRotationWithDegrees(_previewRotation)}\nuser yaw {FormatAngle(_userYaw)}\npitch {FormatAngle(_userPitch)}\nroll {FormatAngle(_userRoll)}";
+    }
+
+    private void RunOnUiThread(Action action)
+    {
+        if (Dispatcher.CheckAccess())
+            action();
+        else
+            Dispatcher.UIThread.Post(action, DispatcherPriority.Normal);
+    }
+
+    private static string FormatRotation(Vector3 rotation)
+    {
+        return $"({rotation.X:0.###}, {rotation.Y:0.###}, {rotation.Z:0.###})";
+    }
+
+    private static string FormatRotationWithDegrees(Vector3 rotation)
+    {
+        return $"{FormatRotation(rotation)} rad / ({RadiansToDegrees(rotation.X):0.#}, {RadiansToDegrees(rotation.Y):0.#}, {RadiansToDegrees(rotation.Z):0.#}) deg";
+    }
+
+    private static string FormatAngle(float radians)
+    {
+        return $"{radians:0.000###} rad/{RadiansToDegrees(radians):0.#} deg";
+    }
+
+    private static float RadiansToDegrees(float radians)
+    {
+        return radians * 180.0f / MathF.PI;
+    }
+}

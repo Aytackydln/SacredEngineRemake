@@ -1,6 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sacred.ItemViewer.Avalonia", "Sacred.ItemViewer.Avalonia\Sacred.ItemViewer.Avalonia.csproj", "{075D1DEE-CDE5-491E-8716-A73D01B0A4C1}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AssetViewer", "AssetViewer\AssetViewer.csproj", "{075D1DEE-CDE5-491E-8716-A73D01B0A4C1}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SacredItemSimulator.TerminalTests", "SacredItemSimulator.TerminalTests\SacredItemSimulator.TerminalTests.csproj", "{88FB163C-E82C-4938-8414-C69E13A57DC6}"
 EndProject

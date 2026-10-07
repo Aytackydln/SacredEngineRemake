@@ -120,7 +120,14 @@ internal sealed class ModelsMetadataTable
             return false;
         }
 
-        return TryGetMotionName(table.MotionIndexes[motionSlot], out name);
+        var motionIndex = table.MotionIndexes[motionSlot];
+        // Zero is the unassigned-motion sentinel, as in the character motion tables.
+        if (motionIndex == 0)
+        {
+            name = string.Empty;
+            return false;
+        }
+        return TryGetMotionName(motionIndex, out name);
     }
 
     private static ModelMotionTable ReadMotionTable(ReadOnlySpan<byte> record) => new(

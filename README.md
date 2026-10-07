@@ -85,6 +85,10 @@ DX12 shaders for all graphics projects about the game.
 ### Sacred.Engine
 Research on displaying game world and characters using modern graphics pipeline (DX12 with proton support)
 
+### AssetViewer
+Sacred Asset Viewer: a launcher with a remembered game location and separate model,
+equipment, texture and character/inventory windows. See [its usage guide](Sacred.ItemViewer.Avalonia/README.md).
+
 ### SacredItemSimulator
 Research project to simulate item generation and affix generation in Sacred 1.
 Currently the work is about "Item Behaviors" like inventory space, stackability, and item sets.

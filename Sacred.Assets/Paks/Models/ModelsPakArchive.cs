@@ -119,6 +119,9 @@ public sealed class ModelsPakArchive : IDisposable
     public bool TryGetModelMotionName(string modelName, byte motionSlot, out string name) =>
         _metadata.TryGetMotionName(modelName, motionSlot, out name);
 
+    /// <summary>Checks whether the archive contains a named model or animation payload.</summary>
+    public bool ContainsResource(string name) => _recordsByName.ContainsKey(name);
+
     public async Task<GrnAsset> LoadModelAsync(
         string modelName,
         GrnMeshExtractionMode meshExtractionMode = GrnMeshExtractionMode.PrimarySlice,

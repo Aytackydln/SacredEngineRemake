@@ -15,7 +15,20 @@ public sealed class TexturePakArchive : IDisposable, ITextureSource
     private readonly Dictionary<string, IndexedTexturePakRecord> _recordsByName = new(StringComparer.OrdinalIgnoreCase);
     private readonly UnpackedTextureIndex _unpackedTextures;
     private readonly Dictionary<uint, IndexedTexturePakRecord> _recordsByEntryId = new();
+    private readonly Dictionary<(string Archive, uint EntryId), IndexedTexturePakRecord> _archiveEntries = new();
+    private readonly List<TexturePakEntry> _entries = [];
     private bool _disposed;
+
+    /// <summary>Every authored entry, retaining archive identity when expansion tables reuse IDs or names.</summary>
+    public IReadOnlyList<TexturePakEntry> Entries => _entries.AsReadOnly();
+
+    public Task<TextureAsset> LoadTextureAsync(TexturePakEntry entry, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (!_archiveEntries.TryGetValue((entry.ArchiveName, entry.EntryId), out var indexed) || indexed.Record != entry.Record)
+            throw new FileNotFoundException($"Texture entry {entry.ArchiveName}:{entry.EntryId} was not found.");
+        return LoadTextureAsync(indexed, cancellationToken);
+    }
 
     private TexturePakArchive(string pakDirectory, string[] paths)
     {
@@ -239,6 +252,9 @@ public sealed class TexturePakArchive : IDisposable, ITextureSource
                     (byte)textureHeader.StorageFormat), payloadSize);
 
             _recordsByEntryId.TryAdd((uint)i, indexedRecord);
+            var archiveName = Path.GetFileName(archive.Path);
+            _archiveEntries.Add((archiveName, (uint)i), indexedRecord);
+            _entries.Add(new TexturePakEntry(archiveName, (uint)i, indexedRecord.Record));
             AddLookupNames(indexedRecord);
         }
     }

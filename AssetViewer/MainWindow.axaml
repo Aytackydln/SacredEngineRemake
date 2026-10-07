@@ -1,0 +1,22 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="AssetViewer.MainWindow"
+        Title="Sacred Asset Viewer" Width="820" Height="460" MinWidth="640" MinHeight="400">
+    <StackPanel Margin="24" Spacing="16">
+        <TextBlock Text="Sacred Asset Viewer" FontSize="28" FontWeight="SemiBold" />
+        <TextBlock Text="Game asset location" />
+        <Grid ColumnDefinitions="*,Auto,Auto">
+            <TextBox x:Name="GameDirectoryBox" PlaceholderText="Sacred game installation folder" />
+            <Button Grid.Column="1" Content="Browse…" Margin="8,0,0,0" Click="Browse_OnClick" />
+            <Button x:Name="LoadButton" Grid.Column="2" Content="Load game" Margin="8,0,0,0" Click="Load_OnClick" />
+        </Grid>
+        <TextBlock x:Name="StatusText" Text="Loading remembered game location…" TextWrapping="Wrap" />
+        <UniformGrid x:Name="ViewerButtons" Rows="2" Columns="2" IsEnabled="False">
+            <Button Content="Models · Items.pak" Margin="0,0,8,8" HorizontalAlignment="Stretch" Click="Models_OnClick" />
+            <Button Content="Equipment" Margin="0,0,0,8" HorizontalAlignment="Stretch" Click="Equipment_OnClick" />
+            <Button Content="Textures" Margin="0,0,8,0" HorizontalAlignment="Stretch" Click="Textures_OnClick" />
+            <Button Content="Characters and inventory" HorizontalAlignment="Stretch" Click="Characters_OnClick" />
+        </UniformGrid>
+        <TextBlock Text="Each viewer opens in its own window. Changing the game location reloads the asset catalogs." TextWrapping="Wrap" Opacity="0.7" />
+    </StackPanel>
+</Window>

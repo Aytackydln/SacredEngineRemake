@@ -48,7 +48,7 @@ public enum SacredItemGraphicFlags : ushort
     Byte0200 = 0x0200,
 
     /// <summary>Observed unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
-    Byte0400 = 0x0400,
+    Animal = 0x0400,
 
     /// <summary>Observed unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
     Byte0800 = 0x0800,

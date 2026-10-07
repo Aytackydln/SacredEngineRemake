@@ -40,7 +40,8 @@ public readonly struct ModelsMetadataModelLayout
     /// <summary>Native <c>cGrannyModelChunk::params[16]</c>.</summary>
     [FieldOffset(0x30)] public readonly ModelChunkParameters Parameters;
 
-    /// <summary>All native <c>cGrannyModelChunk::motions[256]</c> indexes.</summary>
+    /// <summary>All native <c>cGrannyModelChunk::motions[256]</c> indexes.
+    /// Zero denotes an unassigned sequence, rather than a playable animation.</summary>
     [FieldOffset(0x70)] public readonly ModelChunkMotionIndexes MotionIndexes;
 
     /// <summary>Activation sequence (motion slot 0xAA), including sliding and hinged doors.</summary>
