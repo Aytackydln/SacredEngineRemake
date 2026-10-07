@@ -75,6 +75,7 @@ internal sealed class Dx12WorldUiPass(
         ID3D12RootSignature rootSignature,
         ID3D12PipelineState pipeline)
     {
+        imgui.RecordBackground(graphics.CurrentFrame, graphics.DisplayProfile.UiWhiteScale);
         if (overlay.MinimapVisible)
         {
             minimap.Record(

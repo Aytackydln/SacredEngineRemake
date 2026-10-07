@@ -40,10 +40,18 @@ internal sealed class InGameScene : IGameScene
     private readonly SacredGameSaveState _saveState;
     internal WorldCampaignScripts? CampaignScripts { get; }
     private WorldMapAnnotations? _mapAnnotations;
-    internal WorldMapAnnotations GetMapAnnotations(string gameDirectory) =>
-        _mapAnnotations ??= CampaignScripts is { } scripts
+    private readonly SacredWorldArchive _worldArchive;
+    private MinimapRegionNames? _regionNames;
+    internal WorldMapAnnotations GetMapAnnotations(string gameDirectory)
+    {
+        if (_mapAnnotations is not null) return _mapAnnotations;
+        _mapAnnotations = CampaignScripts is { } scripts
             ? WorldMapAnnotations.Load(gameDirectory, scripts, _assets.Resources)
             : WorldMapAnnotations.Empty;
+        _regionNames = new MinimapRegionNames(_worldArchive, _mapAnnotations);
+        UpdateRegionDisplayName();
+        return _mapAnnotations;
+    }
     private Task? _worldPreparationTask;
     private string _lastRegionDisplayName = string.Empty;
     private bool _disposed;
@@ -62,6 +70,7 @@ internal sealed class InGameScene : IGameScene
         _window = window;
         _saveState = saveState;
         CampaignScripts = resources.WorldArchive.CampaignScripts;
+        _worldArchive = resources.WorldArchive;
         _worldStreamer = new WorldStreamer(resources.WorldArchive);
         _particles = new WorldParticleSystem(resources.WorldArchive.ParticleScript, saveState.ParticleQuality);
         _particles.GpuBackend = renderer.ParticleGpuBackend;
@@ -117,6 +126,8 @@ internal sealed class InGameScene : IGameScene
         Renderer.LastWorldPreparationStatus.IsReady && !_doors.HasPendingLoads;
 
     internal void SetWorldLightingMode(WorldLightingMode mode) => _worldLighting.SetMode(mode);
+
+    internal void SetMinimapVisible(bool visible) => _scene.Minimap.CheatVisible = visible;
 
     internal void SetParticleQuality(SacredParticleQuality quality) => _particles.SetQuality(quality);
     internal void SetParticleSimulation(ParticleSimulationMode mode) => _particles.SetSimulationMode(mode);
@@ -384,7 +395,7 @@ internal sealed class InGameScene : IGameScene
 
     private void UpdateRegionDisplayName()
     {
-        const string regionDisplayName = "";
+        var regionDisplayName = _regionNames?.GetDisplayName(_camera.WorldCenter) ?? string.Empty;
         _scene.Minimap.RegionDisplayName = regionDisplayName;
         if (string.Equals(_lastRegionDisplayName, regionDisplayName, StringComparison.Ordinal))
             return;

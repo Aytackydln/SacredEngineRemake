@@ -111,7 +111,7 @@ internal sealed class WorldMapScene : IGameScene
         var overlay = new WorldMapOverlay(_inputController.TargetWorldPosition,
             _inputController.TargetScreenPosition,
             _mapFrame is not null && _inputController.IsControllerTargetVisible,
-            _mapFrame is not null && _inputController.IsMinimapVisible, "Silver", string.Empty);
+            _mapFrame is not null && (_inputController.IsMinimapVisible || _controls.MinimapVisible), "Silver", string.Empty);
         return context.Renderer.RenderWorldMapAsync(new(frame, center, zoom, overlay,
             _controls, _mapFrame is not null ? _annotations : null, _selectedMap),
             context.VerticalSyncEnabled, context.FrameId, context.CancellationToken);

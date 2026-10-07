@@ -26,7 +26,8 @@ public readonly struct SectorEnvironmentLayout
     [FieldOffset(0xD1)] public readonly ushort MonsterMaxCount;
     [FieldOffset(0xD3)] public readonly ushort MonsterMinLevel;
     [FieldOffset(0xD5)] public readonly ushort MonsterMaxLevel;
-    /// <summary>Native region01.</summary>
+    /// <summary>Native region01: the sector's region number, read by cSector::getRegionNumber.
+    /// Stored at KEYX record +0x2C0 (environment +0xD7).</summary>
     [FieldOffset(0xD7)] public readonly byte Region;
     [FieldOffset(0xD8), BinaryUnknown] public readonly WorldBytes23 ReservedD8;
     [FieldOffset(0xEF)] public readonly uint MusicId;

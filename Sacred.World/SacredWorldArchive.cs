@@ -77,6 +77,13 @@ public sealed class SacredWorldArchive : IDisposable
         return true;
     }
 
+    /// <summary>Reads the authored KEYX environment region without loading sector geometry.</summary>
+    public byte? GetRegion(float worldX, float worldY)
+    {
+        var coord = new SectorCoord((int)MathF.Floor(worldX / SectorW), (int)MathF.Floor(worldY / SectorH));
+        return _sectorIdByGrid.TryGetValue(coord, out var id) ? _entriesById[id].Environment.Region : null;
+    }
+
     private SacredWorldArchive(
         byte[] keyxData,
         FileStream wldxStream,

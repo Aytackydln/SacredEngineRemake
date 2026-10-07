@@ -5,15 +5,12 @@ using ImGuiNET;
 using Sacred.Engine.Graphics.Frames;
 using Sacred.Engine.Platform;
 using Sacred.Shaders;
-using Vortice;
-using Vortice.Direct3D;
 using Vortice.Direct3D12;
-using Vortice.DXGI;
 
 namespace Sacred.Engine.Graphics.ImGui;
 
 /// <summary>Feeds engine input to Dear ImGui and records its draw data into the active DX12 frame.</summary>
-internal sealed unsafe class Dx12ImGuiRenderer : IDisposable
+internal sealed unsafe partial class Dx12ImGuiRenderer : IDisposable
 {
     private const int VertexStride = 20;
     private const int IndexStride = sizeof(ushort);
@@ -36,6 +33,8 @@ internal sealed unsafe class Dx12ImGuiRenderer : IDisposable
     private ID3D12RootSignature? _rootSignature;
     private ID3D12PipelineState? _pipeline;
     private bool _frameBegun;
+    private bool _backgroundRecorded;
+    private nint _backgroundDrawList;
 
     public bool IsFrameBegun => _frameBegun;
 
@@ -133,23 +132,47 @@ internal sealed unsafe class Dx12ImGuiRenderer : IDisposable
 
     public void Record(Dx12FrameContext frame, float uiPaperWhiteNits)
     {
+        if (!_frameBegun && !_backgroundRecorded)
+            return;
+
+        var drawData = _backgroundRecorded ? ImGuiNET.ImGui.GetDrawData() : PrepareDrawData(frame);
+        if (HasDrawData(drawData))
+            RecordDrawData(drawData, _frames[frame.Index], uiPaperWhiteNits, false, _backgroundRecorded);
+        _backgroundRecorded = false;
+        _input.SetUiCapture(ImGuiNET.ImGui.GetIO().WantCaptureMouse, ImGuiNET.ImGui.GetIO().WantCaptureKeyboard);
+    }
+
+    /// <summary>Draws map lettering before native overlays; Record completes the controls afterward.</summary>
+    public void RecordBackground(Dx12FrameContext frame, float uiPaperWhiteNits)
+    {
         if (!_frameBegun)
             return;
 
+        var drawData = PrepareDrawData(frame);
+        if (HasDrawData(drawData))
+            RecordDrawData(drawData, _frames[frame.Index], uiPaperWhiteNits, true, false);
+        _backgroundRecorded = true;
+    }
+
+    private static bool HasDrawData(ImDrawDataPtr drawData) =>
+        drawData.CmdListsCount > 0 && drawData.DisplaySize.X > 0.0f && drawData.DisplaySize.Y > 0.0f;
+
+    private ImDrawDataPtr PrepareDrawData(Dx12FrameContext frame)
+    {
         EnsureFontTexture(frame);
         ImGuiNET.ImGui.SetCurrentContext(_context);
+        _backgroundDrawList = (nint)ImGuiNET.ImGui.GetBackgroundDrawList(ImGuiNET.ImGui.GetMainViewport()).NativePtr;
         ImGuiNET.ImGui.Render();
         _frameBegun = false;
 
         var drawData = ImGuiNET.ImGui.GetDrawData();
-        if (drawData.CmdListsCount == 0 || drawData.DisplaySize.X <= 0.0f || drawData.DisplaySize.Y <= 0.0f)
-            return;
+        if (!HasDrawData(drawData))
+            return drawData;
 
         var resources = _frames[frame.Index];
         resources.EnsureCapacity(drawData.TotalVtxCount * VertexStride, drawData.TotalIdxCount * IndexStride);
         CopyDrawData(drawData, resources);
-        RecordDrawData(drawData, resources, uiPaperWhiteNits);
-        _input.SetUiCapture(ImGuiNET.ImGui.GetIO().WantCaptureMouse, ImGuiNET.ImGui.GetIO().WantCaptureKeyboard);
+        return drawData;
     }
 
     private void EnsureFontTexture(Dx12FrameContext frame)
@@ -164,105 +187,6 @@ internal sealed unsafe class Dx12ImGuiRenderer : IDisposable
             _fontPixels,
             frame.TransientResources);
         _textureUploader.CreateShaderResourceView(_fontTexture, _fontCpuHandle);
-    }
-
-    private static void CopyDrawData(ImDrawDataPtr drawData, ImGuiFrameResources resources)
-    {
-        var vertexOffset = 0;
-        var indexOffset = 0;
-        for (var listIndex = 0; listIndex < drawData.CmdListsCount; listIndex++)
-        {
-            var drawList = drawData.CmdLists[listIndex];
-            var vertexBytes = drawList.VtxBuffer.Size * VertexStride;
-            var indexBytes = drawList.IdxBuffer.Size * IndexStride;
-            Buffer.MemoryCopy(
-                (void*)drawList.VtxBuffer.Data,
-                (byte*)resources.VertexMapped + vertexOffset,
-                resources.VertexCapacity - vertexOffset,
-                vertexBytes);
-            Buffer.MemoryCopy(
-                (void*)drawList.IdxBuffer.Data,
-                (byte*)resources.IndexMapped + indexOffset,
-                resources.IndexCapacity - indexOffset,
-                indexBytes);
-            vertexOffset += vertexBytes;
-            indexOffset += indexBytes;
-        }
-    }
-
-    private void RecordDrawData(
-        ImDrawDataPtr drawData,
-        ImGuiFrameResources resources,
-        float uiPaperWhiteNits)
-    {
-        if (_rootSignature is null || _pipeline is null)
-            throw new InvalidOperationException("The ImGui DX12 pipeline has not been assigned.");
-
-        _commandList.SetGraphicsRootSignature(_rootSignature);
-        _commandList.SetPipelineState(_pipeline);
-        _commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
-
-        var constants = stackalloc float[ImGuiShaderLayout.ConstantsCount]
-        {
-            2.0f / drawData.DisplaySize.X,
-            -2.0f / drawData.DisplaySize.Y,
-            -1.0f - drawData.DisplayPos.X * (2.0f / drawData.DisplaySize.X),
-            1.0f + drawData.DisplayPos.Y * (2.0f / drawData.DisplaySize.Y),
-            uiPaperWhiteNits
-        };
-        _commandList.SetGraphicsRoot32BitConstants(
-            ImGuiShaderLayout.ConstantsRootParameter,
-            ImGuiShaderLayout.ConstantsCount,
-            constants,
-            0);
-
-        var vertexView = new VertexBufferView(
-            resources.VertexBuffer!.GPUVirtualAddress,
-            (uint)(drawData.TotalVtxCount * VertexStride),
-            VertexStride);
-        var indexView = new IndexBufferView(
-            resources.IndexBuffer!.GPUVirtualAddress,
-            (uint)(drawData.TotalIdxCount * IndexStride),
-            Format.R16_UInt);
-        _commandList.IASetVertexBuffers(0, 1, &vertexView);
-        _commandList.IASetIndexBuffer(&indexView);
-
-        var globalVertexOffset = 0;
-        var globalIndexOffset = 0;
-        var clipOffset = drawData.DisplayPos;
-        for (var listIndex = 0; listIndex < drawData.CmdListsCount; listIndex++)
-        {
-            var drawList = drawData.CmdLists[listIndex];
-            for (var commandIndex = 0; commandIndex < drawList.CmdBuffer.Size; commandIndex++)
-            {
-                var command = drawList.CmdBuffer[commandIndex];
-                if (command.UserCallback != 0)
-                    continue;
-
-                var clip = command.ClipRect;
-                var left = Math.Max(0, (int)(clip.X - clipOffset.X));
-                var top = Math.Max(0, (int)(clip.Y - clipOffset.Y));
-                var right = Math.Min((int)drawData.DisplaySize.X, (int)(clip.Z - clipOffset.X));
-                var bottom = Math.Min((int)drawData.DisplaySize.Y, (int)(clip.W - clipOffset.Y));
-                if (right <= left || bottom <= top)
-                    continue;
-
-                _commandList.RSSetScissorRects(new RawRect(left, top, right, bottom));
-                var textureSlot = command.TextureId == 0 ? _fontSrvSlot : checked((int)command.TextureId);
-                _commandList.SetGraphicsRootDescriptorTable(
-                    ImGuiShaderLayout.TextureRootParameter,
-                    _srvHeapGpuStart + textureSlot * _srvDescriptorSize);
-                _commandList.DrawIndexedInstanced(
-                    command.ElemCount,
-                    1,
-                    (uint)(globalIndexOffset + command.IdxOffset),
-                    globalVertexOffset + (int)command.VtxOffset,
-                    0);
-            }
-
-            globalIndexOffset += drawList.IdxBuffer.Size;
-            globalVertexOffset += drawList.VtxBuffer.Size;
-        }
     }
 
     private void ConfigureFonts(string gameDirectory)
@@ -319,84 +243,4 @@ internal sealed unsafe class Dx12ImGuiRenderer : IDisposable
         ImGuiNET.ImGui.DestroyContext(_context);
     }
 
-    private sealed class ImGuiFrameResources(ID3D12Device device) : IDisposable
-    {
-        private ID3D12Resource? _vertexBuffer;
-        private ID3D12Resource? _indexBuffer;
-        private nint _vertexMapped;
-        private nint _indexMapped;
-        private int _vertexCapacity;
-        private int _indexCapacity;
-
-        public ID3D12Resource? VertexBuffer => _vertexBuffer;
-        public ID3D12Resource? IndexBuffer => _indexBuffer;
-        public nint VertexMapped => _vertexMapped;
-        public nint IndexMapped => _indexMapped;
-        public int VertexCapacity => _vertexCapacity;
-        public int IndexCapacity => _indexCapacity;
-
-        public void EnsureCapacity(int vertexBytes, int indexBytes)
-        {
-            EnsureBuffer(ref _vertexBuffer, ref _vertexMapped, ref _vertexCapacity, vertexBytes);
-            EnsureBuffer(ref _indexBuffer, ref _indexMapped, ref _indexCapacity, indexBytes);
-        }
-
-        private void EnsureBuffer(
-            ref ID3D12Resource? buffer,
-            ref nint mapped,
-            ref int capacity,
-            int requiredBytes)
-        {
-            if (buffer is not null && capacity >= requiredBytes)
-                return;
-
-            DisposeBuffer(ref buffer, ref mapped);
-            capacity = Math.Max(65_536, RoundUpToPowerOfTwo(requiredBytes));
-            var description = new ResourceDescription(
-                ResourceDimension.Buffer,
-                0,
-                (ulong)capacity,
-                1,
-                1,
-                1,
-                Format.Unknown,
-                1,
-                0,
-                TextureLayout.RowMajor,
-                ResourceFlags.None);
-            buffer = device.CreateCommittedResource(
-                new HeapProperties(HeapType.Upload, 0, 0),
-                HeapFlags.None,
-                description,
-                ResourceStates.GenericRead,
-                null);
-            void* pointer;
-            buffer.Map(0, null, &pointer).CheckError();
-            mapped = (nint)pointer;
-        }
-
-        public void Dispose()
-        {
-            DisposeBuffer(ref _vertexBuffer, ref _vertexMapped);
-            DisposeBuffer(ref _indexBuffer, ref _indexMapped);
-        }
-
-        private static void DisposeBuffer(ref ID3D12Resource? buffer, ref nint mapped)
-        {
-            if (buffer is null)
-                return;
-            buffer.Unmap(0, null);
-            buffer.Dispose();
-            buffer = null;
-            mapped = 0;
-        }
-
-        private static int RoundUpToPowerOfTwo(int value)
-        {
-            var result = 1;
-            while (result < value)
-                result <<= 1;
-            return result;
-        }
-    }
 }

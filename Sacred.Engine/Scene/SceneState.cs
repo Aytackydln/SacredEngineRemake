@@ -108,7 +108,10 @@ public sealed class IndoorSceneState
 
 public sealed class MinimapOverlayState
 {
-    public bool IsVisible { get; internal set; }
+    private bool _inputVisible;
+    internal bool InputVisible => _inputVisible;
+    internal bool CheatVisible { get; set; }
+    public bool IsVisible { get => _inputVisible || CheatVisible; internal set => _inputVisible = value; }
     public string DifficultyDisplayName { get; set; } = string.Empty;
     public string RegionDisplayName { get; set; } = string.Empty;
 }

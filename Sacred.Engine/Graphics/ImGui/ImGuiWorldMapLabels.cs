@@ -14,7 +14,7 @@ internal static class ImGuiWorldMapLabels
     public static void Draw(WorldMapFrame frame, int width, int height, ImFontPtr font)
     {
         if (frame.Annotations is not { } annotations) return;
-        var draw = ImGuiNET.ImGui.GetBackgroundDrawList();
+        var draw = ImGuiNET.ImGui.GetBackgroundDrawList(ImGuiNET.ImGui.GetMainViewport());
         var viewportCenter = new Vector2(width, height) * 0.5f;
         var mapStart = viewportCenter - frame.Center * frame.Zoom;
         var mapEnd = mapStart + new Vector2(frame.Map.Width, frame.Map.Height) * frame.Zoom;

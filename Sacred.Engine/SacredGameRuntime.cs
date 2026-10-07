@@ -459,6 +459,7 @@ internal sealed partial class SacredGameRuntime : IDisposable
                 {
                 },
                 _campaignLoadState);
+            scene.GetMapAnnotations(_gameDirectory);
             _scenes.ReplaceInactiveInstance(scene);
             _inGameScene = scene;
             _campaignReloadPending = false;
@@ -617,6 +618,11 @@ internal sealed partial class SacredGameRuntime : IDisposable
             case "map-names" when TryParseBoolean(value, out var mapNames):
                 _worldMapControls.RegionNamesVisible = mapNames;
                 message = $"map region names {(mapNames ? "visible" : "hidden")}";
+                return true;
+            case "minimap" when TryParseBoolean(value, out var minimapVisible):
+                _worldMapControls.MinimapVisible = minimapVisible;
+                _inGameScene?.SetMinimapVisible(minimapVisible);
+                message = $"minimap cheat {(minimapVisible ? "on" : "off")}";
                 return true;
             case "map-npcs" when TryParseBoolean(value, out var mapNpcs):
                 _worldMapControls.RegionNpcsVisible = mapNpcs;

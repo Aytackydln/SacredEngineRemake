@@ -114,7 +114,7 @@ internal sealed class InGameMapInputController
 
     private void SetMinimapVisible(bool visible)
     {
-        if (_minimap.IsVisible == visible)
+        if (_minimap.InputVisible == visible)
             return;
 
         _minimap.IsVisible = visible;
