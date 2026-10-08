@@ -1100,7 +1100,7 @@ public sealed class AssetManager : IDisposable
                 attachmentModels);
         var equipmentEffects = EquipmentEffectSceneFactory.Create(
             model,
-            CreateEquipmentEffectAttachments(attachmentItems, attachmentModels));
+            CreateEquipmentEffectAttachments(attachmentItems, attachmentModels), true);
         cancellationToken.ThrowIfCancellationRequested();
 
         return new PlayerCharacterAsset(

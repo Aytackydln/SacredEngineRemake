@@ -10,9 +10,12 @@ namespace Sacred.Inventory.Effects;
 
 public static class EquipmentEffectSceneFactory
 {
-    public static EquipmentEffectScene? Create(GrnAsset asset, IReadOnlyList<EquipmentEffectAttachment> attachments)
+    public static EquipmentEffectScene? Create(GrnAsset asset, IReadOnlyList<EquipmentEffectAttachment> attachments,
+        bool enabled)
     {
-        if (asset.Diagnostics is not { } diagnostics || attachments.Count == 0) return null;
+        // Inventory icons can suppress equipped/world effects entirely, including
+        // their mesh construction, simulation and dependent texture requests.
+        if (!enabled || asset.Diagnostics is not { } diagnostics || attachments.Count == 0) return null;
         var builder = new EffectMeshBuilder();
         foreach (var attachment in attachments)
         {
@@ -36,9 +39,9 @@ public static class EquipmentEffectSceneFactory
         return builder.Build();
     }
 
-    public static EquipmentEffectScene? Create(
-        GrnAsset asset,
+    public static EquipmentEffectScene? Create(GrnAsset asset,
         SacredEquipmentDamage damage,
+        bool enabled,
         uint itemId = 0,
         uint baseItemId = 0,
         SacredEquipmentBonusTypes bonusTypes = default,
@@ -46,6 +49,7 @@ public static class EquipmentEffectSceneFactory
         SacredEquipmentType equipmentType = default,
         byte itemEffectSelector = 0)
     {
+        if (!enabled) return null;
         var boundsSize = asset.Diagnostics?.WholeModelBounds is { } bounds
             ? Vector3.Distance(bounds.Min, bounds.Max) : 40f;
         return Create(asset, [new EquipmentEffectAttachment(0, asset.Name, null, damage, boundsSize)
@@ -56,7 +60,7 @@ public static class EquipmentEffectSceneFactory
             BonusGroups = bonusGroups,
             EquipmentType = equipmentType,
             ItemEffectSelector = itemEffectSelector
-        }]);
+        }], enabled);
     }
 
     private static void AddMagicWeaponEffect(

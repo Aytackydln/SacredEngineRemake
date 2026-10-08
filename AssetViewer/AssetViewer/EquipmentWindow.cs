@@ -20,4 +20,5 @@ internal sealed class EquipmentWindow : Window, IAssetViewerWindow
     public void Select(uint id) => _table.SelectEquipment(id);
     public void SaveScreenshot(string path) => _table.SavePreviewScreenshot(path);
     public void RotateHorizontally(float radians) => _table.RotateEquipment(radians);
+    public void SetEffectsEnabled(bool enabled) => _table.SetEquipmentEffectsEnabled(enabled);
 }

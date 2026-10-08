@@ -84,7 +84,8 @@ public readonly struct SacredEquipmentLayout
     [FieldOffset(132)]
     public readonly uint RawFlags;
 
-    /// <summary>Character-class availability flags.</summary>
+    /// <summary>Stored character-class availability flags. The six main-story bits (0x3F)
+    /// permit Underworld heroes too; Classification exposes the effective eligibility mask.</summary>
     [FieldOffset(132)]
     public readonly SacredCharacterClassMask CharacterClassMask;
 
@@ -105,7 +106,8 @@ public readonly struct SacredEquipmentLayout
     [FieldOffset(149)] public readonly byte MinimumStrength;
     [FieldOffset(150)] public readonly byte MinimumDexterity;
     [FieldOffset(151)] public readonly byte MinimumCharisma;
-    /// <summary>Native MinWiederstand; original spelling retained in the symbol catalogue.</summary>
+    /// <summary>Native MinWiederstand; description uses the Endurance label (resource 1091).
+    /// Original spelling retained in the symbol catalogue.</summary>
     [FieldOffset(152)] public readonly byte MinimumResistance;
     [FieldOffset(153)] public readonly byte SpawnLevel;
     [FieldOffset(154)] public readonly byte MinimumSkill;
@@ -123,9 +125,15 @@ public readonly struct SacredEquipmentLayout
     [FieldOffset(180)] public readonly short FireResistance;
     [FieldOffset(182)] public readonly short MagicResistance;
     [FieldOffset(184)] public readonly short PoisonResistance;
-    /// <summary>Native BonusT[8], BonusG[8], BonusP[8]. Meanings of individual bonus codes remain separate research.</summary>
+    /// <summary>Native BonusT[8]: low byte is the opponent selector (0x80 ranged fighters,
+    /// 0x81 mounted opponents; 13 suppresses the target prefix); bits 8–11 restrict the hero class;
+    /// 0x8000 selects resistance, 0x4000 weapon damage, 0x2000 spell damage for damage bonuses.</summary>
     [FieldOffset(186)] public readonly SacredEquipmentBonusTypes BonusTypes;
+    /// <summary>Native BonusG[8]: low word is the bonus/skill/combat-art code;
+    /// bits 16–23 select an attribute qualifier (1 strength, 2 dexterity, 3 endurance,
+    /// 4 physical regeneration, 5 mental regeneration, 6 charisma in Gold).</summary>
     [FieldOffset(202)] public readonly SacredEquipmentBonusGroups BonusGroups;
+    /// <summary>Native BonusP[8]: signed base bonus magnitudes; units depend on the bonus code.</summary>
     [FieldOffset(234)] public readonly SacredEquipmentBonusValues BonusValues;
     /// <summary>Native minOld[7], legacy requirement bytes; not current minimum requirements.</summary>
     [FieldOffset(250)] public readonly SacredEquipmentLegacyRequirements LegacyRequirements;
@@ -150,6 +158,14 @@ public readonly record struct SacredEquipment(
     public float PreviewScale { get; init; }
     public Vector3 PreviewOffset { get; init; }
     public uint BaseItemId { get; init; }
+    public uint Price { get; init; }
+    public byte SpawnLevel { get; init; }
+    public byte SetType { get; init; }
+    public byte BlacksmithLevel { get; init; }
+    public SacredEquipmentRequirements Requirements { get; init; }
+    public SacredEquipmentBaseStats BaseStats { get; init; }
+    public SacredEquipmentSlotTypes SlotTypes { get; init; }
+    public SacredEquipmentDefaultSlots DefaultSlotItems { get; init; }
     public SacredEquipmentBonusTypes BonusTypes { get; init; }
     public SacredEquipmentBonusGroups BonusGroups { get; init; }
     public SacredEquipmentBonusValues BonusValues { get; init; }
@@ -209,6 +225,17 @@ public readonly record struct SacredEquipment(
                 layout.PreviewOffsetY,
                 layout.PreviewOffsetZ),
             BaseItemId = layout.BaseItemId,
+            Price = layout.Price,
+            SpawnLevel = layout.SpawnLevel,
+            SetType = layout.SetType,
+            BlacksmithLevel = layout.BlacksmithLevel,
+            Requirements = new(layout.MinimumLevel, layout.MinimumStrength, layout.MinimumDexterity,
+                layout.MinimumCharisma, layout.MinimumResistance, layout.MinimumSkill,
+                layout.MinimumSkillLevel),
+            BaseStats = new(layout.AttackValue, layout.ParryValue, layout.BW, layout.PhysicalResistance,
+                layout.FireResistance, layout.MagicResistance, layout.PoisonResistance),
+            SlotTypes = layout.SlotTypes,
+            DefaultSlotItems = layout.DefaultSlotItems,
             BonusTypes = layout.BonusTypes,
             BonusGroups = layout.BonusGroups,
             BonusValues = layout.BonusValues

@@ -30,7 +30,7 @@ internal static class AssetPreviewEffects
                 ItemEffectSelector = visual.Item.ModelDesc.EffectTextureIndex
             });
         }
-        var scene = EquipmentEffectSceneFactory.Create(asset, attachments) ?? EquipmentEffectScene.Empty;
+        var scene = EquipmentEffectSceneFactory.Create(asset, attachments, true) ?? EquipmentEffectScene.Empty;
         // Let chains settle and particle emitters fill before fitting the preview camera.
         // Every preview owns its scene, so this does not advance an engine scene.
         if (scene.Mesh is not null)

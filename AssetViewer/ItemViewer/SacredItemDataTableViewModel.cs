@@ -5,8 +5,11 @@ using System.Linq;
 using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Sacred.Core.GameBin.Sets;
 using Sacred.Core.GameRes;
 using Sacred.Core.Pak.Weapon;
+using Sacred.Core.Pak.Weapon.Descriptions;
+using Sacred.Core.Pak.Weapon.Details;
 
 namespace AssetViewer.ItemViewer;
 
@@ -15,11 +18,18 @@ public partial class SacredItemDataTableViewModel : ObservableObject
     private readonly List<SacredItemDataModel> _allEquipments;
     private readonly List<SacredItemDataModel> _filteredEquipments;
     private readonly Dictionary<string, ActiveEnumFilter> _enumFilters = [];
+    private readonly Dictionary<uint, SacredEquipment> _definitions;
+    private readonly SacredEquipmentDetailsBuilder _detailsBuilder;
+    private readonly SacredEquipmentDescriptionFormatter _descriptionFormatter;
 
     public SacredItemDataTableViewModel(
         List<SacredEquipment> allEquipments,
-        GameResStore resources)
+        GameResStore resources,
+        IReadOnlyList<SacredSetEntry>? sets = null)
     {
+        _definitions = allEquipments.ToDictionary(equipment => equipment.IdemId);
+        _detailsBuilder = new(sets ?? []);
+        _descriptionFormatter = new(resources);
         _allEquipments = allEquipments
             .Select(equipment => SacredItemDataModel.FromSacredEquipment(equipment, resources))
             .ToList();
@@ -31,6 +41,16 @@ public partial class SacredItemDataTableViewModel : ObservableObject
     public ObservableCollection<EnumFilterViewModel> EnumFilters { get; } = [];
 
     public int TotalItems => _filteredEquipments.Count;
+
+    [ObservableProperty]
+    public partial string DescriptionText { get; private set; } = "Select an item to view its description.";
+
+    public void SelectDescription(uint? itemId)
+    {
+        DescriptionText = itemId is { } id && _definitions.TryGetValue(id, out var equipment)
+            ? SacredEquipmentDescriptionText.Format(_descriptionFormatter.Format(_detailsBuilder.Create(equipment)))
+            : "Select an item to view its description.";
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentPage))]

@@ -13,6 +13,8 @@ public partial class SacredItemDataTable
         if (!_session.Data.GamePakStore.Weapons.TryGetValue(id, out var equipment))
             throw new ArgumentException($"Unknown equipment {id}.");
         ResetModelRotationSliders();
+        _tableViewModel.SelectDescription(id);
+        Console.WriteLine($"[Equipment] Description for {id}:\n{_tableViewModel.DescriptionText}");
         PreviewReady = LoadModel(SacredItemDataModel.FromSacredEquipment(equipment, _session.Data.GameResStore));
     }
 

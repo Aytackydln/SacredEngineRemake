@@ -14,6 +14,7 @@ public enum SacredCharacterClassMask : byte
     Vampiress = 1 << 5,
     Dwarf = 1 << 6,
     Daemon = 1 << 7,
+    /// <summary>Stored six-class mask. For equipment eligibility this also permits Dwarf and Daemon.</summary>
     AllBase = Seraphim | Gladiator | BattleMage | DarkElf | WoodElf | Vampiress,
     AllKnown = AllBase | Dwarf | Daemon
 }
@@ -156,17 +157,19 @@ public readonly record struct SacredEquipmentClassification(
         byte classFlagCode
     )
     {
-        if (characterClassMask != SacredCharacterClassMask.None)
-        {
-            return characterClassMask;
-        }
-
-        return classFlagCode switch
+        var effectiveMask = characterClassMask != SacredCharacterClassMask.None
+            ? characterClassMask
+            : classFlagCode switch
         {
             0x40 => SacredCharacterClassMask.Dwarf,
             0x80 => SacredCharacterClassMask.Daemon,
             0xC0 => SacredCharacterClassMask.AllBase,
             _ => SacredCharacterClassMask.None
         };
+        // The complete main-story mask means unrestricted class eligibility,
+        // including the Underworld heroes. Preserve its stored bits separately.
+        return effectiveMask == SacredCharacterClassMask.AllBase
+            ? SacredCharacterClassMask.AllKnown
+            : effectiveMask;
     }
 }

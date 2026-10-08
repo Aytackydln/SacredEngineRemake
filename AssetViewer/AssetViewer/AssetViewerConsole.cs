@@ -11,7 +11,7 @@ internal static class AssetViewerConsole
 {
     public static void Start(MainWindow main)
     {
-        Console.WriteLine("[Assets] Cheats: open <models|equipment|textures|characters>, model <row>, item <id>, texture <archive.pak> <row>, character <row>, class <name|npc>, animations, animation <bind|default|slot|GRN name>, animation-play <true|false>, animation-time <seconds>, rotate <horizontal degrees>, equip <slot-index> <id>, unequip <slot-index>, screenshot <path.png>, screenshot-ui <path.png>, location <directory>, close <view>, gc, quit.");
+        Console.WriteLine("[Assets] Cheats: open <models|equipment|textures|characters>, model <row>, item <id>, texture <archive.pak> <row>, character <row>, class <name|npc>, animations, animation <bind|default|slot|GRN name>, animation-play <true|false>, animation-time <seconds>, rotate <horizontal degrees>, effects <true|false>, equip <slot-index> <id>, unequip <slot-index>, screenshot <path.png>, screenshot-ui <path.png>, location <directory>, close <view>, gc, quit.");
         _ = Task.Run(async () =>
         {
             while (Console.ReadLine() is { } input)
@@ -42,6 +42,7 @@ internal static class AssetViewerConsole
             case "texture":
                 var texture = argument.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
                 ((TexturesWindow)await main.OpenViewerAsync("textures")).Select(texture[0], uint.Parse(texture[1])); break;
+            case "effects": ((EquipmentWindow)await main.OpenViewerAsync("equipment")).SetEffectsEnabled(bool.Parse(argument)); break;
             case "class": ((CharactersWindow)await main.OpenViewerAsync("characters")).SetClass(argument); break;
             case "animations": ((CharactersWindow)await main.OpenViewerAsync("characters")).ListAnimations(); break;
             case "animation": ((CharactersWindow)await main.OpenViewerAsync("characters")).SelectAnimation(argument); break;

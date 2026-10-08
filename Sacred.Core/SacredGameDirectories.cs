@@ -24,6 +24,8 @@ public class SacredGameDirectories
     /// <c>bin\sets.bin</c> from the PAK directory when this is not supplied.
     /// </summary>
     public string? ItemSetsPath { get; init; }
+    /// <summary>Optional wpmod.bin path; inferred from the selected game's bin directory.</summary>
+    public string? WeaponModifiersPath { get; init; }
     
     public required string ItemsPakPath { get; init; }
     public required string WeaponsPakPath { get; init; }

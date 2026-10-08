@@ -139,7 +139,8 @@ public partial class SacredItemDataTable : UserControl
         var sacredGameData = _session?.Data ?? await Task.Run(() => SacredGameData.LoadFromGamePaks(gameDirectories));
         var items = sacredGameData.GamePakStore.Weapons.Values.ToList();
 
-        _tableViewModel = new SacredItemDataTableViewModel(items, sacredGameData.GameResStore);
+        _tableViewModel = new SacredItemDataTableViewModel(items, sacredGameData.GameResStore,
+            sacredGameData.ItemSets);
         _tableViewModel.FilterHasModel = savedSettings.FilterHasModel;
         _tableViewModel.SetFavoriteItems(_favoriteItemIds);
         _tableViewModel.FilterHasModelChanged += OnFilterHasModelChanged;
@@ -342,11 +343,13 @@ public partial class SacredItemDataTable : UserControl
 
     private void DataGrid_OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
+        _previewItem = null;
         CancelModelLoad();
         PreviewReady = Task.CompletedTask;
         ResetModelRotationSliders();
         _modelViewer.ShowStatus("...");
         ClearModelData("no model selected");
+        _tableViewModel.SelectDescription((DataGrid.SelectedItem as SacredItemDataModel?)?.ItemId);
 
         if (sender is not DataGrid { SelectedItem: SacredItemDataModel selectedItem })
         {
@@ -399,6 +402,7 @@ public partial class SacredItemDataTable : UserControl
 
     private async Task LoadModel(SacredItemDataModel selectedItem)
     {
+        _previewItem = selectedItem;
         CancelModelLoad();
 
         _modelLoadCancellation = new CancellationTokenSource();
@@ -418,6 +422,7 @@ public partial class SacredItemDataTable : UserControl
             var effectScene = EquipmentEffectSceneFactory.Create(
                 asset,
                 selectedItem.Damage,
+                _effectsEnabled,
                 selectedItem.ItemId,
                 selectedItem.BaseItemId,
                 selectedItem.BonusTypes,
@@ -435,6 +440,8 @@ public partial class SacredItemDataTable : UserControl
             ShowModelData(asset, selectedItem, effectScene);
             UpdateModelRotationFromSliders();
             await LoadSelectedModelTexturesAsync(asset, selectedItem, effectScene, cancellationToken);
+            if (!cancellationToken.IsCancellationRequested)
+                Console.WriteLine($"[Inventory] Preview ready: item={selectedItem.ItemId} effects={(_effectsEnabled ? "enabled" : "disabled")} layers={effectScene.Surfaces.Count}.");
         }
         catch (OperationCanceledException)
         {
