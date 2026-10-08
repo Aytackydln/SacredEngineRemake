@@ -1,4 +1,3 @@
-using System;
 using System.Globalization;
 using System.Numerics;
 using Sacred.Core.GameRes;
@@ -26,17 +25,14 @@ public readonly record struct SacredItemDataModel(
     byte Width,
     byte Height,
     SacredEquipmentRarityTier Rarity,
-    bool IsFavorite = false,
-    bool PreviewConfirmed = false,
-    DateTimeOffset? PreviewConfirmedAt = null,
-    bool PreviewConfirmedUserRotationIsZero = false
+    bool IsFavorite = false
 )
 {
     public float PreviewScale { get; init; }
     public Vector3 PreviewOffset { get; init; }
 
     // Parsed equipment contains inline arrays, which cannot use the record's generated ValueType.Equals.
-    // Weapon.pak item IDs are the stable identity for rows and their favorite/confirmation variants.
+    // Weapon.pak item IDs are the stable identity for rows and their favorite variants.
     public bool Equals(SacredItemDataModel other)
     {
         return ItemId == other.ItemId;
@@ -48,14 +44,6 @@ public readonly record struct SacredItemDataModel(
     }
 
     public string FavoriteDisplay => IsFavorite ? "★" : "☆";
-
-    public string PreviewConfirmedDisplay => PreviewConfirmed
-        ? PreviewConfirmedUserRotationIsZero ? "✓" : "X"
-        : "";
-
-    public string PreviewConfirmationStatus => PreviewConfirmed
-        ? $"Confirmed {PreviewConfirmedAt:yyyy-MM-dd HH:mm}"
-        : "Unconfirmed";
 
     public static SacredItemDataModel FromSacredEquipment(SacredEquipment equipment, GameResStore resources)
     {

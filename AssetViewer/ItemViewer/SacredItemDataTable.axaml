@@ -1,4 +1,4 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -79,15 +79,6 @@
                               SelectionChanged="GrannyBackendComboBox_OnSelectionChanged"
                               ToolTip.Tip="Managed parser or the original game's 32-bit Granny.dll" />
                 </StackPanel>
-                <StackPanel Margin="4,2,12,0"
-                            MinWidth="150">
-                    <TextBlock Text="Preview confirmation"
-                               FontSize="11"
-                               Opacity="0.72" />
-                    <ComboBox ItemsSource="{Binding PreviewConfirmationFilterOptions}"
-                              SelectedItem="{Binding PreviewConfirmationFilter}"
-                              HorizontalAlignment="Stretch" />
-                </StackPanel>
                 <ItemsControl ItemsSource="{Binding EnumFilters}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
@@ -151,14 +142,31 @@
                 <Panel Name="ModelViewerPanel" Grid.Column="0" />
                 <Expander Name="ModelDataExpander"
                           Grid.Column="1"
-                          Header="Model data — no model selected"
+                          ToolTip.Tip="Model data — no model selected"
                           Background="#F209110E"
                           Foreground="#E8F4D6"
-                          Padding="10,6"
-                          Width="350"
-                          IsExpanded="True"
+                          Padding="6"
+                          MinWidth="0"
+                          ExpandDirection="Left"
+                          VerticalAlignment="Stretch"
+                          VerticalContentAlignment="Stretch"
+                          IsExpanded="False"
                           IsEnabled="False">
+                    <Expander.Resources>
+                        <Thickness x:Key="ExpanderHeaderPadding">4</Thickness>
+                        <Thickness x:Key="ExpanderChevronMargin">4</Thickness>
+                        <x:Double x:Key="ExpanderChevronButtonSize">24</x:Double>
+                    </Expander.Resources>
+                    <Expander.Header>
+                        <LayoutTransformControl>
+                            <LayoutTransformControl.LayoutTransform>
+                                <RotateTransform Angle="-90" />
+                            </LayoutTransformControl.LayoutTransform>
+                            <TextBlock Text="Model data" />
+                        </LayoutTransformControl>
+                    </Expander.Header>
                     <TextBox Name="ModelDataText"
+                             Width="350"
                              IsReadOnly="True"
                              AcceptsReturn="True"
                              TextWrapping="NoWrap"
@@ -174,7 +182,7 @@
                     BorderBrush="#44749A7B"
                     BorderThickness="1"
                     Padding="10">
-                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+                <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="Auto,*,Auto,Auto">
                     <TextBlock Grid.Row="0"
                                Grid.Column="0"
                                Text="Yaw"
@@ -249,47 +257,7 @@
                                Margin="8,4,0,0" />
                     <Button Grid.Row="2" Grid.Column="3" Name="ModelRollResetButton" Click="ModelRollResetButton_OnClick" Margin="0,4,0,0">Reset</Button>
 
-                    <StackPanel Grid.Row="3"
-                                Grid.Column="0"
-                                Grid.ColumnSpan="5"
-                                Orientation="Horizontal"
-                                Spacing="8"
-                                Margin="0,8,0,0">
-                        <TextBlock Text="Rotation"
-                                   Foreground="#E8F4D6"
-                                   VerticalAlignment="Center" />
-                        <ComboBox Name="PreviewRotationModeComboBox"
-                                  MinWidth="150" />
-                        <TextBlock Text="Pivot"
-                                   Foreground="#E8F4D6"
-                                   VerticalAlignment="Center"
-                                   Margin="10,0,0,0" />
-                        <ComboBox Name="PreviewPivotModeComboBox"
-                                  MinWidth="150" />
-                        <TextBlock Text="Bone"
-                                   Foreground="#E8F4D6"
-                                   VerticalAlignment="Center"
-                                   Margin="10,0,0,0" />
-                        <ComboBox Name="PreviewPivotBoneComboBox"
-                                  MinWidth="180"
-                                  SelectionChanged="ExperimentModeComboBox_OnSelectionChanged" />
-                    </StackPanel>
 
-                    <StackPanel Grid.Row="4"
-                                Grid.Column="0"
-                                Grid.ColumnSpan="5"
-                                Orientation="Horizontal"
-                                Spacing="8"
-                                Margin="0,8,0,0">
-                        <Button Name="ConfirmPreviewButton"
-                                Content="Confirm Preview"
-                                IsEnabled="False"
-                                Click="ConfirmPreviewButton_OnClick" />
-                        <TextBlock Name="ConfirmPreviewStatusText"
-                                   Foreground="#E8F4D6"
-                                   VerticalAlignment="Center"
-                                   TextWrapping="Wrap" />
-                    </StackPanel>
                 </Grid>
             </Border>
 

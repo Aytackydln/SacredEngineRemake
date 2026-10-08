@@ -18,6 +18,7 @@ internal sealed class ModelPreviewPane : UserControl
 {
     private readonly AssetViewerSession _session;
     private readonly ModelViewerControl _viewer = new();
+    private readonly Action _resetRotation;
     private CancellationTokenSource? _load;
     private bool _closed;
 
@@ -36,7 +37,13 @@ internal sealed class ModelPreviewPane : UserControl
         yaw.ValueChanged += (_, _) => _viewer.SetUserRotation((float)yaw.Value, (float)pitch.Value, 0);
         pitch.ValueChanged += (_, _) => _viewer.SetUserRotation((float)yaw.Value, (float)pitch.Value, 0);
         _viewer.HorizontalRotationChanged += value => yaw.Value = value;
-        reset.Click += (_, _) => { yaw.Value = 0; pitch.Value = 0; };
+        _resetRotation = () =>
+        {
+            yaw.Value = 0;
+            pitch.Value = 0;
+            _viewer.SetUserRotation(0, 0, 0);
+        };
+        reset.Click += (_, _) => _resetRotation();
         var root = new DockPanel();
         DockPanel.SetDock(bar, Dock.Top);
         root.Children.Add(bar);
@@ -49,6 +56,7 @@ internal sealed class ModelPreviewPane : UserControl
     public void ShowStatus(string status)
     {
         _load?.Cancel();
+        _resetRotation();
         _viewer.ShowStatus(status);
         CurrentLoad = Task.CompletedTask;
     }
@@ -56,6 +64,7 @@ internal sealed class ModelPreviewPane : UserControl
     public Task LoadAsync(string name, Func<CancellationToken, Task<GrnAsset>> loader,
         IReadOnlyList<ModelPreviewVisual> visuals, bool compositeSlices = false)
     {
+        _resetRotation();
         _load?.Cancel();
         _load?.Dispose();
         _load = new CancellationTokenSource();
@@ -85,8 +94,7 @@ internal sealed class ModelPreviewPane : UserControl
             if (_closed) return;
             var effects = await Task.Run(() => AssetPreviewEffects.Create(asset, visuals, compositeSlices), token);
             token.ThrowIfCancellationRequested();
-            _viewer.ShowModel(asset, Vector3.Zero, 1, 1, ItemPreviewRotationMode.None,
-                ItemPreviewPivotMode.BoundsCenter, null, effects);
+            _viewer.ShowModel(asset, Vector3.Zero, 1, 1, effects);
             var loaded = new Dictionary<string, ModelTextureBinding>(StringComparer.OrdinalIgnoreCase);
             var failures = 0;
             var aliases = new Dictionary<string, ModelTextureReference>(StringComparer.OrdinalIgnoreCase);

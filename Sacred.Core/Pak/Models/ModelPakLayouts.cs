@@ -81,7 +81,9 @@ public readonly struct ModelPakPayloadMetadataLayout
     [FieldOffset(0x74)]
     public readonly uint DefaultMotionIndex;
 
-    /// <summary>Native <c>cGrannyModelChunk::scale[3]</c>.</summary>
+    /// <summary>Native <c>cGrannyModelChunk::scale[3]</c>. Demo getModel passes
+    /// (scale[0], -scale[1], scale[2]) to GrannyTransformModel; inventory matrices
+    /// subsequently use Weapon.pak's independent preview scale and rotations.</summary>
     [FieldOffset(0x470)]
     public readonly ModelChunkScale Scale;
 
@@ -89,7 +91,8 @@ public readonly struct ModelPakPayloadMetadataLayout
     [FieldOffset(0x470)]
     public readonly float ScaleX;
 
-    /// <summary>Model-space scale on the Y axis.</summary>
+    /// <summary>Authored model-space Y scale. Demo cGrannyModelManager::getModel
+    /// negates it for GrannyTransformModel (0x410438); retain the stored value here.</summary>
     [FieldOffset(0x474)]
     public readonly float ScaleY;
 

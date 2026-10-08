@@ -19,15 +19,9 @@ public sealed class ModelViewerControl : UserControl
     private readonly TextBlock _statusText;
     private GrnAsset? _asset;
     private string _status = "Select an item to load its model.";
-    private Vector3 _previewRotation;
-    private ItemPreviewRotationMode _rotationMode = ItemPreviewRotationMode.RawXyz;
-    private ItemPreviewPivotMode _pivotMode = ItemPreviewPivotMode.ModelOrigin;
     private int _gridWidth = 1;
     private int _gridHeight = 1;
     private int _effectTextureCount;
-    private float _userYaw;
-    private float _userPitch;
-    private float _userRoll;
     private bool _assetPreview;
     public event Action<float>? HorizontalRotationChanged;
 
@@ -71,7 +65,6 @@ public sealed class ModelViewerControl : UserControl
         Content = root;
         _viewport.HorizontalRotationChanged += yaw =>
         {
-            _userYaw = yaw;
             SetStatusText(_status);
             HorizontalRotationChanged?.Invoke(yaw);
         };
@@ -83,9 +76,6 @@ public sealed class ModelViewerControl : UserControl
         RunOnUiThread(() =>
         {
             _asset = null;
-            _previewRotation = Vector3.Zero;
-            _rotationMode = ItemPreviewRotationMode.RawXyz;
-            _pivotMode = ItemPreviewPivotMode.ModelOrigin;
             _gridWidth = 1;
             _gridHeight = 1;
             _effectTextureCount = 0;
@@ -99,24 +89,18 @@ public sealed class ModelViewerControl : UserControl
         Vector3 previewRotation,
         int gridWidth,
         int gridHeight,
-        ItemPreviewRotationMode rotationMode,
-        ItemPreviewPivotMode pivotMode,
-        string? pivotBoneName,
         EquipmentEffectScene effectScene)
     {
         RunOnUiThread(() =>
         {
             _asset = asset;
-            _previewRotation = previewRotation;
-            _rotationMode = rotationMode;
-            _pivotMode = pivotMode;
             _gridWidth = Math.Clamp(gridWidth, 1, 4);
             _gridHeight = Math.Clamp(gridHeight, 1, 5);
             _effectTextureCount = effectScene.TextureNames.Count;
-            _viewport.ShowModel(asset, previewRotation, _gridWidth, _gridHeight, rotationMode, pivotMode, pivotBoneName, effectScene);
+            _viewport.ShowModel(asset, previewRotation, _gridWidth, _gridHeight, effectScene);
             SetStatusText(asset.Mesh is null
                 ? $"{asset.Name}: GRN loaded, no mesh extracted."
-                : $"{asset.Name}: {asset.Mesh.Vertices.Length} vertices, {asset.Mesh.Indices.Length / 3} triangles | {asset.Backend} | {_gridWidth}x{_gridHeight} cells | rot {FormatRotation(previewRotation)} | {rotationMode}/{pivotMode}" +
+                : $"{asset.Name}: {asset.Mesh.Vertices.Length} vertices, {asset.Mesh.Indices.Length / 3} triangles | {asset.Backend} | {_gridWidth}x{_gridHeight} cells" +
                   (asset.DefaultAnimation is { } clip ? $" | {clip.Name} ({clip.DurationSeconds:F2}s)" : string.Empty));
         });
     }
@@ -141,9 +125,6 @@ public sealed class ModelViewerControl : UserControl
     {
         RunOnUiThread(() =>
         {
-            _userYaw = yaw;
-            _userPitch = pitch;
-            _userRoll = roll;
             _viewport.SetUserRotation(yaw, pitch, roll);
             SetStatusText(_status);
         });
@@ -187,9 +168,6 @@ public sealed class ModelViewerControl : UserControl
         RunOnUiThread(() =>
         {
             _asset = null;
-            _previewRotation = Vector3.Zero;
-            _rotationMode = ItemPreviewRotationMode.RawXyz;
-            _pivotMode = ItemPreviewPivotMode.ModelOrigin;
             _gridWidth = 1;
             _gridHeight = 1;
             _effectTextureCount = 0;
@@ -201,9 +179,7 @@ public sealed class ModelViewerControl : UserControl
     private void SetStatusText(string status)
     {
         _status = status;
-        _statusText.Text = _asset is null || _assetPreview
-            ? status
-            : $"{status}\ngrid {_gridWidth}x{_gridHeight}\nmode {_rotationMode}, pivot {_pivotMode}\npreview {FormatRotationWithDegrees(_previewRotation)}\nuser yaw {FormatAngle(_userYaw)}\npitch {FormatAngle(_userPitch)}\nroll {FormatAngle(_userRoll)}";
+        _statusText.Text = status;
     }
 
     private void RunOnUiThread(Action action)
@@ -214,23 +190,4 @@ public sealed class ModelViewerControl : UserControl
             Dispatcher.UIThread.Post(action, DispatcherPriority.Normal);
     }
 
-    private static string FormatRotation(Vector3 rotation)
-    {
-        return $"({rotation.X:0.###}, {rotation.Y:0.###}, {rotation.Z:0.###})";
-    }
-
-    private static string FormatRotationWithDegrees(Vector3 rotation)
-    {
-        return $"{FormatRotation(rotation)} rad / ({RadiansToDegrees(rotation.X):0.#}, {RadiansToDegrees(rotation.Y):0.#}, {RadiansToDegrees(rotation.Z):0.#}) deg";
-    }
-
-    private static string FormatAngle(float radians)
-    {
-        return $"{radians:0.000###} rad/{RadiansToDegrees(radians):0.#} deg";
-    }
-
-    private static float RadiansToDegrees(float radians)
-    {
-        return radians * 180.0f / MathF.PI;
-    }
 }

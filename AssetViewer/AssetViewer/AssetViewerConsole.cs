@@ -68,7 +68,8 @@ internal static class AssetViewerConsole
                 {
                     case ModelsWindow models: models.RotateHorizontally(radians); break;
                     case CharactersWindow characters: characters.RotateHorizontally(radians); break;
-                    default: throw new InvalidOperationException("Open the models or characters viewer to rotate its preview.");
+                    case EquipmentWindow equipment: equipment.RotateHorizontally(radians); break;
+                    default: throw new InvalidOperationException("Open the models, equipment or characters viewer to rotate its preview.");
                 }
                 break;
             case "location": await main.LoadGameAsync(argument.Trim('"')); break;

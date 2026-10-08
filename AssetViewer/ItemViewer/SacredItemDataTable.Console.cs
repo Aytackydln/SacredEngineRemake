@@ -13,9 +13,16 @@ public partial class SacredItemDataTable
         if (!_session.Data.GamePakStore.Weapons.TryGetValue(id, out var equipment))
             throw new ArgumentException($"Unknown equipment {id}.");
         ResetModelRotationSliders();
-        PreviewReady = LoadModel(SacredItemDataModel.FromSacredEquipment(equipment, _session.Data.GameResStore),
-            ItemPreviewRotationMode.RawXyz, ItemPreviewPivotMode.ModelOrigin);
+        PreviewReady = LoadModel(SacredItemDataModel.FromSacredEquipment(equipment, _session.Data.GameResStore));
     }
 
     internal void SavePreviewScreenshot(string path) => _modelViewer.SaveScreenshot(path);
+
+    internal void RotateEquipment(float radians)
+    {
+        if (!float.IsFinite(radians)) throw new ArgumentOutOfRangeException(nameof(radians));
+        var yaw = (float)Math.IEEERemainder(ModelYawSlider.Value + radians, Math.Tau);
+        SetModelRotationSliders(new(yaw, (float)ModelPitchSlider.Value, (float)ModelRollSlider.Value));
+        Console.WriteLine($"[Inventory] User rotation: yaw={ModelYawSlider.Value}, pitch={ModelPitchSlider.Value}, roll={ModelRollSlider.Value}.");
+    }
 }

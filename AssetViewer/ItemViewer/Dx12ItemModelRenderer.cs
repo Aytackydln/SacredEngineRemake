@@ -72,7 +72,6 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
     private ModelGpuMesh? _inventoryUiMesh;
     private ModelGpuMesh? _mesh;
     private Mesh? _sourceMesh;
-    private ModelGpuMesh? _selectedBoneHighlightMesh;
     private ModelGpuMesh? _equipmentEffectMesh;
     private InventoryUiSurface[] _inventoryUiSurfaces = [];
     private MeshBounds _meshBounds = new(Vector3.Zero, Vector3.Zero, Vector3.Zero, 1.0f);
@@ -81,12 +80,6 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
     private EquipmentEffectScene? _equipmentEffectScene;
     private string _modelName = string.Empty;
     private Vector3 _previewRotation;
-    private ItemPreviewRotationMode _rotationMode;
-    private ItemPreviewPivotMode _pivotMode;
-    private Vector3? _bonePivot;
-    private Vector3? _selectedBonePosition;
-    private GrnBoundsDiagnostics? _wholeModelBounds;
-    private GrnBoundsDiagnostics? _skeletonBounds;
     private Vector2 _itemGridCenter;
     private float _modelScale = 1.0f;
     private float _previewScale = 1.0f;
@@ -136,11 +129,8 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
         _mesh?.Dispose();
         _mesh = null;
         _sourceMesh = null;
-        _selectedBoneHighlightMesh?.Dispose();
-        _selectedBoneHighlightMesh = null;
         _equipmentEffectMesh?.Dispose();
         _equipmentEffectMesh = null;
-        _selectedBonePosition = null;
         _surfaces = [];
         _equipmentEffectSurfaces = [];
         _equipmentEffectScene = null;
@@ -153,22 +143,16 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
         DisposeModelTextures();
     }
 
-    public void SetModel(
-        GrnAsset asset,
+    public void SetModel(GrnAsset asset,
         Vector3 previewRotation,
         int gridWidth,
         int gridHeight,
-        ItemPreviewRotationMode rotationMode,
-        ItemPreviewPivotMode pivotMode,
-        string? pivotBoneName,
         EquipmentEffectScene effectScene)
     {
         WaitForGpu();
         _mesh?.Dispose();
         _mesh = null;
         _sourceMesh = null;
-        _selectedBoneHighlightMesh?.Dispose();
-        _selectedBoneHighlightMesh = null;
         _equipmentEffectMesh?.Dispose();
         _equipmentEffectMesh = null;
         _surfaces = [];
@@ -177,12 +161,6 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
         _modelName = asset.Name;
         _animatedModel = null;
         _previewRotation = IsFinite(previewRotation) ? previewRotation : Vector3.Zero;
-        _rotationMode = rotationMode;
-        _pivotMode = pivotMode;
-        _bonePivot = ResolveBonePivot(asset.Diagnostics, pivotMode, pivotBoneName);
-        _selectedBonePosition = ResolveBonePosition(asset.Diagnostics, pivotBoneName);
-        _wholeModelBounds = asset.Diagnostics?.WholeModelBounds;
-        _skeletonBounds = asset.Diagnostics?.SkeletonBounds;
         _sourceOriginOffset = asset.Diagnostics?.SourceOriginOffset ?? Vector3.Zero;
         _itemGridWidth = Math.Clamp(gridWidth, 1, GridColumns);
         _itemGridHeight = Math.Clamp(gridHeight, 1, GridRows);
@@ -211,7 +189,6 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
         _modelScale = _previewScale == 0.0f ? 1.0f : MathF.Abs(_previewScale);
         _sourceMesh = PrepareAnimatedModel(asset);
         _mesh = UploadMesh(_sourceMesh);
-        _selectedBoneHighlightMesh = CreateSelectedBoneHighlightMesh(_selectedBonePosition);
         if (effectScene.Mesh is { Vertices.Length: > 0, Indices.Length: > 0 } effectMesh)
         {
             _equipmentEffectScene = effectScene;
@@ -223,7 +200,7 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
         _surfaces = asset.Mesh.Surfaces.Count == 0
             ? [new MeshSurface(0, asset.Mesh.Indices.Length, null)]
             : asset.Mesh.Surfaces.ToArray();
-        Console.WriteLine($"[Inventory] Loaded {asset.Name}: scale={_previewScale}, rotation={_previewRotation}, offset={_previewOffset}, source origin={_sourceOriginOffset}, cells={_itemGridWidth}x{_itemGridHeight}.");
+        Console.WriteLine($"[Inventory] Loaded {asset.Name}: cells={_itemGridWidth}x{_itemGridHeight}.");
     }
 
     public void SetInventoryPlacement(float scale, Vector3 offset)
@@ -370,8 +347,6 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
         _textureUploader.Dispose();
         _inventoryUiMesh?.Dispose();
         _inventoryUiMesh = null;
-        _selectedBoneHighlightMesh?.Dispose();
-        _selectedBoneHighlightMesh = null;
         _depthBuffer?.Dispose();
         _depthBuffer = null;
 
@@ -603,8 +578,7 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
         {
             RecordModel();
             RecordEquipmentEffects();
-            RecordSelectedBoneHighlight();
-        }
+            }
 
         Transition(backBuffer, ResourceStates.RenderTarget, ResourceStates.Present);
     }
@@ -860,164 +834,15 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
         }
     }
 
-    private unsafe void RecordSelectedBoneHighlight()
-    {
-        var mesh = _selectedBoneHighlightMesh;
-        if (mesh is null)
-            return;
-
-        var vertexBufferView = mesh.VertexBufferView;
-        var indexBufferView = mesh.IndexBufferView;
-        _commandList.SetGraphicsRootSignature(_rootSignature);
-        _commandList.SetPipelineState(_inventoryUiPipelineState);
-        _commandList.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
-        _commandList.IASetVertexBuffers(0, 1, &vertexBufferView);
-        _commandList.IASetIndexBuffer(&indexBufferView);
-
-        var constants = stackalloc float[ModelShaderLayout.ModelConstantsCount];
-        var world = CreateWorldMatrix();
-        _modelShaderConstants.WriteModelBase(
-            constants,
-            world * CreateViewProjectionMatrix(),
-            world,
-            new Vector4(1.0f, 0.88f, 0.08f, 1.0f));
-        _modelShaderConstants.WriteTextureFlags(
-            constants + ModelShaderLayout.TextureFlagsOffset,
-            ModelShaderVariables.TextureModeNoTexture,
-            ModelShaderVariables.TextureAnimationNone,
-            ModelShaderLayout.PreserveProjectedDepth,
-            animationTimeScale: 0.0f);
-        _commandList.SetGraphicsRoot32BitConstants(
-            ModelShaderLayout.ModelConstantsRootParameter,
-            ModelShaderLayout.ModelConstantsCount,
-            constants,
-            0);
-        _commandList.DrawIndexedInstanced((uint)mesh.IndexCount, 1, 0, 0, 0);
-    }
-
     private Matrix4x4 CreateWorldMatrix()
     {
         if (_assetPreview)
             return CreateAssetWorldMatrix();
         var userRotation = Matrix4x4.CreateFromYawPitchRoll(_userYaw, _userPitch, _userRoll);
-        return Matrix4x4.CreateTranslation(-GetPivotPoint()) *
-               WeaponPakPreviewTransform.CreateWorld(_previewScale, CreateItemRotationMatrix(), _previewOffset) *
+        return WeaponPakPreviewTransform.CreateModelSpace(-_sourceOriginOffset) *
+               WeaponPakPreviewTransform.CreateWorld(_previewScale, WeaponPakPreviewTransform.CreateRotation(_previewRotation), _previewOffset) *
                userRotation *
                Matrix4x4.CreateTranslation(_itemGridCenter.X, 0.0f, _itemGridCenter.Y);
-    }
-
-    private Matrix4x4 CreateItemRotationMatrix()
-    {
-        var rotation = _previewRotation;
-        return _rotationMode switch
-        {
-            ItemPreviewRotationMode.LegacyCurrent => CreateLegacyViewerPreviewRotation(rotation),
-            ItemPreviewRotationMode.RawXyz => WeaponPakPreviewTransform.CreateRotation(rotation),
-            ItemPreviewRotationMode.DirectYawPitchRoll => Matrix4x4.CreateFromYawPitchRoll(rotation.X, rotation.Y, rotation.Z),
-            ItemPreviewRotationMode.GrnMatrix => CreateGrnRotationMatrix(rotation),
-            _ => Matrix4x4.CreateFromYawPitchRoll(0, 0, 0),
-        };
-    }
-
-    private static Matrix4x4 CreateLegacyViewerPreviewRotation(Vector3 r)
-    {
-        var rotation = CanonicalizePreviewRotation(r);
-
-        // Retained only as a viewer experiment. The Demo inventory path uses RawXyz.
-        return Matrix4x4.CreateFromYawPitchRoll(rotation.Y, rotation.Z, rotation.X);
-    }
-
-    private static Vector3 CanonicalizePreviewRotation(Vector3 rotation)
-    {
-        var x = rotation.X;
-        var y = rotation.Y;
-        while (y > MathF.PI)
-        {
-            x -= MathF.PI;
-            y -= MathF.PI;
-        }
-
-        while (y < -MathF.PI)
-        {
-            x += MathF.PI;
-            y += MathF.PI;
-        }
-
-        return new Vector3(
-            NormalizeAngle(x),
-            NormalizeAngle(y),
-            NormalizeAngle(rotation.Z));
-    }
-
-    private static float NormalizeAngle(float angle)
-    {
-        while (angle > MathF.PI)
-            angle -= MathF.Tau;
-        while (angle < -MathF.PI)
-            angle += MathF.Tau;
-        return angle;
-    }
-
-    private Vector3 GetPivotPoint()
-    {
-        return _pivotMode switch
-        {
-            ItemPreviewPivotMode.ModelOrigin => -_sourceOriginOffset,
-            ItemPreviewPivotMode.BoundsBottomCenter => new Vector3(_meshBounds.Center.X, _meshBounds.Center.Y, _meshBounds.Min.Z),
-            ItemPreviewPivotMode.BoundsTopCenter => new Vector3(_meshBounds.Center.X, _meshBounds.Center.Y, _meshBounds.Max.Z),
-            ItemPreviewPivotMode.BoundsCenterGround => new Vector3(_meshBounds.Center.X, _meshBounds.Center.Y, 0.0f),
-            ItemPreviewPivotMode.WholeModelBoundsCenter when _wholeModelBounds is { } whole => whole.Center,
-            ItemPreviewPivotMode.WholeModelBoundsBottomCenter when _wholeModelBounds is { } whole => new Vector3(whole.Center.X, whole.Center.Y, whole.Min.Z),
-            ItemPreviewPivotMode.WholeModelBoundsTopCenter when _wholeModelBounds is { } whole => new Vector3(whole.Center.X, whole.Center.Y, whole.Max.Z),
-            ItemPreviewPivotMode.WholeRigCenter when _skeletonBounds is { } rig => rig.Center,
-            ItemPreviewPivotMode.WholeRigFeetCenter when _skeletonBounds is { } rig => new Vector3(rig.Center.X, rig.Center.Y, rig.Min.Z),
-            ItemPreviewPivotMode.WholeRigTopCenter when _skeletonBounds is { } rig => new Vector3(rig.Center.X, rig.Center.Y, rig.Max.Z),
-            ItemPreviewPivotMode.RootBone or ItemPreviewPivotMode.SelectedBone when _bonePivot is { } bonePivot => bonePivot,
-            _ => _meshBounds.Center
-        };
-    }
-
-    private static Vector3? ResolveBonePivot(
-        GrnModelDiagnostics? diagnostics,
-        ItemPreviewPivotMode pivotMode,
-        string? pivotBoneName)
-    {
-        var bones = diagnostics?.Slices.SelectMany(static slice => slice.Bones).ToArray() ?? [];
-        if (pivotMode == ItemPreviewPivotMode.RootBone)
-            return bones.FirstOrDefault(static bone => bone.ParentIndex == bone.Index)?.Position;
-        if (pivotMode == ItemPreviewPivotMode.SelectedBone && !string.IsNullOrWhiteSpace(pivotBoneName))
-            return bones.FirstOrDefault(bone => bone.Name.Equals(pivotBoneName, StringComparison.OrdinalIgnoreCase))?.Position;
-        return null;
-    }
-
-    private static Vector3? ResolveBonePosition(GrnModelDiagnostics? diagnostics, string? boneName)
-    {
-        if (string.IsNullOrWhiteSpace(boneName))
-            return null;
-
-        return diagnostics?.Slices
-            .SelectMany(static slice => slice.Bones)
-            .FirstOrDefault(bone => bone.Name.Equals(boneName, StringComparison.OrdinalIgnoreCase))
-            ?.Position;
-    }
-
-    private static Matrix4x4 CreateGrnRotationMatrix(Vector3 rotation)
-    {
-        var cr = MathF.Cos(rotation.X);
-        var sr = MathF.Sin(rotation.X);
-        var cp = MathF.Cos(rotation.Y);
-        var sp = MathF.Sin(rotation.Y);
-        var cy = MathF.Cos(rotation.Z);
-        var sy = MathF.Sin(rotation.Z);
-        var srsp = sr * sp;
-        var crsp = cr * sp;
-
-        // Mirrors grn_format's setRotationRadians matrix, transposed for System.Numerics row-vector use.
-        return new Matrix4x4(
-            cp * cy, srsp * cy - cr * sy, crsp * cy + sr * sy, 0.0f,
-            cp * sy, srsp * sy + cr * cy, crsp * sy - sr * cy, 0.0f,
-            -sp, sr * cp, cr * cp, 0.0f,
-            0.0f, 0.0f, 0.0f, 1.0f);
     }
 
     private Matrix4x4 CreateGridWorldMatrix()
@@ -1116,15 +941,6 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
         indices.Add(start);
         indices.Add((ushort)(start + 2));
         indices.Add((ushort)(start + 3));
-    }
-
-    private ModelGpuMesh? CreateSelectedBoneHighlightMesh(Vector3? bonePosition)
-    {
-        if (bonePosition is not { } position || !IsFinite(position))
-            return null;
-
-        var radius = Math.Clamp(GridCellWorldSize * 0.09f / Math.Max(_modelScale, 0.001f), 0.1f, 25.0f);
-        return UploadMesh(BoneHighlightMeshFactory.Create(position, radius));
     }
 
     private static Vector2 CalculateOccupiedCellCenter(int gridWidth, int gridHeight)

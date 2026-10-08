@@ -18,9 +18,6 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
     private Dx12ItemModelRenderer? _renderer;
     private GrnAsset? _pendingAsset;
     private Vector3 _pendingPreviewRotation;
-    private ItemPreviewRotationMode _pendingRotationMode;
-    private ItemPreviewPivotMode _pendingPivotMode;
-    private string? _pendingPivotBoneName;
     private EquipmentEffectScene _pendingEffectScene = EquipmentEffectScene.Empty;
     private int _pendingGridWidth = 1;
     private int _pendingGridHeight = 1;
@@ -81,27 +78,20 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
         _renderer?.ClearModel();
     }
 
-    public void ShowModel(
-        GrnAsset asset,
+    public void ShowModel(GrnAsset asset,
         Vector3 previewRotation,
         int gridWidth,
         int gridHeight,
-        ItemPreviewRotationMode rotationMode,
-        ItemPreviewPivotMode pivotMode,
-        string? pivotBoneName,
         EquipmentEffectScene effectScene)
     {
         _pendingAsset = asset;
         _animationTime = null;
         _pendingPreviewRotation = previewRotation;
-        _pendingRotationMode = rotationMode;
-        _pendingPivotMode = pivotMode;
-        _pendingPivotBoneName = pivotBoneName;
         _pendingEffectScene = effectScene;
         _pendingGridWidth = gridWidth;
         _pendingGridHeight = gridHeight;
         _pendingTextures = new Dictionary<string, ModelTextureBinding>(StringComparer.OrdinalIgnoreCase);
-        _renderer?.SetModel(asset, previewRotation, gridWidth, gridHeight, rotationMode, pivotMode, pivotBoneName, effectScene);
+        _renderer?.SetModel(asset, previewRotation, gridWidth, gridHeight, effectScene);
         _renderer?.SetAnimationPlaying(_animationPlaying);
         _renderer?.SetUserRotation(_pendingYaw, _pendingPitch, _pendingRoll);
     }
@@ -157,7 +147,7 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
         _renderer.SetInventoryPlacement(_pendingPreviewScale, _pendingPreviewOffset);
         _renderer.SetAssetPreview(_assetPreview);
         if (_pendingAsset is not null)
-            _renderer.SetModel(_pendingAsset, _pendingPreviewRotation, _pendingGridWidth, _pendingGridHeight, _pendingRotationMode, _pendingPivotMode, _pendingPivotBoneName, _pendingEffectScene);
+            _renderer.SetModel(_pendingAsset, _pendingPreviewRotation, _pendingGridWidth, _pendingGridHeight, _pendingEffectScene);
         else
             _renderer.ClearModel();
 

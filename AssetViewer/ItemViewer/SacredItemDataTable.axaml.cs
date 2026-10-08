@@ -12,7 +12,6 @@ using System.Threading.Tasks;
 using AssetViewer.AssetViewer;
 using Avalonia.Collections;
 using Avalonia.Controls;
-using Avalonia.Data;
 using Avalonia.Interactivity;
 using Sacred.Assets;
 using Sacred.Assets.Paks.Models;
@@ -34,19 +33,13 @@ public partial class SacredItemDataTable : UserControl
     private readonly ModelViewerControl _modelViewer = new();
     private readonly SacredItemFilterSaveStore _filterSaveStore = SacredItemFilterSaveStore.CreateDefault();
     private readonly SacredItemFavoriteStore _favoriteStore = SacredItemFavoriteStore.CreateDefault();
-    private readonly SacredItemPreviewConfirmationStore _previewConfirmationStore = SacredItemPreviewConfirmationStore.CreateDefault();
     private Dictionary<string, HashSet<ulong>> _savedEnumFilters = [];
     private HashSet<uint> _favoriteItemIds = [];
-    private IReadOnlyDictionary<uint, SacredItemPreviewConfirmation> _previewConfirmationsByItemId =
-        new Dictionary<uint, SacredItemPreviewConfirmation>();
-    private string? _selectedPivotBoneName;
-    private bool _updatingBoneSelector;
     private string _gameDir = DefaultGameDir;
     private ModelsPakArchive _modelsPakArchive = null!;
     private TexturePakArchive _texturePakArchive = null!;
     private ItemSelectionSoundPlayer? _itemSelectionSoundPlayer;
     private CancellationTokenSource? _modelLoadCancellation;
-    private SacredItemDataModel? _confirmablePreviewItem;
     private GrnBackendKind _grannyBackend = GrnBackendKind.ManagedParser;
     private bool _changingGrannyBackend;
     private bool _hasLoaded;
@@ -64,22 +57,23 @@ public partial class SacredItemDataTable : UserControl
         GrannyBackendComboBox.ItemsSource = Enum.GetValues<GrnBackendKind>();
         GrannyBackendComboBox.SelectedItem = _grannyBackend;
         ModelViewerPanel.Children.Add(_modelViewer);
-        PreviewRotationModeComboBox.ItemsSource = ItemPreviewRotationModeFactory.GetValues();
-        PreviewRotationModeComboBox.SelectedItem = ItemPreviewRotationMode.RawXyz;
-        PreviewRotationModeComboBox.SelectionChanged += ExperimentModeComboBox_OnSelectionChanged;
-        PreviewPivotModeComboBox.ItemsSource = ItemPreviewPivotModeFactory.GetValues();
-        PreviewPivotModeComboBox.SelectedItem = ItemPreviewPivotMode.ModelOrigin;
-        PreviewPivotModeComboBox.SelectionChanged += ExperimentModeComboBox_OnSelectionChanged;
         ModelYawSlider.ValueChanged += (_, _) => UpdateModelRotationFromSliders();
         ModelPitchSlider.ValueChanged += (_, _) => UpdateModelRotationFromSliders();
         ModelRollSlider.ValueChanged += (_, _) => UpdateModelRotationFromSliders();
         DetachedFromVisualTree += (_, _) =>
         {
-            _modelLoadCancellation?.Cancel();
+            CancelModelLoad();
             _itemSelectionSoundPlayer?.Dispose();
             _itemSelectionSoundPlayer = null;
         };
         UpdateModelRotationFromSliders();
+    }
+
+    private void CancelModelLoad()
+    {
+        _modelLoadCancellation?.Cancel();
+        _modelLoadCancellation?.Dispose();
+        _modelLoadCancellation = null;
     }
 
     private void ResetModelRotationSliders()
@@ -127,7 +121,6 @@ public partial class SacredItemDataTable : UserControl
         var savedSettings = _filterSaveStore.Load();
         _savedEnumFilters = savedSettings.EnumFilters;
         _favoriteItemIds = _favoriteStore.Load();
-        _previewConfirmationsByItemId = _previewConfirmationStore.LoadByItemId();
         _grannyBackend = savedSettings.GrannyBackend;
         _changingGrannyBackend = true;
         try
@@ -149,7 +142,6 @@ public partial class SacredItemDataTable : UserControl
         _tableViewModel = new SacredItemDataTableViewModel(items, sacredGameData.GameResStore);
         _tableViewModel.FilterHasModel = savedSettings.FilterHasModel;
         _tableViewModel.SetFavoriteItems(_favoriteItemIds);
-        _tableViewModel.SetConfirmedPreviewItems(CreateConfirmedPreviewItems());
         _tableViewModel.FilterHasModelChanged += OnFilterHasModelChanged;
         DataContext = _tableViewModel;
         var pakDirectory = Path.Combine(_gameDir, "pak");
@@ -166,7 +158,7 @@ public partial class SacredItemDataTable : UserControl
         Console.WriteLine($"[Assets] Equipment viewer ready: {items.Count} entries.");
     }
 
-    private async void GrannyBackendComboBox_OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    private void GrannyBackendComboBox_OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_changingGrannyBackend ||
             GrannyBackendComboBox.SelectedItem is not GrnBackendKind selectedBackend ||
@@ -182,8 +174,7 @@ public partial class SacredItemDataTable : UserControl
 
         try
         {
-            if (_modelLoadCancellation is not null)
-                await _modelLoadCancellation.CancelAsync();
+            CancelModelLoad();
             var loader = GrnAssetLoaderFactory.Create(selectedBackend, _gameDir);
             _modelsPakArchive.ReplaceAssetLoader(loader);
             _grannyBackend = selectedBackend;
@@ -194,9 +185,7 @@ public partial class SacredItemDataTable : UserControl
                 !string.IsNullOrWhiteSpace(selectedItem.ModelName))
             {
                 _modelViewer.ShowStatus($"{selectedItem.ModelName}: reloading with {loader.DisplayName}...");
-                var rotationMode = SelectedRotationMode;
-                var pivotMode = SelectedPivotMode;
-                _ = Task.Run(() => LoadModel(selectedItem, rotationMode, pivotMode));
+                PreviewReady = LoadModel(selectedItem);
             }
             else
             {
@@ -353,13 +342,14 @@ public partial class SacredItemDataTable : UserControl
 
     private void DataGrid_OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
+        CancelModelLoad();
+        PreviewReady = Task.CompletedTask;
+        ResetModelRotationSliders();
         _modelViewer.ShowStatus("...");
         ClearModelData("no model selected");
-        SetConfirmPreviewState(null, false, "");
 
         if (sender is not DataGrid { SelectedItem: SacredItemDataModel selectedItem })
         {
-            ResetModelRotationSliders();
             _modelViewer.ShowStatus("Select an item to load its model.");
             return;
         }
@@ -373,20 +363,14 @@ public partial class SacredItemDataTable : UserControl
             Console.WriteLine($"Could not load the selected item's inventory sound: {exception.Message}");
         }
 
-        ResetModelRotationSliders();
-
         if (string.IsNullOrWhiteSpace(selectedItem.ModelName))
         {
             _modelViewer.ShowStatus($"{selectedItem.ItemName}: no model name.");
             ClearModelData("item has no model");
-            SetConfirmPreviewState(null, false, GetPreviewConfirmationStatus(selectedItem, "No model to confirm."));
             return;
         }
 
-        SetConfirmPreviewState(null, false, GetPreviewConfirmationStatus(selectedItem, "Loading preview..."));
-        var rotationMode = SelectedRotationMode;
-        var pivotMode = SelectedPivotMode;
-        _ = Task.Run(async () => await LoadModel(selectedItem, rotationMode, pivotMode));
+        PreviewReady = LoadModel(selectedItem);
     }
 
     private void MuteSoundsCheckBox_OnCheckedChanged(object? sender, RoutedEventArgs e)
@@ -397,24 +381,8 @@ public partial class SacredItemDataTable : UserControl
     private void DataGrid_OnAutoGeneratingColumn(object? sender, DataGridAutoGeneratingColumnEventArgs e)
     {
         if (e.PropertyName is nameof(SacredItemDataModel.IsFavorite)
-            or nameof(SacredItemDataModel.FavoriteDisplay)
-            or nameof(SacredItemDataModel.PreviewConfirmedDisplay)
-            or nameof(SacredItemDataModel.PreviewConfirmedUserRotationIsZero))
-        {
+            or nameof(SacredItemDataModel.FavoriteDisplay))
             e.Column.IsVisible = false;
-            return;
-        }
-
-        if (e.PropertyName != nameof(SacredItemDataModel.PreviewConfirmed))
-            return;
-
-        e.Column = new DataGridTextColumn
-        {
-            Header = nameof(SacredItemDataModel.PreviewConfirmed),
-            Binding = new Binding(nameof(SacredItemDataModel.PreviewConfirmedDisplay)),
-            SortMemberPath = nameof(SacredItemDataModel.PreviewConfirmed),
-            Width = new DataGridLength(120)
-        };
     }
 
     private void FavoriteButton_OnClick(object? sender, RoutedEventArgs e)
@@ -429,17 +397,9 @@ public partial class SacredItemDataTable : UserControl
         _tableViewModel.SetFavoriteItems(_favoriteItemIds);
     }
 
-    private async Task LoadModel(
-        SacredItemDataModel selectedItem,
-        ItemPreviewRotationMode rotationMode,
-        ItemPreviewPivotMode pivotMode)
+    private async Task LoadModel(SacredItemDataModel selectedItem)
     {
-        if (_modelLoadCancellation != null)
-        {
-            await _modelLoadCancellation.CancelAsync();
-            _modelLoadCancellation.Dispose();
-            _modelLoadCancellation = null;
-        }
+        CancelModelLoad();
 
         _modelLoadCancellation = new CancellationTokenSource();
         var cancellationToken = _modelLoadCancellation.Token;
@@ -450,17 +410,8 @@ public partial class SacredItemDataTable : UserControl
         {
             var archive = _modelsPakArchive;
             var modelName = selectedItem.ModelName;
-            var asset = await archive.LoadModelAsync(modelName, GrnMeshExtractionMode.PrimarySlice, cancellationToken);
+            var asset = await Task.Run(() => archive.LoadModelAsync(modelName, GrnMeshExtractionMode.PrimarySlice, cancellationToken), cancellationToken);
             var viewerPreviewRotation = selectedItem.PreviewRotation;
-            var effectiveRotationMode = ResolveRotationMode(selectedItem, rotationMode);
-            var availableBoneNames = GetBoneNames(asset.Diagnostics);
-            if (_previewConfirmationsByItemId.TryGetValue(selectedItem.ItemId, out var savedConfirmation) &&
-                !string.IsNullOrWhiteSpace(savedConfirmation.PivotBoneName))
-                _selectedPivotBoneName = savedConfirmation.PivotBoneName;
-            if (_selectedPivotBoneName is null ||
-                !availableBoneNames.Contains(_selectedPivotBoneName, StringComparer.OrdinalIgnoreCase))
-                _selectedPivotBoneName = availableBoneNames.FirstOrDefault();
-
             if (cancellationToken.IsCancellationRequested)
                 return;
 
@@ -480,25 +431,9 @@ public partial class SacredItemDataTable : UserControl
                 viewerPreviewRotation,
                 selectedItem.Width,
                 selectedItem.Height,
-                effectiveRotationMode,
-                pivotMode,
-                _selectedPivotBoneName,
                 effectScene);
-            await _modelViewer.Dispatcher.InvokeAsync(() => ShowModelData(asset, selectedItem, effectScene));
-            await _modelViewer.Dispatcher.InvokeAsync(UpdateModelRotationFromSliders);
-            await _modelViewer.Dispatcher.InvokeAsync(() =>
-            {
-                if (DataGrid.SelectedItem is SacredItemDataModel currentItem && currentItem.ItemId == selectedItem.ItemId)
-                {
-                    var hasMesh = asset.Mesh is not null;
-                    SetConfirmPreviewState(
-                        hasMesh ? selectedItem : null,
-                        hasMesh,
-                        hasMesh
-                            ? GetPreviewConfirmationStatus(selectedItem, "Ready to confirm preview rotation.")
-                            : GetPreviewConfirmationStatus(selectedItem, "Loaded model has no mesh to confirm."));
-                }
-            });
+            ShowModelData(asset, selectedItem, effectScene);
+            UpdateModelRotationFromSliders();
             await LoadSelectedModelTexturesAsync(asset, selectedItem, effectScene, cancellationToken);
         }
         catch (OperationCanceledException)
@@ -507,14 +442,16 @@ public partial class SacredItemDataTable : UserControl
         }
         catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or NotSupportedException)
         {
+            if (cancellationToken.IsCancellationRequested)
+                return;
             _modelViewer.ShowStatus($"{selectedItem.ModelName}: {ex.Message}");
-            await _modelViewer.Dispatcher.InvokeAsync(() => ClearModelData("model failed to load"));
+            ClearModelData("model failed to load");
         }
     }
 
     private void ClearModelData(string status)
     {
-        ModelDataExpander.Header = $"Model data — {status}";
+        ToolTip.SetTip(ModelDataExpander, $"Model data — {status}");
         ModelDataExpander.IsEnabled = false;
         ModelDataText.Text = "";
     }
@@ -531,24 +468,9 @@ public partial class SacredItemDataTable : UserControl
             return;
         }
 
-        ModelDataExpander.Header =
-            $"Model data — {diagnostics.Slices.Count} slices, {diagnostics.PartCount} parts, {diagnostics.BoneCount} bones";
+        ToolTip.SetTip(ModelDataExpander,
+            $"Model data — {diagnostics.Slices.Count} slices, {diagnostics.PartCount} parts, {diagnostics.BoneCount} bones");
         ModelDataExpander.IsEnabled = true;
-        var boneNames = GetBoneNames(diagnostics);
-        _updatingBoneSelector = true;
-        try
-        {
-            PreviewPivotBoneComboBox.ItemsSource = boneNames;
-            if (_selectedPivotBoneName is not null && boneNames.Contains(_selectedPivotBoneName, StringComparer.OrdinalIgnoreCase))
-                PreviewPivotBoneComboBox.SelectedItem = boneNames.First(name => name.Equals(_selectedPivotBoneName, StringComparison.OrdinalIgnoreCase));
-            else
-                PreviewPivotBoneComboBox.SelectedIndex = boneNames.Length > 0 ? 0 : -1;
-        }
-        finally
-        {
-            _updatingBoneSelector = false;
-        }
-
         var text = new StringBuilder();
         text.AppendLine($"Name: {asset.Name}");
         text.AppendLine($"Granny implementation: {asset.Backend}" +
@@ -605,14 +527,6 @@ public partial class SacredItemDataTable : UserControl
 
     private static string FormatVector(Vector3 value) =>
         $"({value.X:0.##}, {value.Y:0.##}, {value.Z:0.##})";
-
-    private static string[] GetBoneNames(GrnModelDiagnostics? diagnostics) =>
-        diagnostics?.Slices
-            .SelectMany(static slice => slice.Bones)
-            .Select(static bone => bone.Name)
-            .Where(static name => !string.IsNullOrWhiteSpace(name))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray() ?? [];
 
     private async Task LoadSelectedModelTexturesAsync(
         GrnAsset asset,
@@ -849,44 +763,6 @@ public partial class SacredItemDataTable : UserControl
 
     private sealed record TextureLoadResult(IReadOnlyDictionary<string, ModelTextureBinding> Textures, int FailedCount);
 
-    private ItemPreviewRotationMode SelectedRotationMode =>
-        PreviewRotationModeComboBox.SelectedItem is ItemPreviewRotationMode mode
-            ? mode
-            : ItemPreviewRotationMode.RawXyz;
-
-    private static ItemPreviewRotationMode ResolveRotationMode(
-        SacredItemDataModel item,
-        ItemPreviewRotationMode requestedMode)
-    {
-        if (requestedMode != ItemPreviewRotationMode.Auto)
-            return requestedMode;
-
-        return ItemPreviewRotationMode.RawXyz;
-    }
-
-    private ItemPreviewPivotMode SelectedPivotMode =>
-        PreviewPivotModeComboBox.SelectedItem is ItemPreviewPivotMode mode
-            ? mode
-            : ItemPreviewPivotMode.ModelOrigin;
-
-    private void ExperimentModeComboBox_OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_updatingBoneSelector)
-            return;
-
-        _selectedPivotBoneName = PreviewPivotBoneComboBox.SelectedItem as string;
-        if (!_hasLoaded || DataGrid.SelectedItem is not SacredItemDataModel selectedItem)
-            return;
-
-        if (string.IsNullOrWhiteSpace(selectedItem.ModelName))
-            return;
-
-        SetConfirmPreviewState(null, false, GetPreviewConfirmationStatus(selectedItem, "Loading preview..."));
-        var rotationMode = SelectedRotationMode;
-        var pivotMode = SelectedPivotMode;
-        _ = Task.Run(async () => await LoadModel(selectedItem, rotationMode, pivotMode));
-    }
-
     private void ModelYawResetButton_OnClick(object? sender, RoutedEventArgs e)
     {
         ModelYawSlider.Value = 0.0;
@@ -900,91 +776,6 @@ public partial class SacredItemDataTable : UserControl
     private void ModelRollResetButton_OnClick(object? sender, RoutedEventArgs e)
     {
         ModelRollSlider.Value = 0.0;
-    }
-
-    private void ConfirmPreviewButton_OnClick(object? sender, RoutedEventArgs e)
-    {
-        if (_confirmablePreviewItem is not { } item)
-        {
-            SetConfirmPreviewState(null, false, "Load a model before confirming.");
-            return;
-        }
-
-        var rotationMode = ResolveRotationMode(item, SelectedRotationMode);
-        var pivotMode = SelectedPivotMode;
-        var viewerPreviewRotation = item.PreviewRotation;
-        var userRotationYawPitchRoll = new Vector3(
-            (float)ModelYawSlider.Value,
-            (float)ModelPitchSlider.Value,
-            (float)ModelRollSlider.Value);
-        var confirmation = SacredItemPreviewConfirmation.Create(
-            item,
-            viewerPreviewRotation,
-            userRotationYawPitchRoll,
-            rotationMode,
-            pivotMode,
-            _selectedPivotBoneName,
-            DateTimeOffset.Now);
-
-        var saved = _previewConfirmationStore.Save(confirmation);
-        if (saved)
-        {
-            var confirmations = new Dictionary<uint, SacredItemPreviewConfirmation>(_previewConfirmationsByItemId)
-            {
-                [item.ItemId] = confirmation
-            };
-            _previewConfirmationsByItemId = confirmations;
-            _tableViewModel.SetConfirmedPreviewItems(CreateConfirmedPreviewItems());
-            ConfirmPreviewStatusText.Text = $"Saved {item.ItemId} to {Path.GetFileName(_previewConfirmationStore.FilePath)}; user rot {FormatRotationDegrees(confirmation.UserRotationYawPitchRollDegrees)}.";
-        }
-        else
-        {
-            ConfirmPreviewStatusText.Text = $"Could not save {Path.GetFileName(_previewConfirmationStore.FilePath)}";
-        }
-    }
-
-    private void SetConfirmPreviewState(SacredItemDataModel? item, bool enabled, string status)
-    {
-        _confirmablePreviewItem = item;
-        ConfirmPreviewButton.IsEnabled = enabled;
-        ConfirmPreviewStatusText.Text = status;
-    }
-
-    private IReadOnlyDictionary<uint, SacredItemPreviewConfirmationSummary> CreateConfirmedPreviewItems()
-    {
-        return _previewConfirmationsByItemId.ToDictionary(
-            static pair => pair.Key,
-            static pair => new SacredItemPreviewConfirmationSummary(
-                pair.Value.ConfirmedAt,
-                IsZeroRotation(pair.Value.UserRotationYawPitchRoll)));
-    }
-
-    private string GetPreviewConfirmationStatus(SacredItemDataModel item, string fallback)
-    {
-        return _previewConfirmationsByItemId.TryGetValue(item.ItemId, out var confirmation)
-            ? $"Previously confirmed {confirmation.ConfirmedAt:yyyy-MM-dd HH:mm}; {confirmation.RotationMode}/{FormatPivot(confirmation)}; saved user rot {FormatRotationDegrees(confirmation.UserRotationYawPitchRollDegrees)}. Confirm again to update."
-            : fallback;
-    }
-
-    private static string FormatPivot(SacredItemPreviewConfirmation confirmation) =>
-        confirmation.PivotMode == ItemPreviewPivotMode.SelectedBone &&
-        !string.IsNullOrWhiteSpace(confirmation.PivotBoneName)
-            ? $"{confirmation.PivotMode} ({confirmation.PivotBoneName})"
-            : confirmation.PivotMode.ToString();
-
-    private static Vector3 ToVector3(RotationVectorData rotation)
-    {
-        return new Vector3(rotation.X, rotation.Y, rotation.Z);
-    }
-
-    private static bool IsZeroRotation(RotationVectorData rotation)
-    {
-        return rotation is { X: 0.0f, Y: 0.0f, Z: 0.0f };
-    }
-
-    private static string FormatRotationDegrees(RotationVectorData rotation)
-    {
-        return $"yaw {rotation.X:0.#}, pitch {rotation.Y:0.#}, roll {rotation.Z:0.#} deg";
     }
 
 }

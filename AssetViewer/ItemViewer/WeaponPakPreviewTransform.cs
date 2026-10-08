@@ -3,7 +3,7 @@ using System.Numerics;
 namespace AssetViewer.ItemViewer;
 
 /// <summary>
-/// Builds the rotation portion of Sacred's inventory-preview matrix.
+/// Builds Sacred's inventory model basis, world matrix, and view/projection.
 /// Demo <c>TypeManager::getInventoryWorldMatrix</c> at <c>0x41F340</c> calls
 /// the X, Y, and Z matrix helpers in record order and appends each to the
 /// accumulated scale matrix. The native Z helper has the opposite sine signs
@@ -11,6 +11,15 @@ namespace AssetViewer.ItemViewer;
 /// </summary>
 internal static class WeaponPakPreviewTransform
 {
+    public static Matrix4x4 CreateModelSpace(Vector3 pivot)
+    {
+        // Mesh extraction has already applied Models.pak scale and centered/
+        // grounded the vertices. Restore the requested origin, then reproduce
+        // getModel's GrannyTransformModel scale (sx, -sy, sz). This reflection
+        // precedes the Weapon.pak rotations; it is not a sign change to them.
+        return Matrix4x4.CreateTranslation(-pivot) * Matrix4x4.CreateScale(1, -1, 1);
+    }
+
     public static Matrix4x4 CreateRotation(Vector3 rotation)
     {
         return Matrix4x4.CreateRotationX(rotation.X) *

@@ -10,13 +10,6 @@ using Sacred.Core.Pak.Weapon;
 
 namespace AssetViewer.ItemViewer;
 
-public enum PreviewConfirmationFilterMode
-{
-    All,
-    Confirmed,
-    Unconfirmed
-}
-
 public partial class SacredItemDataTableViewModel : ObservableObject
 {
     private readonly List<SacredItemDataModel> _allEquipments;
@@ -37,14 +30,11 @@ public partial class SacredItemDataTableViewModel : ObservableObject
 
     public ObservableCollection<EnumFilterViewModel> EnumFilters { get; } = [];
 
-    public IReadOnlyList<PreviewConfirmationFilterMode> PreviewConfirmationFilterOptions { get; } =
-        Enum.GetValues<PreviewConfirmationFilterMode>();
-
     public int TotalItems => _filteredEquipments.Count;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentPage))]
-    public partial int PageSize { get; private set; } = 30;
+    public partial int PageSize { get; private set; } = 24;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasNextPage))]
@@ -66,9 +56,6 @@ public partial class SacredItemDataTableViewModel : ObservableObject
     [ObservableProperty]
     public partial bool FilterFavoritesOnly { get; set; }
 
-    [ObservableProperty]
-    public partial PreviewConfirmationFilterMode PreviewConfirmationFilter { get; set; }
-
     public event Action<bool>? FilterHasModelChanged;
 
     partial void OnComparerChanged(IComparer<SacredItemDataModel> value) => ApplySort();
@@ -86,38 +73,6 @@ public partial class SacredItemDataTableViewModel : ObservableObject
         RebuildFilteredEquipments();
         NotifyPagingStateChanged();
         LoadPage(0);
-    }
-
-    partial void OnPreviewConfirmationFilterChanged(PreviewConfirmationFilterMode value)
-    {
-        RebuildFilteredEquipments();
-        NotifyPagingStateChanged();
-        LoadPage(0);
-    }
-
-    public void SetConfirmedPreviewItems(IReadOnlyDictionary<uint, SacredItemPreviewConfirmationSummary> confirmedItems)
-    {
-        for (var i = 0; i < _allEquipments.Count; i++)
-        {
-            var item = _allEquipments[i];
-            _allEquipments[i] = confirmedItems.TryGetValue(item.ItemId, out var confirmation)
-                ? item with
-                {
-                    PreviewConfirmed = true,
-                    PreviewConfirmedAt = confirmation.ConfirmedAt,
-                    PreviewConfirmedUserRotationIsZero = confirmation.UserRotationIsZero
-                }
-                : item with
-                {
-                    PreviewConfirmed = false,
-                    PreviewConfirmedAt = null,
-                    PreviewConfirmedUserRotationIsZero = false
-                };
-        }
-
-        RebuildFilteredEquipments();
-        NotifyPagingStateChanged();
-        LoadPage(CurrentPage);
     }
 
     public void SetFavoriteItems(IReadOnlySet<uint> favoriteItemIds)
@@ -246,13 +201,6 @@ public partial class SacredItemDataTableViewModel : ObservableObject
         if (FilterFavoritesOnly && !item.IsFavorite)
             return false;
 
-        if (PreviewConfirmationFilter == PreviewConfirmationFilterMode.Confirmed && !item.PreviewConfirmed)
-            return false;
-
-        if (PreviewConfirmationFilter == PreviewConfirmationFilterMode.Unconfirmed
-            && (string.IsNullOrEmpty(item.ModelName) || item.PreviewConfirmed))
-            return false;
-
         return true;
     }
 
@@ -279,7 +227,3 @@ public partial class SacredItemDataTableViewModel : ObservableObject
         HashSet<ulong> SelectedValues,
         PropertyInfo Property);
 }
-
-public readonly record struct SacredItemPreviewConfirmationSummary(
-    DateTimeOffset ConfirmedAt,
-    bool UserRotationIsZero);

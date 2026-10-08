@@ -98,7 +98,9 @@ public readonly struct ModelsMetadataModelLayout
     /// <summary>Attack motion index for the fourteenth weapon style.</summary>
     [FieldOffset(1076)] public readonly uint AttackMotionIndex13;
 
-    /// <summary>Native <c>cGrannyModelChunk::scale[3]</c>.</summary>
+    /// <summary>Native <c>cGrannyModelChunk::scale[3]</c>. Demo getModel transforms
+    /// model coordinates with (scale[0], -scale[1], scale[2]); the Y reflection
+    /// belongs to model space and precedes the Weapon.pak inventory matrix.</summary>
     [FieldOffset(0x470)] public readonly ModelChunkScale Scale;
     /// <summary>Native <c>cGrannyModelChunk::reserved[11]</c>.</summary>
     [FieldOffset(0x47C), BinaryUnknown] public readonly ModelChunkReservedWords Reserved;
