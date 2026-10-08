@@ -23,6 +23,7 @@ public sealed class ModelViewerControl : UserControl
     private int _gridHeight = 1;
     private int _effectTextureCount;
     private bool _assetPreview;
+    private bool _compactStatus;
     public event Action<float>? HorizontalRotationChanged;
 
     public ModelViewerControl()
@@ -110,6 +111,10 @@ public sealed class ModelViewerControl : UserControl
         RunOnUiThread(() => _viewport.SetInventoryPlacement(scale, offset));
     }
 
+    public void SetZoomEnabled(bool enabled) => _viewport.SetZoomEnabled(enabled);
+
+    public void SetAssetFrame(GrnAsset? baseModel) => RunOnUiThread(() => _viewport.SetAssetFrame(baseModel));
+
     public void SaveScreenshot(string path) => _viewport.SaveScreenshot(path);
     public void RotateHorizontally(float radians) => RunOnUiThread(() => _viewport.RotateHorizontally(radians));
     public void SetAnimationPlaying(bool playing) => RunOnUiThread(() => _viewport.SetAnimationPlaying(playing));
@@ -119,6 +124,13 @@ public sealed class ModelViewerControl : UserControl
     {
         _assetPreview = enabled;
         _viewport.SetAssetPreview(enabled);
+    }
+
+    public void SetCompactStatus(bool enabled)
+    {
+        _compactStatus = enabled;
+        _statusText.MaxLines = enabled ? 2 : 0;
+        SetStatusText(_status);
     }
 
     public void SetUserRotation(float yaw, float pitch, float roll)
@@ -180,6 +192,8 @@ public sealed class ModelViewerControl : UserControl
     {
         _status = status;
         _statusText.Text = status;
+        _statusText.IsVisible = !_compactStatus || _asset?.Mesh is null;
+        ToolTip.SetTip(_statusText, _compactStatus ? status : null);
     }
 
     private void RunOnUiThread(Action action)

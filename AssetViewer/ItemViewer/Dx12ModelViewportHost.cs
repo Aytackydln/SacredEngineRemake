@@ -17,6 +17,7 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
     private EmbeddedRenderWindow? _window;
     private Dx12ItemModelRenderer? _renderer;
     private GrnAsset? _pendingAsset;
+    private GrnAsset? _pendingAssetFrame;
     private Vector3 _pendingPreviewRotation;
     private EquipmentEffectScene _pendingEffectScene = EquipmentEffectScene.Empty;
     private int _pendingGridWidth = 1;
@@ -28,6 +29,7 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
     private float _pendingPreviewScale = 1.0f;
     private Vector3 _pendingPreviewOffset;
     private bool _assetPreview;
+    private bool _zoomEnabled = true;
     private bool _animationPlaying = true;
     private float? _animationTime;
     public event Action<float>? HorizontalRotationChanged;
@@ -60,6 +62,14 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
         _renderer?.SetAssetPreview(enabled);
     }
 
+    public void SetZoomEnabled(bool enabled) => _zoomEnabled = enabled;
+
+    public void SetAssetFrame(GrnAsset? baseModel)
+    {
+        _pendingAssetFrame = baseModel;
+        _renderer?.SetAssetFrame(baseModel);
+    }
+
     public Dx12ModelViewportHost()
     {
         Focusable = true;
@@ -73,6 +83,7 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
     public void ClearModel()
     {
         _pendingAsset = null;
+        SetAssetFrame(null);
         _pendingEffectScene = EquipmentEffectScene.Empty;
         _pendingTextures = new Dictionary<string, ModelTextureBinding>(StringComparer.OrdinalIgnoreCase);
         _renderer?.ClearModel();
@@ -151,6 +162,8 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
         else
             _renderer.ClearModel();
 
+        _renderer.SetAssetFrame(_pendingAssetFrame);
+
         _renderer.SetUserRotation(_pendingYaw, _pendingPitch, _pendingRoll);
         _renderer.SetAnimationPlaying(_animationPlaying);
         if (_animationTime is { } time) _renderer.SetAnimationTime(time);
@@ -203,6 +216,7 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
 
     private void ZoomBy(double delta)
     {
+        if (!_zoomEnabled) return;
         _renderer?.ZoomBy(delta);
     }
 }

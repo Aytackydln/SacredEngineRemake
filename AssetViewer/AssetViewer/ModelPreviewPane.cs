@@ -10,6 +10,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Sacred.Assets.Paks.Texture;
+using Sacred.Core.Pak.Weapon;
+using Sacred.Granny.Abstractions;
 using Sacred.Granny.Assets;
 
 namespace AssetViewer.AssetViewer;
@@ -21,19 +23,33 @@ internal sealed class ModelPreviewPane : UserControl
     private readonly Action _resetRotation;
     private CancellationTokenSource? _load;
     private bool _closed;
+    private SacredEquipment? _inventoryItem;
+    private Func<CancellationToken, Task<GrnAsset>>? _actorFrameLoader;
+    private string? _lastPreviewName;
 
-    public ModelPreviewPane(AssetViewerSession session)
+    public ModelPreviewPane(AssetViewerSession session) : this(session, false) { }
+
+    public ModelPreviewPane(AssetViewerSession session, bool compact)
     {
         _session = session;
+        _viewer.SetCompactStatus(compact);
+        if (compact)
+        {
+            _viewer.SetAssetPreview(false);
+            _viewer.SetZoomEnabled(false);
+            _resetRotation = () => { };
+            Content = _viewer;
+            return;
+        }
         _viewer.SetAssetPreview(true);
-        var yaw = new Slider { Minimum = -Math.PI, Maximum = Math.PI, Width = 180 };
-        var pitch = new Slider { Minimum = -Math.PI, Maximum = Math.PI, Width = 140 };
+        var yaw = new Slider { Minimum = -Math.PI, Maximum = Math.PI };
+        var pitch = new Slider { Minimum = -Math.PI, Maximum = Math.PI };
         var reset = new Button { Content = "Reset camera" };
-        var bar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 0, 0, 8) };
+        var bar = new Grid { ColumnDefinitions = new("Auto,9*,7*,Auto"), ColumnSpacing = 8, Margin = new Thickness(0, 0, 0, 8) };
         bar.Children.Add(new TextBlock { Text = "Rotate", VerticalAlignment = VerticalAlignment.Center });
-        bar.Children.Add(yaw);
-        bar.Children.Add(pitch);
-        bar.Children.Add(reset);
+        Grid.SetColumn(yaw, 1); bar.Children.Add(yaw);
+        Grid.SetColumn(pitch, 2); bar.Children.Add(pitch);
+        Grid.SetColumn(reset, 3); bar.Children.Add(reset);
         yaw.ValueChanged += (_, _) => _viewer.SetUserRotation((float)yaw.Value, (float)pitch.Value, 0);
         pitch.ValueChanged += (_, _) => _viewer.SetUserRotation((float)yaw.Value, (float)pitch.Value, 0);
         _viewer.HorizontalRotationChanged += value => yaw.Value = value;
@@ -53,6 +69,21 @@ internal sealed class ModelPreviewPane : UserControl
 
     public Task CurrentLoad { get; private set; } = Task.CompletedTask;
 
+    public Task LoadActorAsync(string name, Func<CancellationToken, Task<GrnAsset>> loader,
+        IReadOnlyList<ModelPreviewVisual> visuals)
+    {
+        _actorFrameLoader = token => _session.Models.LoadCharacterBaseModelAsync(name, [], token);
+        return LoadAsync(name, loader, visuals);
+    }
+
+    public Task LoadInventoryItemAsync(SacredEquipment item)
+    {
+        _inventoryItem = item;
+        return LoadAsync(item.Item.ModelName,
+            token => _session.Models.LoadModelAsync(item.Item.ModelName, GrnMeshExtractionMode.PrimarySlice, token),
+            [new ModelPreviewVisual(item.Item, item)]);
+    }
+
     public void ShowStatus(string status)
     {
         _load?.Cancel();
@@ -64,7 +95,9 @@ internal sealed class ModelPreviewPane : UserControl
     public Task LoadAsync(string name, Func<CancellationToken, Task<GrnAsset>> loader,
         IReadOnlyList<ModelPreviewVisual> visuals, bool compositeSlices = false)
     {
-        _resetRotation();
+        if (_actorFrameLoader is null || !string.Equals(name, _lastPreviewName, StringComparison.OrdinalIgnoreCase))
+            _resetRotation();
+        _lastPreviewName = name;
         _load?.Cancel();
         _load?.Dispose();
         _load = new CancellationTokenSource();
@@ -86,15 +119,31 @@ internal sealed class ModelPreviewPane : UserControl
     private async Task LoadCoreAsync(string name, Func<CancellationToken, Task<GrnAsset>> loader,
         IReadOnlyList<ModelPreviewVisual> visuals, bool compositeSlices, CancellationToken token)
     {
+        var inventoryItem = _inventoryItem;
+        var frameLoader = _actorFrameLoader;
         _viewer.ShowStatus($"{name}: loading...");
         try
         {
-            var asset = await Task.Run(() => loader(token), token);
+            var modelLoad = Task.Run(() => loader(token), token);
+            var frameLoad = Task.Run(async () => frameLoader is null ? null : await frameLoader(token), token);
+            await Task.WhenAll((Task)modelLoad, frameLoad);
+            var asset = await modelLoad;
+            var frame = await frameLoad;
             token.ThrowIfCancellationRequested();
             if (_closed) return;
-            var effects = await Task.Run(() => AssetPreviewEffects.Create(asset, visuals, compositeSlices), token);
+            var effects = await Task.Run(() => inventoryItem is not null
+                ? EquipmentEffectScene.Empty
+                : AssetPreviewEffects.Create(asset, visuals, compositeSlices), token);
             token.ThrowIfCancellationRequested();
-            _viewer.ShowModel(asset, Vector3.Zero, 1, 1, effects);
+            if (inventoryItem is { } inventory)
+            {
+                _viewer.SetInventoryPlacement(inventory.PreviewScale, inventory.PreviewOffset);
+                _viewer.ShowModel(asset, inventory.PreviewRotation, inventory.Width, inventory.Height, effects);
+                Console.WriteLine($"[Assets] Inventory item placement: {inventory.IdemId}; rotation={inventory.PreviewRotation}; " +
+                    $"scale={inventory.PreviewScale}; offset={inventory.PreviewOffset}; cells={inventory.Width}x{inventory.Height}.");
+            }
+            else _viewer.ShowModel(asset, Vector3.Zero, 1, 1, effects);
+            _viewer.SetAssetFrame(frame);
             var loaded = new Dictionary<string, ModelTextureBinding>(StringComparer.OrdinalIgnoreCase);
             var failures = 0;
             var aliases = new Dictionary<string, ModelTextureReference>(StringComparer.OrdinalIgnoreCase);

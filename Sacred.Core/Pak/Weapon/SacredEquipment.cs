@@ -51,7 +51,8 @@ public readonly struct SacredEquipmentLayout
     [FieldOffset(29)]
     public readonly byte Height;
 
-    /// <summary>Weapon or animation usage code, partly associated with handedness.</summary>
+    /// <summary>Weapon/animation usage code. Gold's hand-slot predicates use 7/13 for bows
+    /// and 12/14 for crossbows/muskets (left hand); other weapon usages use the right hand.</summary>
     [FieldOffset(30)]
     public readonly byte UsageIdentifier;
 
@@ -89,7 +90,8 @@ public readonly struct SacredEquipmentLayout
     [FieldOffset(132)]
     public readonly SacredCharacterClassMask CharacterClassMask;
 
-    /// <summary>Equipment category.</summary>
+    /// <summary>Stored weapon subtype in sWeaponInfo::Flag. Valid as a weapon subtype only
+    /// for Items.pak family Weapon; armor and shield roles come from the Items.pak family.</summary>
     [FieldOffset(133)]
     public readonly SacredEquipmentType EquipmentType;
 
@@ -174,7 +176,7 @@ public readonly record struct SacredEquipment(
     private static readonly Encoding SacredEncoding = Encoding.GetEncoding("iso-8859-1");
 
     public SacredCharacterClassMask EffectiveCharacterClassMask => Classification.EffectiveCharacterClassMask;
-    public SacredEquipmentType EquipmentType => Classification.EquipmentType;
+    public SacredEquipmentType EquipmentType => Classification.ResolveEquipmentType(Item.ModelDesc.Category);
     public SacredEquipmentRarityTier RarityTier => Classification.RarityTier;
     public SacredEquipmentHandedness InferredHandedness => Classification.InferHandedness(UsageIdentifier, Height);
 

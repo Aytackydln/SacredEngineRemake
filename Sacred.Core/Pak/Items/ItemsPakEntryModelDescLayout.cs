@@ -86,7 +86,8 @@ public readonly struct ItemsPakEntryModelDescLayout
     [FieldOffset(24)]
     public readonly ushort WeaponEntry;
 
-    /// <summary>Index into the loaded creature table.</summary>
+    /// <summary>Runtime index into Creature.pak, resolved by Gold 0x43AD80. The native loader
+    /// rebuilds it from template ItemType fields; the authored descriptor can contain zero.</summary>
     [FieldOffset(26)]
     public readonly ushort CreatureEntry;
 
@@ -117,8 +118,13 @@ public readonly struct ItemsPakEntryModelDescLayout
     [FieldOffset(44)]
     public readonly ushort StaticSpriteFrameCount;
 
-    /// <summary>Item family used by Sacred.exe gameplay and inventory UI code.</summary>
+    /// <summary>Item family used by Sacred.exe gameplay, inventory and equipment attachment.
+    /// Demo 0x401A10 / Gold 0x401AE0 use Ring (8) to choose the equipped slot's Finger31
+    /// bone and Amulet (20) for the neck lookup. The slot decides rigid versus wearable binding.</summary>
     [FieldOffset(46)]
+    // Native inventory slot predicates also read this family (Demo 0x4277A0,
+    // Gold 0x43EFC0). It determines shield/armor/jewelry roles even when the
+    // Weapon.pak type byte is zero; only Weapon family uses its weapon subtype.
     public readonly SacredItemCategory Category;
 
     /// <summary>
@@ -203,11 +209,12 @@ public readonly struct ItemsPakEntryModelDescLayout
     [FieldOffset(102)]
     public readonly uint EffectTextureId;
 
-    /// <summary>Upgrade-item category.</summary>
+    /// <summary>Rune combat-art code. Demo getUpgradeSpellMove (0x424960) returns this
+    /// word; consuming a rune looks it up in the spell and special-move definitions.</summary>
     [FieldOffset(106)]
     public readonly ushort UpgradeItemType;
 
-    /// <summary>Upgrade behavior flags.</summary>
+    /// <summary>Upgrade behavior flags. Rune records use 1 for spells and 2 for special moves.</summary>
     [FieldOffset(108)]
     public readonly ushort UpgradeFlags;
 

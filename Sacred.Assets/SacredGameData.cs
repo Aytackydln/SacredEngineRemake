@@ -1,6 +1,8 @@
 ﻿using System.Collections.Frozen;
+using Sacred.Assets.CombatArts;
 using Sacred.Assets.GameBin.Sets;
 using Sacred.Assets.GameBin.WeaponModifiers;
+using Sacred.Assets.Paks.Creature;
 using Sacred.Assets.Paks.Items;
 using Sacred.Assets.Paks.Weapon;
 using Sacred.Core;
@@ -16,11 +18,15 @@ public class SacredGameData
     public GameResStore GameResStore { get; }
     public IReadOnlyList<SacredSetEntry> ItemSets { get; private init; } = [];
     public IReadOnlyList<SacredWeaponModifier> WeaponModifiers { get; private init; } = [];
+    public CreaturePakArchive? Creatures { get; private init; }
+    public SacredCombatArtCatalog CombatArts { get; }
 
     private SacredGameData(GamePakStore gamePakStore, GameResStore gameResStore)
     {
         GamePakStore = gamePakStore;
         GameResStore = gameResStore;
+        CombatArts = new(gamePakStore.Items.Values, gamePakStore.Weapons.Values);
+        Console.WriteLine($"Loaded rune combat arts: {CombatArts.Entries.Count} definitions.");
     }
 
     public static SacredGameData LoadFromGamePaks(SacredGameDirectories gameDirectories)
@@ -34,11 +40,15 @@ public class SacredGameData
         var modifiersPath = gameDirectories.WeaponModifiersPath ?? Path.Combine(
             Path.GetDirectoryName(Path.GetDirectoryName(Path.GetFullPath(gameDirectories.WeaponsPakPath)))!, "bin", "wpmod.bin");
         var modifiers = File.Exists(modifiersPath) ? WeaponModifiersBinArchive.Load(modifiersPath) : [];
+        var creaturesPath = Path.Combine(Path.GetDirectoryName(gameDirectories.ItemsPakPath)!, "Creature.pak");
+        var creatures = File.Exists(creaturesPath) ? CreaturePakArchive.Load(creaturesPath) : null;
+        Console.WriteLine($"Loaded creature templates: {creatures?.Entries.Count ?? 0} definitions.");
         Console.WriteLine($"Loaded weapon generation table: {modifiers.Count} definitions.");
         return new SacredGameData(gamePakStore, gameResStore)
         {
             ItemSets = File.Exists(setsPath) ? SetsBinArchive.Load(setsPath) : [],
-            WeaponModifiers = modifiers
+            WeaponModifiers = modifiers,
+            Creatures = creatures
         };
     }
 

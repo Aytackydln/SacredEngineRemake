@@ -7,6 +7,8 @@ using System.Linq;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
+using Sacred.Assets.CombatArts;
+using Sacred.Assets.Paks.Creature;
 using Sacred.Assets.Paks.Mixed;
 using Sacred.Assets.Paks.Models;
 using Sacred.Assets.Paks.Texture;
@@ -40,6 +42,7 @@ public sealed class AssetManager : IDisposable
     private readonly FrozenDictionary<ushort, ItemsPakEntry> _itemsByModelId;
     private readonly FrozenDictionary<uint, ItemsPakEntry[]> _itemsByItemId;
     private readonly FrozenDictionary<ushort, SacredEquipment> _equipmentByModelId;
+    private readonly SacredCombatArtCatalog _combatArts;
     private readonly IReadOnlyList<SacredEquipment>[] _itemSetEquipment;
     private readonly MixedPakArchive _mixedPak;
     private readonly ModelsPakArchive _modelsPak;
@@ -83,6 +86,7 @@ public sealed class AssetManager : IDisposable
     public float PlayableCharacterLightRadius { get; }
     public IReadOnlyList<SacredSetEntry> ItemSets { get; }
     public GameResStore Resources { get; }
+    public CreaturePakArchive? CreatureTemplates { get; init; }
 
     internal AssetManager(
         TexturePakArchive texturePak,
@@ -110,6 +114,7 @@ public sealed class AssetManager : IDisposable
         Resources = resources ?? GameResStore.Empty;
         _equipmentByModelId = SacredEquipmentVisualResolver.Resolve(_itemsByModelId, equipment)
             .ToFrozenDictionary(static item => checked((ushort)item.IdemId));
+        _combatArts = new(items, equipment);
         _itemsByModelId = items.Select(item => _equipmentByModelId.TryGetValue(item.ItemIndex, out var entry)
                 ? entry.Item : item).ToFrozenDictionary(static item => item.ItemIndex);
         _itemsByItemId = _itemsByModelId.Values
@@ -134,7 +139,9 @@ public sealed class AssetManager : IDisposable
     internal PlayerCharacterLoadout CreatePlayerCharacterLoadout(uint entryId)
     {
         var definition = GetPlayerCharacterDefinition(entryId);
-        var actor = new SacredGameActor(definition.CharacterClass);
+        var template = CreatureTemplates?.ResolveTemplate(ResolvePlayerCharacterItem(definition.BaseItemId));
+        var actor = new SacredGameActor(definition.CharacterClass, template);
+        actor.Progression.ConfigureCombatArts(_combatArts.Entries);
         foreach (var (slot, itemId) in definition.Items)
         {
             if (!TryResolveEquipment(itemId, out var equipment))
@@ -1250,10 +1257,16 @@ public sealed class AssetManager : IDisposable
 
     private PlayerCharacterAttachmentItem[] ResolvePlayerCharacterItems(SacredGameActor actor)
     {
-        return actor.EquipmentSlots
-            .Where(static slot => slot.Equipment is not null)
-            .Select(static slot => new PlayerCharacterAttachmentItem(slot.Type, slot.Equipment!.Value))
-            .ToArray();
+        var occurrences = new Dictionary<EquipmentSlotType, int>();
+        var attachments = new List<PlayerCharacterAttachmentItem>();
+        foreach (var slot in actor.EquipmentSlots)
+        {
+            var occurrence = occurrences.GetValueOrDefault(slot.Type);
+            occurrences[slot.Type] = occurrence + 1;
+            if (slot.Equipment is { Item.ModelName.Length: > 0 } equipment)
+                attachments.Add(new(slot.Type, equipment) { SlotOccurrence = occurrence });
+        }
+        return attachments.ToArray();
     }
 
     private IReadOnlyDictionary<string, ModelTextureReference> CreatePlayerCharacterTextureAliases(
@@ -1302,7 +1315,7 @@ public sealed class AssetManager : IDisposable
             effects.Add(new EquipmentEffectAttachment(
                 index + 1,
                 attachmentItem.Item.ModelName,
-                AttachmentPlacement(attachmentItem.SlotType, attachmentItem.Equipment.EquipmentType).TargetBone,
+                EquipmentModelPlacement.Resolve(attachmentItem.SlotType, attachmentItem.Equipment.EquipmentType, attachmentItem.SlotOccurrence).TargetBone,
                 attachmentItem.Equipment.Damage,
                 boundsSize)
             {
@@ -1322,21 +1335,13 @@ public sealed class AssetManager : IDisposable
         IReadOnlyList<PlayerCharacterAttachmentItem> attachments) =>
         attachments.Select(attachment =>
         {
-            var placement = AttachmentPlacement(attachment.SlotType, attachment.Equipment.EquipmentType);
+            var placement = EquipmentModelPlacement.Resolve(attachment.SlotType, attachment.Equipment.EquipmentType, attachment.SlotOccurrence);
             return new ModelAttachmentReference(attachment.Item.ModelName, placement.TargetBone, placement.SourceBone);
         }).ToArray();
 
     private static (string? TargetBone, string? SourceBone) AttachmentPlacement(
         EquipmentSlotType slot,
-        SacredEquipmentType? equipmentType) => (slot, equipmentType) switch
-    {
-        (EquipmentSlotType.LeftHand, SacredEquipmentType.Shield) => ("Bip01 L Forearm", "Bone_weapon_02"),
-        (EquipmentSlotType.LeftHand, _) => ("Bip01 L Hand", "Bone_weapon_02"),
-        (EquipmentSlotType.RightHand, _) => ("Bip01 R Hand", "Bone_weapon_01"),
-        // Native wing slots attach their authored pivot rather than retargeting a wearable skeleton.
-        (EquipmentSlotType.Wings, SacredEquipmentType.Wings) => ("Bip01 Spine2", "Bone_spine"),
-        _ => (null, null)
-    };
+        SacredEquipmentType? equipmentType) => EquipmentModelPlacement.Resolve(slot, equipmentType);
 
     private void AddItemTextureAliases(
         Dictionary<string, ModelTextureReference> aliases,
@@ -1447,6 +1452,7 @@ public sealed class AssetManager : IDisposable
         EquipmentSlotType SlotType,
         SacredEquipment Equipment)
     {
+        public int SlotOccurrence { get; init; }
         public ItemsPakEntry Item => Equipment.Item;
     }
 

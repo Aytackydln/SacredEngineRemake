@@ -25,4 +25,13 @@ public static class SacredEquipmentBonusDescriptions
 
     public static SacredEquipmentDescriptionField? Create(uint group, ushort type, short value, GameResStore resources) =>
         new SacredEquipmentBonusDescriptionFormatter(resources).Format(SacredEquipmentBonusDecoder.Decode(group, type, value));
+
+    /// <summary>Formats an aggregate without narrowing it back to the native signed-short magnitude.</summary>
+    public static SacredEquipmentDescriptionField? CreateTotal(SacredEquipmentBonus bonus, int value, GameResStore resources)
+    {
+        var field = new SacredEquipmentBonusDescriptionFormatter(resources).Format(bonus with { Value = 0 });
+        if (field is null || bonus.Unit == SacredEquipmentBonusUnit.None) return field;
+        // Native display starts with the signed number; the remainder retains unit and attribute qualifier.
+        return field with { Value = SacredEquipmentDescriptionText.Signed(value) + field.Value[2..] };
+    }
 }

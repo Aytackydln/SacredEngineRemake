@@ -12,6 +12,8 @@ public static partial class Granny1MeshExtractor
         if (sourceSkeleton is null || targetSkeleton is null)
             return null;
 
+        var retargetedAttachments = RetargetAttachments(sourceSkeleton, targetSkeleton);
+
         var partTieTransforms = new Matrix4x4?[slice.Parts.Length][];
         var partTargetBoneIndices = new int[slice.Parts.Length][];
         var mappedTieCount = 0;
@@ -35,12 +37,25 @@ public static partial class Granny1MeshExtractor
 
                 var sourceBone = sourceSkeleton.Bones[sourceBoneIndex];
                 if (string.IsNullOrWhiteSpace(sourceBone.Name) ||
-                    !targetSkeleton.BonesByName.TryGetValue(sourceBone.Name, out var targetBoneIndex) ||
                     !Matrix4x4.Invert(sourceBone.RestWorld, out var inverseSourceRest))
                     continue;
 
+                Matrix4x4 targetRest;
+                if (targetSkeleton.BonesByName.TryGetValue(sourceBone.Name, out var targetBoneIndex))
+                    targetRest = targetSkeleton.Bones[targetBoneIndex].RestWorld;
+                else
+                {
+                    // Wearable meshes can weight an authored helper (for example an amulet)
+                    // absent from the base skeleton. Preserve its local transform below the
+                    // shared ancestor, using the same hierarchy mapping as effect helpers.
+                    var attachment = retargetedAttachments[sourceBoneIndex];
+                    if (attachment.AnimationBoneName is not { } ancestor ||
+                        !targetSkeleton.BonesByName.TryGetValue(ancestor, out targetBoneIndex)) continue;
+                    targetRest = attachment.RestWorld;
+                }
+
                 // System.Numerics transforms row vectors, so the column-vector Granny skinning order is reversed.
-                tieTransforms[tieIndex] = inverseSourceRest * targetSkeleton.Bones[targetBoneIndex].RestWorld;
+                tieTransforms[tieIndex] = inverseSourceRest * targetRest;
                 targetBoneIndices[tieIndex] = targetBoneIndex;
                 mappedTieCount++;
             }
@@ -125,7 +140,7 @@ public static partial class Granny1MeshExtractor
         return slice with
         {
             Parts = parts,
-            RetargetedAttachments = RetargetAttachments(sourceSkeleton, targetSkeleton)
+            RetargetedAttachments = retargetedAttachments
         };
     }
 

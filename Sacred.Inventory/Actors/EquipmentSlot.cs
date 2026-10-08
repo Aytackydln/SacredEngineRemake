@@ -1,15 +1,27 @@
 using System;
 using Sacred.Core.Pak.Weapon;
+using Sacred.Inventory.Items;
 
 namespace Sacred.Inventory.Actors;
 
 public sealed class EquipmentSlot(EquipmentSlotType type)
 {
     public EquipmentSlotType Type { get; } = type;
-    public SacredEquipment? Equipment { get; private set; }
+    public SacredItemInstance? Instance { get; private set; }
+    public SacredEquipment? Equipment => Instance?.Definition;
+    public event Action? Changed;
 
-    public void Equip(SacredEquipment equipment) => Equipment = equipment;
-    public void Unequip() => Equipment = null;
+    public void Equip(SacredEquipment equipment) => Equip(SacredItemInstance.FromDefinition(equipment));
+    public void Equip(SacredItemInstance instance)
+    {
+        Instance = instance ?? throw new ArgumentNullException(nameof(instance));
+        Changed?.Invoke();
+    }
+    public void Unequip()
+    {
+        Instance = null;
+        Changed?.Invoke();
+    }
 }
 
 public enum EquipmentSlotType

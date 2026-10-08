@@ -1,4 +1,5 @@
 using Raiqub.Generators.EnumUtilities;
+using Sacred.Core.Pak.Items;
 
 namespace Sacred.Core.Pak.Weapon;
 
@@ -50,6 +51,7 @@ public enum SacredEquipmentType : byte
     Misc = 29,
     Pistol = 30,
     Musket = 31,
+    DwarfCannon = 32,
 }
 
 [EnumGenerator]
@@ -108,6 +110,28 @@ public readonly record struct SacredEquipmentClassification(
 )
 {
     public SacredEquipmentRarityTier RarityTier => (SacredEquipmentRarityTier)RarityTierCode;
+
+    /// <summary>Non-weapon roles come from Items.pak's family byte, as native TypeManager predicates do.
+    /// The stored Weapon.pak type remains available above; zero there does not make armor a sword.</summary>
+    public SacredEquipmentType ResolveEquipmentType(SacredItemCategory category) => category switch
+    {
+        SacredItemCategory.Weapon => EquipmentType,
+        SacredItemCategory.Shield => SacredEquipmentType.Shield,
+        SacredItemCategory.ChestArmor => SacredEquipmentType.ChestArmor,
+        SacredItemCategory.Helmet => SacredEquipmentType.HeadArmor,
+        SacredItemCategory.ShoulderArmor => SacredEquipmentType.Shoulder,
+        SacredItemCategory.ArmArmor => SacredEquipmentType.ArmArmor,
+        SacredItemCategory.Gloves => SacredEquipmentType.Gloves,
+        SacredItemCategory.LegArmor => SacredEquipmentType.LegArmor,
+        SacredItemCategory.FootArmor => SacredEquipmentType.FootArmor,
+        SacredItemCategory.Belt => SacredEquipmentType.Belt,
+        SacredItemCategory.Wings => SacredEquipmentType.Wings,
+        SacredItemCategory.Amulet => SacredEquipmentType.Amulet,
+        SacredItemCategory.Ring => SacredEquipmentType.Ring,
+        SacredItemCategory.DwarfCannon => SacredEquipmentType.DwarfCannon,
+        SacredItemCategory.HorseEquipment => SacredEquipmentType.Briddle,
+        _ => SacredEquipmentType.Misc
+    };
 
     public static SacredEquipmentClassification FromBytes(
         byte characterClassMaskCode,

@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using Sacred.Assets;
 using Sacred.Assets.GameBin.Sets;
+using Sacred.Assets.Paks.Creature;
 using Sacred.Assets.Paks.Items;
 using Sacred.Assets.Paks.Mixed;
 using Sacred.Assets.Paks.Models;
@@ -40,6 +41,7 @@ internal sealed class GameResourceLoader : IDisposable
     private MixedPakArchive? _mixedPak;
     private TilesPakArchive? _tilesPak;
     private SacredEquipment[]? _equipment;
+    private CreaturePakArchive? _creatures;
     private IReadOnlyList<SacredSetEntry>? _itemSets;
     private GameResStore? _resources;
     private SacredWorldArchive? _worldArchive;
@@ -73,6 +75,7 @@ internal sealed class GameResourceLoader : IDisposable
     [
         new("Tiles.pak", LoadTilesPak),
         new("Weapons.pak", LoadWeaponsPak),
+        new("Creature.pak", LoadCreaturePak),
         new("sets.bin", LoadItemSets),
         new("global.res", LoadResources),
         new("world files", LoadWorldArchive)
@@ -98,7 +101,10 @@ internal sealed class GameResourceLoader : IDisposable
         SacredWorldArchive? world = null;
         try
         {
-            assets = new AssetManager(texturePak, tilesPak, items, equipment, itemSets, mixedPak, modelsPak, resources);
+            assets = new AssetManager(texturePak, tilesPak, items, equipment, itemSets, mixedPak, modelsPak, resources)
+            {
+                CreatureTemplates = _creatures
+            };
             world = worldArchive;
             _ownershipTransferred = true;
             ReleaseTransferredReferences();
@@ -113,6 +119,13 @@ internal sealed class GameResourceLoader : IDisposable
     }
 
     private void LoadTexturePak() => _texturePak = TexturePakArchive.LoadFromDirectory(_pakDirectory);
+
+    private void LoadCreaturePak()
+    {
+        var path = Path.Combine(_pakDirectory, "Creature.pak");
+        _creatures = File.Exists(path) ? CreaturePakArchive.Load(path) : null;
+        Console.WriteLine($"[Assets] Creature.pak loaded: {_creatures?.Entries.Count ?? 0} templates.");
+    }
 
     private void LoadItemsPak()
     {
@@ -177,6 +190,7 @@ internal sealed class GameResourceLoader : IDisposable
         _mixedPak = null;
         _tilesPak = null;
         _equipment = null;
+        _creatures = null;
         _itemSets = null;
         _resources = null;
         _worldArchive = null;
