@@ -45,13 +45,13 @@ jobs:
             -p:StripSymbols=false \
             -r win-x64
 
-      # ==================== Sacred.ItemViewer.Avalonia ====================
-      - name: Publish Sacred.ItemViewer.Avalonia
+      # ==================== AssetViewer ====================
+      - name: Publish AssetViewer
         shell: bash
         run: |
-          dotnet publish Sacred.ItemViewer.Avalonia/Sacred.ItemViewer.Avalonia.csproj \
+          dotnet publish AssetViewer/AssetViewer.csproj \
             --configuration Release \
-            --output ./publish/Sacred.ItemViewer.Avalonia \
+            --output ./publish/AssetViewer \
             -p:Version=${{ env.VERSION }} \
             -p:PublishSingleFile=true \
             -p:SelfContained=true \
@@ -82,7 +82,7 @@ jobs:
       - name: Package debug symbols
         shell: pwsh
         run: |
-          foreach ($project in @('SacredEngineRemake', 'Sacred.ItemViewer.Avalonia', 'Sacred.World.Renderer.Terminal')) {
+          foreach ($project in @('SacredEngineRemake', 'AssetViewer', 'Sacred.World.Renderer.Terminal')) {
             Compress-Archive -Path "./publish/$project/*.pdb" -DestinationPath "./publish/$project-symbols.zip"
           }
 
@@ -94,11 +94,11 @@ jobs:
           draft: true
           files: |
             ./publish/SacredEngineRemake/SacredEngineRemake.exe
-            ./publish/Sacred.ItemViewer.Avalonia/Sacred.ItemViewer.Avalonia.exe
+            ./publish/AssetViewer/AssetViewer.exe
             ./publish/Sacred.World.Renderer.Terminal/Sacred.World.Renderer.Terminal.exe
             ./publish/SacredEngineRemake/cimgui.dll
             ./publish/SacredEngineRemake-symbols.zip
-            ./publish/Sacred.ItemViewer.Avalonia-symbols.zip
+            ./publish/AssetViewer-symbols.zip
             ./publish/Sacred.World.Renderer.Terminal-symbols.zip
           fail_on_unmatched_files: true
           tag_name: ${{ github.ref_name }}
