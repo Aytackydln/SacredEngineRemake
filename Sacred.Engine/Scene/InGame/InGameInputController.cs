@@ -46,6 +46,13 @@ internal sealed class InGameInputController
     internal void CancelInteraction()
     { _interaction.Cancel(); _clickToMove.StopMoving(); _camera.StopMoving(); }
 
+    internal void SuspendGameplayInput()
+    {
+        CancelInteraction();
+        Focus.Clear();
+        _postStairsMovementInput.BlockUntilNewInput(_input);
+    }
+
     public InGameInputController(
         InputState input,
         GamepadInputSource gamepad,

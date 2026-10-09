@@ -48,6 +48,7 @@
         <ProjectReference Include="..\Sacred.Particles\Sacred.Particles.csproj"/>
         <ProjectReference Include="..\Sacred.Shaders\Sacred.Shaders.csproj"/>
         <ProjectReference Include="..\Sacred.Inventory\Sacred.Inventory.csproj"/>
+        <ProjectReference Include="..\Sacred.UI\Sacred.UI.csproj"/>
     </ItemGroup>
 
 </Project>

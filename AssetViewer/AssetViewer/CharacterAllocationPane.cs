@@ -7,6 +7,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Sacred.Inventory.Actors;
 using Sacred.Inventory.Stats;
+using Sacred.UI.Character;
 
 namespace AssetViewer.AssetViewer;
 

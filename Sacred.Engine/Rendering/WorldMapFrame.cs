@@ -1,4 +1,5 @@
 using System.Numerics;
+using Sacred.UI.Maps;
 using Sacred.World.Map;
 
 namespace Sacred.Engine.Rendering;
@@ -10,7 +11,8 @@ public readonly record struct WorldMapFrame(
     WorldMapOverlay Overlay,
     WorldMapControls? Controls = null,
     WorldMapAnnotations? Annotations = null,
-    WorldMapKind Kind = WorldMapKind.Ancaria);
+    WorldMapKind Kind = WorldMapKind.Ancaria,
+    WorldMapUiState? Ui = null);
 
 public readonly record struct WorldMapOverlay(
     Vector2 TargetWorldPosition,

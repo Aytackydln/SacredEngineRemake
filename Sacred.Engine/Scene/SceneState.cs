@@ -8,12 +8,16 @@ using Sacred.Core.World.Sector;
 using Sacred.Engine.Rendering;
 using Sacred.Granny.Animation;
 using Sacred.Granny.Meshes;
+using Sacred.UI.Hud;
+using Sacred.UI.Menus;
 using Sacred.World.Particles;
 
 namespace Sacred.Engine.Scene;
 
 public sealed class SceneState
 {
+    public BottomHudState? Hud { get; set; }
+    public EscapeMenuState? EscapeMenu { get; set; }
     private readonly List<SceneModel> _models = new(capacity: 32);
 
     public bool GpuParticlesEnabled { get; set; }

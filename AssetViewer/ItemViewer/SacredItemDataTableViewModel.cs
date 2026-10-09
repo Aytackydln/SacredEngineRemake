@@ -10,6 +10,7 @@ using Sacred.Core.GameRes;
 using Sacred.Core.Pak.Weapon;
 using Sacred.Core.Pak.Weapon.Descriptions;
 using Sacred.Core.Pak.Weapon.Details;
+using Sacred.UI.Inventory;
 
 namespace AssetViewer.ItemViewer;
 

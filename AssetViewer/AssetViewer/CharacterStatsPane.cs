@@ -9,7 +9,8 @@ using Sacred.Core.Pak.Weapon.Bonuses;
 using Sacred.Core.Pak.Weapon.Descriptions;
 using Sacred.Inventory.Actors;
 using Sacred.Inventory.Stats;
-using static AssetViewer.AssetViewer.CharacterStatLabels;
+using Sacred.UI.Character;
+using static Sacred.UI.Character.CharacterStatLabels;
 
 namespace AssetViewer.AssetViewer;
 

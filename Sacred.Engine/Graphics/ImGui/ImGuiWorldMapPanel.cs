@@ -11,6 +11,7 @@ internal static class ImGuiWorldMapPanel
     {
         if (frame.Controls is not { } controls) return;
         if (controls.RegionNamesVisible) ImGuiWorldMapLabels.Draw(frame, width, height, mapFont);
+        if (!controls.DebugPanelVisible) return;
         ImGuiNET.ImGui.PushStyleColor(ImGuiCol.WindowBg, new Vector4(0.10f, 0.105f, 0.075f, 0.94f));
         ImGuiNET.ImGui.PushStyleColor(ImGuiCol.TitleBg, new Vector4(0.19f, 0.17f, 0.10f, 1));
         ImGuiNET.ImGui.PushStyleColor(ImGuiCol.TitleBgActive, new Vector4(0.26f, 0.22f, 0.13f, 1));

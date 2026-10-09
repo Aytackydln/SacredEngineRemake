@@ -2,9 +2,10 @@ using System;
 using System.Linq;
 using Sacred.Core.Pak.Weapon.Descriptions;
 
-namespace AssetViewer.ItemViewer;
+namespace Sacred.UI.Inventory;
 
-internal static class SacredEquipmentDescriptionText
+/// <summary>Plain-text presentation of the existing equipment description sections.</summary>
+public static class SacredEquipmentDescriptionText
 {
     public static string Format(SacredEquipmentDescription description)
     {

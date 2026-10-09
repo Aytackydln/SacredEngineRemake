@@ -1,7 +1,6 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using AssetViewer.ItemViewer;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
@@ -9,6 +8,7 @@ using Sacred.Core.Pak.Weapon;
 using Sacred.Core.Pak.Weapon.Descriptions;
 using Sacred.Core.Pak.Weapon.Details;
 using Sacred.Inventory.Items;
+using Sacred.UI.Inventory;
 
 namespace AssetViewer.AssetViewer;
 

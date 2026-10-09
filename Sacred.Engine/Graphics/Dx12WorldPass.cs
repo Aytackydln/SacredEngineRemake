@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Graphics.Frames;
+using Sacred.Engine.Graphics.Hud;
 using Sacred.Engine.Graphics.ImGui;
 using Sacred.Engine.Graphics.Lighting;
 using Sacred.Engine.Graphics.Minimap;
@@ -13,6 +14,7 @@ using Sacred.Engine.Graphics.Skinning;
 using Sacred.Engine.Graphics.Sprites;
 using Sacred.Engine.Graphics.Terrain;
 using Sacred.Engine.Graphics.Uploads;
+using Sacred.Engine.Graphics.WorldMap;
 using Sacred.Engine.Platform;
 using Sacred.Engine.Rendering;
 using Sacred.Engine.Scene;
@@ -71,6 +73,9 @@ internal sealed class Dx12WorldPass : IDisposable
     private readonly ImGuiDebugPanel _debugPanel;
     private readonly Dx12WorldCommandRecorder _commandRecorder;
     private readonly Dx12WorldUiPass _worldUi;
+    private readonly Dx12BottomHudPass _hud;
+    private readonly Dx12EscapeMenuPass _escapeMenu;
+    private readonly Dx12WorldMapUiPass _mapUi;
     private readonly Stack<int> _freeModelSrvSlots = new();
     private double _lastCompletedFrameTimeMilliseconds;
     private TaskCompletionSource? _preparationCompletion;
@@ -205,7 +210,10 @@ internal sealed class Dx12WorldPass : IDisposable
             _imgui,
             _minimap);
         _commandRecorder.GpuParticles = _gpuParticles;
-        _worldUi = new Dx12WorldUiPass(graphics, _commandRecorder, _minimap, _debugOverlay, _imgui, _debugPanel);
+        _hud = new Dx12BottomHudPass(assets, gameDirectory, graphics, textureUploader);
+        _escapeMenu = new Dx12EscapeMenuPass(assets, gameDirectory, graphics, textureUploader);
+        _mapUi = new Dx12WorldMapUiPass(assets, gameDirectory, graphics, textureUploader);
+        _worldUi = new Dx12WorldUiPass(graphics, _commandRecorder, _minimap, _debugOverlay, _imgui, _debugPanel, _hud, _escapeMenu, _mapUi);
     }
 
     public string SkinningStatus => $"mode {SkinningMode}; animated models GPU {_skinning.GpuModelCount}, CPU {_skinning.CpuModelCount}, skipped {_skinning.SkippedModelCount}; pipelines {(_skinDraw.IsReady ? "ready" : "unavailable")}; " +
@@ -451,6 +459,9 @@ internal sealed class Dx12WorldPass : IDisposable
         _terrain.Dispose();
         _debugOverlay.Dispose();
         _imgui.Dispose();
+        _hud.Dispose();
+        _escapeMenu.Dispose();
+        _mapUi.Dispose();
         _modelGeometry.Dispose();
         _skinPreparation.Dispose();
         _skinDraw.Dispose();

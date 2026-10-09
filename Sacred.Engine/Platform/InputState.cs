@@ -35,9 +35,15 @@ public sealed class InputState
 
     public int MouseWheelDelta => _mouseWheelDelta;
 
-    public bool UiWantsMouse { get; private set; }
+    public bool UiWantsMouse => ImGuiWantsMouse || HudWantsMouse || WorldMapUiWantsMouse || MenuWantsInput;
+    internal bool ImGuiWantsMouse { get; private set; }
+    internal bool HudWantsMouse { get; set; }
+    internal bool WorldMapUiWantsMouse { get; set; }
+    internal Vector2? PendingLeftClickPosition => _leftClickPosition;
 
-    public bool UiWantsKeyboard { get; private set; }
+    public bool UiWantsKeyboard => _imGuiWantsKeyboard || MenuWantsInput;
+    private bool _imGuiWantsKeyboard;
+    internal bool MenuWantsInput { get; set; }
 
     public bool UsingController { get; private set; }
 
@@ -176,8 +182,8 @@ public sealed class InputState
 
     internal void SetUiCapture(bool mouse, bool keyboard)
     {
-        UiWantsMouse = mouse;
-        UiWantsKeyboard = keyboard;
+        ImGuiWantsMouse = mouse;
+        _imGuiWantsKeyboard = keyboard;
     }
 
     public void DiscardUiCapturedPointerEvents()
@@ -198,7 +204,10 @@ public sealed class InputState
         _rightMouseButtonReleased = false;
         _xButtonCyclePressed = false;
         _mouseWheelDelta = 0;
-        UiWantsMouse = false;
-        UiWantsKeyboard = false;
+        ImGuiWantsMouse = false;
+        HudWantsMouse = false;
+        WorldMapUiWantsMouse = false;
+        _imGuiWantsKeyboard = false;
+        MenuWantsInput = false;
     }
 }

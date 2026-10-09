@@ -482,6 +482,7 @@ internal sealed partial class SacredGameRuntime : IDisposable
         {
             case HelpCheatCommand:
                 EngineLog.WriteLine("Map: set map <ancaria|underworld|close|status>; set map-names <on|off>; set map-npcs <on|off>; set map-fit now.");
+                EngineLog.WriteLine("Map UI: set map-ui <close|waypoint|status> invokes native control actions; set map-panel <on|off> shows the diagnostic panel.");
                 EngineLog.WriteLine("Campaigns: set campaign list; set campaign status; set campaign <bin-directory-name|absolute-path> reloads the world using that script set (default NetScriptCamp).");
                 EngineLog.WriteLine("Viewport cheats: set window-size <width>x<height> resizes without activation; set viewport show reports client/output/scene dimensions. Timing cheats: set frame-log <on|off> reports frame pacing; set animation-log <on|off> reports CPU animation stages, upload bytes and completed GPU model/shadow timestamps every two seconds.");
                 EngineLog.WriteLine("GPU preparation cheat: set skin-preparation <on|off> prepares resources independently of model skinning selection.");
@@ -493,6 +494,8 @@ internal sealed partial class SacredGameRuntime : IDisposable
                 EngineLog.WriteLine("Particle cheats: set player-panel <on|off>; set particle-panel <on|off|play|toggles>; set particle-list <all|filter>; set particle-target <self|x,y>; set particle-follow <on|off>; set particle-play <FX name>; set particle-enable <FX name>; set particle-disable <FX name>; set particle-model <on|off>; set particle-stop all; set particle-crowd <0..64> creates asset-driven stress previews.");
                 EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set particles <on|off>; set particle-simulation <Auto|CpuSimd|CpuScalar|Gpu|GpuOnly>; set particle-stats show; set item-flags <hex>; set character next; set facing <degrees>; set path <x>,<y>; set door toggle; set door-list show; set hdr <on|off>; set hdr-brightness <nits|os>; set hdr-scene-format <packed|fp16>; set hdr-unlit-multiplier <0-4>; set hdr-particle-multiplier <0-4>; set pacing <vrr|vsync|limit|manual>; set fps <30-1000>; set latency <off|on|boost>; set resolution <percentage|auto>; set autoscale <on|off>; set scaling <none|bilinear|fsr1|fsr2|fsr1motionadaptive>; set granny <managed|native>.");
                 EngineLog.WriteLine("Footprints: set footprints <on|off|clear|status>; set move <x,y|stop|status> moves through the normal camera/collision path without simulated input.");
+                EngineLog.WriteLine("Bottom HUD: set hud status reports the calendar and loading state; set hud map invokes the map button action.");
+                EngineLog.WriteLine("Escape menu: set hud options opens the gears menu; set menu <open|close|escape|up|down|activate|status|continue|quit|cancelquit> controls it without simulated input.");
                 EngineLog.WriteLine("Portals: set portals status lists default-open script billboards, triggers and destinations.");
                 EngineLog.WriteLine("World transitions: set transitions status lists nearby script stairs/teleports and the current surface level.");
                 return;
@@ -615,6 +618,12 @@ internal sealed partial class SacredGameRuntime : IDisposable
                 return true;
             case "map":
                 return TrySetWorldMap(value, out message);
+            case "map-ui" when _scenes.ActiveScene is WorldMapScene mapUiScene:
+                return mapUiScene.TrySetUiCheat(value, out message);
+            case "map-panel" when TryParseBoolean(value, out var mapPanel):
+                _worldMapControls.DebugPanelVisible = mapPanel;
+                message = $"map debug panel {(mapPanel ? "visible" : "hidden")}";
+                return true;
             case "map-names" when TryParseBoolean(value, out var mapNames):
                 _worldMapControls.RegionNamesVisible = mapNames;
                 message = $"map region names {(mapNames ? "visible" : "hidden")}";

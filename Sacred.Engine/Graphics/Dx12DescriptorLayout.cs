@@ -23,5 +23,10 @@ internal static class Dx12DescriptorLayout
     public const int ShadowMap = SurfaceLightMap + 1;
     public const int PlayerOcclusionMap = ShadowMap + 1;
     public const int FirstMinimap = PlayerOcclusionMap + 1;
-    public const int TotalCount = FirstMinimap + Dx12MinimapPass.DescriptorsPerFrame * Dx12DeviceContext.FrameCount;
+    public const int FirstHudTexture = FirstMinimap + Dx12MinimapPass.DescriptorsPerFrame * Dx12DeviceContext.FrameCount;
+    public const int MaximumHudTextures = 4;
+    public const int EscapeMenuTexture = FirstHudTexture + MaximumHudTextures;
+    public const int FirstWorldMapUiTexture = EscapeMenuTexture + 1;
+    public const int MaximumWorldMapUiTextures = 2;
+    public const int TotalCount = FirstWorldMapUiTexture + MaximumWorldMapUiTextures;
 }

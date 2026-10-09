@@ -82,6 +82,7 @@ internal sealed unsafe partial class Dx12ImGuiRenderer : IDisposable
     public ImFontPtr TitleFont { get; private set; }
     public ImFontPtr BodyFont { get; private set; }
     public ImFontPtr MapFont { get; private set; }
+    public ImFontPtr EscapeMenuFont { get; private set; }
 
     public void SetPipeline(Dx12CreatedPipelineGroup pipeline)
     {
@@ -197,6 +198,8 @@ internal sealed unsafe partial class Dx12ImGuiRenderer : IDisposable
         // Gold's map selects font slot 3: Carolingia. Use the installed game's face.
         var mapFontPath = Path.Combine(gameDirectory, "font", "CAROLING.TTF");
         MapFont = AddFontOrDefault(atlas, mapFontPath, 32.0f);
+        // cUI_EscMenu selects native font slot 4, Carolingia at 20 pixels.
+        EscapeMenuFont = AddFontOrDefault(atlas, mapFontPath, 20.0f);
         EngineLog.WriteLine($"World map font loaded: {mapFontPath}.");
     }
 

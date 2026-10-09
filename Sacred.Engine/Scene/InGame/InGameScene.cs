@@ -13,6 +13,8 @@ using Sacred.Engine.Graphics.ImGui;
 using Sacred.Engine.Platform;
 using Sacred.Granny.Diagnostics;
 using Sacred.Particles;
+using Sacred.UI.Hud;
+using Sacred.UI.Menus;
 using Sacred.World;
 using Sacred.World.Map;
 using Sacred.World.Objects;
@@ -36,6 +38,8 @@ internal sealed class InGameScene : IGameScene
     private readonly DoorSceneController _doors;
     private readonly WorldLightingController _worldLighting;
     private readonly InGameInputController _inputController;
+    private readonly BottomHudInputController _hudInput;
+    private readonly EscapeMenuController _escapeMenu;
     private readonly Win32Window _window;
     private readonly SacredGameSaveState _saveState;
     internal WorldCampaignScripts? CampaignScripts { get; }
@@ -84,6 +88,21 @@ internal sealed class InGameScene : IGameScene
             resources.WorldArchive.ObjectScript.Placements.Where(p => p.Door is not null).Select(p => p.Door!)),
             () => _camera.WorldCenter);
         _worldLighting = new WorldLightingController(saveState.WorldLightingMode);
+        var hud = new BottomHudState { Visible = false, DayFraction = _worldLighting.DayFraction };
+        _scene.Hud = hud;
+        var menu = new EscapeMenuState(_assets.Resources);
+        _scene.EscapeMenu = menu;
+        _hudInput = new BottomHudInputController(hud, window.Input,
+            () => new Vector2(window.ClientWidth, window.ClientHeight), button =>
+            {
+                if (menu.IsOpen) return;
+                if (button == HudButton.Options) { menu.Open(); return; }
+                if (button != HudButton.Map) return;
+                _scene.Minimap.IsVisible = false;
+                EngineLog.WriteLine("World map requested by bottom HUD.");
+                requestSwitch(GameSceneId.WorldMap);
+            });
+        hud.Activated += _hudInput.Activate;
         _scene.Debug.StairsMapVisible = saveState.StairsTilesVisible;
         _scene.Debug.BlockedAreasVisible = saveState.BlockedTilesVisible;
         _scene.Minimap.DifficultyDisplayName = "Silver";
@@ -104,6 +123,17 @@ internal sealed class InGameScene : IGameScene
             () => renderer.RenderHeight,
             renderer.OutputToRender,
             window.SetHandCursor);
+        _escapeMenu = new EscapeMenuController(menu, window.Input,
+            () => new Vector2(window.ClientWidth, window.ClientHeight), () =>
+            {
+                _hudInput.Cancel();
+                _inputController.SuspendGameplayInput();
+                window.SetHandCursor(false);
+            }, () =>
+            {
+                EngineLog.WriteLine("Escape menu: quit confirmed.");
+                window.RequestQuit();
+            });
         _inputController.SetPlayerMovementSpeedMultiplier(saveState.PlayerMovementSpeedMultiplier);
         _inputController.Portals = new PortalTraversalController(resources.WorldArchive.Portals);
         _portalScript = resources.WorldArchive.Portals;
@@ -171,12 +201,20 @@ internal sealed class InGameScene : IGameScene
 
     internal bool TrySetCheatOption(string option, string value, out string message)
     {
+        if (_escapeMenu.TrySetCheatOption(option, value, out message)) return true;
         if (_playerParticles.TrySetCheatOption(option, value, _camera.WorldCenter, out message)) return true;
         if (PlayerMovementCheats.TrySetOption(option, value, _camera, _inputController, out message)) return true;
         if (WorldFocusCheats.TrySetOption(option, value, _inputController, _doors, _camera,
                 _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0, out message)) return true;
         switch (option.ToLowerInvariant())
         {
+            case "hud" when value.Equals("status", StringComparison.OrdinalIgnoreCase):
+                message = $"bottom HUD {(_scene.Hud!.Layout is null ? "loading" : "ready")}; calendar {_worldLighting.DayFraction * 24:0.00}h; map action available";
+                return true;
+            case "hud" when Enum.TryParse<HudButton>(value, true, out var hudButton) && Enum.IsDefined(hudButton):
+                _scene.Hud!.Activate(hudButton);
+                message = $"bottom HUD {hudButton} action requested";
+                return true;
             case "render-time" when value.Equals("live", StringComparison.OrdinalIgnoreCase):
                 Renderer.SetOffscreenAnimationTime(float.NaN);
                 message = "render animation clock resumed"; return true;
@@ -325,17 +363,25 @@ internal sealed class InGameScene : IGameScene
     public void OnActivated()
     {
         _window.Input.ClearTransientEvents();
+        _scene.Hud!.Visible = true;
         _inputController.OnActivated();
         _window.RequestFocus();
     }
     public void OnDeactivated()
     {
+        _scene.EscapeMenu!.Close();
+        _scene.Hud!.Visible = false;
+        _hudInput.Cancel();
         _inputController.OnDeactivated();
         _window.SetHandCursor(false);
     }
     public void Update(float deltaSeconds)
     {
+        if (_escapeMenu.Update()) return;
+        _hudInput.Update();
+        if (_scene.EscapeMenu!.IsOpen) return;
         _inputController.Update(deltaSeconds);
+        _scene.Hud!.DayFraction = _worldLighting.DayFraction;
         _footprints.Update(deltaSeconds, _camera);
         Renderer.UpdateAutoRenderResolution(_camera.Zoom);
         _doors.Update(_worldStreamer.VisibleWorld, _camera.WorldCenter, deltaSeconds, _scene.Indoor.ActiveGroup);

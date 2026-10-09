@@ -52,6 +52,29 @@ public sealed class WorldLightingController
     public WorldLightingMode Mode { get; private set; }
     public WorldZone CurrentZone { get; private set; } = WorldZone.Outdoors;
 
+    /// <summary>Outdoor calendar position for the HUD; cave ambient lighting does not change the clock.</summary>
+    public float DayFraction
+    {
+        get
+        {
+            if (Mode == WorldLightingMode.Day) return 0.5f;
+            if (Mode is WorldLightingMode.Night or WorldLightingMode.PitchBlack) return 0;
+            // Map the existing unequal-duration phases to continuous calendar intervals:
+            // day 08..16, dusk 16..20, night 20..04, dawn 04..08.
+            var elapsed = _cycleElapsedSeconds;
+            if (elapsed < DayDurationSeconds)
+                return (8 + 8 * elapsed / DayDurationSeconds) / 24;
+            elapsed -= DayDurationSeconds;
+            if (elapsed < TransitionDurationSeconds)
+                return (16 + 4 * elapsed / TransitionDurationSeconds) / 24;
+            elapsed -= TransitionDurationSeconds;
+            if (elapsed < NightDurationSeconds)
+                return ((20 + 8 * elapsed / NightDurationSeconds) / 24) % 1;
+            elapsed -= NightDurationSeconds;
+            return (4 + 4 * elapsed / TransitionDurationSeconds) / 24;
+        }
+    }
+
     public void CycleMode()
     {
         Mode = Mode switch

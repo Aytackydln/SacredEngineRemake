@@ -3,9 +3,10 @@ using Sacred.Core.CombatArts;
 using Sacred.Core.GameRes;
 using Sacred.Inventory.Stats;
 
-namespace AssetViewer.AssetViewer;
+namespace Sacred.UI.Character;
 
-internal sealed class CharacterStatLabels(GameResStore resources)
+/// <summary>Existing character presentation labels and diagnostic fallbacks from AssetViewer.</summary>
+public sealed class CharacterStatLabels(GameResStore resources)
 {
     public string Attribute(SacredActorStat stat) => stat switch
     {

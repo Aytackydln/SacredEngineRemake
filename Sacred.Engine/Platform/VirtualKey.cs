@@ -3,6 +3,7 @@ namespace Sacred.Engine.Platform;
 public enum VirtualKey : uint
 {
     Tab = 0x09,
+    Enter = 0x0D,
     Control = 0x11,
     Shift = 0x10,
     Escape = 0x1B,

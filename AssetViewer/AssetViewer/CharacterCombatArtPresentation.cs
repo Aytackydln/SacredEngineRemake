@@ -13,6 +13,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Core.CombatArts;
+using Sacred.UI.CombatArts;
 
 namespace AssetViewer.AssetViewer;
 

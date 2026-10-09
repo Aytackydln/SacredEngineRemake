@@ -1,6 +1,8 @@
 using Sacred.Core.World.Sector;
+using Sacred.Engine.Graphics.Hud;
 using Sacred.Engine.Graphics.ImGui;
 using Sacred.Engine.Graphics.Minimap;
+using Sacred.Engine.Graphics.WorldMap;
 using Sacred.Engine.Rendering;
 using Sacred.Engine.Scene;
 using Sacred.Engine.Scene.InGame;
@@ -17,11 +19,18 @@ internal sealed class Dx12WorldUiPass(
     Dx12MinimapPass minimap,
     Dx12DebugOverlay debugOverlay,
     Dx12ImGuiRenderer imgui,
-    ImGuiDebugPanel debugPanel)
+    ImGuiDebugPanel debugPanel,
+    Dx12BottomHudPass hud,
+    Dx12EscapeMenuPass escapeMenu,
+    Dx12WorldMapUiPass mapUi)
 {
     public void PrepareWorldMap(WorldMapFrame map)
     {
-        if (imgui.IsFrameBegun) ImGuiWorldMapPanel.Build(map, graphics.OutputWidth, graphics.OutputHeight, imgui.MapFont);
+        if (imgui.IsFrameBegun)
+        {
+            ImGuiWorldMapPanel.Build(map, graphics.OutputWidth, graphics.OutputHeight, imgui.MapFont);
+            mapUi.Build(map);
+        }
         var overlay = map.Overlay;
         if (overlay.MinimapVisible)
         {
@@ -112,6 +121,9 @@ internal sealed class Dx12WorldUiPass(
             scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0);
         if (imgui.IsFrameBegun)
         {
+            hud.Build(scene);
+            escapeMenu.Build(scene, imgui.EscapeMenuFont);
+            if (scene.EscapeMenu is { IsOpen: true }) return;
             debugPanel.Build(
                 camera,
                 world,

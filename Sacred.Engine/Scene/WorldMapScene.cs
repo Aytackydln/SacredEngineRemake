@@ -8,6 +8,7 @@ using Sacred.Core.GameBin.Scripts;
 using Sacred.Engine.Platform;
 using Sacred.Engine.Rendering;
 using Sacred.Engine.Scene.WorldMap;
+using Sacred.UI.Maps;
 using Sacred.World.Map;
 
 namespace Sacred.Engine.Scene;
@@ -21,6 +22,9 @@ internal sealed class WorldMapScene : IGameScene
     private readonly WorldMapControls _controls;
     private readonly WorldMapCamera _camera = new();
     private readonly WorldMapInputController _inputController;
+    private readonly WorldMapUiState _ui = new();
+    private readonly WorldMapUiInputController _uiInput;
+    private bool _closeRequested;
     private readonly PlaceholderScreenRasterizer _placeholderRasterizer;
     private readonly WorldMapAtlasLoader _loader;
     private readonly Dictionary<WorldMapKind, Task<WorldMapAtlas>> _loads = new();
@@ -48,6 +52,13 @@ internal sealed class WorldMapScene : IGameScene
         _getAnnotations = getAnnotations;
         _controls = controls;
         _inputController = new WorldMapInputController(_input, gamepad, _camera, teleport, requestSwitch);
+        _uiInput = new(_ui, _input, () => new(window.ClientWidth, window.ClientHeight));
+        _ui.CloseRequested += () =>
+        {
+            _closeRequested = true;
+            EngineLog.WriteLine("Debug input: world map Close activated; returning to game.");
+            requestSwitch(GameSceneId.InGame);
+        };
         _placeholderRasterizer = new PlaceholderScreenRasterizer(gameDirectory);
         _screen = _placeholderRasterizer.Rasterize("WORLD MAP", "LOADING MAP...");
         _loader = new WorldMapAtlasLoader(loadTextureAsync);
@@ -59,6 +70,9 @@ internal sealed class WorldMapScene : IGameScene
     public void OnActivated()
     {
         _input.ClearTransientEvents();
+        _ui.Visible = true;
+        _closeRequested = false;
+        _uiInput.Reset();
         _inputController.Reset();
         _window.RequestFocus();
         _annotations = _getAnnotations();
@@ -74,10 +88,19 @@ internal sealed class WorldMapScene : IGameScene
         EngineLog.WriteLine($"World map {_selectedMap} fitted to viewport.");
     }
 
-    public void OnDeactivated() => _inputController.Reset();
+    public void OnDeactivated()
+    {
+        _ui.Visible = false;
+        _uiInput.Reset();
+        _inputController.Reset();
+    }
+
+    internal bool TrySetUiCheat(string value, out string message) => _uiInput.TryCheat(value, out message);
 
     public void Update(float deltaSeconds)
     {
+        _uiInput.Update();
+        if (_closeRequested) return;
         if (_selectedMap != _controls.SelectedMap) SelectMap(_controls.SelectedMap);
         ApplyLoadedAtlas();
         if (_atlas is null)
@@ -113,7 +136,7 @@ internal sealed class WorldMapScene : IGameScene
             _mapFrame is not null && _inputController.IsControllerTargetVisible,
             _mapFrame is not null && (_inputController.IsMinimapVisible || _controls.MinimapVisible), "Silver", string.Empty);
         return context.Renderer.RenderWorldMapAsync(new(frame, center, zoom, overlay,
-            _controls, _mapFrame is not null ? _annotations : null, _selectedMap),
+            _controls, _mapFrame is not null ? _annotations : null, _selectedMap, _ui),
             context.VerticalSyncEnabled, context.FrameId, context.CancellationToken);
     }
 
