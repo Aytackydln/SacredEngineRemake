@@ -4,6 +4,7 @@ using Sacred.Engine.Graphics.Skinning;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Scene.InGame;
 using Sacred.Particles;
+using Sacred.World;
 
 namespace Sacred.Engine.Graphics.ImGui;
 
@@ -21,6 +22,10 @@ internal sealed class DebugUiControlState
     public int ManualFrameRate { get; set; } = 60;
     public LowLatencyMode LowLatencyMode { get; set; }
     public WorldLightingMode WorldLightingMode { get; set; }
+    public SectorLoadMode SectorLoadMode { get; set; } = SectorLoadMode.Four;
+    public bool WaitForSectorGpuUploads { get; set; }
+    public SectorLoadMode? RequestedSectorLoadMode { get; set; }
+    public bool? RequestedWaitForSectorGpuUploads { get; set; }
     public bool BorderlessFullscreen { get; set; }
     public SacredParticleQuality ParticleQuality { get; set; }
     public ParticleSimulationMode ParticleSimulation { get; set; } = ParticleSimulationMode.Auto;

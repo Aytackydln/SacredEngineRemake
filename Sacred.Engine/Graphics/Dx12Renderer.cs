@@ -150,6 +150,18 @@ public sealed partial class Dx12Renderer : IDisposable
 
     public Task StartWorldPreparation() => GetWorldPass().StartPreparation();
 
+    public bool WaitForSectorGpuUploads
+    {
+        get => GetWorldPass().WaitForSectorGpuUploads;
+        set => GetWorldPass().WaitForSectorGpuUploads = value;
+    }
+
+    public bool RetainUnusedSectorTextures
+    {
+        get => GetWorldPass().RetainUnusedSectorTextures;
+        set => GetWorldPass().RetainUnusedSectorTextures = value;
+    }
+
     public void QueueScreenshot(string? label) => _pendingScreenshotLabels.Enqueue(label);
 
     public void SetRenderScalingMode(RenderScalingMode mode)

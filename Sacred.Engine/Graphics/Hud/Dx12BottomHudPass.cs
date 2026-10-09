@@ -39,7 +39,17 @@ internal sealed class Dx12BottomHudPass : IDisposable
         var viewport = new Vector2(_graphics.OutputWidth, _graphics.OutputHeight);
         // Background draw data is recorded with the output UI, behind any diagnostic windows.
         var draw = ImGuiNET.ImGui.GetBackgroundDrawList();
+        foreach (var wing in layout.QuickSlots.Wings)
+            DrawRegion(draw, wing.Region, wing.Position, viewport);
         DrawRegion(draw, layout.Panel, layout.PanelPosition, viewport);
+        var handBackground = layout.QuickSlots.HandBackground;
+        DrawRegion(draw, handBackground.Region, handBackground.Position, viewport);
+        foreach (var background in layout.QuickSlots.CombatArtBackgrounds)
+            DrawRegion(draw, background.Region, background.Position, viewport);
+        var handSlot = layout.QuickSlots.HandSlot;
+        DrawRegion(draw, handSlot.Region, handSlot.Position, viewport);
+        foreach (var slot in layout.QuickSlots.CombatArtSlots)
+            DrawRegion(draw, slot.Region, slot.Position, viewport);
         DrawDial(draw, BottomHudAssets.DayNightDisc, state.DayFraction, viewport);
         DrawDial(draw, BottomHudAssets.DayNightMask, 0, viewport);
         foreach (var decoration in layout.Decorations)
@@ -70,7 +80,7 @@ internal sealed class Dx12BottomHudPass : IDisposable
                 _slots.Add(name, slot);
             }
             _assets = assets;
-            EngineLog.WriteLine($"Bottom HUD loaded: native executable definitions, {assets.Textures.Count} original atlases; map button ready.");
+            EngineLog.WriteLine($"Bottom HUD loaded: native executable definitions, {assets.Textures.Count} original atlases; left/right wings, distinct empty hand/combat-art backgrounds and map button ready.");
             return true;
         }
         catch (Exception exception)

@@ -59,6 +59,11 @@ internal sealed class Dx12SectorTextureCache : IDisposable
     }
 
     public int Count => _textures.Count;
+    public bool RetainUnusedSectors
+    {
+        get => _retention.RetainUnusedSectors;
+        set => _retention.RetainUnusedSectors = value;
+    }
     public int PendingUploadCount => _pendingUploads.Count;
     public int MaximumTextureCount => _maximumTextureCount;
     public Stack<int> FreeSrvSlots => _freeSrvSlots;

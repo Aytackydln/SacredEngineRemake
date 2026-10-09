@@ -19,6 +19,7 @@ public sealed class TerrainRenderer : IDisposable
     private readonly TerrainPrefetchPreparation _prefetchPreparation;
     private readonly List<TerrainSectorComposition> _preloadedSectorImages = new(3);
     private bool _cacheInvalidated;
+    private bool _retainUnusedSectors = true;
     private readonly TerrainLiquidSpriteBuilder _liquidSpriteBuilder;
     private readonly TerrainStaticPreparationWorker _staticSpriteBuilder;
     private readonly TerrainParticleSpriteBuilder _particleSpriteBuilder;
@@ -42,6 +43,17 @@ public sealed class TerrainRenderer : IDisposable
     private ulong _preparedParticleRevision = ulong.MaxValue;
 
     public IReadOnlyList<TerrainSectorComposition> PreloadedSectorImages => _preloadedSectorImages;
+
+    public bool RetainUnusedSectors
+    {
+        get => _retainUnusedSectors;
+        set
+        {
+            if (_retainUnusedSectors == value) return;
+            _retainUnusedSectors = value;
+            _cacheInvalidated = true;
+        }
+    }
 
     public TerrainRenderStats LastStats { get; private set; }
     public ulong WorldSpriteRevision { get; private set; }
@@ -241,7 +253,7 @@ public sealed class TerrainRenderer : IDisposable
     {
         _sectorCoordsToRemove.Clear();
         foreach (var coord in _sectorCache.Keys)
-            if (_preparedWorld is { } world && (Math.Abs(coord.X - world.CenterSector.X) > 2 || Math.Abs(coord.Y - world.CenterSector.Y) > 2))
+            if (!IsSectorRetained(coord))
                 _sectorCoordsToRemove.Add(coord);
 
         foreach (var coord in _sectorCoordsToRemove)
@@ -262,8 +274,7 @@ public sealed class TerrainRenderer : IDisposable
         {
             var task = _sectorBuildTasks[coord];
             _sectorBuildTasks.Remove(coord);
-            if (task.Status == TaskStatus.RanToCompletion &&
-                _preparedWorld is { } world && Math.Abs(coord.X - world.CenterSector.X) <= 2 && Math.Abs(coord.Y - world.CenterSector.Y) <= 2)
+            if (task.Status == TaskStatus.RanToCompletion && IsSectorRetained(coord))
             {
                 _sectorCache[coord] = task.Result;
             }
@@ -305,6 +316,12 @@ public sealed class TerrainRenderer : IDisposable
                 AssetLoadPriority.Background, () => _sectorCompositionBuilder.BuildAsync(sector));
         _sectorBuildRequests.Clear();
     }
+
+    private bool IsSectorRetained(SectorCoord coord) =>
+        _retainUnusedSectors
+            ? _preparedWorld is { } world && Math.Abs(coord.X - world.CenterSector.X) <= 2 &&
+                Math.Abs(coord.Y - world.CenterSector.Y) <= 2
+            : _neededSectorCoords.Contains(coord);
 
     public void PreparePreloadedWorld(VisibleWorld world)
     {

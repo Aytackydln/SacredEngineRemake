@@ -49,6 +49,10 @@ internal static class ImGuiSettingsPanel
             value => controls.RequestedWorldLightingMode = value,
             FormatWorldLightingMode);
         DrawSunAngleControls();
+        EnumCombo("Loaded sectors", controls.SectorLoadMode,
+            value => controls.RequestedSectorLoadMode = value, mode => $"{(int)mode} sectors");
+        Checkbox("Wait for sector GPU uploads at load", controls.WaitForSectorGpuUploads,
+            value => controls.RequestedWaitForSectorGpuUploads = value);
         Checkbox("Borderless fullscreen (F10)", controls.BorderlessFullscreen,
             value => controls.RequestedBorderlessFullscreen = value);
         EnumCombo(

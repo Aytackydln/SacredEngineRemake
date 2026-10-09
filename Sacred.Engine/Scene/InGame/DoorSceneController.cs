@@ -63,10 +63,8 @@ internal sealed partial class DoorSceneController
             SelectVisibleModels(world.Sectors, activeIndoorGroup);
         }
 
-        // LoadingSectors includes work outside the visible snapshot.  A complete
-        // 3x3 sector set is the reliable point at which the initial world-object
-        // request order is stable.
-        if (world.Sectors.Count == 9)
+        // Wait for the selected sector group so the initial world-object request order is stable.
+        if (world.LoadingSectors == 0 && world.Sectors.Count > 0)
             StartMissingLoads(focus);
         ApplyCompletedLoads();
         UpdateDoorAnimations(deltaSeconds);

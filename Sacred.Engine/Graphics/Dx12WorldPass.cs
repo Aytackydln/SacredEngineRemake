@@ -246,6 +246,17 @@ internal sealed class Dx12WorldPass : IDisposable
         return _preparationCompletion.Task;
     }
 
+    public bool WaitForSectorGpuUploads { get; set; }
+    public bool RetainUnusedSectorTextures
+    {
+        get => _sectorTextures.RetainUnusedSectors;
+        set
+        {
+            _sectorTextures.RetainUnusedSectors = value;
+            _terrain.RetainUnusedSectors = value;
+        }
+    }
+
     public void BeginDebugUiFrame(float deltaSeconds, double lastCompletedFrameTimeMilliseconds)
     {
         _lastCompletedFrameTimeMilliseconds = lastCompletedFrameTimeMilliseconds;
@@ -523,8 +534,9 @@ internal sealed class Dx12WorldPass : IDisposable
             !_terrain.HasPendingSpriteAssetRequests,
             _sprites.VisibleTexturesPrepared(_terrain.WorldSpriteRevision),
             modelGeometryReady);
-        if (LastPreparationStatus.IsReady && _preparationCompletion?.TrySetResult() == true)
-            EngineLog.WriteLine("World preparation completed.");
+        if (LastPreparationStatus.IsReadyForLoad(WaitForSectorGpuUploads) &&
+            _preparationCompletion?.TrySetResult() == true)
+            EngineLog.WriteLine($"World preparation completed; sector GPU upload waiting {(WaitForSectorGpuUploads ? "enabled" : "disabled")}; sectors resident: {LastPreparationStatus.SectorImagesUploaded}.");
     }
 }
 

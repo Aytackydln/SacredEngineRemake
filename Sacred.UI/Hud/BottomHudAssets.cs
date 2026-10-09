@@ -32,6 +32,11 @@ public sealed class BottomHudAssets
         var layout = new BottomHudLayout(table);
         var names = layout.Buttons.SelectMany(b => new[] { b.Up.TextureName, b.Down.TextureName })
             .Concat(layout.Decorations.Select(d => d.Region.TextureName))
+            .Concat(layout.QuickSlots.Wings.Select(d => d.Region.TextureName))
+            .Concat(layout.QuickSlots.CombatArtSlots.Select(d => d.Region.TextureName))
+            .Append(layout.QuickSlots.HandSlot.Region.TextureName)
+            .Append(layout.QuickSlots.HandBackground.Region.TextureName)
+            .Concat(layout.QuickSlots.CombatArtBackgrounds.Select(d => d.Region.TextureName))
             .Concat(new[] { layout.Panel.TextureName, DayNightDisc, DayNightMask })
             .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var textures = await Task.WhenAll(names.Select(loadTexture)).ConfigureAwait(false);

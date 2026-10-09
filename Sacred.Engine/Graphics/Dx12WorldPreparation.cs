@@ -20,24 +20,26 @@ public readonly record struct WorldPreparationStatus(
     public static WorldPreparationStatus NotStarted => new(false, false, false, false, false, false);
 
     public bool IsReady =>
+        IsReadyForLoad(waitForSectorGpuUploads: true);
+
+    public bool IsReadyForLoad(bool waitForSectorGpuUploads) =>
         SectorsLoaded &&
         SectorImagesBuilt &&
-        SectorImagesUploaded &&
+        (!waitForSectorGpuUploads || SectorImagesUploaded) &&
         SpriteAssetsLoaded &&
         SpriteTexturesUploaded &&
         ModelGeometryPrepared;
 
-    public string PendingItem
+    public string PendingItem => GetPendingItem(waitForSectorGpuUploads: true);
+
+    public string GetPendingItem(bool waitForSectorGpuUploads)
     {
-        get
-        {
-            if (!SectorsLoaded) return "Loading sectors";
-            if (!SectorImagesBuilt) return "Building sector images";
-            if (!SpriteAssetsLoaded) return "Loading static objects";
-            if (!SectorImagesUploaded) return "Uploading sectors to GPU";
-            if (!SpriteTexturesUploaded) return "Uploading static objects to GPU";
-            if (!ModelGeometryPrepared) return "Preparing model geometry";
-            return "World ready";
-        }
+        if (!SectorsLoaded) return "Loading sectors";
+        if (!SectorImagesBuilt) return "Building sector images";
+        if (!SpriteAssetsLoaded) return "Loading static objects";
+        if (waitForSectorGpuUploads && !SectorImagesUploaded) return "Uploading sectors to GPU";
+        if (!SpriteTexturesUploaded) return "Uploading static objects to GPU";
+        if (!ModelGeometryPrepared) return "Preparing model geometry";
+        return "World ready";
     }
 }

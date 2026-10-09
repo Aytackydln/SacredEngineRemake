@@ -14,6 +14,7 @@ internal sealed class SectorTextureRetention
     private readonly HashSet<SectorCoord> _coords = [];
     private readonly List<SectorTexture> _warm = new(MaximumResidentSectors);
     private long _sequence;
+    public bool RetainUnusedSectors { get; set; } = true;
 
     public IReadOnlyList<TerrainSectorComposition> Select(IReadOnlyList<TerrainSectorComposition> visible,
         IReadOnlyList<TerrainSectorComposition> ahead, IReadOnlyDictionary<SectorCoord, SectorTexture> resident,
@@ -39,6 +40,7 @@ internal sealed class SectorTextureRetention
             _coords.Add(image.Coord);
             bytes += TexelBytes(image);
         }
+        if (!RetainUnusedSectors) return _selected;
         foreach (var texture in resident.Values)
             if (!_coords.Contains(texture.Composition.Coord) && Math.Abs(texture.Composition.Coord.X - center.X) <= 2 &&
                 Math.Abs(texture.Composition.Coord.Y - center.Y) <= 2) _warm.Add(texture);

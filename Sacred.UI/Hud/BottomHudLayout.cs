@@ -6,7 +6,7 @@ using Sacred.UI.Textures;
 
 namespace Sacred.UI.Hud;
 
-/// <summary>cUI_Taskbar2's center controls in its original 1024x768 authoring space.</summary>
+/// <summary>cUI_Taskbar2's controls and starting quick slots in its original 1024x768 authoring space.</summary>
 public sealed class BottomHudLayout
 {
     public const float CanvasHeight = 768;
@@ -16,12 +16,14 @@ public sealed class BottomHudLayout
     public Vector2 PanelPosition { get; }
     public IReadOnlyList<BottomHudButton> Buttons { get; }
     public IReadOnlyList<BottomHudDecoration> Decorations { get; }
+    public BottomHudQuickSlotLayout QuickSlots { get; }
 
     public BottomHudLayout(IReadOnlyList<SacredExecutableUiTextureDefinitionLayout> table)
     {
         // These are native eUITextureDef selectors, never Texture.pak entry IDs.
         Panel = new(table[11]); // UI_BASE_CENTER
         PanelPosition = new(512 - (int)Panel.Size.X / 2, 756 - Panel.Anchor.Y);
+        QuickSlots = new(table);
         Buttons = new BottomHudButton[]
         {
             new(HudButton.Inventory, new(table[87]), new(table[88]), new(399, 705)),
@@ -48,7 +50,8 @@ public sealed class BottomHudLayout
         new(ToScreen(PanelPosition, viewport), Panel.Size * GetScale(viewport));
 
     public bool ContainsPointer(Vector2 point, Vector2 viewport) =>
-        GetBounds(viewport).Contains(point) || HitTest(point, viewport).HasValue;
+        GetBounds(viewport).Contains(point) || QuickSlots.ContainsPointer(point, viewport) ||
+        HitTest(point, viewport).HasValue;
 
     public HudButton? HitTest(Vector2 point, Vector2 viewport)
     {

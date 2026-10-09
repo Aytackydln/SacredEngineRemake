@@ -76,7 +76,7 @@ internal sealed class GameLoadingScene : IGameScene
         var status = _inGame.Renderer.LastWorldPreparationStatus;
         if (_worldPreparationTask is not { IsCompleted: true })
         {
-            SetScreen(0.9, status.PendingItem);
+            SetScreen(0.9, status.GetPendingItem(_inGame.Renderer.WaitForSectorGpuUploads));
             return;
         }
 

@@ -13,6 +13,7 @@ using Sacred.Engine.Latency;
 using Sacred.Engine.Scene.InGame;
 using Sacred.Granny.Abstractions;
 using Sacred.Particles;
+using Sacred.World;
 
 namespace SacredRemake;
 
@@ -44,6 +45,8 @@ internal static class SacredEngineRemakeConfig
     private const string RenderScalingModeKey = "RENDER_SCALING_MODE";
     private const string GrannyBackendKey = "GRANNY_BACKEND";
     private const string WorldLightingKey = "WORLD_LIGHTING";
+    private const string SectorLoadModeKey = "LOADED_SECTORS";
+    private const string WaitForSectorGpuUploadsKey = "WAIT_FOR_SECTOR_GPU_UPLOADS";
     private const string StairsTilesKey = "STAIRS_TILES";
     private const string BlockedTilesKey = "BLOCKED_TILES";
     private const string PlayerMovementSpeedKey = "PLAYER_MOVEMENT_SPEED";
@@ -112,6 +115,8 @@ internal static class SacredEngineRemakeConfig
                 RenderScalingMode = ReadEnum(values, RenderScalingModeKey, RenderScalingMode.Bilinear),
                 GrannyBackend = ReadEnum(values, GrannyBackendKey, GrnBackendKind.ManagedParser),
                 WorldLightingMode = ReadEnum(values, WorldLightingKey, WorldLightingMode.TimedDayNightCycle),
+                SectorLoadMode = ReadEnum(values, SectorLoadModeKey, SectorLoadMode.Four),
+                WaitForSectorGpuUploads = ReadBoolean(values, WaitForSectorGpuUploadsKey),
                 StairsTilesVisible = ReadBoolean(values, StairsTilesKey),
                 BlockedTilesVisible = ReadBoolean(values, BlockedTilesKey),
                 PlayerMovementSpeedMultiplier = ReadFiniteFloat(values, PlayerMovementSpeedKey, 1.0f),
@@ -199,6 +204,8 @@ internal static class SacredEngineRemakeConfig
             $"{RenderScalingModeKey} : {state.RenderScalingMode}",
             $"{GrannyBackendKey} : {state.GrannyBackend}",
             $"{WorldLightingKey} : {state.WorldLightingMode}",
+            $"{SectorLoadModeKey} : {(int)state.SectorLoadMode}",
+            $"{WaitForSectorGpuUploadsKey} : {FormatBoolean(state.WaitForSectorGpuUploads)}",
             $"{StairsTilesKey} : {FormatBoolean(state.StairsTilesVisible)}",
             $"{BlockedTilesKey} : {FormatBoolean(state.BlockedTilesVisible)}",
             $"{PlayerMovementSpeedKey} : {FormatFloat(state.PlayerMovementSpeedMultiplier)}",

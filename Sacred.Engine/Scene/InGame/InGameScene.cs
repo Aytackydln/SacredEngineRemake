@@ -75,7 +75,12 @@ internal sealed class InGameScene : IGameScene
         _saveState = saveState;
         CampaignScripts = resources.WorldArchive.CampaignScripts;
         _worldArchive = resources.WorldArchive;
-        _worldStreamer = new WorldStreamer(resources.WorldArchive);
+        var startPosition = saveState.LastLocation ?? new Vector2(
+            (resources.WorldArchive.StartSector.X + 0.5f) * WorldStreamer.SectorTileCount,
+            (resources.WorldArchive.StartSector.Y + 0.5f) * WorldStreamer.SectorTileCount);
+        _worldStreamer = new WorldStreamer(resources.WorldArchive, saveState.SectorLoadMode, startPosition);
+        renderer.RetainUnusedSectorTextures = saveState.SectorLoadMode == SectorLoadMode.Nine;
+        renderer.WaitForSectorGpuUploads = saveState.WaitForSectorGpuUploads;
         _particles = new WorldParticleSystem(resources.WorldArchive.ParticleScript, saveState.ParticleQuality);
         _particles.GpuBackend = renderer.ParticleGpuBackend;
         _particles.EmissionBackend = renderer.WorldEmissionBackend;
@@ -156,6 +161,13 @@ internal sealed class InGameScene : IGameScene
         Renderer.LastWorldPreparationStatus.IsReady && !_doors.HasPendingLoads;
 
     internal void SetWorldLightingMode(WorldLightingMode mode) => _worldLighting.SetMode(mode);
+
+    internal void SetSectorLoadMode(SectorLoadMode mode)
+    {
+        _worldStreamer.SetSectorLoadMode(mode);
+        _worldStreamer.Update(_camera.WorldCenter);
+        Renderer.RetainUnusedSectorTextures = mode == SectorLoadMode.Nine;
+    }
 
     internal void SetMinimapVisible(bool visible) => _scene.Minimap.CheatVisible = visible;
 
@@ -426,9 +438,7 @@ internal sealed class InGameScene : IGameScene
         var startLocation = _saveState.LastLocation ?? new Vector2(
             _worldStreamer.StartSector.X * WorldStreamer.SectorTileCount + WorldStreamer.SectorTileCount * 0.5f,
             _worldStreamer.StartSector.Y * WorldStreamer.SectorTileCount + WorldStreamer.SectorTileCount * 0.5f);
-        _worldStreamer.CenterOnSector(
-            (int)MathF.Floor(startLocation.X / WorldStreamer.SectorTileCount),
-            (int)MathF.Floor(startLocation.Y / WorldStreamer.SectorTileCount));
+        _worldStreamer.Update(startLocation);
         _camera.CenterOnTile(startLocation.X, startLocation.Y, 0.75f);
         _inputController.InitializeLocation(startLocation);
         UpdateRegionDisplayName();

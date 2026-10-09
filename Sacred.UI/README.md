@@ -42,7 +42,12 @@ content; its 84-byte layout and anchor enum are in `Sacred.Core.UI`, outside the
 generated executable-layout directory.
 
 `BottomHudLayout` preserves the native 1024x768 proportions and anchors the center
-panel to the output's bottom edge. `DayNightDial` reproduces calendar rotation and
+panel to the output's bottom edge. `BottomHudQuickSlotLayout` adds the original
+left/right ornamental wings and the first empty hand and combat-art frames.
+The hand and combat-art interiors use their distinct native selected-empty
+backgrounds, resolved from the executable table and drawn beneath the frames.
+Their extents participate in HUD pointer capture at the same output scale.
+`DayNightDial` reproduces calendar rotation and
 horizontal scaling. The Engine binds its existing lighting clock as midnight=0,
 noon=0.5, with continuous dusk/dawn; cave ambient overrides leave the clock intact.
 Drawing uses original textures at output resolution, independently of world render

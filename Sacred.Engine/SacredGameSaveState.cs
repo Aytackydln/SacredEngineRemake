@@ -5,6 +5,7 @@ using Sacred.Engine.Latency;
 using Sacred.Engine.Scene.InGame;
 using Sacred.Granny.Abstractions;
 using Sacred.Particles;
+using Sacred.World;
 
 namespace Sacred.Engine;
 
@@ -35,6 +36,8 @@ public sealed record SacredGameSaveState
     public RenderScalingMode RenderScalingMode { get; init; } = RenderScalingMode.Bilinear;
     public GrnBackendKind GrannyBackend { get; init; } = GrnBackendKind.ManagedParser;
     public WorldLightingMode WorldLightingMode { get; init; } = WorldLightingMode.TimedDayNightCycle;
+    public SectorLoadMode SectorLoadMode { get; init; } = SectorLoadMode.Four;
+    public bool WaitForSectorGpuUploads { get; init; }
     public bool StairsTilesVisible { get; init; }
     public bool BlockedTilesVisible { get; init; }
     public float PlayerMovementSpeedMultiplier { get; init; } = 1.0f;

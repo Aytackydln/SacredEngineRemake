@@ -16,6 +16,7 @@ using Sacred.Granny.Abstractions;
 using Sacred.Granny.Diagnostics;
 using Sacred.Particles;
 using Sacred.Particles.Diagnostics;
+using Sacred.World;
 
 namespace Sacred.Engine;
 
@@ -52,6 +53,8 @@ internal sealed partial class SacredGameRuntime : IDisposable
         SceneManager scenes)
     {
         _initialSaveState = initialSaveState;
+        _sectorLoadMode = initialSaveState.SectorLoadMode;
+        _waitForSectorGpuUploads = initialSaveState.WaitForSectorGpuUploads;
         window.FocusRequestsEnabled = initialSaveState.RequestWindowFocus;
         _grannyBackend = initialSaveState.GrannyBackend;
         _gameDirectory = gameDirectory;
@@ -101,6 +104,7 @@ internal sealed partial class SacredGameRuntime : IDisposable
 
     private void ApplyDebugUiRequests()
     {
+        ApplySectorStreamingRequests();
         if (_debugUiControls.RequestedSkinningMode is { } skinningMode)
         {
             _debugUiControls.RequestedSkinningMode = null;
@@ -236,6 +240,8 @@ internal sealed partial class SacredGameRuntime : IDisposable
     private void SynchronizeDebugUiControls()
     {
         SynchronizeCampaignControls();
+        _debugUiControls.SectorLoadMode = _sectorLoadMode;
+        _debugUiControls.WaitForSectorGpuUploads = _waitForSectorGpuUploads;
         _debugUiControls.HdrEnabled = _renderer.IsHdrEnabled;
         _debugUiControls.FramePacingMode = _framePacing.Mode;
         _debugUiControls.ManualFrameRate = _framePacing.ManualFrameRate;
@@ -288,6 +294,8 @@ internal sealed partial class SacredGameRuntime : IDisposable
             AutoRenderResolutionStepPercentage = _renderer.AutoRenderResolutionStepPercentage,
             RenderScalingMode = _renderer.RenderScalingMode,
             GrannyBackend = _grannyBackend,
+            SectorLoadMode = _sectorLoadMode,
+            WaitForSectorGpuUploads = _waitForSectorGpuUploads,
             WorldLightingMode = _inGameScene?.WorldLightingMode ?? _initialSaveState.WorldLightingMode,
             StairsTilesVisible = _inGameScene?.StairsTilesVisible ?? _initialSaveState.StairsTilesVisible,
             BlockedTilesVisible = _inGameScene?.BlockedTilesVisible ?? _initialSaveState.BlockedTilesVisible,
@@ -338,6 +346,7 @@ internal sealed partial class SacredGameRuntime : IDisposable
             ParticleSimulation = Enum.IsDefined(state.ParticleSimulation)
                 ? state.ParticleSimulation : ParticleSimulationMode.Auto,
             SkinningMode = Enum.IsDefined(state.SkinningMode) ? state.SkinningMode : SkinningMode.Auto,
+            SectorLoadMode = Enum.IsDefined(state.SectorLoadMode) ? state.SectorLoadMode : SectorLoadMode.Four,
             HdrBrightness = (state.HdrBrightness ?? HdrBrightnessSettings.Default).Normalized(),
             FramePacingMode = Enum.IsDefined(state.FramePacingMode)
                 ? state.FramePacingMode
@@ -458,7 +467,11 @@ internal sealed partial class SacredGameRuntime : IDisposable
                 () =>
                 {
                 },
-                _campaignLoadState);
+                _campaignLoadState with
+                {
+                    SectorLoadMode = _sectorLoadMode,
+                    WaitForSectorGpuUploads = _waitForSectorGpuUploads
+                });
             scene.GetMapAnnotations(_gameDirectory);
             _scenes.ReplaceInactiveInstance(scene);
             _inGameScene = scene;
@@ -481,6 +494,7 @@ internal sealed partial class SacredGameRuntime : IDisposable
         switch (command)
         {
             case HelpCheatCommand:
+                EngineLog.WriteLine("Sector streaming: set sectors <4|9>; set sector-upload-wait <on|off>. Defaults: 4 sectors; upload waiting off.");
                 EngineLog.WriteLine("Map: set map <ancaria|underworld|close|status>; set map-names <on|off>; set map-npcs <on|off>; set map-fit now.");
                 EngineLog.WriteLine("Map UI: set map-ui <close|waypoint|status> invokes native control actions; set map-panel <on|off> shows the diagnostic panel.");
                 EngineLog.WriteLine("Campaigns: set campaign list; set campaign status; set campaign <bin-directory-name|absolute-path> reloads the world using that script set (default NetScriptCamp).");
@@ -610,6 +624,7 @@ internal sealed partial class SacredGameRuntime : IDisposable
 
     private bool TrySetEngineCheatOption(string option, string value, out string message)
     {
+        if (TrySetSectorStreamingOption(option, value, out message)) return true;
         switch (option.ToLowerInvariant())
         {
             case "map-fit" when _scenes.ActiveScene is WorldMapScene mapScene:
