@@ -101,10 +101,11 @@ public partial class MainWindow : Window
             window = kind.ToLowerInvariant() switch
             {
                 "models" => new ModelsWindow(_session),
+                "effects" => new EffectsWindow(_session),
                 "equipment" => new EquipmentWindow(_session),
                 "textures" => new TexturesWindow(_session),
                 "characters" => new CharactersWindow(_session),
-                _ => throw new ArgumentException("Viewer must be models, equipment, textures or characters.")
+                _ => throw new ArgumentException("Viewer must be models, effects, equipment, textures or characters.")
             };
             _windows[kind] = window;
             window.Closed += (_, _) => { _windows.Remove(kind); if (ReferenceEquals(ActiveViewer, window)) ActiveViewer = null; };
@@ -152,6 +153,7 @@ public partial class MainWindow : Window
     }
 
     private void Models_OnClick(object? sender, RoutedEventArgs e) => OpenViewer("models");
+    private void Effects_OnClick(object? sender, RoutedEventArgs e) => OpenViewer("effects");
     private void Equipment_OnClick(object? sender, RoutedEventArgs e) => OpenViewer("equipment");
     private void Textures_OnClick(object? sender, RoutedEventArgs e) => OpenViewer("textures");
     private void Characters_OnClick(object? sender, RoutedEventArgs e) => OpenViewer("characters");

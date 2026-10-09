@@ -1,5 +1,6 @@
 using System;
 using Sacred.Engine.Scene.InGame;
+using Sacred.Shaders;
 using Sacred.World.Geometry;
 using Sacred.World.Particles;
 
@@ -20,14 +21,18 @@ internal static class ParticleGpuProjection
         c[24] = group.Origin.X; c[25] = group.Origin.Y; c[26] = group.DepthAnchor.X; c[27] = group.DepthAnchor.Y;
         c[28] = group.HeightOffset;
         var draw = group.Definition.Draw!;
+        c[ParticleGpuShaderLayout.HalfSizeMultiplierOffset] = draw.HalfSizeMultiplier;
         var additive = group.Definition.EmissionMode == 2 ? group.Batch.Parameters.Index == 0 : (draw.RawFlags & 1) != 0;
         Dx12ParticleKernels.UInt(c,29,(additive ? 2u : 0u) | ((draw.RawFlags & 0x10) != 0 ? 4u : 0u));
-        Dx12ParticleKernels.UInt(c,30,draw.UsesColorTable ? 1u : 0u);
+        Dx12ParticleKernels.UInt(c,30,draw.UsesColorTable ? 1u : draw.UsesParticleColor ? 2u :
+            (draw.RawFlags & 2) == 0 ? 3u : 0u);
         Dx12ParticleKernels.UInt(c,31,draw.UsesRandomAtlasCell ? 1u : 0u);
         var screen = IsometricProjection.CreateScreenTransform(camera.ViewCenter,camera.ViewportZoom,width,height);
         c[32] = (float)screen.OriginX; c[33] = (float)screen.OriginY; c[34] = screen.Zoom;
         c[35] = WorldPainterDepth.FromWorld(camera.ViewCenter);
         Dx12ParticleKernels.UInt(c,36,encoding);
+        Dx12ParticleKernels.UInt(c,38,draw.UsesRotation ? 1u : 0u);
+        Dx12ParticleKernels.UInt(c,39,draw.AnchoredAtBottom ? 1u : 0u);
         return c;
     }
     public static ParticleGpuDraw Cpu(WorldParticle particle, SacredCamera camera, int width, int height,

@@ -8,10 +8,17 @@ internal sealed record NativeParticleFamily(string Name, uint FactoryBranch, uin
     int ParameterSlotCount, uint DrawAddress)
 {
     public (uint Start, uint End)? ActorLookup { get; init; }
+    /// <summary>Evaluate the native radius-dependent branch at unit radius; runtime supplies Items.pak radius.</summary>
+    public bool UnitActorRadius { get; init; }
+    /// <summary>Native allocated slots exposed to initializers that derive their burst count from the vector.</summary>
+    public int InitialVectorCount { get; init; }
     public int SelectorOffset { get; init; } = 0x38;
     public uint? EventColor { get; init; }
+    public IReadOnlyDictionary<int, uint>? EventArguments { get; init; }
     public bool SampleDefaultEnvironment { get; init; }
+    public uint? SampleRandomValue { get; init; }
     public int? ColorOffset { get; init; }
+    public int ColorSlotStride { get; init; }
     public uint? InitialFlags { get; init; }
     public bool EmitBeforeMovement { get; init; } = true;
     public uint? InitializerEnd { get; init; }

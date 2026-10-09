@@ -12,6 +12,8 @@ internal static class AssetViewerConsole
     public static void Start(MainWindow main)
     {
         Console.WriteLine("[Assets] Inventory cheats: inventory, inventory-slot <index>, inventory-item <id>, item-description, screenshot-item <path.png>, inventory-clear, stats, allocation, stats-view <stats|skills|bonuses|allocate>, level <level>, attribute <name> <allocated points>, skill <id> <rank>, combat-art <code> <rank>.");
+        Console.WriteLine("[Assets] FX cheats: open effects, fx <Items.pak row>, fx-implemented <true|false>, fx-search <text>, fx-variant <script|event subtype>, fx-strength <unsigned value>, fx-distance <native units, 0..2000>, fx-defaults, fx-restart, fx-actor, fx-play <true|false>, fx-time <seconds>.");
+        Console.WriteLine("[Assets] Models/Effects camera cheat: zoom <wheel steps>; positive zooms in, negative zooms out.");
         Console.WriteLine("[Assets] Cheats: open <models|equipment|textures|characters>, model <row>, item <id>, texture <archive.pak> <row>, character <row>, class <name|npc>, animations, animation <bind|default|slot|GRN name>, animation-play <true|false>, animation-time <seconds>, rotate <horizontal degrees>, effects <true|false>, equip <slot-index> <id>, unequip <slot-index>, screenshot <path.png>, screenshot-ui <path.png>, location <directory>, close <view>, gc, quit.");
         _ = Task.Run(async () =>
         {
@@ -38,6 +40,17 @@ internal static class AssetViewerConsole
         {
             case "open": await main.OpenViewerAsync(argument); break;
             case "model": ((ModelsWindow)await main.OpenViewerAsync("models")).Select(ushort.Parse(argument)); break;
+            case "fx": ((EffectsWindow)await main.OpenViewerAsync("effects")).Select(ushort.Parse(argument)); break;
+            case "fx-variant": ((EffectsWindow)await main.OpenViewerAsync("effects")).SelectVariant(argument.Equals("script", StringComparison.OrdinalIgnoreCase) ? null : int.Parse(argument)); break;
+            case "fx-restart": ((EffectsWindow)await main.OpenViewerAsync("effects")).Restart(); break;
+            case "fx-actor": ((EffectsWindow)await main.OpenViewerAsync("effects")).RandomizeActor(); break;
+            case "fx-implemented": ((EffectsWindow)await main.OpenViewerAsync("effects")).SetImplementedFilter(bool.Parse(argument)); break;
+            case "fx-search": ((EffectsWindow)await main.OpenViewerAsync("effects")).SetSearchText(argument); break;
+            case "fx-play": ((EffectsWindow)await main.OpenViewerAsync("effects")).SetPlaying(bool.Parse(argument)); break;
+            case "fx-time": ((EffectsWindow)await main.OpenViewerAsync("effects")).SetTime(float.Parse(argument, CultureInfo.InvariantCulture)); break;
+            case "fx-strength": ((EffectsWindow)await main.OpenViewerAsync("effects")).SetStrength(uint.Parse(argument, CultureInfo.InvariantCulture)); break;
+            case "fx-distance": ((EffectsWindow)await main.OpenViewerAsync("effects")).SetDistance(float.Parse(argument, CultureInfo.InvariantCulture)); break;
+            case "fx-defaults": ((EffectsWindow)await main.OpenViewerAsync("effects")).ResetInputs(); break;
             case "item": ((EquipmentWindow)await main.OpenViewerAsync("equipment")).Select(uint.Parse(argument)); break;
             case "character": ((CharactersWindow)await main.OpenViewerAsync("characters")).Select(ushort.Parse(argument)); break;
             case "texture":
@@ -93,10 +106,22 @@ internal static class AssetViewerConsole
                 switch (main.ActiveViewer)
                 {
                     case ModelsWindow models: models.RotateHorizontally(radians); break;
+                    case EffectsWindow fx: fx.RotateHorizontally(radians); break;
                     case CharactersWindow characters: characters.RotateHorizontally(radians); break;
                     case EquipmentWindow equipment: equipment.RotateHorizontally(radians); break;
                     default: throw new InvalidOperationException("Open the models, equipment or characters viewer to rotate its preview.");
                 }
+                break;
+            case "zoom":
+                var steps = double.Parse(argument, CultureInfo.InvariantCulture);
+                if (!double.IsFinite(steps)) throw new ArgumentOutOfRangeException(nameof(argument));
+                switch (main.ActiveViewer)
+                {
+                    case ModelsWindow models: models.ZoomBy(steps); break;
+                    case EffectsWindow fx: fx.ZoomBy(steps); break;
+                    default: throw new InvalidOperationException("Open the models or effects viewer to zoom its preview.");
+                }
+                Console.WriteLine($"[Assets] Camera zoom: {steps} wheel steps.");
                 break;
             case "location": await main.LoadGameAsync(argument.Trim('"')); break;
             case "screenshot-ui":

@@ -3,7 +3,7 @@ struct ParticleState
 {
     float3 position; float3 velocity;
     float gravity; float size; float fade; float rotation; float angular_velocity;
-    int atlas_cell; int draw_order;
+    int atlas_cell; int draw_order; uint color;
 };
 struct ParticleBirth { uint slot; ParticleState state; };
 RWStructuredBuffer<ParticleState> particle_states : register(u0);
@@ -22,7 +22,8 @@ cbuffer ParticleCompute : register(b1)
     float2 emitter_origin; float2 depth_anchor;
     float emitter_height; uint blend_flags; uint use_colors; uint random_atlas;
     float4 screen_transform;
-    uint texture_encoding; uint cpu_count; uint unused0; uint unused1;
+    uint texture_encoding; uint cpu_count; uint use_rotation; uint anchored_at_bottom;
+    float half_size_multiplier; float3 projection_padding;
 };
 [numthreads(64,1,1)]
 void clear_states(uint i : SV_DispatchThreadID)
@@ -84,9 +85,11 @@ void project_particles(uint i : SV_DispatchThreadID)
     precise float2 world = emitter_origin + ground;
     precise float height = (emitter_height + p.position.z) * projection.w * projection.y;
     precise float2 anchor = float2((world.x-world.y)*48+48, (world.x+world.y)*24);
-    precise float width = 2 * p.size * projection.x;
-    precise float tall = 2 * p.size * projection.y;
+    precise float half_size = p.size * half_size_multiplier;
+    precise float width = 2 * half_size * projection.x;
+    precise float tall = 2 * half_size * projection.y;
     draw.sort_depth = (depth_anchor.x+ground.x)+(depth_anchor.y+ground.y)+height/96;
+    if (anchored_at_bottom != 0) height += tall*.5f;
     draw.tile_x = (int)floor(world.x); draw.tile_y = (int)floor(world.y);
     draw.draw_order = p.draw_order; draw.sequence = sequence_base + i;
     SpriteInstance s = (SpriteInstance)0;
@@ -95,10 +98,11 @@ void project_particles(uint i : SV_DispatchThreadID)
     s.depth = clamp(.5f-(draw.sort_depth-screen_transform.w)/4096, .2f, .72f);
     s.texture_index = texture_slot; s.frame_count = atlas_side*atlas_side;
     uint fade = (uint)clamp((int)p.fade, 0, 255);
-    uint color = use_colors != 0 ? particle_colors[fade] : (particle_colors[0]&0xffffff)|(fade<<24);
+    uint color = use_colors == 1 ? particle_colors[fade] : use_colors == 3 ? particle_colors[0] :
+        (use_colors == 2 ? p.color : particle_colors[0])|(fade<<24);
     s.corner_alpha = float4((color>>16)&255, (color>>8)&255, color&255, color>>24)/255;
     s.texture_variant = random_atlas != 0 ? p.atlas_cell : clamp((int)((255-p.fade)*s.frame_count/256),0,(int)s.frame_count-1);
-    s.particle_sprite = 1 | blend_flags; s.particle_rotation = p.rotation;
+    s.particle_sprite = 1 | blend_flags; s.particle_rotation = use_rotation != 0 ? p.rotation : 0;
     s.atlas_columns = s.atlas_rows = atlas_side;
     draw.sprite = s; draw.encoding = texture_encoding; draw.valid = 1;
     particle_output[output_offset+i] = draw;

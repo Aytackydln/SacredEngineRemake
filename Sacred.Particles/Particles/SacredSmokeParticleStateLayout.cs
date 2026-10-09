@@ -26,8 +26,10 @@ public readonly struct SacredSmokeParticleStateLayout
     [FieldOffset(0xC6C)] public readonly SacredParticleEmissionLayout Emission0;
     [FieldOffset(0xCD0)] public readonly SacredParticleEmissionLayout Emission1;
     [FieldOffset(0xD34)] public readonly SacredParticleEmissionLayout Emission2;
-    /// <summary>Geyser countdown reduced by dt; negative values reset the random
-    /// quiet period, values below one enter the high-speed burst (0x76E3FF).</summary>
+    /// <summary>Geyser countdown reduced after movement. Initialized in [3,20];
+    /// negative values reset to [30,100] without changing the previous phase on that frame.
+    /// Values below one select eruption parameters; other values select quiet parameters
+    /// (0x76F602..0x76F621, 0x76E3FF..0x76E5BD).</summary>
     [FieldOffset(0xD98)] public readonly float BurstCountdown;
     public float UnknownD98 => BurstCountdown;
 }

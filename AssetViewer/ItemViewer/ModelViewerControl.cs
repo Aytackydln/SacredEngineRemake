@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
+using AssetViewer.AssetViewer;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -112,8 +113,16 @@ public sealed class ModelViewerControl : UserControl
     }
 
     public void SetZoomEnabled(bool enabled) => _viewport.SetZoomEnabled(enabled);
+    public void ZoomBy(double delta) => RunOnUiThread(() => _viewport.ZoomBy(delta));
+
+    public void SetGroundGridEnabled(bool enabled) => _viewport.SetGroundGridEnabled(enabled);
 
     public void SetAssetFrame(GrnAsset? baseModel) => RunOnUiThread(() => _viewport.SetAssetFrame(baseModel));
+    internal void SetFxPreview(FxPreviewPlayback? preview) => RunOnUiThread(() => _viewport.SetFxPreview(preview));
+    internal void ShowFxStatus(string name, int particles, int missing) =>
+        RunOnUiThread(() => SetStatusText($"{name}: FX preview | {particles} particles | {missing} missing textures"));
+    internal void ShowFxStatus(string name, string primitives, int missing) =>
+        RunOnUiThread(() => SetStatusText($"{name}: FX preview | {primitives} | {missing} missing textures"));
 
     public void SaveScreenshot(string path) => _viewport.SaveScreenshot(path);
     public void RotateHorizontally(float radians) => RunOnUiThread(() => _viewport.RotateHorizontally(radians));

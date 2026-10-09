@@ -21,13 +21,18 @@ internal static class WorldEmitterGpuProjection
         if (halo) { c[26] = emitter.Origin.X; c[27] = emitter.Origin.Y; }
         c[28] = emitter.HeightOffset;
         var draw = emitter.Definition.Draw!;
+        c[ParticleGpuShaderLayout.HalfSizeMultiplierOffset] = halo ? 1 : draw.HalfSizeMultiplier;
         var additive = emitter.Definition.EmissionMode == 2 ? emitter.Parameters[set].Index == 0 : (draw.RawFlags & 1) != 0;
-        Dx12ParticleKernels.UInt(c, 29, halo ? 6u : (additive ? 2u : 0u) | ((draw.RawFlags & 0x10) != 0 ? 4u : 0u));
-        Dx12ParticleKernels.UInt(c, 30, halo || draw.UsesColorTable ? 1u : 0u);
+        Dx12ParticleKernels.UInt(c, 29, halo ? 2u | (emitter.Definition.Halo!.SourceColorOnly ? 4u : 0u) :
+            (additive ? 2u : 0u) | ((draw.RawFlags & 0x10) != 0 ? 4u : 0u));
+        Dx12ParticleKernels.UInt(c, 30, halo || draw.UsesColorTable ? 1u : draw.UsesParticleColor ? 2u :
+            (draw.RawFlags & 2) == 0 ? 3u : 0u);
         Dx12ParticleKernels.UInt(c, 31, halo || draw.UsesRandomAtlasCell ? 1u : 0u);
         var screen = IsometricProjection.CreateScreenTransform(camera.ViewCenter, camera.ViewportZoom, width, height);
         c[32] = (float)screen.OriginX; c[33] = (float)screen.OriginY; c[34] = screen.Zoom;
         c[35] = WorldPainterDepth.FromWorld(camera.ViewCenter); Dx12ParticleKernels.UInt(c, 36, encoding);
+        Dx12ParticleKernels.UInt(c, 38, !halo && draw.UsesRotation ? 1u : 0u);
+        Dx12ParticleKernels.UInt(c, 39, !halo && draw.AnchoredAtBottom ? 1u : 0u);
         return c;
     }
 }

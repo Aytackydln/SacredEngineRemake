@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Numerics;
 using Sacred.Particles.Diagnostics;
+using Sacred.Particles.Particles;
 
 namespace Sacred.Particles;
 
@@ -26,6 +27,7 @@ public sealed record ParticleGpuOperation
     public float GroundHeight { get; }
     public ParticleControlHandle Instance { get; init; }
     public ulong Sequence { get; init; }
+    public SacredParticleMotionLayout? Motion { get; init; }
 }
 
 /// <summary>Ordered controls usable without a lifetime mirror or simulation arrays.
@@ -43,12 +45,15 @@ public sealed class ParticleGpuCommandQueue
         _births.Add(new(slot, state));
     }
     public void Step(float dt, Vector3 direction, ParticleGroundCollision collision, float groundHeight)
+        => StepWithMotion(dt, direction, collision, groundHeight, null);
+    public void StepWithMotion(float dt, Vector3 direction, ParticleGroundCollision collision, float groundHeight,
+        SacredParticleMotionLayout? motion)
     {
         using var scope = ParticlePerformance.Measure(ParticleCpuStage.ControlPackets);
         if (!float.IsFinite(dt) || dt < 0) throw new ArgumentOutOfRangeException(nameof(dt));
         if (!Enum.IsDefined(collision)) throw new ArgumentOutOfRangeException(nameof(collision));
         FlushBirths();
-        _pending.Add(Create(Array.Empty<ParticleGpuBirth>(), dt, direction, collision, groundHeight));
+        _pending.Add(Create(Array.Empty<ParticleGpuBirth>(), dt, direction, collision, groundHeight) with { Motion = motion });
     }
     public ParticleGpuOperation[] TakePending()
     {

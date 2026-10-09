@@ -11,7 +11,8 @@
             <Button x:Name="LoadButton" Grid.Column="2" Content="Load game" Margin="8,0,0,0" Click="Load_OnClick" />
         </Grid>
         <TextBlock x:Name="StatusText" Text="Loading remembered game location…" TextWrapping="Wrap" />
-        <UniformGrid x:Name="ViewerButtons" Rows="2" Columns="2" IsEnabled="False">
+        <UniformGrid x:Name="ViewerButtons" Rows="3" Columns="2" IsEnabled="False">
+            <Button Content="Effects - Items.pak" Margin="0,0,8,8" HorizontalAlignment="Stretch" Click="Effects_OnClick" />
             <Button Content="Models · Items.pak" Margin="0,0,8,8" HorizontalAlignment="Stretch" Click="Models_OnClick" />
             <Button Content="Equipment" Margin="0,0,0,8" HorizontalAlignment="Stretch" Click="Equipment_OnClick" />
             <Button Content="Textures" Margin="0,0,8,0" HorizontalAlignment="Stretch" Click="Textures_OnClick" />

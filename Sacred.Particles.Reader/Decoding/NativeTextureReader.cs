@@ -90,7 +90,7 @@ internal static class NativeTextureReader
                 instruction.NearBranch32 == 0x761B00) break;
         }
         if (texture == null || flags == null) throw new NotSupportedException("Native texture/draw arguments remain unmapped.");
-        if (atlasSide is not (1 or 2)) throw new NotSupportedException("Unmapped native particle atlas dimensions.");
+        if (atlasSide is not (1 or 2 or 4 or 8)) throw new NotSupportedException("Unmapped native particle atlas dimensions.");
         return new SacredParticleDrawDefinition(texture, flags.Value, address) { AtlasSide = (int)atlasSide.Value };
     }
 
@@ -110,6 +110,15 @@ internal static class NativeTextureReader
                     ? (uint)instruction.GetImmediate(0) : null);
             if (instruction.Mnemonic == Mnemonic.Call)
             {
+                if (instruction.Op0Kind == OpKind.NearBranch32 && instruction.NearBranch32 == 0x762E10)
+                {
+                    var args = arguments.AsEnumerable().Reverse().Take(8).ToArray();
+                    if (args.Length != 8 || args[1] is not { } size || args[2] is not { } selector ||
+                        args[3] is not { } color || !args.Skip(4).SequenceEqual(new uint?[] { uint.MaxValue, 0, 1, 0 }))
+                        throw new NotSupportedException("Unmapped stdFlare arguments.");
+                    return new(ReadFlareTexture(code, selector), BitConverter.UInt32BitsToSingle(size), color,
+                        (uint)instruction.IP) { SourceColorOnly = ReadFlareSourceBlend(code, selector), AttachmentIndex = -1 };
+                }
                 if (instruction.Op0Kind == OpKind.NearBranch32 && instruction.NearBranch32 == 0x7631E0)
                 {
                     // Device, texture, half-size, color, rotation, offset, and five render arguments.
@@ -118,13 +127,48 @@ internal static class NativeTextureReader
                         !args.Skip(4).SequenceEqual(new uint?[] { 0, 0, 1, 1, 1, 0, 1 }))
                         throw new NotSupportedException("Unmapped stdLensflare arguments.");
                     return new(texture, BitConverter.UInt32BitsToSingle(args[2]!.Value), args[3]!.Value,
-                        (uint)instruction.IP);
+                        (uint)instruction.IP) { SourceColorOnly = args[7] == 0 };
                 }
                 arguments.Clear();
             }
             if (instruction.Mnemonic is Mnemonic.Jmp or Mnemonic.Ret) break;
         }
         return null;
+    }
+
+    internal static string ReadFlareTexture(NativeCode code, uint selector)
+    {
+        if (selector > 9) throw new NotSupportedException("Unmapped stdFlare texture override.");
+        // The verified helper's jump table resolves native selectors to texture lookup strings.
+        var dispatch = code.At(0x762EEA);
+        var lookup = code.ImageUInt32((uint)dispatch.MemoryDisplacement64 + selector * 4);
+        var pointer = code.At((uint)code.At(lookup).NextIP);
+        if (pointer.Mnemonic != Mnemonic.Push || pointer.Op0Kind != OpKind.Immediate32)
+            throw new NotSupportedException("Unmapped stdFlare texture lookup.");
+        return code.ImageString(pointer.Immediate32, 128);
+    }
+
+    internal static bool ReadFlareSourceBlend(NativeCode code, uint selector)
+    {
+        // stdFlare clears EBP in its prologue; follow the selected texture path to state 8.
+        uint? previous = null, last = null;
+        var ip = code.ImageUInt32((uint)code.At(0x762EEA).MemoryDisplacement64 + selector * 4);
+        for (var count = 0; count < 64; count++)
+        {
+            var instruction = code.At(ip); ip = (uint)instruction.NextIP;
+            if (instruction.Mnemonic == Mnemonic.Jmp && instruction.Op0Kind == OpKind.NearBranch32)
+                ip = instruction.NearBranch32;
+            if (instruction.Mnemonic == Mnemonic.Push)
+            {
+                previous = last;
+                last = instruction.Op0Kind == OpKind.Register
+                    ? instruction.Op0Register == Register.EBP ? 0u : null
+                    : (uint)instruction.GetImmediate(0);
+            }
+            if (instruction.Mnemonic == Mnemonic.Call && instruction.NearBranch32 == 0x643430 &&
+                last == 8 && previous is 0 or 1) return previous == 1;
+        }
+        throw new NotSupportedException("Unmapped stdFlare source blend.");
     }
 
     private static bool IsTextureRead(Instruction instruction, IReadOnlyList<SacredParticleTextureBinding> bindings, Register owner) =>

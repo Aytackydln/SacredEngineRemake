@@ -28,6 +28,7 @@ try
     // Prepare every quality before touching output so a failed decode cannot leave mixed sources.
     var generated = new List<(string Path, string Source)>();
     generated.Add((Path.Combine(output, "EmbeddedModelEffects.g.cs"), ModelEffectSourceWriter.Write(executable)));
+    generated.Add((Path.Combine(output, "EmbeddedModelFxAttachments.g.cs"), ModelFxAttachmentSourceWriter.Write(executable)));
     foreach (var quality in Enum.GetValues<SacredParticleQuality>())
     {
         var catalogue = SacredParticleCatalogueReader.Load(executable, new() { Quality = quality, Log = Console.WriteLine });

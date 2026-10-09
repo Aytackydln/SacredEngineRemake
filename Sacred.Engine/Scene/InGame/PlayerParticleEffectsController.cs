@@ -80,7 +80,8 @@ internal sealed class PlayerParticleEffectsController(WorldParticleSystem partic
                     request.Action == PlayerParticleAction.Enable, request.SelfTarget,
                     request.SelfTarget ? position : request.Point,
                     request.Height + (request.SelfTarget ? 0 : NativeHeight(elevation.SampleHeightOrZero(request.Point))),
-                    request.Duration, request.EventPreset, CreateModelVertices(request), request.FollowSelf, SelfHeight))
+                    request.Duration, request.EventPreset, CreateModelVertices(request), request.FollowSelf, SelfHeight,
+                    request.SelfTarget && scene.Models.FirstOrDefault() is { } actor ? (uint)actor.GroundShadowRadius : null))
                 {
                     EngineLog.WriteLine($"Particle playback unavailable: 0x{request.TypeId:X} (disabled, unsupported or preview limit reached).");
                     return false;
@@ -120,7 +121,7 @@ internal sealed class PlayerParticleEffectsController(WorldParticleSystem partic
                 for (var i = 0; i < count; i++)
                     particles.Effects.Start(particles.Catalogue, stress.TypeId, false, true,
                         position + new Vector2((i % 8 - 3.5f) * .6f, (i / 8 - 3.5f) * .6f),
-                        0, emissionSeconds: 600, selfHeight: SelfHeight);
+                        0, emissionSeconds: 600, selfHeight: SelfHeight, actorBlockRadius: null);
                 message = $"particle crowd {count}: {stress.TypeName}, decoded capacity {stress.Capacity}";
                 return true;
             case "particle-follow":

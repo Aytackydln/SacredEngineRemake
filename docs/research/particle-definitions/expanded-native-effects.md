@@ -3,7 +3,7 @@
 The verified Gold code image is the same profile used by Sacred.Particles.Reader
 (`ee60108ce8147721717df1632c47b89c2b445a0255922219fa14a5980feadf37`).
 The catalogue now contains 210 original FX types, 15 decoded script presets,
-and thirteen decoded event
+and sixteen decoded event
 variants. Event variants use the original `(type ID, event subtype)` pair;
 they do not acquire synthetic game IDs or override script creation selectors.
 
@@ -170,15 +170,29 @@ motion 0x18, emission 0x38, and the fourteen authored animal types 0x9C..0xD3.
 The final 0x1C bytes remain unknown. Gold selects an animal-list index by modulo
 fourteen at `0x7960BE`; these values are creature types, not texture IDs.
 
-The only remaining direct actor-vertex helper call belongs to Generic subtype 6.
+Generic subtype 6 is now decoded, completing the direct actor-vertex helper calls.
 Its parameters depend on the actor's actual Items.pak blocking radius. Gold
 `0x428CE0` reads the 128-byte item descriptor at +0x14 and substitutes 50 for a
 valid item whose radius is zero; invalid IDs return zero. The particle initializer
 scales size, gravity and size change at `0x7972B0..0x797302`. This use is recorded
 on `ItemsPakEntryModelDescLayout.BlockRadius`; it is not decoded with an invented
-actor radius. Further mesh/ghost families use other geometry helpers.
+actor radius. The offline reader evaluates its coefficients at unit radius;
+`UsesActorBlockRadius` requires the actual Items.pak radius at playback.
+Size is radius * 0.03, gravity radius * -5, and size-change rate radius * 0.3;
+the parameter template retains the original float coefficient bytes. This event
+seeds at most 300 vertices, uses standard movement and draws Spark06 with native
+flags 0x19. Native colors are a 256-entry green table. Independent execution of
+the original initializer now agrees byte-for-byte for this subtype at all three
+qualities. Eighteen additional radius references cover the zero-field fallback,
+positive radii and the full unsigned range. Further mesh/ghost families use other
+geometry helpers. See [Asset Viewer progress](asset-viewer-progress.md).
 
 ## Remaining requested effects
+
+The previously unsupported **Sparks** and **Dustcloud** families now have native
+event previews. Their first-update births, parameter/colour bytes and serializers
+are covered by [new FX decoding](new-point-bursts.md), independently of the
+Generic/PuzzleSolved/Changeling variants documented above.
 
 Generic subtypes 7/8 have additional time-dependent updates and resampling,
 so their parameters alone are insufficient for faithful playback. Native body-part
@@ -191,10 +205,10 @@ caller has been confirmed for the newly exposed variants.
 `expanded_native_reference.py` independently executes the original initializers
 in Unicorn. All emission/motion bytes, color-table bytes and 125 seeded particle
 records match the managed extractor byte for byte at all three quality settings:
-501 comparisons. The existing reader regression suite still compares all 81
+510 comparisons. The existing reader regression suite still compares all 81
 previously recovered parameter sets. Runtime playback checks cover both CPU
 modes, all qualities, self/point targets, loop rejection for native bursts,
-exact seed counts, fixed/following origins and natural expiry (7,416 checks). In-game validation uses console cheats
+exact seed counts, fixed/following origins and natural expiry (7,590 checks). In-game validation uses console cheats
 and the screenshot cheat only.
 
 ```text

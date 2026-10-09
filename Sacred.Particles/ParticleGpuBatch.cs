@@ -19,7 +19,12 @@ public sealed class ParticleGpuBatch
         Capacity = capacity;
         _mirror = new(capacity);
     }
-    public SacredParticleParameterSet Parameters { get; }
+    public SacredParticleParameterSet Parameters { get; private set; }
+    public void ApplyParameters(SacredParticleParameterSet parameters)
+    {
+        if (parameters.Index != Parameters.Index) throw new ArgumentException("Parameter slot cannot change.");
+        Parameters = parameters;
+    }
     public int Capacity { get; }
     public ParticleGpuCommandQueue Commands { get; } = new();
     public int Count => _mirror.Count;
@@ -27,7 +32,7 @@ public sealed class ParticleGpuBatch
     public void Add(ParticleSimulationState state) => Commands.AddBirth(_mirror.Add(state), state);
     public void Update(float dt, Vector3 direction, ParticleGroundCollision collision, float groundHeight)
     {
-        Commands.Step(dt, direction, collision, groundHeight);
+        Commands.StepWithMotion(dt, direction, collision, groundHeight, Parameters.Motion);
         _mirror.Update(Parameters, dt, direction, collision, groundHeight);
     }
     public ParticleGpuOperation[] TakePending() => Commands.TakePending();

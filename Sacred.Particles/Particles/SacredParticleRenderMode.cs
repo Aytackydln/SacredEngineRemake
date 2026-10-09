@@ -16,7 +16,7 @@ public enum SacredParticleRenderMode : uint
     /// <summary>Native <c>ENERGY_ALPHA</c>.</summary>
     EnergyAlpha = 1u << 1,
 
-    /// <summary>Native <c>PHI</c>.</summary>
+    /// <summary>Native <c>PHI</c>. stdRendering 0x76200E gates the particle's rotation matrix on this bit.</summary>
     Phi = 1u << 2,
 
     /// <summary>Native <c>ENERGY_COL</c>.</summary>
@@ -31,7 +31,8 @@ public enum SacredParticleRenderMode : uint
     /// <summary>Native <c>USE_WORLD_LIGHT</c>.</summary>
     UseWorldLight = 1u << 6,
 
-    /// <summary>Native <c>CENTER_AT_DOWN</c>.</summary>
+    /// <summary>Native <c>CENTER_AT_DOWN</c>. 0x7620FF..0x7621B4 uses local Y=0..2*halfSize,
+    /// instead of -halfSize..halfSize, anchoring the quad at the particle position.</summary>
     CenterAtDown = 1u << 7,
 
     /// <summary>Native <c>MULTIPART</c>.</summary>

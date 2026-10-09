@@ -26,14 +26,38 @@ internal static class ParticleCatalogueSourceWriter
                 var bindings = ReadOnlyArray("SacredParticleTextureBinding", entry.TextureBindings.Select(b =>
                     $"new({CSharpLiteral.UInt32(b.NativeHandleOffset)}, {CSharpLiteral.String(b.TextureName)})"));
                 var draw = entry.Draw is { } d
-                    ? $"new SacredParticleDrawDefinition({CSharpLiteral.String(d.TextureName)}, {CSharpLiteral.UInt32(d.RawFlags)}, {CSharpLiteral.UInt32(d.NativeAddress)}) {{ AtlasSide = {d.AtlasSide} }}" : "null";
+                    ? $"new SacredParticleDrawDefinition({CSharpLiteral.String(d.TextureName)}, {CSharpLiteral.UInt32(d.RawFlags)}, {CSharpLiteral.UInt32(d.NativeAddress)}) {{ AtlasSide = {d.AtlasSide}, HalfSizeMultiplier = {Float(d.HalfSizeMultiplier)} }}" : "null";
                 var parameters = ReadOnlyArray("SacredParticleParameterSet", entry.ParameterSets.Select(p =>
                     $"EmbeddedParticleParameters.Read({p.Index}, \"{Hex(p.Emission)}\", \"{Hex(p.Motion)}\") with {{ Colors = EmbeddedParticleParameters.ReadColors(\"{Convert.ToHexStringLower(MemoryMarshal.AsBytes(p.Colors.ToArray().AsSpan()))}\") }}"));
-                var halo = entry.Halo is { } h
-                    ? $", Halo = new({CSharpLiteral.String(h.TextureName)}, {Float(h.HalfSize)}, {CSharpLiteral.UInt32(h.Color)}, {CSharpLiteral.UInt32(h.NativeAddress)})" : string.Empty;
+                var halo = WriteHalo(entry.Halo);
                 var particles = entry.InitialParticles.Count == 0 ? string.Empty :
                     $", InitialParticles = EmbeddedParticleParameters.ReadParticles(\"{Convert.ToHexStringLower(MemoryMarshal.AsBytes(entry.InitialParticles.ToArray().AsSpan()))}\")";
-                source.AppendLine($"            new({CSharpLiteral.UInt32(entry.TypeId)}, {CSharpLiteral.String(entry.TypeName)}, {CSharpLiteral.UInt32(entry.TypeRecordAddress)}, {CSharpLiteral.UInt32(entry.FactoryAddress)}, {CSharpLiteral.String(entry.NativeClass)}, {CSharpLiteral.Int32(entry.Preset)}, SacredParticleDefinitionStatus.{entry.Status}, {CSharpLiteral.String(entry.Diagnostic)}, {bindings}, {draw}, {parameters}) {{ DisplayName = {CSharpLiteral.String(entry.DisplayName)}, EmissionMode = {entry.EmissionMode}, UsesWind = {(entry.UsesWind ? "true" : "false")}, EmitBeforeMovement = {(entry.EmitBeforeMovement ? "true" : "false")}, Capacity = {entry.Capacity}, GroundCollision = ParticleGroundCollision.{entry.GroundCollision}, ModelBurstCount = {entry.ModelBurstCount}, IsEventPreset = {(entry.IsEventPreset ? "true" : "false")}, OneTime = {(entry.OneTime ? "true" : "false")}{particles}{halo} }},");
+                var actorScale = entry.UsesActorBlockRadius ? ", UsesActorBlockRadius = true" : string.Empty;
+                if (entry.AdditionalDraws.Count > 0)
+                    actorScale += ", AdditionalDraws = " + ReadOnlyArray("SacredParticleDrawDefinition", entry.AdditionalDraws.Select(d =>
+                        $"new({CSharpLiteral.String(d.TextureName)}, {CSharpLiteral.UInt32(d.RawFlags)}, {CSharpLiteral.UInt32(d.NativeAddress)}) {{ AtlasSide = {d.AtlasSide}, HalfSizeMultiplier = {Float(d.HalfSizeMultiplier)} }}"));
+                if (entry.AdditionalHalos.Count > 0)
+                    actorScale += ", AdditionalHalos = " + ReadOnlyArray("SacredParticleHaloDefinition", entry.AdditionalHalos.Select(HaloExpression));
+                if (entry.RetireAfterDuration) actorScale += ", RetireAfterDuration = true";
+                if (!entry.ParticlesVisible) actorScale += ", ParticlesVisible = false";
+                if (entry.Teleport is { } teleport) actorScale += WriteTeleport(teleport);
+                if (entry.OrbitEmission is { } orbit)
+                    actorScale += $", OrbitEmission = new({Float(orbit.Radius)}, {Float(orbit.AngularSpeed)}, {Float(orbit.LimitAngle)}, {CSharpLiteral.UInt32(orbit.NativeAddress)})";
+                if (entry.BurstOnFirstUpdate) actorScale += ", BurstOnFirstUpdate = true";
+                if (entry.NativeConstructorAddress is { } constructor) actorScale += $", NativeConstructorAddress = {CSharpLiteral.UInt32(constructor)}";
+                if (entry.EmissionDurationSeconds is { } duration) actorScale += $", EmissionDurationSeconds = {Float(duration)}";
+                if (entry.RequiresActorContext) actorScale += ", RequiresActorContext = true";
+                if (entry.SingleBirthInitialization) actorScale += ", SingleBirthInitialization = true";
+                if (entry.SkipFirstMovement) actorScale += ", SkipFirstMovement = true";
+                if (entry.LineEmission is { } line)
+                    actorScale += $", LineEmission = new({line.StartAttachment}, {line.EndAttachment}, {line.SelectionMode}, {CSharpLiteral.UInt32(line.NativeAddress)})";
+                if (entry.Strength is { } strength)
+                    actorScale += $", Strength = new({Float(strength.InputScale)}, {Float(strength.SizeAddend)}, {Float(strength.SizeMultiplier)}, {Float(strength.GrowthMultiplier)}, {Float(strength.GrowthAddend)}, {CSharpLiteral.UInt32(strength.NativeAddress)})";
+                if (entry.EmissionCycle is { } cycle)
+                    actorScale += $", EmissionCycle = new({Float(cycle.InitialDelayMinimum)}, {Float(cycle.InitialDelayWidth)}, {Float(cycle.RepeatDelayMinimum)}, {Float(cycle.RepeatDelayWidth)}, {Float(cycle.RandomScale)}, {Float(cycle.BurstThreshold)}, {Float(cycle.QuietInterval)}, {Float(cycle.QuietVerticalVelocity)}, {Float(cycle.QuietFadeRate)}, {Float(cycle.BurstInterval)}, {Float(cycle.BurstVerticalVelocity)}, {Float(cycle.BurstFadeRate)}, {CSharpLiteral.UInt32(cycle.NativeAddress)})";
+                if (entry.EmissionClock != SacredParticleEmissionClock.CrossingUpdate)
+                    actorScale += $", EmissionClock = SacredParticleEmissionClock.{entry.EmissionClock}";
+                source.AppendLine($"            new({CSharpLiteral.UInt32(entry.TypeId)}, {CSharpLiteral.String(entry.TypeName)}, {CSharpLiteral.UInt32(entry.TypeRecordAddress)}, {CSharpLiteral.UInt32(entry.FactoryAddress)}, {CSharpLiteral.String(entry.NativeClass)}, {CSharpLiteral.Int32(entry.Preset)}, SacredParticleDefinitionStatus.{entry.Status}, {CSharpLiteral.String(entry.Diagnostic)}, {bindings}, {draw}, {parameters}) {{ DisplayName = {CSharpLiteral.String(entry.DisplayName)}, EmissionMode = {entry.EmissionMode}, UsesWind = {(entry.UsesWind ? "true" : "false")}, EmitBeforeMovement = {(entry.EmitBeforeMovement ? "true" : "false")}, Capacity = {entry.Capacity}, GroundCollision = ParticleGroundCollision.{entry.GroundCollision}, ModelBurstCount = {entry.ModelBurstCount}, IsEventPreset = {(entry.IsEventPreset ? "true" : "false")}, OneTime = {(entry.OneTime ? "true" : "false")}{particles}{halo}{actorScale} }},");
             }
         }
         Entries(catalogue.Definitions);
@@ -55,8 +79,50 @@ internal static class ParticleCatalogueSourceWriter
             : $"Array.AsReadOnly<{elementType}>([{string.Join(", ", array)}])";
     }
 
+    private static string WriteHalo(SacredParticleHaloDefinition? halo)
+    {
+        if (halo is null) return string.Empty;
+        return ", Halo = " + HaloExpression(halo);
+    }
+
+    private static string HaloExpression(SacredParticleHaloDefinition halo)
+    {
+        var properties = new List<string>();
+        if (!halo.Additive) properties.Add("Additive = false");
+        if (halo.PersistAfterEmission) properties.Add("PersistAfterEmission = true");
+        if (halo.AtlasSide != 1) properties.Add($"AtlasSide = {halo.AtlasSide}");
+        if (halo.Rotation != 0) properties.Add($"Rotation = {Float(halo.Rotation)}");
+        if (halo.AtlasAnimation is { } animation)
+            properties.Add($"AtlasAnimation = new({Float(animation.IntroductionEnd)}, {Float(animation.HoldEnd)}, {Float(animation.End)}, {Float(animation.OutroOrigin)}, {Float(animation.FramesPerSecond)}, {animation.FrameMask})");
+        if (halo.Offset != default)
+            properties.Add($"Offset = new System.Numerics.Vector3({Float(halo.Offset.X)}, {Float(halo.Offset.Y)}, {Float(halo.Offset.Z)})");
+        if (halo.SourceColorOnly) properties.Add("SourceColorOnly = true");
+        if (halo.AttachmentIndex is { } attachment) properties.Add($"AttachmentIndex = {attachment}");
+        if (halo.PulseAngularFrequency is { } frequency)
+        {
+            properties.Add($"PulseAngularFrequency = {Float(frequency)}");
+            properties.Add($"PulseAmplitude = {Float(halo.PulseAmplitude)}");
+        }
+        if (halo.FadeStartSeconds is { } start && halo.FadeEndSeconds is { } end)
+        {
+            properties.Add($"FadeStartSeconds = {Float(start)}");
+            properties.Add($"FadeEndSeconds = {Float(end)}");
+            properties.Add($"FadeAlphaScale = {Float(halo.FadeAlphaScale)}");
+        }
+        var initializer = properties.Count == 0 ? string.Empty : $" {{ {string.Join(", ", properties)} }}";
+        return $"new({CSharpLiteral.String(halo.TextureName)}, {Float(halo.HalfSize)}, {CSharpLiteral.UInt32(halo.Color)}, {CSharpLiteral.UInt32(halo.NativeAddress)}){initializer}";
+    }
+
     private static string Hex<T>(T value) where T : unmanaged =>
         Convert.ToHexStringLower(MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref value, 1)));
+
+    private static string WriteTeleport(SacredTeleportParticleDefinition d) =>
+        $", Teleport = new(EmbeddedParticleParameters.ReadTeleportState(\"{Hex(d.InitialState)}\"), " +
+        string.Join(", ", new[] { d.MaximumStep, d.RandomScale, d.InitialPhaseRange, d.FullAngle,
+            d.OrbitRadius, d.PhaseSpeed, d.OrbitSpeedMinimum, d.OrbitSpeedWidth, d.OrbitEnergy,
+            d.BaseHeight, d.HeightRate, d.AngleRate }.Select(Float)) +
+        $", {d.EjectionDivisor}, {Float(d.EjectionSpeed)}, {Float(d.NormalizeThreshold)}, {Float(d.Gravity)}, " +
+        $"{Float(d.BounceMultiplier)}, {d.FlashDivisor}, {d.FlashWidth}, {d.FlashMinimum}, {Float(d.ReturnWait)}, {CSharpLiteral.UInt32(d.NativeAddress)})";
 
     private static string Float(float value) => value.ToString("R", CultureInfo.InvariantCulture) + "f";
 }

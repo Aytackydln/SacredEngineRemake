@@ -20,8 +20,10 @@ internal sealed class ModelsWindow : Window, IAssetViewerWindow
     {
         Title = "Sacred Asset Viewer · Models (Items.pak)";
         Width = 1400; Height = 850;
-        _table = new(session.Items.Select(item => new ModelAssetRow(item)), row => $"{row.EntryId} {row.ResourceId} {row.Model} {row.Category}");
+        _table = new(session.Items.Where(item => item.ModelDesc.Category != SacredItemCategory.Effect)
+            .Select(item => new ModelAssetRow(item)), row => $"{row.EntryId} {row.ResourceId} {row.Model} {row.Category}");
         _preview = new(session);
+        _preview.SetGroundGridEnabled(true);
         var root = new Grid { ColumnDefinitions = new("3*,5,2*"), Margin = new Thickness(12) };
         root.Children.Add(_table);
         var splitter = new GridSplitter { ResizeDirection = GridResizeDirection.Columns };
@@ -47,8 +49,9 @@ internal sealed class ModelsWindow : Window, IAssetViewerWindow
     public void Select(ushort id) => _table.Select(row => row.EntryId == id);
     public void SaveScreenshot(string path) => _preview.SaveScreenshot(path);
     public void RotateHorizontally(float radians) => _preview.RotateHorizontally(radians);
+    public void ZoomBy(double delta) => _preview.ZoomBy(delta);
 
-    private static string Describe(ItemsPakEntry item)
+    internal static string Describe(ItemsPakEntry item)
     {
         var text = new StringBuilder();
         text.AppendLine($"Items.pak row {item.ItemIndex}, descriptor at 0x{item.EntryInfo.ModelDescOffset:X}");

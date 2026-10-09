@@ -6,10 +6,61 @@ favorites and saved equipment filters remain available. Choose another installat
 with **Browse** or the location field and **Load game**. `--game-directory <path>`
 overrides the remembered location for startup.
 
-The launcher opens four independent windows:
+The launcher opens five independent windows:
 
-- **Models**: the complete `Items.pak` table, searchable by row, resource ID, model
+- **Models**: the `Items.pak` table excluding Effect-category rows, searchable by row, resource ID, model
   or category, with 3D previews, authored model effects and descriptor field offsets/raw bytes.
+- **Effects - Items.pak**: Effect-category rows, with native type names, recipe status,
+  event variants and descriptor offsets/raw bytes. FX identifiers use the native type ID
+  associated with the Items.pak row; several different recipes share the same descriptor
+  name. The viewer plays the 16 decoded script effects and 44 decoded event samples from
+  the embedded Gold catalog through the shared world particle simulator. Actor-seeded
+  events display a randomly selected playable Creature.pak character; **Random character**
+  picks another random template. Continuous effects fill before camera fitting. Finite
+  bursts finish their native lifetime and replay for inspection. **Restart** and **Pause/Play**
+  control preview playback. Unmapped recipes show their diagnostic instead of requesting
+  an FX name from the GRN archive. Other native FX families remain research work.
+  Both **Stargate** recipes use the native 20x34 mesh, animated vertex colours,
+  five-second minimap transitions and two rotating whirls. Generic event subtype 6
+  scales its actor burst using the selected character's Items.pak blocking radius.
+  **Implemented** filters the 45 rows with previews and combines with search.
+  Family membership follows native constructors, and **FamilyCoverage** counts all
+  members (Smoke is 13/13). Windstrike and Burning Bone now
+  use native finite emission clocks and per-particle colour. Burning Bone displays
+  a random playable actor; individual bone attachment remains pending.
+  Nature Healing, Time Control and Small Fire now have complete native visual
+  paths, including both healing passes, 20 flares and all three Small Fire subtypes.
+  Each new family covers 1/1 member rows. See
+  [layered FX decoding](../docs/research/particle-definitions/layered-fx.md).
+  Teleport IN/OUT share a newly decoded manual orbit/ejection controller and cover
+  both family members (2/2). Reanimate covers its sole member with rotating emission,
+  saved point-release interpolation and the native 0.125 draw scale.
+  See [Teleport and Reanimate](../docs/research/particle-definitions/teleport-and-reanimate-fx.md).
+  The previous eight constructors provide fourteen event recipes, including Arac Attack,
+  Laser/Dwarf impacts, Elve SM Hit, Dragon Ground Fire's three textures, Wall of Fire Line,
+  Bat Signal's three actor palettes and Shaddar Magic's timed projectile. Native burst order,
+  the fire quad pivot and release clocks are implemented.
+  Geyser now runs its randomized quiet/eruption cycle. Torch Smoke adds native fire
+  particles and a fixed glow on a random torch's `weapon_fx01`. Changeling Cast emits
+  for one second and fades its lensflare through 1.5 seconds.
+  Magic Fire and Magic Gift now use native line emission with explicit preview
+  `weapon_fx01..02` endpoints on random related weapons.
+  Fireball adds all five event palettes and its native pulsing flare at a weapon's
+  `weapon_gl01`. **Random weapon** rerolls these equipment previews.
+  See [equipment FX attachments and verified Fireball textures](../docs/research/particle-definitions/weapon-fx-attachments.md).
+  Magic Fire/Gift expose native unsigned **Strength** through a numeric control and
+  `fx-strength <value>` cheat, with size/growth coefficients decoded from Sacred.exe.
+  **Distance** supplies an editable endpoint separation. Time Control defaults to
+  five native particle samples along a 200-unit segment; this is a viewer showcase,
+  with native game placement and scheduling still pending. Magic Fire/Gift keep
+  authored weapon helpers by default and support a length override. Actor width
+  continues to use the random character's Items.pak blocking radius.
+  **Default inputs** restores distance and strength defaults. See
+  [FX input defaults](../docs/research/particle-definitions/preview-inputs.md).
+  See [line and Fireball FX](../docs/research/particle-definitions/line-and-fireball-fx.md),
+  [cyclic and flare FX](../docs/research/particle-definitions/cyclic-and-flare-fx.md),
+  [previous constructor decoding](../docs/research/particle-definitions/standard-fx-families.md)
+  and [implementation progress](../docs/research/particle-definitions/asset-viewer-progress.md).
 - **Equipment**: the existing `Weapon.pak` equipment browser with item information,
   filters, favorites, preview experiments, sounds and effects.
 - **Textures**: every entry from `texture*.pak`, with archive and row identity,
@@ -67,14 +118,30 @@ Changing the game location closes open viewers after the new installation loads
 successfully. A failed load leaves the previous installation available. Browsers
 use pages of 100 rows; equipment retains its existing paging and filters.
 
-In Models and Characters, drag with the left mouse button to rotate horizontally.
+In Models, Effects and Characters, drag with the left mouse button to rotate horizontally.
 The rotation slider stays in sync; Reset camera restores the starting orientation.
+Models and Effects show a thin white ground grid that fades away from the preview.
+Their perspective camera makes distant grid cells converge and shrink.
+Grid cells and lines have fixed world dimensions, so they grow naturally when zooming in.
+Scroll to zoom, or use `zoom <wheel steps>`
+in the console (positive zooms in; negative zooms out).
 
 Console cheats are available without desktop input simulation:
 
 ```text
-open models|equipment|textures|characters
+open models|effects|equipment|textures|characters
 model <Items.pak row>
+fx <Items.pak row>
+fx-implemented true|false
+fx-search <name, ID or native family; empty clears>
+fx-variant script|<native event subtype>
+fx-strength <unsigned value>
+fx-distance <native units, 0..2000>
+fx-defaults
+fx-restart
+fx-actor
+fx-play true|false
+fx-time <seconds, 0..60; seeks and pauses>
 item <equipment ID>
 texture <archive.pak> <entry ID>
 character <Items.pak row>
@@ -97,6 +164,7 @@ animation <bind|default|motion slot|GRN name>
 animation-play <true|false>
 animation-time <seconds>
 rotate <horizontal degrees>
+zoom <wheel steps; Models or Effects>
 equip <inventory slot index> <equipment ID>
 unequip <inventory slot index>
 screenshot <path.png>

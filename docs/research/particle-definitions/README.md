@@ -1,5 +1,54 @@
 # Particle definitions in Sacred Gold
 
+**Latest preview inputs:** [default endpoint distances](preview-inputs.md).
+Time Control has a five-sample two-point showcase with editable Distance.
+Native line FX preserve their weapon helpers by default and expose a length
+override. Default inputs and console cheats restore or change the scene inputs.
+Native game placement/scheduling along Time Control's segment remains pending.
+
+**Latest decoding:** [Nature Healing, Time Control and Small Fire](layered-fx.md)
+adds three constructors, all member rows (1/1 each), and all three Small Fire
+subtypes. Coverage is **67 recipes across 45 FX rows**. Complete native extra
+draw passes, 20 flares, quality branches, animated flare frames and lifetime
+retirement are implemented. Four explicit layouts map the recovered state/event
+bytes. Native evidence executes 1,320 full updates and 1,320 renderer calls, plus
+72 exact parameter/palette blocks and 48 original corner colours. CPU, GPU and
+Terminal alpha handling now preserves authored alpha and ONE-source glows.
+
+**Previous decoding:** [Teleport and Reanimate](teleport-and-reanimate-fx.md) adds two
+constructors and every member of both families: Teleport IN/OUT **2/2**, Reanimate
+**1/1**. Coverage is **62 recipes across 42 FX rows**. The full manual teleport
+update, six-stage envelope, rotating Reanimate births, point-release history and
+native draw scale are implemented. Original-code proofs execute 7,128 teleport
+and 798 reanimate updates; the native state/particle comparison passes 57,040,740
+checks. Five explicit layouts preserve recovered byte meanings.
+
+**Latest attachment work:** [equipment GRN bindings and Fireball textures](weapon-fx-attachments.md).
+Torch, Fireball, Magic Fire and Magic Gift now use random related weapons and
+authored helpers. Fireball's native glow/flare textures are verified. These eight
+recipe improvements left coverage at 59 recipes across 39 FX rows at that checkpoint.
+
+**Preceding FX decoding:** [Magic Fire, Magic Gift and Fireball](line-and-fireball-fx.md)
+brought Asset Viewer to **59 recipes across 39 FX rows**. Three new constructors
+supply native line emission, both endpoint histories, all five Fireball palettes
+and its pulsing flare. Original-code checks cover 63 parameter/palette byte
+comparisons and 1,512 updater calls. Their equipment rest-pose attachments are now recovered;
+other event attachment paths remain pending.
+Magic Fire/Gift additionally support unsigned Strength inputs; 36 native initializer
+runs verify 72 full parameter blocks, including `uint.MaxValue`.
+[Geyser, Torch Smoke and Changeling Cast](cyclic-and-flare-fx.md) are the preceding
+checkpoint; their countdown controller, flare and lensflare remain covered.
+Smoke covers all 13 member rows.
+The [preceding eight constructors](standard-fx-families.md) added fourteen event recipes. Native palettes, three-way texture/colour selectors, burst/movement order,
+release clocks and six serialized layouts are implemented and compared with
+original code. Bat Signal displays a random playable actor. Exact attachments,
+Elve's special event branch and Shaddar's collision response remain pending.
+[Windstrike and Burning Bone](timed-fx-families.md) records the preceding checkpoint.
+The Implemented checkbox combines with search; the
+[family membership report](reports/fx-family-membership.md) lists all 210 rows and
+counts coverage against every member. [Sparks and Dustcloud](new-point-bursts.md)
+records the preceding decoding checkpoint.
+
 **Runtime continuation:** [Offsets, motion and color](runtime-motion-color.md)
 documents the recovered camera projection, random half-ranges, wind, emission
 selection, serialized RGBA tables and blend behavior now used by the remake.
@@ -30,9 +79,10 @@ The complete native name table contains 5,624 rows at VA `0x8EC328`, each `0x44`
 bytes: a UInt32 **stored type ID** at `+0`, followed by a 64-byte NUL-terminated
 name at `+4`. The native lookup at `0x43CEC4` returns that stored ID. IDs have
 gaps; a table index or constant row-index adjustment is not a general ID mapping.
-Reading actual IDs yields **210 `TYPE_FX_` catalogue entries**. Fourteen have
-decoded smoke/dwarf-magic definitions at all three quality settings; 195 have
-unmapped families and one geyser initializer remains incomplete.
+Reading actual IDs yields **210 `TYPE_FX_` catalogue entries**. Sixteen have decoded script presets across Smoke, Dwarf Magic and Magic Prison
+at all three quality settings; 194 still have pending script-creation mappings.
+Thirty-four event recipes support additional rows. Geyser's initializer and native
+countdown controller are now implemented.
 
 The loader also permits offline code recovery. Its encoded header is `0x374`
 bytes at VA `0x1D6D380`: the first word is the initial header key, and each later
@@ -183,11 +233,12 @@ raised glints.
 
 [native-presets.json](reports/native-presets.json) contains the full extracted
 values, named texture lookups, dispatch addresses, and raw draw flags. Fourteen
-type dispatches across the two mapped classes return successfully. The unrelated
-geyser initializer reaches an external CRT/random call and is explicitly marked
-incomplete. Twenty-one other FX types discovered in the selected script belong
-to unimplemented families and are listed separately; the full embedded catalogue
-has 195 such entries. All sample families are covered.
+type dispatches across the two mapped classes returned successfully at the original
+checkpoint. Geyser was marked incomplete there because its initializer calls CRT
+random. The [current decoder](cyclic-and-flare-fx.md) handles that initializer and
+its countdown-driven updater. Twenty-one other FX types discovered in that selected
+script were listed separately; the current catalogue has 194 pending script mappings.
+All original sample families are covered.
 
 ## Added code and boundaries
 

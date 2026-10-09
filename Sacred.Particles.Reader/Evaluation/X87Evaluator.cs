@@ -9,6 +9,7 @@ internal sealed class X87Evaluator(PresetMemory memory, X86Operands operands)
 {
     private readonly List<X87Number> _stack = new(8);
     private ushort _controlWord = 0x037F;
+    public ushort StatusWord { get; private set; }
 
     public bool Execute(Instruction instruction)
     {
@@ -16,6 +17,7 @@ internal sealed class X87Evaluator(PresetMemory memory, X86Operands operands)
         {
             case Mnemonic.Fsin: _stack[0] = Math.Sin(Top.ToDouble()); break;
             case Mnemonic.Fcos: _stack[0] = Math.Cos(Top.ToDouble()); break;
+            case Mnemonic.Fsqrt: _stack[0] = Math.Sqrt(Top.ToDouble()); break;
             case Mnemonic.Fxch:
                 var index = instruction.OpCount == 0 ? 1 : StackIndex(instruction.Op0Register);
                 (_stack[0], _stack[index]) = (_stack[index], _stack[0]);
@@ -36,6 +38,14 @@ internal sealed class X87Evaluator(PresetMemory memory, X86Operands operands)
             case Mnemonic.Fsub: Binary(instruction, static (a, b) => a - b); break;
             case Mnemonic.Fmul: Binary(instruction, static (a, b) => a * b); break;
             case Mnemonic.Fdiv: Binary(instruction, static (a, b) => a / b); break;
+            case Mnemonic.Faddp: BinaryPop(instruction, static (a, b) => a + b); break;
+            case Mnemonic.Fmulp: BinaryPop(instruction, static (a, b) => a * b); break;
+            case Mnemonic.Fcom:
+            case Mnemonic.Fcomp:
+                var difference = Top - Read(instruction, 0);
+                StatusWord = difference.Significand.Sign switch { < 0 => 0x0100, 0 => 0x4000, _ => 0 };
+                if (instruction.Mnemonic == Mnemonic.Fcomp) Pop();
+                break;
             case Mnemonic.Fnstcw: memory.Write(operands.Address(instruction), 2, _controlWord); break;
             case Mnemonic.Fldcw: _controlWord = (ushort)memory.Integer(operands.Address(instruction), 2); break;
             case Mnemonic.Fistp:
@@ -93,6 +103,13 @@ internal sealed class X87Evaluator(PresetMemory memory, X86Operands operands)
         var destination = instruction.OpCount == 2 ? StackIndex(instruction.Op0Register) : 0;
         var right = Read(instruction, instruction.OpCount == 2 ? 1 : 0);
         _stack[destination] = operation(_stack[destination], right);
+    }
+
+    private void BinaryPop(Instruction instruction, Func<X87Number, X87Number, X87Number> operation)
+    {
+        // Iced exposes both operands even when disassemblers omit the implicit ST(0).
+        Binary(instruction, operation);
+        Pop();
     }
 
     private static int StackIndex(Register register)

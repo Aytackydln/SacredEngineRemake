@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
+using AssetViewer.AssetViewer;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform;
@@ -29,8 +30,10 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
     private float _pendingPreviewScale = 1.0f;
     private Vector3 _pendingPreviewOffset;
     private bool _assetPreview;
+    private bool _groundGridEnabled;
     private bool _zoomEnabled = true;
     private bool _animationPlaying = true;
+    private FxPreviewPlayback? _pendingFxPreview;
     private float? _animationTime;
     public event Action<float>? HorizontalRotationChanged;
 
@@ -64,6 +67,12 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
 
     public void SetZoomEnabled(bool enabled) => _zoomEnabled = enabled;
 
+    public void SetGroundGridEnabled(bool enabled)
+    {
+        _groundGridEnabled = enabled;
+        _renderer?.SetGroundGridEnabled(enabled);
+    }
+
     public void SetAssetFrame(GrnAsset? baseModel)
     {
         _pendingAssetFrame = baseModel;
@@ -83,6 +92,7 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
     public void ClearModel()
     {
         _pendingAsset = null;
+        _pendingFxPreview = null;
         SetAssetFrame(null);
         _pendingEffectScene = EquipmentEffectScene.Empty;
         _pendingTextures = new Dictionary<string, ModelTextureBinding>(StringComparer.OrdinalIgnoreCase);
@@ -96,6 +106,7 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
         EquipmentEffectScene effectScene)
     {
         _pendingAsset = asset;
+        _pendingFxPreview = null;
         _animationTime = null;
         _pendingPreviewRotation = previewRotation;
         _pendingEffectScene = effectScene;
@@ -113,6 +124,12 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
         _pendingPitch = pitch;
         _pendingRoll = roll;
         _renderer?.SetUserRotation(yaw, pitch, roll);
+    }
+
+    public void SetFxPreview(FxPreviewPlayback? preview)
+    {
+        _pendingFxPreview = preview;
+        _renderer?.SetFxPreview(preview);
     }
 
     public void SetInventoryPlacement(float scale, Vector3 offset)
@@ -157,12 +174,14 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
 
         _renderer.SetInventoryPlacement(_pendingPreviewScale, _pendingPreviewOffset);
         _renderer.SetAssetPreview(_assetPreview);
+        _renderer.SetGroundGridEnabled(_groundGridEnabled);
         if (_pendingAsset is not null)
             _renderer.SetModel(_pendingAsset, _pendingPreviewRotation, _pendingGridWidth, _pendingGridHeight, _pendingEffectScene);
         else
             _renderer.ClearModel();
 
         _renderer.SetAssetFrame(_pendingAssetFrame);
+        _renderer.SetFxPreview(_pendingFxPreview);
 
         _renderer.SetUserRotation(_pendingYaw, _pendingPitch, _pendingRoll);
         _renderer.SetAnimationPlaying(_animationPlaying);
@@ -214,8 +233,9 @@ internal sealed class Dx12ModelViewportHost : NativeControlHost
         RotateHorizontally((float)(delta * 0.01 / scale));
     }
 
-    private void ZoomBy(double delta)
+    public void ZoomBy(double delta)
     {
+        if (!double.IsFinite(delta)) throw new ArgumentOutOfRangeException(nameof(delta));
         if (!_zoomEnabled) return;
         _renderer?.ZoomBy(delta);
     }

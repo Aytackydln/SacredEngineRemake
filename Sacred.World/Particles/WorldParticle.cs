@@ -14,6 +14,8 @@ public readonly record struct WorldParticle(
     int DrawOrder)
 {
     public uint Color { get; init; } = uint.MaxValue;
+    /// <summary>Native Gouraud corner colours, when the draw uses fixed per-corner RGB.</summary>
+    public ParticleCornerColors? CornerColors { get; init; }
     public int AtlasCell { get; init; }
     public float Rotation { get; init; }
     public float RenderHeight { get; init; }

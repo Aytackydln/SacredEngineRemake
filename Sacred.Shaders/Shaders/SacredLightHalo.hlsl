@@ -74,9 +74,9 @@ float halo_alpha(vertex_output input)
     if (mask <= 1.0f / 255.0f)
         discard;
 
-    // Fire and magic retain a visible local glow during the day. Night makes
-    // that glow dominant, but does not switch the emitter itself on or off.
-    float lighting_visibility = lerp(0.35f, 1.0f, saturate(night_blend));
+    // Local-light halos fade out completely in daylight, matching surface
+    // illumination. The fixture's animated sprite remains independent.
+    float lighting_visibility = saturate(night_blend);
     return mask * input.opacity * lighting_visibility;
 }
 

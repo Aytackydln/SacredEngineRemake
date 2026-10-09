@@ -33,7 +33,8 @@ public readonly struct SacredParticleEmissionLayout
     [FieldOffset(0x50)] public readonly uint Color;
     /// <summary>Packed AARRGGBB per-channel random half-ranges. The generator unpacks
     /// each byte, samples base + (2 * rand/32767 - 1) * range, truncates and packs
-    /// the channels (0x764828..0x7648E8, 0x76585E..0x765972).</summary>
+    /// the channels (0x764828..0x7648E8, 0x76585E..0x765972). Native packing does
+    /// not clamp or mask the sampled integers to bytes before shifts/ORs.</summary>
     [FieldOffset(0x54)] public readonly uint ColorRandomWidth;
     /// <summary>Time between spawns; the generator divides elapsed time by this value.
     /// Zero selects its count-based path. Time unit follows the native simulation clock.</summary>

@@ -76,6 +76,8 @@ public readonly struct ItemsPakEntryModelDescLayout
     /// Gold 0x428CE0 reads this field for a valid item and substitutes 50 when
     /// the stored radius is zero. Generic FX subtype 6 uses that result to scale
     /// mesh-seeded particle size, gravity and size change (0x7972B0..0x797302).
+    /// The native factors are size = radius * 0.03, gravity = radius * -5 and
+    /// size change = radius * 0.3. The event seeds at most 300 actor vertices.
     /// Demo 0x415EB0 substitutes 30 for zero; cObject3D::render passes the resolved
     /// value to renderShadowSimple as its quad half-extent (0x42D72E..0x42D766).
     /// This shadow size is independent of animated mesh bounds.</summary>

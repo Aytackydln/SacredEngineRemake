@@ -19,5 +19,9 @@ public enum ParticleTextureMode
     /// <summary>Native quad with RGB packed as an exact integer plus one in Normal.Z.</summary>
     NativeModelColored = 10,
     /// <summary>Non-rotating native stdLensflare whose RGB texture has no coverage alpha.</summary>
-    NativeLensFlare = 11
+    NativeLensFlare = 11,
+    /// <summary>Standalone FX quad; shader flags carry native source blend and texture channel encoding.</summary>
+    NativeFx = 12,
+    /// <summary>Native portal mesh with grayscale/old alpha/new alpha in Normal.xyz.</summary>
+    NativePortalSurface = 13
 }

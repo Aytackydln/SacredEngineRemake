@@ -11,6 +11,7 @@ internal sealed class X86Machine
     public X86Registers Registers { get; } = new();
     public PresetMemory Memory { get; }
     public uint? EnvironmentAddress { get; init; }
+    public uint? RandomValue { get; init; }
     public uint InstructionPointer { get; set; }
 
     public X86Machine(NativeCode code, PresetMemory memory)
@@ -89,6 +90,11 @@ internal sealed class X86Machine
             case Mnemonic.Pop: Write(Pop()); break;
             case Mnemonic.Call:
                 var target = Read(0);
+                if (target == 0x849B40 && RandomValue is { } random)
+                {
+                    Registers.Set(Register.EAX, random);
+                    break;
+                }
                 // Pure singleton lookup, supplied only when the decoder has explicitly
                 // initialized the environment from verified constructor operands.
                 if (target == 0x417E70 && EnvironmentAddress is { } environment)
@@ -133,6 +139,9 @@ internal sealed class X86Machine
                 if (instruction.HasRepPrefix) Registers.Set(Register.ECX, 0);
                 break;
             case Mnemonic.Nop: break;
+            case Mnemonic.Fnstsw:
+                Write(_floatingPoint.StatusWord);
+                break;
             default:
                 if (!_floatingPoint.Execute(instruction))
                     throw new NotSupportedException($"Unsupported initializer instruction {instruction.Mnemonic} at 0x{instruction.IP:X8}.");

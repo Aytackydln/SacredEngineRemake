@@ -70,6 +70,10 @@ internal sealed class Dx12ParticleKernels : IDisposable
             }
             else if (operation.Step is { } step)
             {
+                var motion = operation.Motion ?? batch.Parameters.Motion;
+                constants[5] = motion.FadeChangeRate; constants[6] = motion.SizeChangeRate;
+                constants[7] = motion.GravityChangeRate; constants[11] = motion.InwardAcceleration;
+                constants[12] = motion.AdditionalAngularVelocity;
                 constants[4] = step;
                 constants[8] = operation.Direction.X; constants[9] = operation.Direction.Y; constants[10] = operation.Direction.Z;
                 constants[13] = operation.GroundHeight; UInt(constants,14,(uint)operation.Collision);
@@ -82,6 +86,7 @@ internal sealed class Dx12ParticleKernels : IDisposable
     {
         var motion = batch.Parameters.Motion;
         var c = new float[ParticleGpuShaderLayout.ComputeConstants];
+        c[ParticleGpuShaderLayout.HalfSizeMultiplierOffset] = 1;
         UInt(c,0,(uint)batch.Capacity);
         c[5] = motion.FadeChangeRate; c[6] = motion.SizeChangeRate; c[7] = motion.GravityChangeRate;
         c[11] = motion.InwardAcceleration; c[12] = motion.AdditionalAngularVelocity;

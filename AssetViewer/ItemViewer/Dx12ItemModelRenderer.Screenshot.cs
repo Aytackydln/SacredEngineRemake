@@ -15,6 +15,7 @@ internal sealed partial class Dx12ItemModelRenderer
         ObjectDisposedException.ThrowIf(_disposed, this);
         WaitForGpu();
         AdvanceEquipmentEffects();
+        AdvanceFxPreview();
         // A capture must use the current viewport size even before resize debounce expires.
         ResizeIfNeeded(immediate: true);
         var rowPitch = (_renderWidth * 4 + 255) & ~255;

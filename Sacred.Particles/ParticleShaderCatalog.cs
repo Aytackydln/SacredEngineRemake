@@ -17,6 +17,8 @@ public static class ParticleShaderCatalog
         ParticleTextureMode.Alpha or
         ParticleTextureMode.NativeModel or
         ParticleTextureMode.NativeModelColored or
+        ParticleTextureMode.NativeFx or
+        ParticleTextureMode.NativePortalSurface or
         ParticleTextureMode.BouncyAlpha => ParticleShaderKind.ItemParticle,
 
         _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown particle texture mode.")

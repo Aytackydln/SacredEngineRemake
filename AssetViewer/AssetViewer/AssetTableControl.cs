@@ -21,6 +21,7 @@ internal sealed class AssetTableControl<T> : UserControl where T : class
     private T[] _filtered = [];
     private int _page;
     private T? _pendingSelection;
+    private Func<T, bool>? _rowFilter;
 
     public AssetTableControl(IEnumerable<T> rows, Func<T, string> searchText)
     {
@@ -50,6 +51,23 @@ internal sealed class AssetTableControl<T> : UserControl where T : class
     public DataGrid Table { get; }
     public T? Selected { get; private set; }
     public event Action<T>? SelectedChanged;
+    public int FilteredCount => _filtered.Length;
+    public void SetSearchText(string text)
+    {
+        _search.Text = text;
+        Filter();
+    }
+
+    public void SetRowFilter(Func<T, bool>? predicate)
+    {
+        _rowFilter = predicate;
+        Filter();
+        if (Selected is { } selected && !(_rowFilter?.Invoke(selected) ?? true) && _filtered.FirstOrDefault() is { } first)
+        {
+            SetSelected(first);
+            ShowSelectionAfterLayout(first);
+        }
+    }
 
     private void SetSelected(T row)
     {
@@ -60,14 +78,15 @@ internal sealed class AssetTableControl<T> : UserControl where T : class
 
     public void Select(Func<T, bool> predicate)
     {
-        var row = _rows.FirstOrDefault(predicate) ?? throw new ArgumentException("No matching asset.");
+        var row = _rows.FirstOrDefault(row => predicate(row) && (_rowFilter?.Invoke(row) ?? true))
+            ?? throw new ArgumentException("No matching asset in the active filter.");
         if (!string.IsNullOrEmpty(_search.Text))
         {
             _pendingSelection = row;
             _search.Text = string.Empty;
         }
-        _filtered = _rows;
-        _page = Array.IndexOf(_rows, row) / PageSize;
+        _filtered = _rows.Where(row => _rowFilter?.Invoke(row) ?? true).ToArray();
+        _page = Array.IndexOf(_filtered, row) / PageSize;
         ShowPage();
         SetSelected(row);
         ShowSelectionAfterLayout(row);
@@ -76,7 +95,8 @@ internal sealed class AssetTableControl<T> : UserControl where T : class
     private void Filter()
     {
         var query = _search.Text?.Trim() ?? string.Empty;
-        _filtered = _rows.Where(row => _searchText(row).Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray();
+        _filtered = _rows.Where(row => (_rowFilter?.Invoke(row) ?? true) &&
+            _searchText(row).Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray();
         _page = 0;
         if (_pendingSelection is { } pending && Array.IndexOf(_filtered, pending) is var index && index >= 0)
         {

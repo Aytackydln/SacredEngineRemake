@@ -10,6 +10,7 @@ public readonly struct SacredSmokeParticleSystemLayout
 {
     public const int SerializedSize = 0x2E4C;
     [FieldOffset(0x0000)] public readonly uint NativeVtableAddress;
+    [FieldOffset(0x2080)] public readonly SacredParticleReleaseClockLayout ReleaseClock;
     [FieldOffset(0x20A0)] public readonly SacredSmokeParticleStateLayout State;
     /// <summary>Resolved from PARTICLE_FIRE03.TGA.</summary>
     [FieldOffset(0x2E3C)] public readonly uint FireTextureHandle;

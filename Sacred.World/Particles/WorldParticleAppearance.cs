@@ -10,6 +10,7 @@ internal static class WorldParticleAppearance
         if (draw.UsesColorTable)
             return parameters.Colors[index];
         var rgb = parameters.Colors.Count == 0 ? parameters.Emission.Color : parameters.Colors[0];
-        return (rgb & 0xFFFFFF) | ((uint)index << 24);
+        // stdRender preserves authored alpha and ORs the energy byte only for ENERGY_ALPHA.
+        return (draw.RawFlags & 2) != 0 ? rgb | ((uint)index << 24) : rgb;
     }
 }

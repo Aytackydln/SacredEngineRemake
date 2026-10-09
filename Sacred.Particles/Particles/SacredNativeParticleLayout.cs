@@ -14,9 +14,12 @@ public readonly struct SacredNativeParticleLayout
     /// <summary>Native mass; used as the gravity acceleration scalar.</summary>
     [FieldOffset(0x24)] public readonly float Mass;
     [FieldOffset(0x28)] public readonly float Size;
-    /// <summary>Native energy; 255-based fade/liveness counter.</summary>
+    /// <summary>Native energy; standard systems use a 255-based fade/liveness counter.
+    /// Manual families can reuse it as state (see SacredTeleportParticleLayout).</summary>
     [FieldOffset(0x2C)] public readonly float Energy;
     [FieldOffset(0x30)] public readonly float Phi;
+    /// <summary>Birth RGB from emission Color/ColorRandomWidth; stdRender flag 0x20 reads
+    /// these channels and uses the particle's energy for alpha (including Windstrike).</summary>
     [FieldOffset(0x34)] public readonly uint Color;
     [FieldOffset(0x38)] public readonly float Moment;
     [FieldOffset(0x3C)] public readonly byte Frame;

@@ -94,7 +94,8 @@ public sealed class WorldParticleRasterizer(
             var source = ((cell / columns * cellHeight + (int)(v * cellHeight)) * atlas.Width +
                           cell % columns * cellWidth + (int)(u * cellWidth)) * 4;
             var alpha = atlas.Rgba8[source + 3] / 255f * particle.Opacity;
-            if (alpha < 1f / 255) continue;
+            // ONE-source draws retain RGB even when their authored diffuse alpha is zero.
+            if (alpha < 1f / 255 && !particle.SourceColorOnly) continue;
             var sourceScale = particle.SourceColorOnly ? 1f : alpha;
             var targetScale = particle.Additive ? 1f : 1f - alpha;
             for (var channel = 0; channel < 3; channel++)

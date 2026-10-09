@@ -26,6 +26,12 @@ internal sealed class ModelPreviewPane : UserControl
     private SacredEquipment? _inventoryItem;
     private Func<CancellationToken, Task<GrnAsset>>? _actorFrameLoader;
     private string? _lastPreviewName;
+    private Func<GrnAsset, FxPreviewPlayback>? _fxFactory;
+    public FxPreviewPlayback? FxPlayback { get; private set; }
+    public void RefreshFxFraming()
+    {
+        if (FxPlayback is { } playback) _viewer.SetFxPreview(playback);
+    }
 
     public ModelPreviewPane(AssetViewerSession session) : this(session, false) { }
 
@@ -87,17 +93,21 @@ internal sealed class ModelPreviewPane : UserControl
     public void ShowStatus(string status)
     {
         _load?.Cancel();
+        FxPlayback = null;
         _resetRotation();
         _viewer.ShowStatus(status);
         CurrentLoad = Task.CompletedTask;
     }
 
     public Task LoadAsync(string name, Func<CancellationToken, Task<GrnAsset>> loader,
-        IReadOnlyList<ModelPreviewVisual> visuals, bool compositeSlices = false)
+        IReadOnlyList<ModelPreviewVisual> visuals, bool compositeSlices = false,
+        Func<GrnAsset, FxPreviewPlayback>? fxFactory = null)
     {
         if (_actorFrameLoader is null || !string.Equals(name, _lastPreviewName, StringComparison.OrdinalIgnoreCase))
             _resetRotation();
         _lastPreviewName = name;
+        _fxFactory = fxFactory;
+        FxPlayback = null;
         _load?.Cancel();
         _load?.Dispose();
         _load = new CancellationTokenSource();
@@ -112,6 +122,8 @@ internal sealed class ModelPreviewPane : UserControl
     }
 
     public void SaveScreenshot(string path) => _viewer.SaveScreenshot(path);
+    public void SetGroundGridEnabled(bool enabled) => _viewer.SetGroundGridEnabled(enabled);
+    public void ZoomBy(double delta) => _viewer.ZoomBy(delta);
     public void RotateHorizontally(float radians) => _viewer.RotateHorizontally(radians);
     public void SetAnimationPlaying(bool playing) => _viewer.SetAnimationPlaying(playing);
     public void SetAnimationTime(float seconds) => _viewer.SetAnimationTime(seconds);
@@ -121,6 +133,7 @@ internal sealed class ModelPreviewPane : UserControl
     {
         var inventoryItem = _inventoryItem;
         var frameLoader = _actorFrameLoader;
+        var fxFactory = _fxFactory;
         _viewer.ShowStatus($"{name}: loading...");
         try
         {
@@ -131,10 +144,17 @@ internal sealed class ModelPreviewPane : UserControl
             var frame = await frameLoad;
             token.ThrowIfCancellationRequested();
             if (_closed) return;
-            var effects = await Task.Run(() => inventoryItem is not null
+            var effects = await Task.Run(() => inventoryItem is not null || fxFactory is not null
                 ? EquipmentEffectScene.Empty
                 : AssetPreviewEffects.Create(asset, visuals, compositeSlices), token);
             token.ThrowIfCancellationRequested();
+            var fx = fxFactory is null ? null : await Task.Run(() => fxFactory(asset), token);
+            token.ThrowIfCancellationRequested();
+            FxPlayback = fx;
+            if (fx is not null && !fx.IsPortal)
+                Console.WriteLine($"[Assets] FX inputs loaded: {fx.SampleOrigins.Count} sample origins; " +
+                    (fx.EmissionLine is { } line ? $"endpoints={line.Start} to {line.End}; distance={Vector3.Distance(line.Start, line.End)} native units."
+                        : $"segment={fx.SampleOrigins[0]} to {fx.SampleOrigins[^1]} native units."));
             if (inventoryItem is { } inventory)
             {
                 _viewer.SetInventoryPlacement(inventory.PreviewScale, inventory.PreviewOffset);
@@ -144,6 +164,7 @@ internal sealed class ModelPreviewPane : UserControl
             }
             else _viewer.ShowModel(asset, Vector3.Zero, 1, 1, effects);
             _viewer.SetAssetFrame(frame);
+            _viewer.SetFxPreview(fx);
             var loaded = new Dictionary<string, ModelTextureBinding>(StringComparer.OrdinalIgnoreCase);
             var failures = 0;
             var aliases = new Dictionary<string, ModelTextureReference>(StringComparer.OrdinalIgnoreCase);
@@ -184,13 +205,15 @@ internal sealed class ModelPreviewPane : UserControl
                 }
             }
             // Effect textures use their native names, independently of the item's surface aliases.
-            foreach (var key in effects.TextureNames)
+            foreach (var key in effects.TextureNames.Concat(fx?.TextureNames ?? []).Distinct(StringComparer.OrdinalIgnoreCase))
             {
                 token.ThrowIfCancellationRequested();
-                if (loaded.ContainsKey(key)) continue;
+                if (loaded.TryGetValue(key, out var existing)) { fx?.SetTexture(existing.BaseTexture); continue; }
                 try
                 {
-                    loaded[key] = new ModelTextureBinding(await _session.Textures.LoadTextureAsync(key, token));
+                    var texture = await _session.Textures.LoadTextureAsync(key, token);
+                    fx?.SetTexture(texture);
+                    loaded[key] = new ModelTextureBinding(texture);
                 }
                 catch (Exception error) when (error is IOException or NotSupportedException)
                 {
@@ -200,7 +223,9 @@ internal sealed class ModelPreviewPane : UserControl
             }
             token.ThrowIfCancellationRequested();
             await _viewer.ShowTexturesAsync(loaded, failures, token);
+            if (fx is not null) _viewer.ShowFxStatus(name, fx.PrimitiveDescription, failures);
             Console.WriteLine($"[Assets] Preview ready: {name}; {asset.Mesh?.Vertices.Length ?? 0} vertices, {loaded.Count} textures, {effects.Surfaces.Count} effect surfaces, {failures} missing.");
+            if (fx is not null) Console.WriteLine($"[Assets] FX ready: {name}; {fx.PrimitiveDescription}.");
         }
         catch (OperationCanceledException) { }
         catch (Exception error)

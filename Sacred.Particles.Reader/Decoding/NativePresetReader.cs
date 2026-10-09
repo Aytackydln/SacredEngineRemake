@@ -43,27 +43,30 @@ internal static class NativePresetReader
             memory.Write(environment.Value + 0x70, 4, 0);
             memory.Write(environment.Value + 0x74, 4, image.UInt32(0x418F83));
         }
-        var machine = new X86Machine(code, memory) { EnvironmentAddress = environment };
+        var machine = new X86Machine(code, memory) { EnvironmentAddress = environment, RandomValue = family.SampleRandomValue };
         var obj = memory.BaseAddress;
         var argument = obj + 0x10000;
         var stack = obj + 0x1F000;
         var stop = obj + 0x1FF00;
-        // Explicit empty live-particle vector; initialization resets this vector after setting parameters.
+        // Most presets use an empty vector. Some read its allocated count as their burst size.
         memory.Write(obj + 0x68, 4, obj + 0x8000);
-        memory.Write(obj + 0x6C, 4, obj + 0x8000);
+        memory.Write(obj + 0x6C, 4, obj + 0x8000 + checked((uint)family.InitialVectorCount * 0x40));
         if (family.InitialFlags is { } flags) memory.Write(obj + 0x7C, 4, flags);
         memory.Write(argument + (uint)family.SelectorOffset, 4, (uint)preset);
         if (family.EventColor is { } color) memory.Write(argument + 0x38, 4, color);
+        if (family.EventArguments is { } arguments)
+            foreach (var (offset, value) in arguments) memory.Write(argument + (uint)offset, 4, value);
         memory.Write(stack, 4, stop);
         memory.Write(stack + 4, 4, argument);
         machine.Registers.Set(Register.ESP, stack);
         machine.Registers.Set(Register.ECX, obj);
         if (family.ActorLookup is { } lookup)
         {
-            // This omitted region resolves identity/geometry without parameter writes.
+            // This omitted region resolves identity/geometry/audio metadata without parameter writes.
             // Playback supplies the real mesh. Evaluation stops before any stack epilogue
             // that would consume arguments discarded with a native lookup call.
             machine.Run(family.Initializer, lookup.Start, cancellationToken);
+            if (family.UnitActorRadius) machine.Registers.Set(Register.EAX, 1);
             machine.Run(lookup.End, family.InitializerEnd ?? stop, cancellationToken);
         }
         else machine.Run(family.Initializer, family.InitializerEnd ?? stop, cancellationToken);
@@ -94,7 +97,7 @@ internal static class NativePresetReader
 
     private static IReadOnlyList<uint> ReadColors(PresetMemory memory, NativeParticleFamily family, int index)
     {
-        var offset = family.ColorOffset ?? family.MotionOffset -
+        var offset = family.ColorOffset is { } colorOffset ? colorOffset + index * family.ColorSlotStride : family.MotionOffset -
                      (family.ParameterSlotCount - index) * SacredParticleColorTableLayout.SerializedSize;
         var size = memory.IsWritten(offset, SacredParticleColorTableLayout.SerializedSize)
             ? SacredParticleColorTableLayout.SerializedSize

@@ -4,6 +4,23 @@ namespace Sacred.Core.World.Portals;
 /// These are executable constants, not guessed Texture.pak entry identifiers.</summary>
 public static class SacredPortalAppearance
 {
+    /// <summary>Identifies the native portal recipes by their authored Items.pak effect labels.</summary>
+    public static bool TryGetVariant(string effectName, out SacredPortalVariant variant)
+    {
+        if (effectName.Equals("FX_STARGATE", StringComparison.OrdinalIgnoreCase))
+        {
+            variant = SacredPortalVariant.Ancaria;
+            return true;
+        }
+        if (effectName.Equals("FX_STARGATE_UW", StringComparison.OrdinalIgnoreCase))
+        {
+            variant = SacredPortalVariant.Underworld;
+            return true;
+        }
+        variant = default;
+        return false;
+    }
+
     public const string FirstWhirlTexture = "FX_WHIRL01.TGA";
     public const string SecondWhirlTexture = "FX_WHIRL02.TGA";
     public const float CenterHeight = 95;

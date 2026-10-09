@@ -15,7 +15,8 @@ image=NativeImage(args.memory_image)
 checks=0
 for quality,name in enumerate(['Low','Medium','High']):
  source=(Path(args.source_directory)/f'EmbeddedParticleCatalogue{name}.g.cs').read_text()
- lines=[l for l in source.splitlines() if 'cParticleSystem_magicprison' in l and 'Status.Decoded' in l or 'IsEventPreset = true' in l]
+ lines=[l for l in source.splitlines() if ('cParticleSystem_magicprison' in l and 'Status.Decoded' in l or 'IsEventPreset = true' in l)
+        and not any('"'+family+'"' in l for family in ['cParticleSystem_sparks','cParticleSystem_dustcloud','cParticleSystem_windstrike','cParticleSystem_burningBone'])]
  for line in lines:
   event='IsEventPreset = true' in line
   preset=int(re.search(r'"cParticleSystem_[^"]+", (\d+),',line)[1])
@@ -28,7 +29,7 @@ for quality,name in enumerate(['Low','Medium','High']):
   obj=(BASE+len(image.data)+0xffff)&~0xffff
   uc.mem_map(obj,0x20000)
   eventaddr,stack,ret=obj+0x10000,obj+0x1f000,obj+0x1ff00
-  stop=0x795fcb if changeling else {0:0x796ed8,2:0x797021,5:0x7971bd,9:0x79764e}[preset] if generic else 0x76cdfe if original else {0:0x76d355,1:0x76d42c,2:0x76d545,3:ret,4:0x76d862,5:0x76d9f1}[preset] if event else 0x79cd8d
+  stop=0x795fcb if changeling else {0:0x796ed8,2:0x797021,5:0x7971bd,6:0x797360,9:0x79764e}[preset] if generic else 0x76cdfe if original else {0:0x76d355,1:0x76d42c,2:0x76d545,3:ret,4:0x76d862,5:0x76d9f1}[preset] if event else 0x79cd8d
   if event and not original and not generic and preset>=4:
    uc.mem_map(0,0x1000)
    environment=obj+0x18000
@@ -39,15 +40,17 @@ for quality,name in enumerate(['Low','Medium','High']):
   if generic:
    color=image.u32(0x57f524) if preset==2 else 0 if preset==9 else image.u32(0x541bdc)
    uc.mem_write(eventaddr+0x38,struct.pack('<I',color))
-   if preset==9:
+   if preset in (6,9):
     # Only identity resolution is external; the initializer reads no actor fields.
     # Stub the two lookups, preserving the original native stack conventions.
     def identity(engine,address,size,data):
-     if address in (0x5fe000,0x84a961):
+     if address in (0x5fe000,0x84a961,0x428ce0):
       esp=engine.reg_read(UC_X86_REG_ESP)
-      engine.reg_write(UC_X86_REG_EAX,obj+0x18000)
+      # Unit radius supplies a normalized parameter template. The actual runtime
+      # radius comes from Items.pak; identity lookups return the mesh owner.
+      engine.reg_write(UC_X86_REG_EAX,1 if address==0x428ce0 else obj+0x18000)
       engine.reg_write(UC_X86_REG_EIP,struct.unpack('<I',engine.mem_read(esp,4))[0])
-      engine.reg_write(UC_X86_REG_ESP,esp+(8 if address==0x5fe000 else 4))
+      engine.reg_write(UC_X86_REG_ESP,esp+(8 if address in (0x5fe000,0x428ce0) else 4))
     uc.hook_add(UC_HOOK_CODE,identity)
   if changeling:
    # Execute both sides of the real initializer, including color/animal-list writes.

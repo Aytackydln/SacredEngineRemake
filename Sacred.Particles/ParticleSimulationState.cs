@@ -14,4 +14,5 @@ public struct ParticleSimulationState
     public float AngularVelocity;
     public int AtlasCell;
     public int DrawOrder;
+    public uint Color;
 }

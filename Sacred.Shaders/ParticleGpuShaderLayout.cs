@@ -6,7 +6,8 @@ namespace Sacred.Shaders;
 /// <summary>Compute constants and direct sorted-particle draw, reusing the existing sprite pixel functions.</summary>
 public static class ParticleGpuShaderLayout
 {
-    public const int ComputeConstants = 40;
+    public const int ComputeConstants = 44;
+    public const int HalfSizeMultiplierOffset = 40;
     private static byte[] Source()
     {
         string Read(EmbeddedResource_Shaders resource) => Encoding.UTF8.GetString(EmbeddedShaderAssemblyReloader.ReadAllBytes(resource.GetResourceName()));

@@ -21,6 +21,7 @@ cbuffer SceneConstants : register(b1)
 }
 
 Texture2D particle_texture : register(t0);
+Texture2D portal_overlay_texture : register(t1);
 SamplerState particle_sampler : register(s0);
 
 struct vs_input
@@ -36,6 +37,7 @@ struct vs_output
     float2 tex_coord : TEXCOORD0;
     float opacity : TEXCOORD1;
     float3 tint : COLOR0;
+    float3 portal_color : TEXCOORD2;
 
 };
 
@@ -46,7 +48,9 @@ vs_output vs_main(vs_input input)
     output.opacity = 1.0f;
 
     output.tint = 1.0f;
-    if (texture_flags.x > 9.5f)
+    output.portal_color = input.normal;
+    if ((texture_flags.x > 9.5f && texture_flags.x < 10.5f) ||
+        (texture_flags.x > 11.5f && texture_flags.x < 12.5f && ((uint)texture_flags.z & 0x200u) != 0))
     {
         uint rgb = (uint)input.normal.z - 1u;
         uint r = (rgb >> 16) & 255u;
@@ -56,7 +60,7 @@ vs_output vs_main(vs_input input)
     }
     bool is_short_lived_elemental_particle =
         texture_flags.x > 5.5f && texture_flags.x < 7.5f;
-    if (input.normal.z > 0.5f)
+    if (input.normal.z > 0.5f && texture_flags.x < 12.5f)
     {
         float3 camera_direction = normalize(camera_position_and_shininess.xyz - world_position);
         float3 right = cross(camera_direction, float3(0.0f, 0.0f, 1.0f));
@@ -128,6 +132,26 @@ float2 animated_tex_coord(float2 tex_coord)
 float4 ps_sdr(vs_output input) : SV_Target
 {
     float4 sampled = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord));
+    if (texture_flags.x > 12.5f && texture_flags.x < 13.5f)
+    {
+        // Native colours are Gouraud interpolated on the original 20x34 mesh.
+        float first_alpha = input.portal_color.y;
+        float second_alpha = input.portal_color.z;
+        float3 next = portal_overlay_texture.Sample(particle_sampler, input.tex_coord).rgb;
+        float coverage = second_alpha + first_alpha * (1.0f - second_alpha);
+        float3 color = (next * second_alpha + sampled.rgb * first_alpha * (1.0f - second_alpha)) * input.portal_color.x;
+        return float4(color, coverage);
+    }
+    if (texture_flags.x > 11.5f && texture_flags.x < 12.5f)
+    {
+        // FX uses the native ONE/SRC_ALPHA source factor. Pipeline state selects
+        // ONE/INV_SRC_ALPHA destination separately, including per-slot smoke blends.
+        uint flags = (uint)texture_flags.z;
+        float coverage = texture_flags.w < 0.5f ? 1.0f : sampled.a;
+        float alpha = coverage * model_color.a;
+        float3 rgb = texture_flags.w > 1.5f ? 1.0f : sampled.rgb;
+        return float4(rgb * model_color.rgb * input.tint * ((flags & 0x10u) != 0 ? 1.0f : alpha), alpha);
+    }
     float coverage = (texture_flags.x > 8.5f ? 1.0f : 0.92f) * sampled.a;
     float alpha = coverage * model_color.a * input.opacity;
     if (alpha < 0.02f)

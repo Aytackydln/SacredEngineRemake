@@ -125,6 +125,7 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
     public void ClearModel()
     {
         WaitForGpu();
+        SetFxPreview(null);
         _animatedModel = null;
         _mesh?.Dispose();
         _mesh = null;
@@ -150,6 +151,7 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
         EquipmentEffectScene effectScene)
     {
         WaitForGpu();
+        SetFxPreview(null);
         _mesh?.Dispose();
         _mesh = null;
         _sourceMesh = null;
@@ -168,13 +170,13 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
         _modelScale = 1.0f;
         RebuildInventoryUiMesh(includeOccupiedCells: true);
         DisposeModelTextures();
+        _assetMin = null;
+        _assetMax = null;
 
         if (asset.Mesh is null || asset.Mesh.Vertices.Length == 0 || asset.Mesh.Indices.Length == 0)
             return;
 
         _meshBounds = CalculateBounds(asset.Mesh.Vertices);
-        _assetMin = null;
-        _assetMax = null;
         // Effect quads store their billboard half-size in Normal.xy. Include that
         // extent in asset framing so a beam beyond its small handle remains visible.
         if (_assetPreview && effectScene.Mesh is { } previewEffects)
@@ -319,6 +321,7 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
 
         WaitForGpu();
         AdvanceEquipmentEffects();
+        AdvanceFxPreview();
         ReloadShadersIfRequested();
         ResizeIfNeeded();
 
@@ -345,6 +348,7 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
         _fallbackTexture?.Dispose();
         _fallbackTexture = null;
         _textureUploader.Dispose();
+        _groundGrid?.Dispose();
         _inventoryUiMesh?.Dispose();
         _inventoryUiMesh = null;
         _depthBuffer?.Dispose();
@@ -467,6 +471,7 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
             SamplerAddressMode = TextureAddressMode.Wrap,
             SamplerBorderColor = StaticBorderColor.OpaqueWhite
         });
+        definition = Dx12FxPipelineDefinitions.AddAlphaBlend(definition);
         var compiled = Dx12PipelineFactory.Compile(definition, D3DShaderCompiler.Compile);
         var pipelines = Dx12PipelineFactory.Create(_device, compiled, BackBufferFormat, DepthBufferFormat);
 
@@ -479,6 +484,7 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
         _itemParticlePipelineState = pipelines[Dx12PipelineKind.TransparentItemParticle];
         _itemGlowPipelineState = pipelines[Dx12PipelineKind.ItemGlow];
         _inventoryUiPipelineState = pipelines[Dx12PipelineKind.InventoryUi];
+        _fxAlphaPipelineState = pipelines[Dx12PipelineKind.FxParticle];
     }
 
     private void RequestShaderReload() => Interlocked.Exchange(ref _shaderReloadPending, 1);
@@ -497,6 +503,7 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
         _inventoryUiPipelineState?.Dispose();
         _itemGlowPipelineState?.Dispose();
         _itemParticlePipelineState?.Dispose();
+        _fxAlphaPipelineState?.Dispose();
         _effectPipelineState?.Dispose();
         _transparentEffectPipelineState?.Dispose();
         _animatedPipelineState?.Dispose();
@@ -572,13 +579,15 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
         _commandList.ClearRenderTargetView(rtv, new Color4(0.05f, 0.10f, 0.09f, 1.0f));
         _commandList.ClearDepthStencilView(dsv, ClearFlags.Depth, 1.0f, 0, 0, []);
 
+        RecordGroundGrid();
         if (!_assetPreview)
             RecordInventoryUi();
         if (_mesh is not null)
         {
             RecordModel();
             RecordEquipmentEffects();
-            }
+        }
+        RecordFxPreview();
 
         Transition(backBuffer, ResourceStates.RenderTarget, ResourceStates.Present);
     }

@@ -1,11 +1,10 @@
 using System.Numerics;
 using Sacred.Particles;
 using Sacred.Particles.Diagnostics;
-using Sacred.World.Geometry;
 
 namespace Sacred.World.Particles;
 
-internal sealed class WorldParticleEmitter
+internal sealed partial class WorldParticleEmitter
 {
     private const float InitialFade = 255.0f;
 
@@ -20,8 +19,17 @@ internal sealed class WorldParticleEmitter
     private readonly SeededParticleRandom _random;
     private readonly int _capacity;
     private int _nextDrawOrder;
+    private bool _burstPending;
+    private float _age;
+    public bool NativeRetired { get; private set; }
+    private bool _nativeEmissionInitialized, _movementReady;
+    private float _nativeReleaseTime;
+    private float _emissionTime;
     private Vector2? _origin;
     private float? _heightOffset;
+    private readonly ParticleEmissionCyclePlayback? _cycle;
+    private readonly ParticleLineEmissionPlayback? _line;
+    private int _lineBirth;
 
     public WorldParticleEmitter(
         WorldParticleScriptPlacement placement,
@@ -29,6 +37,7 @@ internal sealed class WorldParticleEmitter
         SacredParticleProjection projection)
     {
         _placement = placement;
+        _burstPending = placement.Definition.BurstOnFirstUpdate;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(worldUnitsPerTile);
         _projection = projection;
         _parameterSets = placement.Definition.ParameterSets
@@ -52,12 +61,15 @@ internal sealed class WorldParticleEmitter
                 Position = native.Position.Value, Velocity = native.Velocity.Value,
                 Gravity = native.Mass, Size = native.Size, Fade = native.Energy,
                 Rotation = native.Phi, AngularVelocity = native.Moment,
-                AtlasCell = native.Frame, DrawOrder = _nextDrawOrder++
+                AtlasCell = native.Frame, DrawOrder = _nextDrawOrder++, Color = native.Color
             });
             _particleCount++;
         }
         _random = new SeededParticleRandom(unchecked(placement.ScriptOffset * 397 ^ (int)placement.Creation.TypeId));
-
+        if (placement.Definition.EmissionCycle is { } cycle)
+            _cycle = new(cycle, unchecked((uint)(placement.ScriptOffset * 397 ^ (int)placement.Creation.TypeId)));
+        if (placement.Definition.LineEmission is not null) _line = new();
+        if (placement.Definition.OrbitEmission is not null) _point = new();
     }
 
     public bool CanEmit => _parameterSets.Length > 0;
@@ -66,15 +78,35 @@ internal sealed class WorldParticleEmitter
     {
         foreach (var batch in _batches) batch.RestoreCpu();
         return new(_random.Capture(), _emissionElapsed, _nextDrawOrder,
-            _batches.Select(batch => Enumerable.Range(0, batch.Count).Select(i => batch[i]).ToArray()).ToArray());
+            _batches.Select(batch => Enumerable.Range(0, batch.Count).Select(i => batch[i]).ToArray()).ToArray())
+            { BurstPending = _burstPending, Age = _age, NativeRetired = NativeRetired, NativeEmissionInitialized = _nativeEmissionInitialized,
+                MovementReady = _movementReady, NativeReleaseTime = _nativeReleaseTime, OrbitAngle = _orbitAngle,
+                ReleasedPoint = _point?.Released,
+                CycleCountdown = _cycle?.Countdown ?? 0, CycleRandomState = _cycle?.RandomState ?? 0,
+                CycleBurst = _cycle?.Burst ?? false, CurrentLine = _line?.Current, ReleasedLine = _line?.Released };
     }
     internal WorldParticleEmitter(WorldParticleScriptPlacement placement, float units,
         SacredParticleProjection projection, WorldParticleEmissionSnapshot snapshot) : this(placement, units, projection)
     {
         _random.Restore(snapshot.RandomState); _emissionElapsed = snapshot.Elapsed;
+        _burstPending = snapshot.BurstPending;
+        _age = snapshot.Age;
+        NativeRetired = snapshot.NativeRetired;
+        _nativeEmissionInitialized = snapshot.NativeEmissionInitialized;
+        _movementReady = snapshot.MovementReady;
+        _nativeReleaseTime = snapshot.NativeReleaseTime;
+        _orbitAngle = snapshot.OrbitAngle;
+        if (_point is not null && snapshot.ReleasedPoint is { } releasedPoint) _point.Restore(releasedPoint);
         _nextDrawOrder = snapshot.NextDrawOrder;
         _batches = _parameterSets.Select(p => new ParticleSimulationBatch(p, _capacity)).ToArray();
         _particleCount = 0;
+        if (_line is not null && snapshot.CurrentLine is { } current && snapshot.ReleasedLine is { } released)
+            _line.Restore(current, released);
+        if (_cycle is not null)
+        {
+            _cycle.Restore(snapshot.CycleCountdown, snapshot.CycleRandomState, snapshot.CycleBurst);
+            ApplyCycleParameters();
+        }
         for (var set = 0; set < _batches.Length; set++)
         foreach (var particle in snapshot.Particles[set]) { _batches[set].Add(particle); _particleCount++; }
     }
@@ -84,6 +116,11 @@ internal sealed class WorldParticleEmitter
         get => _simulationMode;
         set
         {
+            // These native draws share one particle vector or use an independent flare stack.
+            // The standard GPU emitter ABI has a single draw/halo slot.
+            if (value is ParticleSimulationMode.Gpu or ParticleSimulationMode.GpuOnly &&
+                (_placement.Definition.AdditionalDraws.Count > 0 || _placement.Definition.AdditionalHalos.Count > 0 ||
+                 _placement.Definition.RetireAfterDuration)) value = ParticleSimulationMode.CpuSimd;
             if (value is not (ParticleSimulationMode.Gpu or ParticleSimulationMode.GpuOnly))
                 foreach (var batch in _batches) batch.RestoreCpu();
             _simulationMode = value;
@@ -104,6 +141,8 @@ internal sealed class WorldParticleEmitter
                     _heightOffset ?? _placement.Creation.HeightOffset ?? 0));
     }
     public int ParticleCount => _particleCount;
+    public bool EmissionFinished => OrbitFinished || _placement.Definition.EmissionDurationSeconds is { } duration &&
+        (_placement.Definition.EmissionClock == SacredParticleEmissionClock.CrossingUpdate ? _age > duration : _age >= duration);
 
     public void SetOrigin(Vector2 origin, float heightOffset)
     {
@@ -131,7 +170,7 @@ internal sealed class WorldParticleEmitter
                 Rotation = RandomScalar(emission.Rotation, emission.RotationRandomWidth),
                 AngularVelocity = RandomScalar(emission.AngularVelocity, emission.AngularVelocityRandomWidth),
                 AtlasCell = emission.VariantSelection <= 1 ? 0 : _random.Next(emission.VariantSelection),
-                Fade = InitialFade, DrawOrder = _nextDrawOrder++
+                Fade = InitialFade, DrawOrder = _nextDrawOrder++, Color = emission.Color
             });
             _particleCount++;
         }
@@ -151,72 +190,51 @@ internal sealed class WorldParticleEmitter
     {
         if (SimulationMode == ParticleSimulationMode.GpuOnly &&
             _batches.Any(batch => batch.GpuBackend is not { IsAvailable: true })) return;
-        // Preserve each native updater's birth/integration order.
-        if (emitting && _placement.Definition.EmitBeforeMovement) EmitParticles(deltaSeconds);
-        UpdateParticles(deltaSeconds);
-        if (emitting && !_placement.Definition.EmitBeforeMovement) EmitParticles(deltaSeconds);
-
-        if (emitting && _placement.Definition.Halo is { } halo) AddHalo(halo, output);
-
-        foreach (var batch in _batches)
+        var previousAge = _age;
+        _age += deltaSeconds;
+        var definition = _placement.Definition;
+        if (definition.RetireAfterDuration && definition.EmissionDurationSeconds is { } lifetime &&
+            (double)previousAge + deltaSeconds > lifetime) NativeRetired = true;
+        PrepareOrbit();
+        emitting &= !OrbitFinished;
+        var showHalo = emitting;
+        _emissionTime = definition.EmissionClock == SacredParticleEmissionClock.PreviousTimeExclusive ? previousAge : _age;
+        emitting &= definition.EmissionDurationSeconds is not { } duration || definition.EmissionClock switch
         {
-            if (batch.Gpu is not null) continue;
-            for (var index = 0; index < batch.Count; index++)
-            {
-                var particle = batch[index];
-                var parameters = batch.Parameters;
-                if (particle.Fade <= 0 || particle.Size <= 0) continue;
-                var local = particle.Position;
-                var ground = IsometricProjection.IsoToWorld(_projection.Project(new Vector3(local.X, local.Y, 0)));
-                var color = WorldParticleAppearance.Color(_placement.Definition.Draw!, parameters, particle.Fade);
-                var height = ((_heightOffset ?? _placement.Creation.HeightOffset ?? 0) + local.Z) *
-                             _projection.HeightFactor * _projection.VerticalScale;
-                var depthAnchor = _origin ?? (_placement.Creation.TilePosition is { } tile
-                    ? new Vector2(tile.X, tile.Y)
-                    : new Vector2(_placement.WorldX, _placement.WorldY));
-                var origin = _origin ?? new Vector2(_placement.WorldX, _placement.WorldY);
-                output.Add(new WorldParticle(
-                    _placement.ScriptOffset,
-                    _sprite,
-                    origin.X + ground.X,
-                    origin.Y + ground.Y,
-                    height,
-                    2 * particle.Size * _projection.HorizontalScale,
-                    (color >> 24) / InitialFade,
-                    particle.DrawOrder)
-                {
-                    Color = color,
-                    // Native pitch has cot(pitch)=2. Screen-space height therefore
-                    // contributes half as much camera depth as ground displacement.
-                    PainterDepthKey = WorldPainterDepth.FromWorld(depthAnchor + ground) +
-                                      height / IsometricProjection.StepWidth,
-                    AtlasCell = _placement.Definition.Draw!.UsesRandomAtlasCell ? particle.AtlasCell :
-                        Math.Clamp((int)((InitialFade - particle.Fade) * _sprite.FrameCount / 256), 0, _sprite.FrameCount - 1),
-                    Rotation = particle.Rotation,
-                    Additive = _placement.Definition.EmissionMode == 2 ? parameters.Index == 0 :
-                        (_placement.Definition.Draw.RawFlags & 1) != 0,
-                    SourceColorOnly = (_placement.Definition.Draw.RawFlags & 0x10) != 0,
-                    RenderHeight = 2 * particle.Size * _projection.VerticalScale
-                });
-            }
+            SacredParticleEmissionClock.PreviousTimeExclusive => previousAge < duration,
+            SacredParticleEmissionClock.CurrentTimeExclusive => _age < duration,
+            SacredParticleEmissionClock.CurrentTimeInclusive => _age <= duration,
+            _ => previousAge <= duration
+        };
+        var skipMovement = _burstPending && definition.SkipFirstMovement;
+        // Preserve each native updater's birth/integration order.
+        if (_burstPending && _placement.Definition.EmitBeforeMovement) EmitPendingBurst();
+        if (emitting && _placement.Definition.EmitBeforeMovement) EmitParticles(deltaSeconds);
+        if (!skipMovement) UpdateParticles(deltaSeconds);
+        if (_cycle is not null)
+        {
+            var wasBurst = _cycle.Burst; _cycle.Advance(deltaSeconds);
+            if (wasBurst != _cycle.Burst) ApplyCycleParameters();
         }
+        if (_burstPending) EmitPendingBurst();
+        if (emitting && !_placement.Definition.EmitBeforeMovement) EmitParticles(deltaSeconds);
+        AdvanceOrbit(deltaSeconds);
+
+        if (!NativeRetired) AppendParticles(definition, showHalo, output);
     }
 
-    private void AddHalo(SacredParticleHaloDefinition halo, List<WorldParticle> output)
+    public void SetLine(ParticleEmissionLine line) => _line?.Set(line);
+
+    private void EmitPendingBurst()
     {
-        using var scope = ParticlePerformance.Measure(ParticleCpuStage.Halos);
-        var origin = _origin ?? new Vector2(_placement.WorldX, _placement.WorldY);
-        var height = (_heightOffset ?? _placement.Creation.HeightOffset ?? 0) *
-                     _projection.HeightFactor * _projection.VerticalScale;
-        output.Add(new WorldParticle(_placement.ScriptOffset,
-            new ParticleSpriteReference(halo.TextureName, 1, 1, 1, 1, ParticleShaderKind.ItemParticle),
-            origin.X, origin.Y, height, 2 * halo.HalfSize * _projection.HorizontalScale,
-            (halo.Color >> 24) / InitialFade, -1)
-        {
-            Color = halo.Color, Additive = true, SourceColorOnly = true,
-            RenderHeight = 2 * halo.HalfSize * _projection.VerticalScale,
-            PainterDepthKey = WorldPainterDepth.FromWorld(origin) + height / IsometricProjection.StepWidth
-        });
+        EmitBurst();
+        _burstPending = false;
+    }
+
+    private void ApplyCycleParameters()
+    {
+        _parameterSets[0] = _placement.Definition.EmissionCycle!.Apply(_parameterSets[0], _cycle!.Burst);
+        _batches[0].ApplyParameters(_parameterSets[0]);
     }
 
     private void UpdateParticles(float deltaSeconds)
@@ -228,13 +246,45 @@ internal sealed class WorldParticleEmitter
                 _placement.Definition.GroundCollision, -(_heightOffset ?? _placement.Creation.HeightOffset ?? 0));
             _particleCount += batch.Count;
         }
+        _movementReady = true;
     }
 
     private void EmitParticles(float deltaSeconds)
     {
         if (_parameterSets.Length == 0) return;
+        if (_placement.Definition.SingleBirthInitialization && !_nativeEmissionInitialized)
+        {
+            if (!_movementReady || _particleCount == _capacity) return;
+            _nativeEmissionInitialized = _emissionTime != 0;
+            _nativeReleaseTime = _emissionTime;
+            _lineBirth = 0;
+            Spawn(SelectParameters());
+            _line?.Initialize(_parameterSets[0].Emission.PositionOffset.Value);
+            _point?.Initialize(_parameterSets[0].Emission.PositionOffset.Value);
+            return;
+        }
         var interval = _parameterSets[0].Emission.EmissionInterval;
         if (interval <= 0) return;
+        if (_placement.Definition.SingleBirthInitialization)
+        {
+            // Native stores elapsed before division, then rounds the release clock once
+            // after all births. Repeated float subtraction can produce an extra birth.
+            var elapsed = _emissionTime - _nativeReleaseTime;
+            var count = (int)Math.Min((double)elapsed / interval, _capacity - _particleCount);
+            if (count > 0) _line?.Begin(elapsed, interval, _parameterSets[0].Emission.PositionOffset.Value);
+            if (count > 0) _point?.Begin(elapsed, interval, _parameterSets[0].Emission.PositionOffset.Value);
+            for (var birth = 1; birth <= count; birth++)
+            {
+                _lineBirth = birth;
+                _emissionElapsed = (float)((double)_emissionTime - _nativeReleaseTime - birth * (double)interval);
+                Spawn(SelectParameters());
+            }
+            _line?.Commit(count);
+            if (count > 0) _point?.Commit(count);
+            _nativeReleaseTime = (float)(_nativeReleaseTime + count * (double)interval);
+            _emissionElapsed = _emissionTime - _nativeReleaseTime;
+            return;
+        }
         _emissionElapsed += deltaSeconds;
         while (_emissionElapsed >= interval && _particleCount < _capacity)
         {
@@ -262,28 +312,14 @@ internal sealed class WorldParticleEmitter
     {
         using var scope = ParticlePerformance.Measure(ParticleCpuStage.Births);
         ParticlePerformance.RecordBirths(1);
-        var emission = parameters.Emission;
-        var particle = new ParticleSimulationState
-        {
-            Position = RandomVector(emission.PositionOffset.Value, emission.PositionRandomWidth.Value),
-            Velocity = RandomVector(emission.Velocity.Value, emission.VelocityRandomWidth.Value),
-            Gravity = RandomScalar(emission.Gravity, emission.GravityRandomWidth),
-            Size = RandomScalar(emission.Size, emission.SizeRandomWidth),
-            Rotation = RandomScalar(emission.Rotation, emission.RotationRandomWidth),
-            AngularVelocity = RandomScalar(emission.AngularVelocity, emission.AngularVelocityRandomWidth),
-            AtlasCell = emission.VariantSelection switch
-            {
-                0 => 0,
-                255 => parameters.Index,
-                _ => _random.Next(emission.VariantSelection)
-            },
-            Fade = InitialFade,
-            DrawOrder = _nextDrawOrder++
-        };
-        // Timed native births are advanced by the unconsumed part of this interval.
+        var position = parameters.Emission.PositionOffset.Value;
+        if (_point is not null && _lineBirth != 0) position = _point.Birth(_lineBirth);
+        if (_line is not null)
+            position = _lineBirth == 0 ? _line.FirstBirth(position, _random.NextDouble()) : _line.Birth(_lineBirth, _random.NextDouble());
+        ParticleSimulationState particle;
         using (ParticlePerformance.Measure(ParticleCpuStage.SpawnPreAdvance))
-            ParticleCpuSimulation.Advance(ref particle, parameters.Motion, _emissionElapsed,
-                GravityDirection(parameters), applyInwardAcceleration: false);
+            particle = ParticleBirthStateFactory.Create(parameters, _placement.Definition, _random,
+                position, _emissionElapsed, GravityDirection(parameters), _nextDrawOrder++);
         foreach (var batch in _batches)
         {
             if (!ReferenceEquals(batch.Parameters, parameters)) continue;

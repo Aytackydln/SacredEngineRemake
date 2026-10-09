@@ -35,6 +35,13 @@ public static class SacredParticleCatalogueReader
             events.AddRange(NativeGenericEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeChangelingEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeParticleEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativePointBurstReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeTimedEmissionReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeStandardEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeLayeredEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeSmallFireEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeLineEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeTeleportEventReader.Read(image, code, definition, options.Quality, cancellationToken));
         }
         var catalogue = new SacredParticleCatalogue(image.ExecutableSha256, image.CodeSha256, options.Quality,
             image.Single(SacredGoldExecutableProfile.WorldUnitsPerTileAddress), definitions, events)
@@ -42,7 +49,7 @@ public static class SacredParticleCatalogueReader
             Projection = NativeProjectionReader.Read(image)
         };
         options.Log?.Invoke($"[particles] Catalogue loaded: {definitions.Count} FX types, {catalogue.DecodedCount} decoded script presets, {events.Count} decoded event variants, " +
-                            $"{definitions.Count - catalogue.DecodedCount} pending mappings; quality={options.Quality}; {timer.ElapsedMilliseconds} ms.");
+                            $"{definitions.Count - catalogue.DecodedCount} pending script-creation mappings; quality={options.Quality}; {timer.ElapsedMilliseconds} ms.");
         return catalogue;
     }
 }

@@ -5,6 +5,8 @@ namespace Sacred.Particles.Reader.Executable;
 internal sealed class NativeCode(SacredExecutableImage image)
 {
     private readonly Dictionary<uint, Instruction> _instructions = [];
+    public uint ImageUInt32(uint address) => image.UInt32(address);
+    public string ImageString(uint address, int size) => image.String(address, size);
 
     public Instruction At(uint address)
     {

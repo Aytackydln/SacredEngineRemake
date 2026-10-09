@@ -23,7 +23,7 @@ internal static class CatalogueChecks
             var quality = (SacredParticleQuality)reference.GetProperty("quality").GetByte();
             var embedded = SacredParticleCatalogue.LoadEmbedded(quality);
             Check(ReferenceEquals(embedded, SacredParticleCatalogue.LoadEmbedded(quality)), "embedded catalogue is cached");
-            Check(embedded.Definitions.Count == 210 && embedded.DecodedCount == 15 && embedded.EventDefinitions.Count == 13, $"catalogue coverage ({quality})");
+            Check(embedded.Definitions.Count == 210 && embedded.DecodedCount == 16 && embedded.EventDefinitions.Count == 49, $"catalogue coverage ({quality})");
             Check(embedded.NativeCodeSha256 == document.RootElement.GetProperty("text_sha256").GetString(), "reference code identity");
             Check(!embedded.TryGetDefinition(uint.MaxValue, out _), "unknown ID absent");
             Check(embedded.Definitions.Where(e => e.Status != SacredParticleDefinitionStatus.Decoded).All(e => e.ParameterSets.Count == 0),
@@ -37,9 +37,9 @@ internal static class CatalogueChecks
                 Check(definition.Preset == expected.GetProperty("preset").GetInt32(), "native creation dispatch");
                 Check(definition.Draw?.TextureName == expected.GetProperty("texture").GetString(), "native draw texture binding");
                 Check(definition.Draw?.RawFlags == expected.GetProperty("raw_renderer_flags").GetUInt32(), "native draw flags");
-                var complete = expected.GetProperty("status").GetString() == "complete";
+                var complete = expected.GetProperty("status").GetString() == "complete" || definition.EmissionCycle is not null;
                 Check((definition.Status == SacredParticleDefinitionStatus.Decoded) == complete, "initializer support status");
-                if (!complete) continue;
+                if (!complete || definition.EmissionCycle is not null) continue; // Independently verified by geyser-native-reference.json.
                 var slots = expected.GetProperty("slots").EnumerateArray().ToArray();
                 Check(slots.Length == definition.ParameterSets.Count, "written parameter slot count");
                 foreach (var slot in slots)
@@ -70,6 +70,19 @@ internal static class CatalogueChecks
                           saved.Draw == entry.Draw && saved.Halo == entry.Halo && saved.Capacity == entry.Capacity &&
                           saved.GroundCollision == entry.GroundCollision && saved.OneTime == entry.OneTime && saved.IsEventPreset == entry.IsEventPreset &&
                           saved.DisplayName == entry.DisplayName && saved.ModelBurstCount == entry.ModelBurstCount &&
+                          saved.UsesActorBlockRadius == entry.UsesActorBlockRadius &&
+                          saved.BurstOnFirstUpdate == entry.BurstOnFirstUpdate &&
+                          saved.NativeConstructorAddress == entry.NativeConstructorAddress &&
+                          saved.EmissionDurationSeconds == entry.EmissionDurationSeconds &&
+                          saved.SingleBirthInitialization == entry.SingleBirthInitialization &&
+                          saved.SkipFirstMovement == entry.SkipFirstMovement && saved.EmissionClock == entry.EmissionClock &&
+                          saved.EmissionCycle == entry.EmissionCycle &&
+                          saved.LineEmission == entry.LineEmission &&
+                          saved.Strength == entry.Strength &&
+                          saved.Teleport == entry.Teleport && saved.OrbitEmission == entry.OrbitEmission &&
+                          saved.AdditionalDraws.SequenceEqual(entry.AdditionalDraws) && saved.AdditionalHalos.SequenceEqual(entry.AdditionalHalos) &&
+                          saved.ParticlesVisible == entry.ParticlesVisible && saved.RetireAfterDuration == entry.RetireAfterDuration &&
+                          saved.RequiresActorContext == entry.RequiresActorContext &&
                           saved.InitialParticles.SequenceEqual(entry.InitialParticles) &&
                           saved.EmitBeforeMovement == entry.EmitBeforeMovement && saved.EmissionMode == entry.EmissionMode && saved.UsesWind == entry.UsesWind &&
                           saved.TextureBindings.SequenceEqual(entry.TextureBindings), "fresh metadata matches embedded");

@@ -9,9 +9,16 @@ public sealed class ParticleSimulationBatch
 {
     internal readonly float[] X, Y, Z, Vx, Vy, Vz, Gravity, Size, Fade, Rotation, AngularVelocity;
     private readonly int[] _atlasCells, _drawOrders;
+    private readonly uint[] _colors;
     private bool _hasDeadBirths;
 
-    public SacredParticleParameterSet Parameters { get; }
+    public SacredParticleParameterSet Parameters { get; private set; }
+    public void ApplyParameters(SacredParticleParameterSet parameters)
+    {
+        if (parameters.Index != Parameters.Index) throw new ArgumentException("Parameter slot cannot change.");
+        Parameters = parameters;
+        Gpu?.ApplyParameters(parameters);
+    }
     private int _count;
     private ParticleGroundCollision? _gpuCollision;
     private IParticleGpuBackend? _gpuBackend;
@@ -44,6 +51,7 @@ public sealed class ParticleSimulationBatch
         Gravity = new float[capacity]; Size = new float[capacity]; Fade = new float[capacity];
         Rotation = new float[capacity]; AngularVelocity = new float[capacity];
         _atlasCells = new int[capacity]; _drawOrders = new int[capacity];
+        _colors = new uint[capacity];
     }
 
     public ParticleSimulationState this[int index]
@@ -59,7 +67,7 @@ public sealed class ParticleSimulationBatch
                 Velocity = new(Vx[index], Vy[index], Vz[index]),
                 Gravity = Gravity[index], Size = Size[index], Fade = Fade[index],
                 Rotation = Rotation[index], AngularVelocity = AngularVelocity[index],
-                AtlasCell = _atlasCells[index], DrawOrder = _drawOrders[index]
+                AtlasCell = _atlasCells[index], DrawOrder = _drawOrders[index], Color = _colors[index]
             };
         }
     }
@@ -74,6 +82,7 @@ public sealed class ParticleSimulationBatch
         Gravity[index] = particle.Gravity; Size[index] = particle.Size; Fade[index] = particle.Fade;
         Rotation[index] = particle.Rotation; AngularVelocity[index] = particle.AngularVelocity;
         _atlasCells[index] = particle.AtlasCell; _drawOrders[index] = particle.DrawOrder;
+        _colors[index] = particle.Color;
         _hasDeadBirths |= particle.Fade <= 0 || particle.Size <= 0;
     }
 
@@ -150,6 +159,7 @@ public sealed class ParticleSimulationBatch
                 Gravity[write] = Gravity[read]; Size[write] = Size[read]; Fade[write] = Fade[read];
                 Rotation[write] = Rotation[read]; AngularVelocity[write] = AngularVelocity[read];
                 _atlasCells[write] = _atlasCells[read]; _drawOrders[write] = _drawOrders[read];
+                _colors[write] = _colors[read];
             }
             write++;
         }

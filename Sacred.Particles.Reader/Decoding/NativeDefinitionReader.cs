@@ -15,7 +15,8 @@ internal sealed class NativeDefinitionReader(SacredExecutableImage image, Sacred
             instruction => instruction.IP < SacredGoldExecutableProfile.FactoryDispatchAddress || instruction.IP >= 0x5A0C99);
         var family = NativeParticleFamily.Find(factory);
         var result = new SacredParticleDefinition(typeId, name, recordAddress, factory, family?.Name, null,
-            SacredParticleDefinitionStatus.UnsupportedFamily, "Native family has not been mapped yet.", [], null, []);
+            SacredParticleDefinitionStatus.UnsupportedFamily, "Native family has not been mapped yet.", [], null, [])
+            { NativeConstructorAddress = NativeFxFamilyReader.ReadConstructor(_code, factory) };
         if (family == null) return result;
         try
         {
@@ -37,11 +38,16 @@ internal sealed class NativeDefinitionReader(SacredExecutableImage image, Sacred
             result = result with { TextureBindings = bindings };
             var draw = NativeTextureReader.ReadDraw(image, _code, family, result.Preset!.Value, bindings);
             result = result with { Draw = draw, Halo = NativeTextureReader.ReadHalo(_code, family, bindings) };
+            var cycle = NativeSmokeCycleReader.HasController(family, result.Preset!.Value)
+                ? NativeSmokeCycleReader.Read(image, _code, options.Quality) : null;
+            if (cycle is not null) family = family with { SampleRandomValue = 0 };
             var parameters = NativePresetReader.Read(image, _code, family, result.Preset.Value, options.Quality, cancellationToken);
             return result with
             {
                 Status = SacredParticleDefinitionStatus.Decoded, Diagnostic = null, ParameterSets = parameters,
-                EmissionMode = NativeSimulationReader.ReadMode(image, _code, family, result.Preset.Value),
+                EmissionMode = cycle is null ? NativeSimulationReader.ReadMode(image, _code, family, result.Preset.Value) :
+                    checked((int)_code.At(0x76E5C3).GetImmediate(0)),
+                EmissionCycle = cycle, SingleBirthInitialization = cycle is not null,
                 EmitBeforeMovement = family.EmitBeforeMovement,
                 UsesWind = family.ParameterSlotCount > 1,
                 Capacity = NativeParticleCapacityReader.Read(_code, factory)

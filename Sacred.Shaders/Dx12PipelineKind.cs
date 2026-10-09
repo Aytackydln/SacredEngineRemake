@@ -42,5 +42,6 @@ public enum Dx12PipelineKind
     ItemGlowAlphaMask,
     InventoryUi,
     ImGui,
-    SolidModel
+    SolidModel,
+    FxParticle
 }
