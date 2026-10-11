@@ -49,7 +49,7 @@ internal static class NativeTextureReader
             }
             // The compiler can push the next texture name before storing the previous handle.
             if (resolvedName != null && instruction.Mnemonic == Mnemonic.Mov && instruction.Op0Kind == OpKind.Memory &&
-                instruction.MemoryBase == Register.ESI && instruction.Op1Register == Register.EAX)
+                instruction.MemoryBase == family.ConstructorRegister && instruction.Op1Register == Register.EAX)
             {
                 bindings.Add(new SacredParticleTextureBinding((uint)instruction.MemoryDisplacement64, resolvedName));
                 // Multiple native texture slots can share this lookup result.

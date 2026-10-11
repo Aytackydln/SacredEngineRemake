@@ -56,7 +56,7 @@ internal sealed partial class WorldParticleEmitter
                     (color >> 24) / InitialFade,
                     particle.DrawOrder)
                 {
-                    Color = color,
+                    Color = color, CornerColors = WorldParticleAppearance.Corners(draw, parameters, particle.Fade),
                     // Native pitch has cot(pitch)=2. Screen-space height therefore
                     // contributes half as much camera depth as ground displacement.
                     PainterDepthKey = WorldPainterDepth.FromWorld(depthAnchor + ground) +
@@ -66,7 +66,9 @@ internal sealed partial class WorldParticleEmitter
                     Rotation = draw.UsesRotation ? particle.Rotation : 0,
                     Additive = definition.EmissionMode == 2 ? parameters.Index == 0 : (draw.RawFlags & 1) != 0,
                     SourceColorOnly = (draw.RawFlags & 0x10) != 0,
-                    RenderHeight = 2 * halfSize * _projection.VerticalScale
+                    RenderHeight = 2 * halfSize * _projection.VerticalScale *
+                                   (draw.GroundAligned ? _projection.GroundDepthFactor : 1),
+                    GroundAligned = draw.GroundAligned
                 });
             }
         }
@@ -74,11 +76,20 @@ internal sealed partial class WorldParticleEmitter
 
     private void AddHalo(SacredParticleHaloDefinition halo, List<WorldParticle> output)
     {
+        if (halo.VisibleFromSeconds is { } start && _age < start) return;
+        if (halo.VisibleUntilSeconds is { } end && _age > end) return;
+        var factor = _aura.Factor(halo);
         var haloColor = halo.ColorAt(_age);
-        if ((haloColor >> 24) == 0) return;
+        if (halo.Envelope is { ScaleRgb: true })
+        {
+            uint Channel(int shift) => (uint)Math.Clamp((int)(((haloColor >> shift) & 255) * (double)factor), 0, 255);
+            haloColor = (haloColor & 0xFF000000) | Channel(16) << 16 | Channel(8) << 8 | Channel(0);
+        }
+        if (halo.SourceColorOnly ? (haloColor & 0xFFFFFF) == 0 : (haloColor >> 24) == 0) return;
         var frame = halo.AtlasAnimation?.FrameAt(_age);
         if (halo.AtlasAnimation is not null && frame is null) return;
-        var halfSize = halo.HalfSizeAt(_age);
+        var halfSize = halo.HalfSizeAt(_age) * (halo.Envelope is { ScaleRgb: false } ? factor : 1);
+        if (halfSize <= 0) return;
         using var scope = ParticlePerformance.Measure(ParticleCpuStage.Halos);
         var origin = _origin ?? new Vector2(_placement.WorldX, _placement.WorldY);
         origin += IsometricProjection.IsoToWorld(_projection.Project(new(halo.Offset.X, halo.Offset.Y, 0)));
@@ -90,8 +101,9 @@ internal sealed partial class WorldParticleEmitter
             (haloColor >> 24) / InitialFade, -1)
         {
             Color = haloColor, Additive = halo.Additive, SourceColorOnly = halo.SourceColorOnly,
-            Rotation = halo.Rotation, AtlasCell = frame ?? 0,
-            RenderHeight = 2 * halfSize * _projection.VerticalScale,
+            Rotation = halo.RotationAt(_age), AtlasCell = frame ?? 0,
+            RenderHeight = 2 * halfSize * _projection.VerticalScale * (halo.GroundAligned ? _projection.GroundDepthFactor : 1),
+            GroundAligned = halo.GroundAligned,
             PainterDepthKey = WorldPainterDepth.FromWorld(origin) + height / IsometricProjection.StepWidth
         });
     }

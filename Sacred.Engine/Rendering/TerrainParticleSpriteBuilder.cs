@@ -70,7 +70,8 @@ internal sealed class TerrainParticleSpriteBuilder(AssetManager assets)
                 ParticleRotation = particle.Rotation,
                 ParticleDepthKey = particle.PainterDepthKey ?? WorldPainterDepth.FromWorld(new Vector2(
                     particle.WorldX, particle.WorldY)) + particle.Height / IsometricProjection.StepWidth,
-                ParticleBlendFlags = (particle.Additive ? 2u : 0u) | (particle.SourceColorOnly ? 4u : 0u)
+                ParticleBlendFlags = (particle.Additive ? 2u : 0u) | (particle.SourceColorOnly ? 4u : 0u) |
+                                     (particle.GroundAligned ? 128u : 0u)
             });
         }
 

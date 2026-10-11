@@ -10,5 +10,7 @@ public enum SacredParticleEmissionClock
     /// <summary>Advance age first, then emit only while the new age is strictly below the limit.</summary>
     CurrentTimeExclusive,
     /// <summary>Advance age first, then emit through the equality boundary (Nature Healing).</summary>
-    CurrentTimeInclusive
+    CurrentTimeInclusive,
+    /// <summary>Emit at the previous age through the equality boundary.</summary>
+    PreviousTimeInclusive
 }

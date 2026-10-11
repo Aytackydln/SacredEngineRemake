@@ -13,6 +13,7 @@ using Sacred.Assets.Paks.Texture;
 using Sacred.Core.Pak.Weapon;
 using Sacred.Granny.Abstractions;
 using Sacred.Granny.Assets;
+using Sacred.Granny.Meshes;
 
 namespace AssetViewer.AssetViewer;
 
@@ -151,9 +152,11 @@ internal sealed class ModelPreviewPane : UserControl
             var fx = fxFactory is null ? null : await Task.Run(() => fxFactory(asset), token);
             token.ThrowIfCancellationRequested();
             FxPlayback = fx;
-            if (fx is not null && !fx.IsPortal)
+            if (fx is not null && !fx.HasSurfaceGeometry)
                 Console.WriteLine($"[Assets] FX inputs loaded: {fx.SampleOrigins.Count} sample origins; " +
-                    (fx.EmissionLine is { } line ? $"endpoints={line.Start} to {line.End}; distance={Vector3.Distance(line.Start, line.End)} native units."
+                    (fx.CastDistance is { } distance ? $"cast distance={distance} native world-position units."
+                        : fx.EmissionLine is { } line ? $"endpoints={line.Start} to {line.End}; distance={Vector3.Distance(line.Start, line.End)} native units."
+                        : fx.SampleOrigins.Count == 0 ? "empty path."
                         : $"segment={fx.SampleOrigins[0]} to {fx.SampleOrigins[^1]} native units."));
             if (inventoryItem is { } inventory)
             {
@@ -162,7 +165,8 @@ internal sealed class ModelPreviewPane : UserControl
                 Console.WriteLine($"[Assets] Inventory item placement: {inventory.IdemId}; rotation={inventory.PreviewRotation}; " +
                     $"scale={inventory.PreviewScale}; offset={inventory.PreviewOffset}; cells={inventory.Width}x{inventory.Height}.");
             }
-            else _viewer.ShowModel(asset, Vector3.Zero, 1, 1, effects);
+            else _viewer.ShowModel(fx is { HasSurfaceGeometry: true }
+                ? new GrnAsset(name, [], null, new Mesh([], [])) : asset, Vector3.Zero, 1, 1, effects);
             _viewer.SetAssetFrame(frame);
             _viewer.SetFxPreview(fx);
             var loaded = new Dictionary<string, ModelTextureBinding>(StringComparer.OrdinalIgnoreCase);
@@ -184,7 +188,8 @@ internal sealed class ModelPreviewPane : UserControl
                     aliases[surface!] = ModelTextureResolver.Resolve(_session.Textures, desc.TextureId, desc.EffectTextureId,
                         desc.GraphicFlags, hasEffect, names.Length == 1, surface);
             }
-            foreach (var surface in asset.Mesh?.Surfaces ?? [])
+            // Direct-mesh FX replace the GRN materials with native render-call textures.
+            foreach (var surface in fx is { HasSurfaceGeometry: true } ? [] : asset.Mesh?.Surfaces ?? [])
             {
                 var key = surface.TextureName;
                 if (string.IsNullOrWhiteSpace(key) || loaded.ContainsKey(key)) continue;

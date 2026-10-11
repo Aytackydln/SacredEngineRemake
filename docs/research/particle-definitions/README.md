@@ -1,12 +1,237 @@
 # Particle definitions in Sacred Gold
 
-**Latest preview inputs:** [default endpoint distances](preview-inputs.md).
-Time Control has a five-sample two-point showcase with editable Distance.
-Native line FX preserve their weapon helpers by default and expose a length
-override. Default inputs and console cheats restore or change the scene inputs.
-Native game placement/scheduling along Time Control's segment remains pending.
+Rendering correction: grayscale RGBA textures now keep their authored RGB
+brightness. The old classifier incorrectly selected an alpha-only mask and
+turned both ground flares into solid diamonds. **16 channel regressions** pass;
+**26 corrected captures** and **37 earlier-ring regression captures** were
+checked through console cheats. See [corrected previews](expanding-burst-fx.md#grayscale-texture-correction).
 
-**Latest decoding:** [Nature Healing, Time Control and Small Fire](layered-fx.md)
+Latest decoding: [Ring of Poison and Kamikaze](expanding-burst-fx.md) adds two
+complete event previews: a 150-slot particle burst, fifty expanding ring strips
+and two independently rotating ground flares. Four layouts map saved state,
+resources and Kamikaze's unsigned event radius rate. Coverage is **140 recipes /
+107 FX rows**: 34 script and 104 event recipes plus two portals. **860,619 native
+comparisons** pass against 1,440 original updates/renders and 34,560 complete
+surface submissions, including standard particle draw dispatch and movement.
+Both previews pass **16,546 viewer/world checks**; all 140 recipes pass
+**34,998,385 geometry checks** across nine actors. Hidden console validation
+produces **26 screenshot-cheat captures** with no missing textures. Fresh reader,
+generated-source checks and Viewer/Terminal builds pass. Particle output uses the
+shared world/Terminal path; world ring/ground surfaces, scene commands, lights
+and combat event integration remain pending.
+
+Previous decoding: [Bubble Trap Explosion and Terror Sprinter](ring-surface-fx.md)
+adds three event recipes across two constructors, including both Terror Sprinter
+modes. Complete 50/20-segment rings preserve randomized rune resources, ground
+glow, packed colors, blending and strict boundaries. Six layouts map saved blocks,
+object resources and event inputs. Coverage is **138 recipes / 105 FX rows**:
+34 script and 102 event recipes plus two portals. **984,001 comparisons** pass
+against 1,728 original updates/full renders and 48,816 complete submissions.
+The three recipes pass **8,744 targeted viewer checks**; hidden console validation
+produces **37 captures** with no missing textures. Fresh catalogue comparisons,
+generated-source verification and the Viewer build pass. Combat caller/owner buffs,
+scene lights, moving attachment and world/Terminal surfaces remain pending.
+
+Previous decoding: [War Cry Sign](war-cry-sign-fx.md) adds the complete swept-fin
+event recipe, including its ground glow, all eighty sector tests, opposite fins
+and repeated highlights. Three layouts map the saved controller, event duration,
+resources and mutable vertices. Coverage is **135 recipes / 103 FX rows**:
+34 script and 99 event recipes plus two portals. **2,161,938 comparisons** pass
+against 648 original updates/full renders and 80,262 complete submissions.
+All 135 previews pass **34,973,095 geometry checks** across nine actors; hidden
+console validation produces **23 captures**. Full reader/fresh-executable checks,
+generated-source verification and the Viewer build pass. Combat caller/notification
+dispatch, moving attachment and world/Terminal surfaces remain pending.
+
+Previous decoding: [Transdim, Pong Ball and Zhadum](pulse-flare-fx.md) add three event recipes
+with complete native ground/billboard renderers: all fifteen randomized Transdim
+planes, Pong Ball's conditional hit flares and persistent glow, and Zhadum's triggered
+hold/fade. Six layouts map saved blocks, resource tails and base controls. Coverage
+is **134 recipes / 102 FX rows**: 34 script and 98 event recipes plus two portals.
+**148,099 comparisons** pass against 1,620 original updates/full renders and 9,954
+plane submissions. All 134 previews pass **33,032,790 geometry checks** across nine
+actors. Hidden console validation produces **77 captures**; reader/generated checks
+and Viewer/Terminal builds pass. White surface tint also restores BFG's ground glow.
+Scene commands, world/Terminal surfaces and Pong minigame integration remain pending.
+
+Previous decoding: [Panzer and Stahl](column-flare-fx.md) add two event recipes with
+complete 71-plane columns. Shared playback preserves strict grow/hold/fade phases,
+rotation, stored slice heights, alpha falloff and native float light RGB. Three
+layouts map saved state, event duration inputs and light/texture handles. Coverage
+is **131 recipes / 99 FX rows**: 34 script and 95 event recipes plus two portals.
+**720,093 comparisons** pass against 720 original updates/full renders and 51,120
+complete plane submissions. All 131 previews pass **32,980,465 geometry checks**
+across nine actors. Hidden console validation produces **48 captures**;
+reader/generated checks and Viewer/Terminal builds pass. Standalone duration is
+explicitly ten seconds; owner buffs, scene lights and world/Terminal surfaces
+remain pending.
+
+Previous decoding: [BFG and Trap02 Pill/Ghost](sprite-flare-fx.md) add three event recipes
+across three separate constructors sharing the billboard-flare helper. BFG keeps
+all three animated grayscale layers and its ground glow; both traps preserve the
+native asymmetric size pulse, blend selection and Pill removal flag. Five layouts
+map saved state, base control inputs and resource handles. Coverage is **129 recipes
+/ 97 FX rows**: 34 script and 93 event recipes plus two portals. **99,797 comparisons**
+pass against 2,430 original updates/full renders, including exact boundaries,
+restored continuation and three camera bases. All 129 previews pass **32,707,699
+geometry checks** across nine actors. Hidden console validation produces **45
+captures**; reader/generated checks and Viewer/Terminal builds pass. Owner/audio/light
+integration, Trap02 parent gameplay and world/Terminal surfaces remain pending.
+
+Previous decoding: [Live Undead, Call of Death and Trap01](controlled-ground-flares.md) add three
+complete event previews across three separate constructors sharing stdLensflare.
+All four revival layers, fractional death-layer carry, both Trap01 toggle colours
+and sixteen atlas cells preserve native state, float stores, UVs and blending.
+Five layouts map saved state, event radius and toggle/notification bytes. Coverage
+is **126 recipes / 94 FX rows**: 34 script and 90 event recipes plus two portals.
+**133,884 comparisons** pass against 5,400 original updates/full renders, including
+exact boundaries and restored continuation. All 126 previews pass **32,701,793
+geometry checks** across nine actors. Hidden console validation produces **68
+captures**; reader/generated checks and Viewer/Terminal builds pass. Gameplay
+scene events, owner/audio integration and world/Terminal surfaces remain pending.
+
+Previous decoding: [Fire Circle and Healing](fire-circle-and-healing-fx.md) add four
+event recipes covering both +0xA9 branches of both native constructors. Fire Circle
+preserves its two textures, quality-scaled emission, strict cutoff and draining tail;
+Healing seeds all 400 radial slots, preserves zero-time reseeding and both corner
+palettes. Five layouts map saved state and creation/event inputs. Coverage is
+**123 recipes / 91 FX rows**: 34 script and 87 event recipes plus two portals.
+**2,870,264 comparisons** pass against 3,564 original updates/draw dispatches.
+All 123 previews pass **32,693,065 geometry checks** across nine actors. Hidden
+console validation captures all four samples and regressions. Reader/generated
+checks and Viewer/Terminal builds pass. Shared CPU/Terminal output preserves the
+pink Gouraud corner; gameplay event, audio/light and world GPU corner integration
+remain pending.
+
+**Previous decoding:** [Superfluid and Confusion](superfluid-and-confusion-fx.md) add two
+event recipes, covering both separate sole-member constructors. Superfluid includes
+all eight strike states and its complete glow; Confusion draws two rotating ground
+planes and both 100-vertex helical ribbons. Native random phase/alpha carry,
+exponential height/reset, strict timers and five save/event/helper layouts are mapped.
+Coverage is **119 recipes / 89 FX rows**: 34 script and 83 event recipes plus two
+portals. **1,865,865 comparisons** pass against 3,120 original updates/full renders.
+All 119 previews pass **30,950,832 geometry checks** across nine actors; hidden
+console captures cover both rows, phase/height reset, retirement and regressions.
+Reader/generated-source checks pass, and Viewer/Terminal build cleanly. Owner,
+audio/light integration, world placement and Terminal surfaces remain pending.
+
+**Previous decoding:** [Shielded, Holy Shield and Magic Shield](shield-fx.md) add four
+event recipes across three separate sole-member constructors. Both Shielded color
+branches and all eight strike states are covered; Holy Shield rotates a brightness
+trail and ground flare, while Magic Shield grows/shrinks thirty markers and two
+independently pulsing ring layers. Both circular shields consume the native hit bit.
+Coverage is **117 recipes / 87 FX rows**: 34 script and 81 event recipes plus two
+portals. Seven new layouts map saved state and creation/event inputs.
+**494,676 comparisons** pass against 3,360 original updates/full renders. All 117
+previews pass **30,899,796 geometry checks** across nine actors; hidden console
+captures cover all four recipes, hit/decay/retirement and regressions.
+Reader/generated-source checks pass, and Viewer/Terminal build cleanly. Owner,
+audio/light integration, world placement and Terminal surfaces remain pending.
+
+**Previous decoding:** [Crusader Strength and Speed Up](strike-symbol-fx.md) add two related event
+recipes, covering both sole-member constructors and all eight texture states.
+Coverage is **113 recipes / 84 FX rows**: 34 script and 77 event recipes plus two
+portals. Native vertical strips preserve the opaque-base/transparent-top gradient;
+both complete glow passes, strict timers, Speed Up's event rate and saved bytes
+are mapped. **76,848 comparisons** pass against 1,920 original updates/full renders.
+All 113 previews pass **30,860,440 geometry checks** across nine actors; hidden
+console captures cover both new rows and regressions. Reader/generated-source
+checks pass, and Viewer/Terminal build cleanly. World placement, light/finish
+notifications and Terminal surface rendering remain pending.
+
+**Previous decoding:** [Mana/HP Regeneration and MagLite](regeneration-and-light-fx.md).
+Three related layered ground-flare classes add three event recipes. Coverage is
+**111 recipes / 82 FX rows**: 34 script and 75 event recipes plus two portals.
+Mana/HP each draw a rotating symbol and five glow planes; MagLite draws 21 slices.
+Layouts map the sixteen-byte saved timers, MagLite light strength and event inputs.
+Native comparisons pass **202,545 checks** against 1,620 complete updates/renders,
+including the entire flare helper, strict retirement and Mana extension. All 111
+previews pass over 30.85 million geometry checks. Hidden console captures exercise
+all three rows, `fx-extend`, retirement/restart and regressions; reader/generated
+source checks pass and Viewer/Terminal build cleanly. Audio, actor following,
+MagLite owner/light integration and world surfaces remain pending. All known
+shared-constructor families are covered; the five Trap04 fire rows take a
+non-allocating factory path and remain without particle recipes.
+
+**Previous decoding:** [Anducar Spikes: both event members](anducar-fx.md).
+Both members share five authored models, distance-dependent randomized delays,
+the grow/hold/shrink controller, ordinary body material and high-quality additive
+glow. Coverage is **108 recipes across 79 FX rows**. Layouts map the full 0x18C-byte
+saved state and both event vectors. Original-code checks pass 247,176 comparisons
+against 1,080 updates/renders, including exact stage boundaries and restored
+continuation. Both rows pass hidden console-cheat captures and distance controls.
+World shadow/lighting parity, event scene integration and Terminal mesh rendering
+remain pending. These are event recipes; script creation remains unsupported.
+
+**Previous decoding:** [Pong Batter: both family members](pong-batter-fx.md).
+The largest remaining uncovered groups have two members. Both player and AI paddle
+visuals now render their scrolling box surface and all twelve glow-sprite edges,
+including native hit/recovery. Coverage is **106 recipes across 77 FX rows**.
+A layout maps the twelve-byte saved state. Original-code comparisons pass 490,920
+checks against 720 full updates/renders, including the entire beam helper.
+Hidden console-cheat captures exercise both members through `fx-hit`; minigame
+control, world placement and Terminal mesh rendering remain pending.
+
+**Previous decoding:** [Underworld Glyphs: all four members](glyph-fx.md).
+One shared constructor adds **4/4** previews: two scrolling model passes, twenty
+curved ribbons and a glow. Coverage is **104 recipes across 75 FX rows**. State
+and event layouts preserve saved points, randomized wave rates/radii and thickness.
+Original-code comparisons pass 1,187,592 checks against 1,200 updates and 1,212
+renders. All four members pass hidden console-cheat captures. Forge model blending
+is also corrected from the native helper argument. World mesh integration remains pending.
+
+**Previous decoding:** [Forge Elements: all five members](forge-element-fx.md).
+The next largest uncovered constructor family now has **5/5** previews: Air,
+Earth, Water, Fire and Lost Element. Native growth, release/compression/fade,
+model transforms, both ground flares and the 31-segment scrolling ring bring
+coverage to **100 recipes across 71 FX rows**. Two layouts map serialized state
+and event selection. Original-code comparisons pass 323,004 checks against
+3,000 full updates/renders; all members pass hidden console-cheat release/restart
+captures. World mesh integration and subsequent Air-object dispatch remain pending.
+
+**Previous decoding:** [Element Stone: all seven members](element-stone-fx.md).
+The largest uncovered constructor family now has **7/7** previews. Its native
+GRN model, three rotating beams, flicker strip and two flares bring coverage to
+**95 recipes across 66 FX rows**. Three layouts map serialized state, event
+selection and direct-surface vertices. Original-code comparisons cover 3,150
+updates/renders; all seven models pass hidden console-cheat captures. These are
+direct mesh recipes; world scene placement and Terminal mesh rendering remain pending.
+
+**Previous decoding:** [Cloud, auras and casting FX](aura-and-cast-fx.md).
+Eight constructors add eleven event recipes: Cloud, both Fire Skin owner modes,
+Ground Poison, terminal Freeze Impact, three Gladiator cast branches, Soulcatcher,
+Burning Light and Songs from Hell. Coverage is now **88 recipes across 59 FX rows**.
+Sixteen layouts map native state/event fields. Timed starts, random burst scheduling,
+rounded glow envelopes and ground lensflares preserve the recovered native paths.
+Evidence includes 108 exact byte blocks, 3,405 original updates/renders, snapshot
+continuation, CPU/GPU checks and hidden console-cheat captures of every new recipe.
+Explicit standalone inputs and remaining combat/attachment branches are documented.
+
+**Previous decoding:** [Bleed, Battle Fog, Gladiator hit and High Speed](sustained-and-burst-fx.md).
+Four new constructors add seven event recipes: a blood burst, all three fog
+palettes, ordinary Gladiator hit and both High Speed selectors. Coverage is now
+**77 recipes across 51 FX rows**. Native wind, timed release, ground quads,
+birth-size growth and strict retirement are preserved. Eight new layouts map
+state/event fields. Evidence includes 63 exact byte blocks, 2,163 original updates
+and 2,163 renderer calls; CPU/GPU checks and hidden console-cheat captures pass.
+
+**Previous decoding:** [Seraphim hit and Blood Puddle](hit-and-ground-fx.md).
+Two new constructors cover both families' complete membership (1/1 each),
+including both Seraphim combat-art branches. Coverage is now **70 recipes across
+47 FX rows**. Native ground-plane quads, phi/UV orientation, emission cutoff and
+palette fade are preserved in Asset Viewer, CPU/GPU world rendering and Terminal.
+Three new layouts map the recovered state/event bytes; Blood Puddle also uses
+the existing standard emitter layout. Evidence includes 27 exact byte blocks,
+1,125 original updates, 1,125 renderer calls and 16 original quad corners.
+
+**Latest correction:** [Time Control cast trail and endpoint defaults](preview-inputs.md).
+Time Control now uses the combat move's native red actor bursts along its path,
+with editable Distance (default 200). Original-code execution verifies both
+move branches, burst positions, colour and subtype. The named Time Control
+particle layer's flare cone is separate from this cast. Magic Fire/Gift preserve
+their weapon helpers by default and expose a length override.
+
+**Previous decoding:** [Nature Healing, Time Control and Small Fire](layered-fx.md)
 adds three constructors, all member rows (1/1 each), and all three Small Fire
 subtypes. Coverage is **67 recipes across 45 FX rows**. Complete native extra
 draw passes, 20 flares, quality branches, animated flare frames and lifetime
@@ -81,7 +306,7 @@ name at `+4`. The native lookup at `0x43CEC4` returns that stored ID. IDs have
 gaps; a table index or constant row-index adjustment is not a general ID mapping.
 Reading actual IDs yields **210 `TYPE_FX_` catalogue entries**. Sixteen have decoded script presets across Smoke, Dwarf Magic and Magic Prison
 at all three quality settings; 194 still have pending script-creation mappings.
-Thirty-four event recipes support additional rows. Geyser's initializer and native
+Seventy event recipes support additional rows. Geyser's initializer and native
 countdown controller are now implemented.
 
 The loader also permits offline code recovery. Its encoded header is `0x374`

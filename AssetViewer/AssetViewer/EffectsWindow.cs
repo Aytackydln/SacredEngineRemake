@@ -25,6 +25,7 @@ internal sealed class EffectsWindow : Window, IAssetViewerWindow
     private readonly CheckBox _implemented = new() { Content = "Implemented", Margin = new Thickness(0, 0, 0, 8) };
     private readonly Button _randomActor = new() { Content = "Random character", IsEnabled = false };
     private readonly Button _playPause = new() { Content = "Pause" };
+    private readonly Button _release = new() { Content = "Release", IsVisible = false };
     private readonly TextBlock _actorLabel = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly NumericUpDown _strength = new() { Minimum = 0, Maximum = uint.MaxValue, Increment = 100, Value = 0, Width = 130 };
     private readonly StackPanel _strengthControls = new() { Orientation = Orientation.Horizontal, Spacing = 8, IsVisible = false };
@@ -73,9 +74,11 @@ internal sealed class EffectsWindow : Window, IAssetViewerWindow
         var restart = new Button { Content = "Restart" };
         restart.Click += (_, _) => Restart();
         _playPause.Click += (_, _) => SetPlaying(!(_preview.FxPlayback?.Playing ?? true));
+        _release.Click += (_, _) => RequestRelease();
         var controls = new WrapPanel { Orientation = Orientation.Horizontal };
         controls.Children.Add(_variants); controls.Children.Add(restart);
         controls.Children.Add(_playPause);
+        controls.Children.Add(_release);
         _strengthControls.Children.Add(new TextBlock { Text = "Strength", VerticalAlignment = VerticalAlignment.Center });
         _strengthControls.Children.Add(_strength);
         _distanceControls.Children.Add(new TextBlock { Text = "Distance", VerticalAlignment = VerticalAlignment.Center });
@@ -151,6 +154,26 @@ internal sealed class EffectsWindow : Window, IAssetViewerWindow
         Console.WriteLine($"[Assets] FX time: {seconds:F3}s.");
     }
     public void RandomizeActor() { _actor = null; _weapon = null; Rebuild(); }
+    public void RequestHit()
+    {
+        (_preview.FxPlayback ?? throw new InvalidOperationException("Select a supported FX first.")).RequestHit();
+        Console.WriteLine("[Assets] FX native hit response requested.");
+    }
+    public void SetAtlasCell(int cell) => (_preview.FxPlayback ?? throw new InvalidOperationException("Select a supported FX first.")).SetAtlasCell(cell);
+    public void ExtendDuration(uint units) => (_preview.FxPlayback ?? throw new InvalidOperationException("Select a supported FX first.")).ExtendDuration(units);
+    public void RequestRelease()
+    {
+        (_preview.FxPlayback ?? throw new InvalidOperationException("Select a supported FX first.")).RequestRelease();
+        Console.WriteLine("[Assets] FX native release requested.");
+    }
+    public void Step(float seconds)
+    {
+        if (!float.IsFinite(seconds) || seconds < 0 || seconds > 60) throw new ArgumentOutOfRangeException(nameof(seconds));
+        var playback = _preview.FxPlayback ?? throw new InvalidOperationException("Select a supported FX first.");
+        SetPlaying(false);
+        while (seconds > 0) { var delta = Math.Min(seconds, 1f / 60); playback.Advance(delta); seconds -= delta; }
+        Console.WriteLine($"[Assets] FX stepped; {playback.PrimitiveDescription}.");
+    }
     public void SetStrength(uint strength)
     {
         if ((_variants.SelectedItem as EffectVariantChoice)?.Definition.Strength is null)
@@ -163,6 +186,9 @@ internal sealed class EffectsWindow : Window, IAssetViewerWindow
         if ((_variants.SelectedItem as EffectVariantChoice)?.Definition is not { } definition ||
             !FxPreviewParameters.UsesDistance(definition)) throw new InvalidOperationException("This FX has no preview distance input.");
         new FxPreviewParameters(distance).Validate();
+        var maximum = FxPreviewCastTrail.MaximumDistance(_catalogue, definition);
+        if (distance > maximum)
+            throw new ArgumentOutOfRangeException(nameof(distance), $"This FX supports distances up to {maximum} native units.");
         _distance.Value = (decimal)distance;
         Console.WriteLine($"[Assets] FX distance: {distance} native units.");
     }
@@ -212,8 +238,11 @@ internal sealed class EffectsWindow : Window, IAssetViewerWindow
         if (_table.Selected is not { } row) return;
         SetPlaying(true);
         var definition = (_variants.SelectedItem as EffectVariantChoice)?.Definition;
+        _release.IsVisible = definition?.ForgeElement is not null;
         _strengthControls.IsVisible = definition?.Strength is not null;
         _distanceControls.IsVisible = definition is not null && FxPreviewParameters.UsesDistance(definition);
+        _distance.Maximum = (decimal)(definition is null ? FxPreviewParameters.MaximumDistance
+            : FxPreviewCastTrail.MaximumDistance(_catalogue, definition));
         var parameters = new FxPreviewParameters(_distance.Value is { } distance ? (float)distance : null);
         var strength = checked((uint)(_strength.Value ?? 0));
         var text = new StringBuilder();
@@ -228,7 +257,7 @@ internal sealed class EffectsWindow : Window, IAssetViewerWindow
             text.AppendLine($"Weapon GRN attachment: {attachment.StartBoneName}" +
                 (attachment.EndBoneName is { } end ? $" through {end}" : string.Empty) + "; authored rest pose.");
         else if (definition is not null && FxPreviewParameters.UsesPointSegment(definition))
-            text.AppendLine("The random character marks the first preview endpoint.");
+            text.AppendLine("Cast trail uses the selected character's mesh for the native actor bursts.");
         else if (definition?.RequiresActorContext == true)
             text.AppendLine(definition.LineEmission is null
                 ? "Actor attachment preview uses the character origin; individual bone attachment is pending."
@@ -239,7 +268,8 @@ internal sealed class EffectsWindow : Window, IAssetViewerWindow
             text.AppendLine(parameters.Distance is { } length ? $"Preview distance: {length} native units."
                 : "Preview distance: authored weapon endpoints or actor mesh bounds.");
             if (FxPreviewParameters.UsesPointSegment(definition))
-                text.AppendLine("Two-point showcase: five independent native samples along the segment; game placement scheduling remains pending.");
+                text.AppendLine("Time Control cast: red actor bursts along an unobstructed native world path. Distance is in native world-position units.");
+            if (definition.Anducar is not null) text.AppendLine("Endpoint distance delays the randomized spikes. Preview endpoints coincide at distance zero.");
         }
         text.AppendLine("Native event parameters come from the recovered effect catalog; the descriptor is shown below.");
         text.AppendLine(ModelsWindow.Describe(row.Item));
@@ -258,6 +288,52 @@ internal sealed class EffectsWindow : Window, IAssetViewerWindow
             _ = _preview.LoadAsync(row.Effect,
                 _ => Task.FromResult(new GrnAsset(row.Effect, [], null, new Mesh([], []))), [],
                 fxFactory: _ => new FxPreviewPlayback(_catalogue, portal));
+            return;
+        }
+        if (definition?.ElementStone is { } stone)
+        {
+            var modelItem = _session.Items.FirstOrDefault(item => item.ItemIndex == stone.ItemModelTypeId);
+            if (string.IsNullOrWhiteSpace(modelItem.ModelName))
+            {
+                _preview.ShowStatus("The native FX model reference is absent from Items.pak.");
+                return;
+            }
+            _actorLabel.Text = modelItem.ModelName;
+            Console.WriteLine($"[Assets] FX selected: {row.EntryId} {row.Effect}; Element Stone selector={definition.Preset}; model={modelItem.ModelName}; model row={modelItem.ItemIndex}.");
+            _ = _preview.LoadAsync(row.Effect, async token =>
+            {
+                var asset = await _session.Models.LoadModelAsync(modelItem.ModelName, cancellationToken: token);
+                return asset;
+            }, [], fxFactory: asset => new FxPreviewPlayback(_catalogue, stone, asset));
+            return;
+        }
+        if (definition?.ForgeElement is { } forge)
+        {
+            _actorLabel.Text = forge.ModelName;
+            Console.WriteLine($"[Assets] FX selected: {row.EntryId} {row.Effect}; Forge selector={definition.Preset}; model={forge.ModelName}.");
+            _ = _preview.LoadAsync(row.Effect, token => _session.Models.LoadModelAsync(forge.ModelName, cancellationToken: token),
+                [], fxFactory: asset => new FxPreviewPlayback(_catalogue, forge, asset));
+            return;
+        }
+        if (definition?.UnderworldGlyph is { } glyph)
+        {
+            _actorLabel.Text = glyph.ModelName;
+            Console.WriteLine($"[Assets] FX selected: {row.EntryId} {row.Effect}; Glyph selector={definition.Preset}; model={glyph.ModelName}.");
+            _ = _preview.LoadAsync(row.Effect, token => _session.Models.LoadModelAsync(glyph.ModelName, cancellationToken: token),
+                [], fxFactory: asset => new FxPreviewPlayback(_catalogue, glyph, asset));
+            return;
+        }
+        if (definition?.Anducar is { } anducar)
+        {
+            _actorLabel.Text = $"{anducar.Count} spikes from {anducar.ModelNames.Count} models";
+            Console.WriteLine($"[Assets] FX selected: {row.EntryId} {row.Effect}; Anducar count={anducar.Count}; distance={parameters.Distance ?? 0}.");
+            _ = FxAnducarPreviewLoader.LoadAsync(_preview, _session, _catalogue, row.Effect, anducar, parameters);
+            return;
+        }
+        if (definition is not null && FxDirectPreviewLoader.Supports(definition))
+        {
+            _actorLabel.Text = definition.NativeClass;
+            _ = FxDirectPreviewLoader.LoadAsync(_preview, _catalogue, row.Effect, definition);
             return;
         }
         if (definition?.Status != SacredParticleDefinitionStatus.Decoded || definition.Draw is null)
@@ -291,7 +367,6 @@ internal sealed class EffectsWindow : Window, IAssetViewerWindow
                 new FxPreviewPlayback(_catalogue, definition, actor is null ? null : asset, actor?.ModelDesc.BlockRadius,
                     strength, parameters: parameters));
     }
-
     private async Task LoadWeaponAsync(EffectAssetRow row, SacredParticleDefinition definition,
         SacredModelFxAttachmentDefinition attachment, uint strength, FxPreviewParameters parameters, CancellationToken token)
     {

@@ -17,12 +17,19 @@ internal sealed record NativeParticleFamily(string Name, uint FactoryBranch, uin
     public IReadOnlyDictionary<int, uint>? EventArguments { get; init; }
     public bool SampleDefaultEnvironment { get; init; }
     public uint? SampleRandomValue { get; init; }
+    /// <summary>Explicit standalone combat-art parameter zero: base value, zero level increment/cap.
+    /// The original 4D26B0 helper reads these fields; this is not a combat caller default.</summary>
+    public ushort? SampleCombatArtDurationBase { get; init; }
+    public IReadOnlyDictionary<int, uint>? InitialState { get; init; }
+    /// <summary>Pure constructor region that authors palettes before resource lookups.</summary>
+    public (uint Start, uint End)? ConstructorState { get; init; }
     public int? ColorOffset { get; init; }
     public int ColorSlotStride { get; init; }
     public uint? InitialFlags { get; init; }
     public bool EmitBeforeMovement { get; init; } = true;
     public uint? InitializerEnd { get; init; }
     public Register DrawRegister { get; init; } = Register.EBX;
+    public Register ConstructorRegister { get; init; } = Register.ESI;
     // Native class implementations, identified by code address rather than fixture/type IDs.
     private static readonly NativeParticleFamily[] Families =
     [

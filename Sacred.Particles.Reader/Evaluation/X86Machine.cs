@@ -73,6 +73,7 @@ internal sealed class X86Machine
         switch (instruction.Mnemonic)
         {
             case Mnemonic.Mov: Write(Read(1)); break;
+            case Mnemonic.Setne: Write(Registers.Zero ? 0u : 1u); break;
             case Mnemonic.Lea: Write(_operands.Address(instruction)); break;
             case Mnemonic.Cmp: Registers.Compare(Read(0), Read(1), Width()); break;
             case Mnemonic.Test: Registers.Logical(Read(0) & Read(1), Width()); break;
@@ -86,6 +87,8 @@ internal sealed class X86Machine
             case Mnemonic.Shl: Write(Registers.Logical(Read(0) << ((int)Read(1) & 31), Width())); break;
             case Mnemonic.Shr: Write(Registers.Logical(Read(0) >> ((int)Read(1) & 31), Width())); break;
             case Mnemonic.Sar: Write(Registers.Logical((uint)((int)Read(0) >> ((int)Read(1) & 31)), Width())); break;
+            case Mnemonic.Imul when instruction.OpCount == 2:
+                Write(unchecked(Read(0) * Read(1))); break;
             case Mnemonic.Push: Push(Read(0)); break;
             case Mnemonic.Pop: Write(Pop()); break;
             case Mnemonic.Call:
@@ -116,7 +119,7 @@ internal sealed class X86Machine
             case Mnemonic.Jmp: InstructionPointer = Read(0); break;
             case Mnemonic.Je: case Mnemonic.Jne: case Mnemonic.Ja: case Mnemonic.Jae:
             case Mnemonic.Jb: case Mnemonic.Jbe: case Mnemonic.Jg: case Mnemonic.Jge:
-            case Mnemonic.Jl: case Mnemonic.Jle:
+            case Mnemonic.Jl: case Mnemonic.Jle: case Mnemonic.Js: case Mnemonic.Jns:
                 if (Registers.Branch(instruction.Mnemonic)) InstructionPointer = instruction.NearBranch32;
                 break;
             case Mnemonic.Ret:
@@ -135,6 +138,18 @@ internal sealed class X86Machine
                     var destination = Registers.Get(Register.EDI);
                     Memory.Write(destination, 4, Registers.Get(Register.EAX));
                     Registers.Set(Register.EDI, destination + 4);
+                }
+                if (instruction.HasRepPrefix) Registers.Set(Register.ECX, 0);
+                break;
+            case Mnemonic.Movsd when instruction.Op0Kind == OpKind.MemoryESDI ||
+                                      instruction.Op0Kind == OpKind.MemoryESEDI:
+                var copies = instruction.HasRepPrefix ? Registers.Get(Register.ECX) : 1;
+                if (copies > 0x8000) throw new NotSupportedException("Native copy count exceeds scratch capacity.");
+                for (var i = 0u; i < copies; i++)
+                {
+                    var source = Registers.Get(Register.ESI); var destination = Registers.Get(Register.EDI);
+                    Memory.Write(destination, 4, Memory.Integer(source, 4));
+                    Registers.Set(Register.ESI, source + 4); Registers.Set(Register.EDI, destination + 4);
                 }
                 if (instruction.HasRepPrefix) Registers.Set(Register.ECX, 0);
                 break;

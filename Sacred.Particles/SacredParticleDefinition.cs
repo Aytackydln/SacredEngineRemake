@@ -28,6 +28,8 @@ public sealed record SacredParticleDrawDefinition(string TextureName, uint RawFl
     public int AtlasSide { get; init; } = 1;
     /// <summary>stdRender half-size multiplier, applied before CENTER_DOWN and projection.</summary>
     public float HalfSizeMultiplier { get; init; } = 1;
+    /// <summary>Native identity draw matrix keeps the quad in world XY rather than facing the camera.</summary>
+    public bool GroundAligned { get; init; }
     public bool UsesColorTable => (RawFlags & 0x08) != 0;
     public bool UsesRandomAtlasCell => (RawFlags & 0x100) != 0;
     public bool UsesParticleColor => (RawFlags & 0x20) != 0;
@@ -51,6 +53,9 @@ public sealed record SacredParticleDefinition(
     SacredParticleDrawDefinition? Draw,
     IReadOnlyList<SacredParticleParameterSet> ParameterSets)
 {
+    public SacredExpandingBurstFxDefinition? ExpandingBurst { get; init; }
+    public SacredBubbleTrapExplosionFxDefinition? BubbleTrapExplosion { get; init; }
+    public SacredTerrorSprinterFxDefinition? TerrorSprinter { get; init; }
     public string? DisplayName { get; init; }
     /// <summary>Constructor reached by the native factory; equal addresses identify a shared FX family.</summary>
     public uint? NativeConstructorAddress { get; init; }
@@ -92,11 +97,39 @@ public sealed record SacredParticleDefinition(
     public bool EmitBeforeMovement { get; init; } = true;
     public bool UsesWind { get; init; }
     public SacredParticleEmissionCycle? EmissionCycle { get; init; }
+    /// <summary>Native update waits until the previous age reaches this boundary before movement/births.</summary>
+    public float SimulationStartSeconds { get; init; }
+    /// <summary>Native update ignores steps strictly above this inclusive limit.</summary>
+    public float? MaximumSimulationStep { get; init; }
+    public SacredParticleRandomBurst? RandomBurst { get; init; }
+    public SacredParticleRadialBurst? RadialBurst { get; init; }
+    public SacredParticleBirthSizeRamp? BirthSizeRamp { get; init; }
     public SacredParticleLineEmissionDefinition? LineEmission { get; init; }
+    /// <summary>Combat caller composition, independent of this standalone particle recipe.</summary>
+    public SacredParticleCastTrailDefinition? CastTrail { get; init; }
+    /// <summary>Event +38 supplies all four fixed corner colours for this decoded recipe.</summary>
+    public bool UsesEventCornerColor { get; init; }
+    /// <summary>Native initializer channel mask applied before copying event corner colours.</summary>
+    public uint EventCornerColorMask { get; init; } = uint.MaxValue;
     public SacredParticleStrengthDefinition? Strength { get; init; }
     /// <summary>Custom orbit/ejection simulation; no standard parameter blocks.</summary>
     public SacredTeleportParticleDefinition? Teleport { get; init; }
     public SacredParticleOrbitEmission? OrbitEmission { get; init; }
+    /// <summary>Native direct-mesh FX with no stdCreation/stdMovement parameter blocks.</summary>
+    public SacredElementStoneFxDefinition? ElementStone { get; init; }
+    public SacredForgeElementFxDefinition? ForgeElement { get; init; }
+    public SacredAnducarFxDefinition? Anducar { get; init; }
+    public SacredLayeredFlareFxDefinition? LayeredFlare { get; init; }
+    public SacredPulseFlareFxDefinition? PulseFlare { get; init; }
+    public SacredWarCrySignFxDefinition? WarCrySign { get; init; }
+    public SacredColumnFlareFxDefinition? ColumnFlare { get; init; }
+    public SacredSpriteFlareFxDefinition? SpriteFlare { get; init; }
+    public SacredControlledFlareFxDefinition? ControlledFlare { get; init; }
+    public SacredStrikeSymbolFxDefinition? StrikeSymbol { get; init; }
+    public SacredRingShieldFxDefinition? RingShield { get; init; }
+    public SacredConfusionFxDefinition? Confusion { get; init; }
+    public SacredPongBatterFxDefinition? PongBatter { get; init; }
+    public SacredUnderworldGlyphFxDefinition? UnderworldGlyph { get; init; }
     /// <summary>Selected by the native movement routine, not by texture or item IDs.
     /// Decoded smoke/dwarf-magic use stdMovement and therefore have no ground collision.</summary>
     public ParticleGroundCollision GroundCollision { get; init; }

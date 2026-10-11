@@ -23,7 +23,8 @@ internal static class ParticleGpuProjection
         var draw = group.Definition.Draw!;
         c[ParticleGpuShaderLayout.HalfSizeMultiplierOffset] = draw.HalfSizeMultiplier;
         var additive = group.Definition.EmissionMode == 2 ? group.Batch.Parameters.Index == 0 : (draw.RawFlags & 1) != 0;
-        Dx12ParticleKernels.UInt(c,29,(additive ? 2u : 0u) | ((draw.RawFlags & 0x10) != 0 ? 4u : 0u));
+        Dx12ParticleKernels.UInt(c,29,(additive ? 2u : 0u) | ((draw.RawFlags & 0x10) != 0 ? 4u : 0u) |
+            (draw.GroundAligned ? 128u : 0u));
         Dx12ParticleKernels.UInt(c,30,draw.UsesColorTable ? 1u : draw.UsesParticleColor ? 2u :
             (draw.RawFlags & 2) == 0 ? 3u : 0u);
         Dx12ParticleKernels.UInt(c,31,draw.UsesRandomAtlasCell ? 1u : 0u);
@@ -48,7 +49,7 @@ internal static class ParticleGpuProjection
             Sprite = new(rect.X,rect.Y,screen.Scale(particle.Size),screen.Scale(particle.RenderHeight),
                 Math.Clamp(.5f-(depth-WorldPainterDepth.FromWorld(camera.ViewCenter))/4096,.2f,.72f),
                 texture,(uint)particle.Sprite.FrameCount,(uint)particle.AtlasCell,0,0,
-                1u|(particle.Additive?2u:0u)|(particle.SourceColorOnly?4u:0u),0,0,
+                1u|(particle.Additive?2u:0u)|(particle.SourceColorOnly?4u:0u)|(particle.GroundAligned?128u:0u),0,0,
                 ((color>>16)&255)/255f,((color>>8)&255)/255f,(color&255)/255f,particle.Opacity,
                 (uint)particle.Sprite.AtlasColumns,(uint)particle.Sprite.AtlasRows) { ParticleRotation=particle.Rotation },
             SortDepth=depth,TileX=(int)MathF.Floor(particle.WorldX),TileY=(int)MathF.Floor(particle.WorldY),

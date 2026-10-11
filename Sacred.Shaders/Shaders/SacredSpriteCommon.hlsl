@@ -88,6 +88,13 @@ vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_Instan
         sincos(angle, sine, cosine);
         float2 local = (uv - 0.5f) * instance.rect.zw;
         float2 rotated = float2(cosine * local.x - sine * local.y, sine * local.x + cosine * local.y);
+        if ((instance.particle_sprite & 128u) != 0)
+        {
+            // Identity native draw matrix: rotate world XY before camera ground compression.
+            local = uv - 0.5f;
+            // Native V=0 is world +Y; screen Y grows downward.
+            rotated = float2(cosine * local.x - sine * local.y, -sine * local.x - cosine * local.y) * instance.rect.zw;
+        }
         // Gold rotates in the vertical billboard plane BEFORE applying its unequal X/Z scales.
         if (portal_whirl)
         {

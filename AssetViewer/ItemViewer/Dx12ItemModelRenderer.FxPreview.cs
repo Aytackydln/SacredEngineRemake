@@ -26,9 +26,10 @@ internal sealed partial class Dx12ItemModelRenderer
         _fxMesh = UploadMesh(preview.Mesh);
         _lastFxTimestamp = Stopwatch.GetTimestamp();
         // Snapshot the filled effect's bounds; motion must not resize the camera each frame.
-        foreach (var vertex in preview.Mesh.Vertices)
+        for (var index = 0; index < preview.Mesh.Vertices.Length; index++)
         {
-            var extent = preview.IsPortal ? Vector3.Zero : new Vector3(new Vector2(vertex.Normal.X, vertex.Normal.Y).Length());
+            var vertex = preview.Mesh.Vertices[index];
+            var extent = preview.VertexExtent(index);
             _assetMin = Vector3.Min(_assetMin ?? (_mesh is null ? Vector3.Zero : _meshBounds.Min), vertex.Position - extent);
             _assetMax = Vector3.Max(_assetMax ?? (_mesh is null ? Vector3.Zero : _meshBounds.Max), vertex.Position + extent);
         }
@@ -68,8 +69,9 @@ internal sealed partial class Dx12ItemModelRenderer
         {
             var texture = ResolveTexture(draw.TextureName);
             if (texture is null) continue;
-            _commandList.SetPipelineState(draw.Additive ? _itemParticlePipelineState : _fxAlphaPipelineState);
-            _modelShaderConstants.WriteModelBase(constants, projection, world, draw.Color);
+            _commandList.SetPipelineState(draw.UsesModelLighting ? _transparentModelPipelineState : draw.Additive ? _itemParticlePipelineState : _fxAlphaPipelineState);
+            // The ordinary model shader consumes WVP; particle shaders apply world themselves.
+            _modelShaderConstants.WriteModelBase(constants, draw.UsesModelLighting ? world * projection : projection, world, draw.Color);
             var flags = constants + ModelShaderLayout.TextureFlagsOffset;
             flags[0] = (float)draw.Mode;
             flags[1] = ModelShaderLayout.PreserveProjectedDepth;

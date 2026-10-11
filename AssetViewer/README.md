@@ -13,7 +13,7 @@ The launcher opens five independent windows:
 - **Effects - Items.pak**: Effect-category rows, with native type names, recipe status,
   event variants and descriptor offsets/raw bytes. FX identifiers use the native type ID
   associated with the Items.pak row; several different recipes share the same descriptor
-  name. The viewer plays the 16 decoded script effects and 44 decoded event samples from
+  name. The viewer plays the 16 decoded script particle effects and 74 decoded event samples from
   the embedded Gold catalog through the shared world particle simulator. Actor-seeded
   events display a randomly selected playable Creature.pak character; **Random character**
   picks another random template. Continuous effects fill before camera fitting. Finite
@@ -23,7 +23,103 @@ The launcher opens five independent windows:
   Both **Stargate** recipes use the native 20x34 mesh, animated vertex colours,
   five-second minimap transitions and two rotating whirls. Generic event subtype 6
   scales its actor burst using the selected character's Items.pak blocking radius.
-  **Implemented** filters the 45 rows with previews and combines with search.
+  **Implemented** filters the 107 rows with previews and combines with search.
+  Grayscale RGBA FX textures preserve their authored RGB brightness; the shared
+  classifier correction restores radial ground patterns and reveals expanding rings.
+  See [corrected captures](../docs/research/particle-definitions/expanding-burst-fx.md#grayscale-texture-correction).
+  **Ring of Poison and Kamikaze** add two event previews: a complete 150-slot
+  particle burst, fifty expanding ring strips and two rotating ground flares.
+  Saved bytes, three resources, packed colours and native timer boundaries are
+  preserved. Kamikaze uses an explicit standalone event radius rate of 150.
+  Current coverage is **140 recipes across 107 FX rows**.
+  See [research and captures](../docs/research/particle-definitions/expanding-burst-fx.md).
+  **Bubble Trap Explosion and Terror Sprinter** add three event previews across
+  two constructors, including both Terror Sprinter modes. All fifty expanding
+  ring strips, twenty independently textured runes and rotating ground glow
+  preserve the native saved state, phase boundaries and blend factors.
+  That batch brought coverage to **138 recipes across 105 FX rows**.
+  See [research and captures](../docs/research/particle-definitions/ring-surface-fx.md).
+  **War Cry Sign** adds complete swept fins, ground glow and repeated highlights.
+  See [research and captures](../docs/research/particle-definitions/war-cry-sign-fx.md).
+  **Transdim, Pong Ball and Zhadum** add complete event previews: fifteen
+  randomized ground passes, Pong hit flares / persistent glow, and triggered Zhadum
+  hold/fade. `fx-hit` triggers Pong Ball or Zhadum; `fx-step <seconds>` advances while
+  paused. That batch brought coverage to **134 recipes across 102 FX rows**. BFG's ground glow
+  also has corrected surface tint. See [research and captures](../docs/research/particle-definitions/pulse-flare-fx.md).
+  **Panzer and Stahl** add two complete event previews, each with 71 rotating
+  ground planes and native growth, hold, fade, changing RGB and height/alpha falloff.
+  The standalone duration is explicitly ten seconds. That batch brought coverage to **131 recipes**.
+  See [research and captures](../docs/research/particle-definitions/column-flare-fx.md).
+  **BFG and Trap02 Pill/Ghost** add three complete event previews: BFG's
+  three animated billboard layers and ground glow, both asymmetric trap size pulses
+  and the native Pill removal flag. `fx-hit` removes BFG/Pill immediately, including
+  while paused. That batch brought coverage to **129 recipes**. See [research and captures](../docs/research/particle-definitions/sprite-flare-fx.md).
+  **Live Undead, Call of Death and Trap01** add three complete event previews:
+  four revival layers, fractional death-layer carry, native toggle colours and all
+  sixteen trap atlas cells. `fx-hit` toggles Trap01; `fx-cell <0..15>` selects its
+  sampled cell. That batch brought coverage to **126 recipes**. See [research and captures](../docs/research/particle-definitions/controlled-ground-flares.md).
+  **Fire Circle and Healing** add all four native flag samples: Fire02/Fire09,
+  red/pink and blue Healing. Native Fire Circle cutoff/draining and all 400 radial
+  Healing slots, including zero-time reseeding, are preserved. That batch brought coverage to
+  **123 recipes**. See [research and captures](../docs/research/particle-definitions/fire-circle-and-healing-fx.md).
+  **Superfluid and Confusion** add all eight Superfluid strike states and
+  Confusion's two rotating planes and two complete helical ribbons. Native phase
+  reset/alpha carry and exponential ground-height reset remain deterministic when
+  seeking/restarting. That batch brought coverage to **119 recipes**. Owner/audio/light integration,
+  world placement and Terminal surfaces remain pending. See [research and captures](../docs/research/particle-definitions/superfluid-and-confusion-fx.md).
+  **Shielded, Holy Shield and Magic Shield** add both Shielded colors and
+  complete circular-shield previews: Holy's rotating brightness trail/ground symbol
+  and Magic's thirty markers, growth/hold/shrink and two independent height pulses.
+  `fx-hit` triggers native ring-shield impact; `fx-step` advances paused decay.
+  Coverage was **117 recipes** at that checkpoint. Owner/audio/light integration, world placement and
+  Terminal surfaces remain pending. See [research and captures](../docs/research/particle-definitions/shield-fx.md).
+  **Crusader Strength and Speed Up** render all eight strike texture states,
+  the native vertical alpha gradient and both glow passes. Native strict retirement,
+  seeded seek/restart and saved timers are decoded. Coverage was **113 recipes** at that checkpoint;
+  world placement, light/finish notifications and Terminal surfaces remain pending.
+  See [research and captures](../docs/research/particle-definitions/strike-symbol-fx.md).
+  **Mana Regeneration, HP Regeneration and MagLite** render their native
+  layered ground flares. Mana/HP have rotating symbols and five glow planes;
+  MagLite has 21 circular slices. Timers retire all layers; `fx-extend <timer units>`
+  extends or revives Mana without resetting rotation.
+  Actor following, audio, MagLite owner/light integration and world surfaces remain
+  pending. See [research and captures](../docs/research/particle-definitions/regeneration-and-light-fx.md).
+  Both **Anducar Spikes** event rows render their randomized authored models,
+  native delay/grow/hold/shrink and high-quality additive glow. Distance controls
+  timing; `fx-distance 0` supplies coincident endpoints. Camera fitting includes
+  full growth, and seek/restart retain the same random geometry. Coverage is
+  **108 recipes** at that checkpoint. World shadows/lighting parity and mesh scene integration remain
+  pending. See [research and captures](../docs/research/particle-definitions/anducar-fx.md).
+  Both **Pong Batter** variants render their scrolling box and twelve glow-sprite
+  edges. `fx-hit` triggers native impact; `fx-step` advances recovery while paused.
+  Coverage was **106 recipes** at that checkpoint; minigame control and world mesh integration remain
+  pending. See [research and captures](../docs/research/particle-definitions/pong-batter-fx.md).
+  All four **Underworld Glyph** members render two scrolling model texture
+  passes, twenty curved ribbons and a glow. Restart and seek retain deterministic
+  randomized wave parameters. Coverage was **104 recipes** at that checkpoint; world mesh integration
+  remains pending. See [research and captures](../docs/research/particle-definitions/glyph-fx.md).
+  All five **Forge Element** members render their model, two ground flares and
+  scrolling cylindrical strip. **Release** or `fx-release` starts native
+  compression/fade; `fx-step <seconds>` advances paused playback without resetting.
+  Coverage was **100 recipes** at that checkpoint. World mesh integration and Air's subsequent object
+  dispatch remain pending. See [Forge research and captures](../docs/research/particle-definitions/forge-element-fx.md).
+  All seven **Element Stone** members render their authored GRN model, three
+  rotating beams, flicker strip and two flares. Coverage was 95 recipes at that checkpoint.
+  These direct-mesh previews use shared native geometry; world scene placement
+  and Terminal mesh rendering remain pending. See
+  [research and captures](../docs/research/particle-definitions/element-stone-fx.md).
+  Cloud, both Fire Skin owner modes, Ground Poison, terminal Freeze Impact,
+  three Gladiator cast branches, Soulcatcher, Burning Light and Songs from Hell
+  added eight families and eleven recipes, bringing coverage to 88 recipes at that checkpoint.
+  Native delayed starts, random bursts, glow envelopes and ground lensflares are
+  implemented. See [research and captures](../docs/research/particle-definitions/aura-and-cast-fx.md).
+  Bleed, all three Battle Fog palettes, ordinary Gladiator hit and both High Speed
+  selectors are implemented. High Speed preserves native ground geometry,
+  birth-size growth and retirement. See [research and captures](../docs/research/particle-definitions/sustained-and-burst-fx.md).
+  Seraphim hit includes both native combat-art branches. Blood Puddle uses the
+  native ground-plane draw, timed release and fading palette. These additions
+  brought coverage to 70 recipes at that checkpoint; see
+  [hit and ground FX](../docs/research/particle-definitions/hit-and-ground-fx.md).
   Family membership follows native constructors, and **FamilyCoverage** counts all
   members (Smoke is 13/13). Windstrike and Burning Bone now
   use native finite emission clocks and per-particle colour. Burning Bone displays
@@ -51,8 +147,8 @@ The launcher opens five independent windows:
   Magic Fire/Gift expose native unsigned **Strength** through a numeric control and
   `fx-strength <value>` cheat, with size/growth coefficients decoded from Sacred.exe.
   **Distance** supplies an editable endpoint separation. Time Control defaults to
-  five native particle samples along a 200-unit segment; this is a viewer showcase,
-  with native game placement and scheduling still pending. Magic Fire/Gift keep
+  the native combat caller's red actor bursts along a 200-unit world path.
+  The separate named particle layer's flare cone is retained in the catalogue. Magic Fire/Gift keep
   authored weapon helpers by default and support a length override. Actor width
   continues to use the random character's Items.pak blocking radius.
   **Default inputs** restores distance and strength defaults. See
@@ -139,6 +235,8 @@ fx-strength <unsigned value>
 fx-distance <native units, 0..2000>
 fx-defaults
 fx-restart
+fx-release
+fx-step <seconds; advances paused playback without resetting>
 fx-actor
 fx-play true|false
 fx-time <seconds, 0..60; seeks and pauses>

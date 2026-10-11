@@ -6,8 +6,14 @@ internal sealed class X86Operands(X86Registers registers, PresetMemory memory)
 {
     public uint Address(Instruction instruction)
     {
+        if (instruction.SegmentPrefix == Register.FS && instruction.MemoryBase == Register.None &&
+            instruction.MemoryIndex == Register.None && instruction.MemoryDisplacement64 == 0 &&
+            instruction.MemorySize.GetSize() == 4)
+            // Compiler exception registration prologue/epilogue. Keep an isolated chain
+            // in scratch memory; other thread-local fields remain unsupported.
+            return memory.BaseAddress + 0x1E000;
         if (instruction.SegmentPrefix is Register.FS or Register.GS)
-            throw new NotSupportedException("Native thread-local memory is not available to the preset evaluator.");
+            throw new NotSupportedException("Native thread-local field has not been mapped by the preset evaluator.");
         var address = (uint)instruction.MemoryDisplacement64;
         if (instruction.MemoryBase != Register.None) address += registers.Get(instruction.MemoryBase);
         if (instruction.MemoryIndex != Register.None)

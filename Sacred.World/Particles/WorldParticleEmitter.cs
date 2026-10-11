@@ -21,6 +21,7 @@ internal sealed partial class WorldParticleEmitter
     private int _nextDrawOrder;
     private bool _burstPending;
     private float _age;
+    private float _birthSizeFactor;
     public bool NativeRetired { get; private set; }
     private bool _nativeEmissionInitialized, _movementReady;
     private float _nativeReleaseTime;
@@ -30,6 +31,7 @@ internal sealed partial class WorldParticleEmitter
     private readonly ParticleEmissionCyclePlayback? _cycle;
     private readonly ParticleLineEmissionPlayback? _line;
     private int _lineBirth;
+    private readonly ParticleAuraPlayback _aura;
 
     public WorldParticleEmitter(
         WorldParticleScriptPlacement placement,
@@ -37,11 +39,13 @@ internal sealed partial class WorldParticleEmitter
         SacredParticleProjection projection)
     {
         _placement = placement;
-        _burstPending = placement.Definition.BurstOnFirstUpdate;
+        _burstPending = placement.Definition.BurstOnFirstUpdate && placement.Definition.RandomBurst is null;
+        _aura = new(placement.Definition);
+        _birthSizeFactor = placement.Definition.BirthSizeRamp?.InitialFactor ?? 0;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(worldUnitsPerTile);
         _projection = projection;
         _parameterSets = placement.Definition.ParameterSets
-            .Where(p => IsEmittingSet(p) || placement.Definition.InitialParticles.Count > 0 || placement.Definition.ModelBurstCount > 0)
+            .Where(p => IsEmittingSet(p) || placement.Definition.RadialBurst is not null || placement.Definition.InitialParticles.Count > 0 || placement.Definition.ModelBurstCount > 0)
             .ToArray();
         _capacity = placement.Definition.Capacity;
         _batches = _parameterSets.Select(parameters => new ParticleSimulationBatch(parameters, _capacity)).ToArray();
@@ -83,7 +87,8 @@ internal sealed partial class WorldParticleEmitter
                 MovementReady = _movementReady, NativeReleaseTime = _nativeReleaseTime, OrbitAngle = _orbitAngle,
                 ReleasedPoint = _point?.Released,
                 CycleCountdown = _cycle?.Countdown ?? 0, CycleRandomState = _cycle?.RandomState ?? 0,
-                CycleBurst = _cycle?.Burst ?? false, CurrentLine = _line?.Current, ReleasedLine = _line?.Released };
+                CycleBurst = _cycle?.Burst ?? false, BirthSizeFactor = _birthSizeFactor, Aura = _aura.Capture(),
+                CurrentLine = _line?.Current, ReleasedLine = _line?.Released };
     }
     internal WorldParticleEmitter(WorldParticleScriptPlacement placement, float units,
         SacredParticleProjection projection, WorldParticleEmissionSnapshot snapshot) : this(placement, units, projection)
@@ -91,6 +96,8 @@ internal sealed partial class WorldParticleEmitter
         _random.Restore(snapshot.RandomState); _emissionElapsed = snapshot.Elapsed;
         _burstPending = snapshot.BurstPending;
         _age = snapshot.Age;
+        _birthSizeFactor = snapshot.BirthSizeFactor;
+        if (snapshot.Aura is { } aura) _aura.Restore(aura);
         NativeRetired = snapshot.NativeRetired;
         _nativeEmissionInitialized = snapshot.NativeEmissionInitialized;
         _movementReady = snapshot.MovementReady;
@@ -107,6 +114,11 @@ internal sealed partial class WorldParticleEmitter
             _cycle.Restore(snapshot.CycleCountdown, snapshot.CycleRandomState, snapshot.CycleBurst);
             ApplyCycleParameters();
         }
+        if (placement.Definition.BirthSizeRamp is { } ramp)
+        {
+            _parameterSets[0] = ramp.Apply(_parameterSets[0], _birthSizeFactor);
+            _batches[0].ApplyParameters(_parameterSets[0]);
+        }
         for (var set = 0; set < _batches.Length; set++)
         foreach (var particle in snapshot.Particles[set]) { _batches[set].Add(particle); _particleCount++; }
     }
@@ -120,7 +132,9 @@ internal sealed partial class WorldParticleEmitter
             // The standard GPU emitter ABI has a single draw/halo slot.
             if (value is ParticleSimulationMode.Gpu or ParticleSimulationMode.GpuOnly &&
                 (_placement.Definition.AdditionalDraws.Count > 0 || _placement.Definition.AdditionalHalos.Count > 0 ||
-                 _placement.Definition.RetireAfterDuration)) value = ParticleSimulationMode.CpuSimd;
+                 _placement.Definition.RetireAfterDuration || _placement.Definition.BirthSizeRamp is not null || _placement.Definition.SimulationStartSeconds > 0 ||
+                 _placement.Definition.RandomBurst is not null || _placement.Definition.RadialBurst is not null || _placement.Definition.MaximumSimulationStep is not null ||
+                 _placement.Definition.Halo?.Envelope is not null)) value = ParticleSimulationMode.CpuSimd;
             if (value is not (ParticleSimulationMode.Gpu or ParticleSimulationMode.GpuOnly))
                 foreach (var batch in _batches) batch.RestoreCpu();
             _simulationMode = value;
@@ -178,6 +192,7 @@ internal sealed partial class WorldParticleEmitter
 
     public void EmitBurst()
     {
+        if (_placement.Definition.RadialBurst is { } radial) { EmitRadialBurst(radial); return; }
         foreach (var parameters in _parameterSets)
         {
             if (parameters.Emission.EmissionInterval > 0) continue;
@@ -190,25 +205,38 @@ internal sealed partial class WorldParticleEmitter
     {
         if (SimulationMode == ParticleSimulationMode.GpuOnly &&
             _batches.Any(batch => batch.GpuBackend is not { IsAvailable: true })) return;
+        var definition = _placement.Definition;
+        if (definition.MaximumSimulationStep is { } maximum && deltaSeconds > maximum)
+        { AppendParticles(definition, !EmissionFinished, output); return; }
         var previousAge = _age;
         _age += deltaSeconds;
-        var definition = _placement.Definition;
+        _aura.Advance(_age, deltaSeconds);
+        var simulationReady = previousAge >= definition.SimulationStartSeconds;
+        if (definition.BirthSizeRamp is { } ramp)
+        {
+            _birthSizeFactor = ramp.Advance(_birthSizeFactor, deltaSeconds);
+            _parameterSets[0] = ramp.Apply(_parameterSets[0], _birthSizeFactor);
+            _batches[0].ApplyParameters(_parameterSets[0]);
+        }
         if (definition.RetireAfterDuration && definition.EmissionDurationSeconds is { } lifetime &&
-            (double)previousAge + deltaSeconds > lifetime) NativeRetired = true;
+            (definition.EmissionClock == SacredParticleEmissionClock.PreviousTimeExclusive
+                ? previousAge >= lifetime : (double)previousAge + deltaSeconds > lifetime)) NativeRetired = true;
         PrepareOrbit();
         emitting &= !OrbitFinished;
         var showHalo = emitting;
-        _emissionTime = definition.EmissionClock == SacredParticleEmissionClock.PreviousTimeExclusive ? previousAge : _age;
+        _emissionTime = definition.EmissionClock is SacredParticleEmissionClock.PreviousTimeExclusive or SacredParticleEmissionClock.PreviousTimeInclusive ? previousAge : _age;
         emitting &= definition.EmissionDurationSeconds is not { } duration || definition.EmissionClock switch
         {
             SacredParticleEmissionClock.PreviousTimeExclusive => previousAge < duration,
+            SacredParticleEmissionClock.PreviousTimeInclusive => previousAge <= duration,
             SacredParticleEmissionClock.CurrentTimeExclusive => _age < duration,
             SacredParticleEmissionClock.CurrentTimeInclusive => _age <= duration,
             _ => previousAge <= duration
         };
-        var skipMovement = _burstPending && definition.SkipFirstMovement;
+        emitting &= simulationReady;
+        var skipMovement = !simulationReady || _burstPending && definition.SkipFirstMovement;
         // Preserve each native updater's birth/integration order.
-        if (_burstPending && _placement.Definition.EmitBeforeMovement) EmitPendingBurst();
+        if (simulationReady && _burstPending && _placement.Definition.EmitBeforeMovement) EmitPendingBurst();
         if (emitting && _placement.Definition.EmitBeforeMovement) EmitParticles(deltaSeconds);
         if (!skipMovement) UpdateParticles(deltaSeconds);
         if (_cycle is not null)
@@ -216,7 +244,7 @@ internal sealed partial class WorldParticleEmitter
             var wasBurst = _cycle.Burst; _cycle.Advance(deltaSeconds);
             if (wasBurst != _cycle.Burst) ApplyCycleParameters();
         }
-        if (_burstPending) EmitPendingBurst();
+        if (simulationReady && _burstPending) EmitPendingBurst();
         if (emitting && !_placement.Definition.EmitBeforeMovement) EmitParticles(deltaSeconds);
         AdvanceOrbit(deltaSeconds);
 
@@ -228,7 +256,7 @@ internal sealed partial class WorldParticleEmitter
     private void EmitPendingBurst()
     {
         EmitBurst();
-        _burstPending = false;
+        _burstPending = _placement.Definition.RadialBurst is not null && _age == 0;
     }
 
     private void ApplyCycleParameters()
@@ -252,6 +280,12 @@ internal sealed partial class WorldParticleEmitter
     private void EmitParticles(float deltaSeconds)
     {
         if (_parameterSets.Length == 0) return;
+        if (_placement.Definition.RandomBurst is not null)
+        {
+            if (_aura.PrepareBurst(_parameterSets[0], _random) is { } burst)
+            { _parameterSets[0] = burst; _batches[0].ApplyParameters(burst); _emissionElapsed = 0; EmitBurst(); }
+            return;
+        }
         if (_placement.Definition.SingleBirthInitialization && !_nativeEmissionInitialized)
         {
             if (!_movementReady || _particleCount == _capacity) return;

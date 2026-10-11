@@ -39,6 +39,7 @@ internal sealed class X87Evaluator(PresetMemory memory, X86Operands operands)
             case Mnemonic.Fmul: Binary(instruction, static (a, b) => a * b); break;
             case Mnemonic.Fdiv: Binary(instruction, static (a, b) => a / b); break;
             case Mnemonic.Faddp: BinaryPop(instruction, static (a, b) => a + b); break;
+            case Mnemonic.Fsubp: BinaryPop(instruction, static (a, b) => a - b); break;
             case Mnemonic.Fmulp: BinaryPop(instruction, static (a, b) => a * b); break;
             case Mnemonic.Fcom:
             case Mnemonic.Fcomp:

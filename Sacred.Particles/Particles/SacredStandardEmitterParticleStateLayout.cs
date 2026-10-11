@@ -4,7 +4,8 @@ using Sacred.Core.Binary;
 namespace Sacred.Particles.Particles;
 
 /// <summary>State at Gold object +0x20A0, serialized as 0x48C bytes by Arac Attack (0x78E760),
-/// Laser Beam Impact (0x7A66F0) and Bat Signal (0x7A5730). Texture handles follow the payload.</summary>
+/// Laser Beam Impact (0x7A66F0), Bat Signal (0x7A5730) and Blood Puddle (0x7A5A80).
+/// Texture handles follow the payload.</summary>
 [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SerializedSize)]
 public readonly struct SacredStandardEmitterParticleStateLayout
 {

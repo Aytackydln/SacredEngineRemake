@@ -14,8 +14,17 @@ public sealed record SacredParticleHaloDefinition(string TextureName, float Half
     /// <summary>Native local offset passed to stdLensflare/stdFlare.</summary>
     public Vector3 Offset { get; init; }
     public bool Additive { get; init; } = true;
+    /// <summary>Native lensflare quad is transformed only in world XY.</summary>
+    public bool GroundAligned { get; init; }
     public int AtlasSide { get; init; } = 1;
     public float Rotation { get; init; }
+    public float RotationRate { get; init; }
+    public float SizeGrowthRate { get; init; }
+    public float SineSizeAmplitude { get; init; }
+    public float? VisibleFromSeconds { get; init; }
+    public float? VisibleUntilSeconds { get; init; }
+    public SacredParticleHaloEnvelope? Envelope { get; init; }
+    public float RotationAt(float age) => (float)(Rotation + age * (double)RotationRate);
     public SacredParticleAtlasAnimation? AtlasAnimation { get; init; }
     /// <summary>The renderer continues this finite animation while the emitter's particle vector drains.</summary>
     public bool PersistAfterEmission { get; init; }
@@ -25,7 +34,7 @@ public sealed record SacredParticleHaloDefinition(string TextureName, float Half
     public float? PulseAngularFrequency { get; init; }
     public float PulseAmplitude { get; init; }
     public float HalfSizeAt(float age) => PulseAngularFrequency is { } frequency
-        ? (float)(HalfSize + (double)(float)((Math.Sin((double)age * frequency) + 1) * 0.5) * PulseAmplitude) : HalfSize;
+        ? (float)(HalfSize + (double)(float)((Math.Sin((double)age * frequency) + 1) * 0.5) * PulseAmplitude) : (float)(HalfSize + age * (double)SizeGrowthRate + Math.Sin(age) * SineSizeAmplitude);
     public uint ColorAt(float age)
     {
         if (FadeStartSeconds is not { } start || FadeEndSeconds is not { } end || age < start) return Color;

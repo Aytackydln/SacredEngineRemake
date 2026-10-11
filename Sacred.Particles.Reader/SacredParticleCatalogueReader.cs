@@ -38,9 +38,29 @@ public static class SacredParticleCatalogueReader
             events.AddRange(NativePointBurstReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeTimedEmissionReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeStandardEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeHitAndGroundEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeAuraAndCastEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeSustainedAndBurstEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeLayeredEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeSmallFireEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeLineEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeAnducarEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeLayeredFlareEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeStrikeSymbolEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeShieldedEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeRingShieldEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeSuperfluidEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeConfusionEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeFireCircleEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeHealingEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativePulseFlareEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeWarCrySignEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeExpandingBurstEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeBubbleTrapExplosionEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeTerrorSprinterEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeColumnFlareEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeSpriteFlareEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeControlledFlareEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeTeleportEventReader.Read(image, code, definition, options.Quality, cancellationToken));
         }
         var catalogue = new SacredParticleCatalogue(image.ExecutableSha256, image.CodeSha256, options.Quality,

@@ -35,7 +35,7 @@ internal static class NativeLayeredEventReader
         yield return entry with
         {
             NativeClass = family.Name, Preset = 0, IsEventPreset = true,
-            DisplayName = nature ? "Native healing: 8x8 atlas and additive glow" : "Native time control: three-second event",
+            DisplayName = nature ? "Native healing: 8x8 atlas and additive glow" : "Time Control cast trail (two points)",
             Status = SacredParticleDefinitionStatus.Decoded, Diagnostic = null, Capacity = capacity,
             OneTime = true, EmitBeforeMovement = false, SingleBirthInitialization = true,
             RequiresActorContext = (memory.Integer(memory.BaseAddress + 0x7C, 4) & 0x1200) != 0,
@@ -44,6 +44,7 @@ internal static class NativeLayeredEventReader
             AdditionalDraws = nature ? [NativeTextureReader.ReadDraw(image, code,
                 family with { DrawAddress = 0x79BFBF }, 0, bindings)] : [],
             AdditionalHalos = nature ? [] : ReadTimeControlHalos(image, code, bindings),
+            CastTrail = nature ? null : NativeTimeControlCastReader.Read(code),
             EmissionDurationSeconds = nature ? image.Single((uint)code.At(0x79BF23).MemoryDisplacement64)
                 : BitConverter.UInt32BitsToSingle((uint)memory.Integer(memory.BaseAddress + 0x252C, 4)),
             EmissionClock = nature ? SacredParticleEmissionClock.CurrentTimeInclusive : SacredParticleEmissionClock.CrossingUpdate,

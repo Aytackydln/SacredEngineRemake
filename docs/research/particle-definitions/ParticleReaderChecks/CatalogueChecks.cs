@@ -23,7 +23,7 @@ internal static class CatalogueChecks
             var quality = (SacredParticleQuality)reference.GetProperty("quality").GetByte();
             var embedded = SacredParticleCatalogue.LoadEmbedded(quality);
             Check(ReferenceEquals(embedded, SacredParticleCatalogue.LoadEmbedded(quality)), "embedded catalogue is cached");
-            Check(embedded.Definitions.Count == 210 && embedded.DecodedCount == 16 && embedded.EventDefinitions.Count == 49, $"catalogue coverage ({quality})");
+            Check(embedded.Definitions.Count == 210 && embedded.DecodedCount == 34 && embedded.EventDefinitions.Count == 104, $"catalogue coverage ({quality})");
             Check(embedded.NativeCodeSha256 == document.RootElement.GetProperty("text_sha256").GetString(), "reference code identity");
             Check(!embedded.TryGetDefinition(uint.MaxValue, out _), "unknown ID absent");
             Check(embedded.Definitions.Where(e => e.Status != SacredParticleDefinitionStatus.Decoded).All(e => e.ParameterSets.Count == 0),
@@ -78,8 +78,28 @@ internal static class CatalogueChecks
                           saved.SkipFirstMovement == entry.SkipFirstMovement && saved.EmissionClock == entry.EmissionClock &&
                           saved.EmissionCycle == entry.EmissionCycle &&
                           saved.LineEmission == entry.LineEmission &&
-                          saved.Strength == entry.Strength &&
+                          saved.Strength == entry.Strength && saved.BirthSizeRamp == entry.BirthSizeRamp &&
+                          saved.SimulationStartSeconds == entry.SimulationStartSeconds && saved.MaximumSimulationStep == entry.MaximumSimulationStep &&
+                          saved.RandomBurst == entry.RandomBurst && saved.RadialBurst == entry.RadialBurst &&
+                          saved.UsesEventCornerColor == entry.UsesEventCornerColor && saved.EventCornerColorMask == entry.EventCornerColorMask &&
                           saved.Teleport == entry.Teleport && saved.OrbitEmission == entry.OrbitEmission &&
+                          ElementStoneEquals(saved.ElementStone, entry.ElementStone) &&
+                          ForgeElementEquals(saved.ForgeElement, entry.ForgeElement) &&
+                          GlyphEquals(saved.UnderworldGlyph, entry.UnderworldGlyph) &&
+                          PongEquals(saved.PongBatter, entry.PongBatter) &&
+                          AnducarEquals(saved.Anducar, entry.Anducar) &&
+                          LayeredFlareEquals(saved.LayeredFlare, entry.LayeredFlare) &&
+                          PulseFlareEquals(saved.PulseFlare, entry.PulseFlare) &&
+                          WarCrySignEquals(saved.WarCrySign, entry.WarCrySign) &&
+                          ExpandingEquals(saved.ExpandingBurst, entry.ExpandingBurst) &&
+                          BubbleEquals(saved.BubbleTrapExplosion, entry.BubbleTrapExplosion) &&
+                          TerrorEquals(saved.TerrorSprinter, entry.TerrorSprinter) &&
+                          saved.ColumnFlare == entry.ColumnFlare &&
+                          SpriteFlareEquals(saved.SpriteFlare, entry.SpriteFlare) &&
+                          ControlledFlareEquals(saved.ControlledFlare, entry.ControlledFlare) &&
+                          StrikeSymbolEquals(saved.StrikeSymbol, entry.StrikeSymbol) &&
+                          RingShieldEquals(saved.RingShield, entry.RingShield) &&
+                          ConfusionEquals(saved.Confusion, entry.Confusion) &&
                           saved.AdditionalDraws.SequenceEqual(entry.AdditionalDraws) && saved.AdditionalHalos.SequenceEqual(entry.AdditionalHalos) &&
                           saved.ParticlesVisible == entry.ParticlesVisible && saved.RetireAfterDuration == entry.RetireAfterDuration &&
                           saved.RequiresActorContext == entry.RequiresActorContext &&
@@ -110,6 +130,115 @@ internal static class CatalogueChecks
             VerifySampleCommands(executable, Path.GetDirectoryName(referencePath)!, Check);
         }
         Console.WriteLine($"Passed {checks} checks, including 81 native parameter-set comparisons across all three quality settings.");
+    }
+
+    private static bool RingEquals(SacredFxRingDefinition left,SacredFxRingDefinition right) =>
+        left.Vertices.SequenceEqual(right.Vertices) && left with { Vertices=right.Vertices } == right;
+    private static bool ExpandingEquals(SacredExpandingBurstFxDefinition? left, SacredExpandingBurstFxDefinition? right) =>
+        left is null || right is null ? left == right : RingEquals(left.Ring,right.Ring) && Hex(left.InitialState) == Hex(right.InitialState) &&
+        left with { Ring=right.Ring,InitialState=right.InitialState } == right;
+    private static bool BubbleEquals(SacredBubbleTrapExplosionFxDefinition? left,SacredBubbleTrapExplosionFxDefinition? right) =>
+        left is null || right is null ? left==right : RingEquals(left.Ring,right.Ring) && left with { Ring=right.Ring } == right;
+    private static bool TerrorEquals(SacredTerrorSprinterFxDefinition? left,SacredTerrorSprinterFxDefinition? right) =>
+        left is null || right is null ? left==right : RingEquals(left.Ring,right.Ring) && left.SegmentTextureVariants.SequenceEqual(right.SegmentTextureVariants) && left with { Ring=right.Ring,SegmentTextureVariants=right.SegmentTextureVariants } == right;
+
+    private static bool WarCrySignEquals(SacredWarCrySignFxDefinition? left, SacredWarCrySignFxDefinition? right)
+    {
+        if (left is null || right is null) return left == right;
+        return left.StripVertices.SequenceEqual(right.StripVertices) && left with { StripVertices = right.StripVertices } == right;
+    }
+
+    private static bool ConfusionEquals(SacredConfusionFxDefinition? left, SacredConfusionFxDefinition? right)
+    {
+        if (left is null || right is null) return left == right;
+        return left.GroundLayers.SequenceEqual(right.GroundLayers) && left.RibbonVertices.SequenceEqual(right.RibbonVertices) &&
+            left with { GroundLayers = right.GroundLayers, RibbonVertices = right.RibbonVertices } == right;
+    }
+
+    private static bool RingShieldEquals(SacredRingShieldFxDefinition? left, SacredRingShieldFxDefinition? right)
+    {
+        if (left is null || right is null) return left is null && right is null;
+        var vertices = Array.Empty<Sacred.Particles.Particles.SacredFxSurfaceVertexLayout>();
+        return (left with { RingVertices = vertices, MarkerVertices = vertices }) == (right with { RingVertices = vertices, MarkerVertices = vertices }) &&
+            left.RingVertices.SequenceEqual(right.RingVertices) && left.MarkerVertices.SequenceEqual(right.MarkerVertices);
+    }
+
+    private static bool StrikeSymbolEquals(SacredStrikeSymbolFxDefinition? left, SacredStrikeSymbolFxDefinition? right)
+    {
+        if (left is null || right is null) return left is null && right is null;
+        var textures = Array.Empty<string>();
+        var vertices = Array.Empty<Sacred.Particles.Particles.SacredFxSurfaceVertexLayout>();
+        return (left with { Textures = textures, SurfaceVertices = vertices }) == (right with { Textures = textures, SurfaceVertices = vertices }) &&
+            left.Textures.SequenceEqual(right.Textures) && left.SurfaceVertices.SequenceEqual(right.SurfaceVertices);
+    }
+
+    private static bool PulseFlareEquals(SacredPulseFlareFxDefinition? left, SacredPulseFlareFxDefinition? right)
+    {
+        if (left is null || right is null) return left == right;
+        return left.Layers.SequenceEqual(right.Layers) &&
+            left with { Layers = Array.Empty<SacredFxFlareLayer>() } == right with { Layers = Array.Empty<SacredFxFlareLayer>() };
+    }
+    private static bool SpriteFlareEquals(SacredSpriteFlareFxDefinition? left, SacredSpriteFlareFxDefinition? right)
+    {
+        if (left is null || right is null) return left == right;
+        return left.Layers.SequenceEqual(right.Layers) &&
+            left with { Layers = Array.Empty<SacredFxFlareLayer>() } == right with { Layers = Array.Empty<SacredFxFlareLayer>() };
+    }
+
+    private static bool ControlledFlareEquals(SacredControlledFlareFxDefinition? left, SacredControlledFlareFxDefinition? right)
+    {
+        if (left is null || right is null) return left == right;
+        return left.Layers.SequenceEqual(right.Layers) &&
+            left with { Layers = Array.Empty<SacredFxFlareLayer>() } == right with { Layers = Array.Empty<SacredFxFlareLayer>() };
+    }
+
+    private static bool LayeredFlareEquals(SacredLayeredFlareFxDefinition? left, SacredLayeredFlareFxDefinition? right)
+    {
+        if (left is null || right is null) return left is null && right is null;
+        var empty = Array.Empty<SacredFxFlareLayer>();
+        return (left with { Layers = empty }) == (right with { Layers = empty }) && left.Layers.SequenceEqual(right.Layers);
+    }
+
+    private static bool AnducarEquals(SacredAnducarFxDefinition? left, SacredAnducarFxDefinition? right)
+    {
+        if (left is null || right is null) return left is null && right is null;
+        var empty = Array.Empty<string>();
+        return (left with { ModelNames = empty }) == (right with { ModelNames = empty }) &&
+               left.ModelNames.SequenceEqual(right.ModelNames);
+    }
+
+    private static bool PongEquals(SacredPongBatterFxDefinition? left, SacredPongBatterFxDefinition? right)
+    {
+        if (left is null || right is null) return left is null && right is null;
+        var vertices = Array.Empty<Sacred.Particles.Particles.SacredFxSurfaceVertexLayout>();
+        var edges = Array.Empty<SacredFxBeamSegment>();
+        return (left with { SurfaceVertices = vertices, Edges = edges }) == (right with { SurfaceVertices = vertices, Edges = edges }) &&
+               left.SurfaceVertices.SequenceEqual(right.SurfaceVertices) && left.Edges.SequenceEqual(right.Edges);
+    }
+
+    private static bool GlyphEquals(SacredUnderworldGlyphFxDefinition? left, SacredUnderworldGlyphFxDefinition? right)
+    {
+        if (left is null || right is null) return left is null && right is null;
+        var empty = Array.Empty<Sacred.Particles.Particles.SacredFxSurfaceVertexLayout>();
+        return (left with { RibbonVertices = empty }) == (right with { RibbonVertices = empty }) &&
+               left.RibbonVertices.SequenceEqual(right.RibbonVertices);
+    }
+
+    private static bool ForgeElementEquals(SacredForgeElementFxDefinition? left, SacredForgeElementFxDefinition? right)
+    {
+        if (left is null || right is null) return left is null && right is null;
+        var empty = Array.Empty<Sacred.Particles.Particles.SacredFxSurfaceVertexLayout>();
+        return (left with { RingVertices = empty }) == (right with { RingVertices = empty }) &&
+               left.RingVertices.SequenceEqual(right.RingVertices);
+    }
+
+    private static bool ElementStoneEquals(SacredElementStoneFxDefinition? left, SacredElementStoneFxDefinition? right)
+    {
+        if (left is null || right is null) return left is null && right is null;
+        var empty = Array.Empty<Sacred.Particles.Particles.SacredFxSurfaceVertexLayout>();
+        return (left with { BeamVertices = empty, FlickerVertices = empty }) ==
+               (right with { BeamVertices = empty, FlickerVertices = empty }) &&
+               left.BeamVertices.SequenceEqual(right.BeamVertices) && left.FlickerVertices.SequenceEqual(right.FlickerVertices);
     }
 
     private static void VerifySampleCommands(string executable, string reportDirectory, Action<bool, string> check)

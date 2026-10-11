@@ -50,6 +50,7 @@ internal sealed class X86Registers
 
     public bool Branch(Mnemonic mnemonic) => mnemonic switch
     {
+        Mnemonic.Js => Sign, Mnemonic.Jns => !Sign,
         Mnemonic.Je => Zero, Mnemonic.Jne => !Zero,
         Mnemonic.Ja => !Carry && !Zero, Mnemonic.Jae => !Carry,
         Mnemonic.Jb => Carry, Mnemonic.Jbe => Carry || Zero,

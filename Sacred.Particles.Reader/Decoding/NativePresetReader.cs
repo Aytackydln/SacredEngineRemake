@@ -34,6 +34,8 @@ internal static class NativePresetReader
         NativeParticleFamily family, int preset, SacredParticleQuality quality, CancellationToken cancellationToken)
     {
         var memory = new PresetMemory(image, family.ObjectSize, quality);
+        // Windows x86 exception-list sentinel for compiler-generated FS:[0] scaffolding.
+        memory.Write(memory.BaseAddress + 0x1E000, 4, uint.MaxValue);
         uint? environment = null;
         if (family.SampleDefaultEnvironment)
         {
@@ -48,6 +50,16 @@ internal static class NativePresetReader
         var argument = obj + 0x10000;
         var stack = obj + 0x1F000;
         var stop = obj + 0x1FF00;
+        if (family.InitialState is { } initialState)
+            foreach (var (offset, value) in initialState) memory.Write(obj + (uint)offset, 4, value);
+        if (family.SampleCombatArtDurationBase is { } durationBase)
+        {
+            var combatArt = obj + 0x17000;
+            memory.Write(combatArt + 0x76, 2, durationBase);
+            memory.Write(combatArt + 0x78, 2, 0);
+            memory.Write(combatArt + 0x82, 2, 0);
+            memory.Write(argument + 0x74, 4, combatArt);
+        }
         // Most presets use an empty vector. Some read its allocated count as their burst size.
         memory.Write(obj + 0x68, 4, obj + 0x8000);
         memory.Write(obj + 0x6C, 4, obj + 0x8000 + checked((uint)family.InitialVectorCount * 0x40));
@@ -60,6 +72,13 @@ internal static class NativePresetReader
         memory.Write(stack + 4, 4, argument);
         machine.Registers.Set(Register.ESP, stack);
         machine.Registers.Set(Register.ECX, obj);
+        if (family.ConstructorState is { } constructor)
+        {
+            machine.Registers.Set(Register.ESI, obj);
+            machine.Run(constructor.Start, constructor.End, cancellationToken);
+            machine.Registers.Set(Register.ESP, stack);
+            machine.Registers.Set(Register.ECX, obj);
+        }
         if (family.ActorLookup is { } lookup)
         {
             // This omitted region resolves identity/geometry/audio metadata without parameter writes.
@@ -71,7 +90,7 @@ internal static class NativePresetReader
         }
         else machine.Run(family.Initializer, family.InitializerEnd ?? stop, cancellationToken);
         if (memory.ReadUninitializedObject)
-            throw new NotSupportedException("Initializer depends on unrecovered constructor state.");
+            throw new NotSupportedException($"{family.Name} initializer depends on unrecovered constructor state.");
         return memory;
     }
 

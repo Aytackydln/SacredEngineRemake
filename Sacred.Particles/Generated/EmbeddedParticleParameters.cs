@@ -6,6 +6,12 @@ namespace Sacred.Particles.Generated;
 /// <summary>Decodes the original little-endian parameter bytes embedded in generated C#.</summary>
 internal static class EmbeddedParticleParameters
 {
+    internal static SacredConfusionFxStateLayout ReadConfusionState(string hex) =>
+        MemoryMarshal.Read<SacredConfusionFxStateLayout>(Convert.FromHexString(hex));
+    internal static SacredForgeElementFxStateLayout ReadForgeState(string hex) =>
+        MemoryMarshal.Read<SacredForgeElementFxStateLayout>(Convert.FromHexString(hex));
+    internal static IReadOnlyList<SacredFxSurfaceVertexLayout> ReadFxSurfaceVertices(string hex) =>
+        Array.AsReadOnly(MemoryMarshal.Cast<byte, SacredFxSurfaceVertexLayout>(Convert.FromHexString(hex)).ToArray());
     internal static SacredTeleportParticleStateLayout ReadTeleportState(string hex) =>
         MemoryMarshal.Read<SacredTeleportParticleStateLayout>(Convert.FromHexString(hex));
     internal static IReadOnlyList<SacredNativeParticleLayout> ReadParticles(string hex) =>

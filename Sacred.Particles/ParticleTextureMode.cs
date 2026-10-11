@@ -23,5 +23,9 @@ public enum ParticleTextureMode
     /// <summary>Standalone FX quad; shader flags carry native source blend and texture channel encoding.</summary>
     NativeFx = 12,
     /// <summary>Native portal mesh with grayscale/old alpha/new alpha in Normal.xyz.</summary>
-    NativePortalSurface = 13
+    NativePortalSurface = 13,
+    /// <summary>Direct native FX surface; Normal.xyz carries interpolated RGB, with no billboard offset.</summary>
+    NativeFxSurface = 14,
+    /// <summary>Direct FX surface with exact packed RGB in Normal.X and interpolated alpha in Normal.Z.</summary>
+    NativeFxSurfaceRgba = 15
 }

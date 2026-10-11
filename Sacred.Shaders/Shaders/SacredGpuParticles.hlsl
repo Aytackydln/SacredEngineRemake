@@ -88,6 +88,7 @@ void project_particles(uint i : SV_DispatchThreadID)
     precise float half_size = p.size * half_size_multiplier;
     precise float width = 2 * half_size * projection.x;
     precise float tall = 2 * half_size * projection.y;
+    if ((blend_flags & 128u) != 0) tall *= projection.z;
     draw.sort_depth = (depth_anchor.x+ground.x)+(depth_anchor.y+ground.y)+height/96;
     if (anchored_at_bottom != 0) height += tall*.5f;
     draw.tile_x = (int)floor(world.x); draw.tile_y = (int)floor(world.y);

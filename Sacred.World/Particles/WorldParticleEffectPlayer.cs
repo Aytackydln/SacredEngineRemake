@@ -30,7 +30,8 @@ public sealed class WorldParticleEffectPlayer
     public bool Start(SacredParticleCatalogue catalogue, uint typeId, bool looping,
         bool selfTarget, Vector2 point, float heightOffset, float emissionSeconds = 0.5f, int? eventPreset = null,
         IReadOnlyList<Vector3>? modelVertices = null, bool followSelf = false, float selfHeight = 0,
-        uint? actorBlockRadius = null, ParticleEmissionLine? emissionLine = null, uint eventStrength = 0)
+        uint? actorBlockRadius = null, ParticleEmissionLine? emissionLine = null, uint eventStrength = 0,
+        uint? eventColor = null)
     {
         var found = eventPreset is { } preset
             ? catalogue.TryGetEventDefinition(typeId, preset, out var definition)
@@ -43,6 +44,8 @@ public sealed class WorldParticleEffectPlayer
         if (definition.ModelBurstCount > 0 && (!selfTarget || modelVertices is not { Count: > 0 })) return false;
         if (definition.RequiresActorContext && !selfTarget) return false;
         if (definition.LineEmission is not null && emissionLine is not { IsFinite: true }) return false;
+        if (eventColor is not null && !definition.UsesEventCornerColor) return false;
+        definition = SacredParticleEventColorParameters.Resolve(definition, eventColor);
         definition = SacredParticleStrengthParameters.Resolve(definition, eventStrength);
         if (definition.UsesActorBlockRadius)
         {
@@ -82,7 +85,7 @@ public sealed class WorldParticleEffectPlayer
             }
     }
 
-    public void Clear() { _playing.Clear(); _teleports.Clear(); }
+    public void Clear() { _playing.Clear(); _teleports.Clear(); _nextId = -1; }
 
     /// <summary>Updates native attachment inputs without resetting particles or release clocks.</summary>
     public void SetEmissionLine(uint typeId, int eventPreset, ParticleEmissionLine line)

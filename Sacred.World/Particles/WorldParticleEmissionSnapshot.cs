@@ -21,6 +21,8 @@ public sealed record WorldParticleEmissionSnapshot(int[] RandomState, float Elap
     public float CycleCountdown { get; init; }
     public uint CycleRandomState { get; init; }
     public bool CycleBurst { get; init; }
+    public WorldParticleAuraSnapshot? Aura { get; init; }
+    public float BirthSizeFactor { get; init; }
     public ParticleEmissionLine? CurrentLine { get; init; }
     public ParticleEmissionLine? ReleasedLine { get; init; }
 }

@@ -86,6 +86,13 @@ public sealed class ParticleSimulationBatch
         _hasDeadBirths |= particle.Fade <= 0 || particle.Size <= 0;
     }
 
+    public void Clear()
+    {
+        DiscardGpu();
+        _count = 0;
+        _hasDeadBirths = false;
+    }
+
     public void Update(float deltaSeconds, Vector3 gravityDirection,
         ParticleSimulationMode mode = ParticleSimulationMode.CpuSimd,
         ParticleGroundCollision collision = ParticleGroundCollision.None, float groundHeight = 0)

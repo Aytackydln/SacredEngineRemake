@@ -36,6 +36,7 @@ internal static class NativeGenericEventReader
                 NativeClass = family.Name, Preset = preset, IsEventPreset = true, OneTime = true,
                 DisplayName = preset switch { 0 => "Actor scatter", 2 => "Level-up", 5 => "Actor sparks", 6 => "Actor radius burst", _ => "Actor impact smoke" },
                 UsesActorBlockRadius = preset == 6,
+                UsesEventCornerColor = preset is 0 or 2 or 5 or 6,
                 Capacity = NativeParticleCapacityReader.Read(code, entry.FactoryAddress),
                 ModelBurstCount = checked((int)code.At(preset switch
                     { 0 => 0x796F24u, 2 => 0x797049u, 5 => 0x7971E5u, 6 => 0x797365u, _ => 0x797653u }).GetImmediate(0)),

@@ -15,22 +15,22 @@ public static class SacredTextureChannelAnalyzer
         var hasTransparent = false;
         var hasOpaque = false;
         var hasFractionalAlpha = false;
-        var hasChromaticColor = false;
+        var hasColor = false;
         for (var offset = 0; offset < rgba.Length; offset += 4)
         {
             var alpha = rgba[offset + 3];
             hasTransparent |= alpha == 0;
             hasOpaque |= alpha == byte.MaxValue;
             hasFractionalAlpha |= alpha is not 0 and not byte.MaxValue;
-            var maximum = Math.Max(rgba[offset], Math.Max(rgba[offset + 1], rgba[offset + 2]));
-            var minimum = Math.Min(rgba[offset], Math.Min(rgba[offset + 1], rgba[offset + 2]));
-            hasChromaticColor |= maximum - minimum > 8;
+            // Neutral RGB can contain authored rays, rings and brightness gradients.
+            // Only an entirely black RGB plane leaves alpha as the sole usable channel.
+            hasColor |= rgba[offset] != 0 || rgba[offset + 1] != 0 || rgba[offset + 2] != 0;
         }
 
         var alphaCarriesCoverage = hasFractionalAlpha || (hasTransparent && hasOpaque);
         if (!alphaCarriesCoverage)
             return SacredTextureChannelEncoding.Rgb;
-        return hasChromaticColor
+        return hasColor
             ? SacredTextureChannelEncoding.Argb
             : SacredTextureChannelEncoding.AlphaMask;
     }

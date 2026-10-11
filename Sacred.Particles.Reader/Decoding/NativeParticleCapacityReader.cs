@@ -10,10 +10,14 @@ internal static class NativeParticleCapacityReader
         // The final literal push before the class constructor is its particle-vector capacity.
         int? capacity = null;
         var calls = 0;
-        for (var ip = factory; ip < factory + 0x50;)
+        var ip = factory;
+        for (var count = 0; count < 128; count++)
         {
             var instruction = code.At(ip);
             ip = (uint)instruction.NextIP;
+            // Some factories share the successful-allocation constructor tail through a backward jump.
+            if (instruction.Mnemonic == Mnemonic.Jmp && instruction.Op0Kind == OpKind.NearBranch32)
+                ip = instruction.NearBranch32;
             if (instruction.Mnemonic == Mnemonic.Push && instruction.Op0Kind is not (OpKind.Register or OpKind.Memory))
                 capacity = checked((int)instruction.GetImmediate(0));
             if (instruction.Mnemonic == Mnemonic.Call && ++calls == 2)

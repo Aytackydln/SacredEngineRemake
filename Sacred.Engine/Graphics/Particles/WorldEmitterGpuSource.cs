@@ -15,7 +15,9 @@ internal sealed class WorldEmitterGpuSource
     {
         Emitter = emitter;
         if (emitter.Definition.AdditionalDraws.Count > 0 || emitter.Definition.AdditionalHalos.Count > 0 ||
-            emitter.Definition.RetireAfterDuration)
+            emitter.Definition.RetireAfterDuration || emitter.Definition.BirthSizeRamp is not null || emitter.Definition.SimulationStartSeconds > 0 ||
+            emitter.Definition.RandomBurst is not null || emitter.Definition.MaximumSimulationStep is not null ||
+            emitter.Definition.Halo?.Envelope is not null)
             throw new NotSupportedException("Layered native effects require their CPU draw/lifetime controller.");
         if (emitter.Definition.LineEmission is not null)
             throw new NotSupportedException("World GPU emission requires attachment inputs for a line effect.");

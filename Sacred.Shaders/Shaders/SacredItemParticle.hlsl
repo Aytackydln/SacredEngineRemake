@@ -49,6 +49,14 @@ vs_output vs_main(vs_input input)
 
     output.tint = 1.0f;
     output.portal_color = input.normal;
+    if (texture_flags.x > 13.5f && texture_flags.x < 14.5f)
+        output.tint = input.normal;
+    if (texture_flags.x > 14.5f && texture_flags.x < 15.5f)
+    {
+        uint rgb = (uint)input.normal.x;
+        output.tint = float3((rgb >> 16) & 255u, (rgb >> 8) & 255u, rgb & 255u) / 255.0f;
+        output.opacity = input.normal.z;
+    }
     if ((texture_flags.x > 9.5f && texture_flags.x < 10.5f) ||
         (texture_flags.x > 11.5f && texture_flags.x < 12.5f && ((uint)texture_flags.z & 0x200u) != 0))
     {
@@ -142,13 +150,14 @@ float4 ps_sdr(vs_output input) : SV_Target
         float3 color = (next * second_alpha + sampled.rgb * first_alpha * (1.0f - second_alpha)) * input.portal_color.x;
         return float4(color, coverage);
     }
-    if (texture_flags.x > 11.5f && texture_flags.x < 12.5f)
+    if ((texture_flags.x > 11.5f && texture_flags.x < 12.5f) ||
+        (texture_flags.x > 13.5f && texture_flags.x < 15.5f))
     {
         // FX uses the native ONE/SRC_ALPHA source factor. Pipeline state selects
         // ONE/INV_SRC_ALPHA destination separately, including per-slot smoke blends.
         uint flags = (uint)texture_flags.z;
         float coverage = texture_flags.w < 0.5f ? 1.0f : sampled.a;
-        float alpha = coverage * model_color.a;
+        float alpha = coverage * model_color.a * input.opacity;
         float3 rgb = texture_flags.w > 1.5f ? 1.0f : sampled.rgb;
         return float4(rgb * model_color.rgb * input.tint * ((flags & 0x10u) != 0 ? 1.0f : alpha), alpha);
     }

@@ -17,6 +17,10 @@ internal sealed class NativeDefinitionReader(SacredExecutableImage image, Sacred
         var result = new SacredParticleDefinition(typeId, name, recordAddress, factory, family?.Name, null,
             SacredParticleDefinitionStatus.UnsupportedFamily, "Native family has not been mapped yet.", [], null, [])
             { NativeConstructorAddress = NativeFxFamilyReader.ReadConstructor(_code, factory) };
+        result = NativeElementStoneFxReader.Read(image, _code, result, options.Quality, cancellationToken);
+        result = NativeForgeElementFxReader.Read(image, _code, result, options.Quality, cancellationToken);
+        result = NativeUnderworldGlyphFxReader.Read(image, _code, result, options.Quality, cancellationToken);
+        result = NativePongBatterFxReader.Read(image, _code, result, options.Quality, cancellationToken);
         if (family == null) return result;
         try
         {

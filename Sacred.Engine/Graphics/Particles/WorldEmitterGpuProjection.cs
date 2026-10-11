@@ -24,7 +24,7 @@ internal static class WorldEmitterGpuProjection
         c[ParticleGpuShaderLayout.HalfSizeMultiplierOffset] = halo ? 1 : draw.HalfSizeMultiplier;
         var additive = emitter.Definition.EmissionMode == 2 ? emitter.Parameters[set].Index == 0 : (draw.RawFlags & 1) != 0;
         Dx12ParticleKernels.UInt(c, 29, halo ? 2u | (emitter.Definition.Halo!.SourceColorOnly ? 4u : 0u) :
-            (additive ? 2u : 0u) | ((draw.RawFlags & 0x10) != 0 ? 4u : 0u));
+            (additive ? 2u : 0u) | ((draw.RawFlags & 0x10) != 0 ? 4u : 0u) | (draw.GroundAligned ? 128u : 0u));
         Dx12ParticleKernels.UInt(c, 30, halo || draw.UsesColorTable ? 1u : draw.UsesParticleColor ? 2u :
             (draw.RawFlags & 2) == 0 ? 3u : 0u);
         Dx12ParticleKernels.UInt(c, 31, halo || draw.UsesRandomAtlasCell ? 1u : 0u);
