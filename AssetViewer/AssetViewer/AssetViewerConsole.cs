@@ -11,7 +11,7 @@ internal static class AssetViewerConsole
 {
     public static void Start(MainWindow main)
     {
-        Console.WriteLine("[Assets] Inventory cheats: inventory, inventory-slot <index>, inventory-item <id>, item-description, screenshot-item <path.png>, inventory-clear, stats, allocation, stats-view <stats|skills|bonuses|allocate>, level <level>, attribute <name> <allocated points>, skill <id> <rank>, combat-art <code> <rank>.");
+        Console.WriteLine("[Assets] Inventory cheats: inventory, equipment-layout, inventory-slot <index>, inventory-item <id>, item-description, screenshot-item <path.png>, inventory-clear, stats, allocation, stats-view <stats|skills|bonuses|allocate>, level <level>, attribute <name> <allocated points>, skill <id> <rank>, combat-art <code> <rank>.");
         Console.WriteLine("[Assets] FX cheats: open effects, fx <Items.pak row>, fx-implemented <true|false>, fx-search <text>, fx-variant <script|event subtype>, fx-strength <unsigned value>, fx-distance <native units, 0..2000>, fx-defaults, fx-restart, fx-actor, fx-play <true|false>, fx-time <seconds>.");
         Console.WriteLine("[Assets] FX controller cheats: fx-release (Forge compression/fade), fx-extend <timer units> (Mana duration), fx-cell <0..15> (Trap01 atlas), fx-hit (hit/toggle response), fx-step <seconds> (advance paused FX in 60 Hz steps).");
         Console.WriteLine("[Assets] Models/Effects camera cheat: zoom <wheel steps>; positive zooms in, negative zooms out.");
@@ -67,6 +67,7 @@ internal static class AssetViewerConsole
             case "stats": ((CharactersWindow)await main.OpenViewerAsync("characters")).PrintStats(); break;
             case "stats-view": ((CharactersWindow)await main.OpenViewerAsync("characters")).SelectStatsView(argument); break;
             case "inventory": ((CharactersWindow)await main.OpenViewerAsync("characters")).PrintInventory(); break;
+            case "equipment-layout": ((CharactersWindow)await main.OpenViewerAsync("characters")).PrintEquipmentLayout(); break;
             case "inventory-slot": ((CharactersWindow)await main.OpenViewerAsync("characters")).SelectInventorySlot(int.Parse(argument)); break;
             case "inventory-item": ((CharactersWindow)await main.OpenViewerAsync("characters")).SelectInventoryItem(uint.Parse(argument)); break;
             case "item-description": ((CharactersWindow)await main.OpenViewerAsync("characters")).PrintSelectedDescription(); break;

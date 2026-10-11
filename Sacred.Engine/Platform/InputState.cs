@@ -7,6 +7,7 @@ public sealed class InputState
 {
     private readonly HashSet<VirtualKey> _down = [];
     private readonly HashSet<VirtualKey> _pressed = [];
+    private readonly Queue<char> _textInput = new();
     private Vector2? _leftClickPosition;
     private bool _leftMouseButtonReleased;
     private bool _rightMouseButtonPressed;
@@ -41,7 +42,8 @@ public sealed class InputState
     internal bool WorldMapUiWantsMouse { get; set; }
     internal Vector2? PendingLeftClickPosition => _leftClickPosition;
 
-    public bool UiWantsKeyboard => _imGuiWantsKeyboard || MenuWantsInput;
+    public bool UiWantsKeyboard => _imGuiWantsKeyboard || MenuWantsInput || TerminalWantsInput;
+    internal bool TerminalWantsInput { get; set; }
     private bool _imGuiWantsKeyboard;
     internal bool MenuWantsInput { get; set; }
 
@@ -56,6 +58,16 @@ public sealed class InputState
     public bool IsDefendDown => IsDown(VirtualKey.Control) || GamepadDefend;
 
     public bool ConsumePressed(VirtualKey key) => _pressed.Remove(key);
+
+    internal void AddTextInput(char character)
+    {
+        if (!char.IsControl(character))
+            _textInput.Enqueue(character);
+    }
+
+    internal bool TryConsumeTextInput(out char character) => _textInput.TryDequeue(out character);
+
+    internal void DiscardKeyboardPresses() => _pressed.Clear();
 
     public void SetMousePosition(int x, int y)
     {
@@ -198,6 +210,7 @@ public sealed class InputState
     public void ClearTransientEvents()
     {
         _pressed.Clear();
+        _textInput.Clear();
         _leftClickPosition = null;
         _leftMouseButtonReleased = false;
         _rightMouseButtonPressed = false;

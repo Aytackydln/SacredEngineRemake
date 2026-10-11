@@ -303,6 +303,9 @@ public sealed partial class Win32Window : IDisposable
             case 0x0105: // WM_SYSKEYUP
                 Input.Set((VirtualKey)wParam, false);
                 return 0;
+            case 0x0102: // WM_CHAR: translated text, including the active keyboard layout
+                Input.AddTextInput((char)wParam);
+                return 0;
             case 0x0200: // WM_MOUSEMOVE
                 Input.SetMousePosition(GetMouseX(lParam), GetMouseY(lParam));
                 return 0;

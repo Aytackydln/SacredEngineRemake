@@ -22,14 +22,17 @@ internal sealed class Dx12WorldUiPass(
     ImGuiDebugPanel debugPanel,
     Dx12BottomHudPass hud,
     Dx12EscapeMenuPass escapeMenu,
-    Dx12WorldMapUiPass mapUi)
+    Dx12WorldMapUiPass mapUi,
+    DebugUiControlState controls)
 {
+    private readonly ImGuiCheatTerminal _terminal = new();
     public void PrepareWorldMap(WorldMapFrame map)
     {
         if (imgui.IsFrameBegun)
         {
             ImGuiWorldMapPanel.Build(map, graphics.OutputWidth, graphics.OutputHeight, imgui.MapFont);
             mapUi.Build(map);
+            _terminal.Build(controls.Terminal, imgui.BodyFont);
         }
         var overlay = map.Overlay;
         if (overlay.MinimapVisible)
@@ -123,8 +126,8 @@ internal sealed class Dx12WorldUiPass(
         {
             hud.Build(scene);
             escapeMenu.Build(scene, imgui.EscapeMenuFont);
-            if (scene.EscapeMenu is { IsOpen: true }) return;
-            debugPanel.Build(
+            if (scene.EscapeMenu is not { IsOpen: true })
+                debugPanel.Build(
                 camera,
                 world,
                 scene,
@@ -134,6 +137,7 @@ internal sealed class Dx12WorldUiPass(
                 debugOverlay.FramesPerSecond,
                 graphics.OutputWidth,
                 graphics.OutputHeight);
+            _terminal.Build(controls.Terminal, imgui.BodyFont);
         }
     }
 }

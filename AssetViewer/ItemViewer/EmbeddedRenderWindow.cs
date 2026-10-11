@@ -43,10 +43,13 @@ internal sealed class EmbeddedRenderWindow : IDisposable
     public EmbeddedRenderWindow(
         nint parentHwnd,
         Action<int> mouseWheel,
-        Action<int>? horizontalDrag = null
+        Action<int>? horizontalDrag = null,
+        bool visible = true,
+        int width = 1,
+        int height = 1
     )
     {
-        if (parentHwnd == 0)
+        if (parentHwnd == 0 && visible)
             throw new ArgumentException("A valid parent HWND is required.", nameof(parentHwnd));
 
         _mouseWheel = mouseWheel;
@@ -74,11 +77,11 @@ internal sealed class EmbeddedRenderWindow : IDisposable
             0,
             _className,
             "Sacred Item DX12 Viewer",
-            WsChild | WsVisible | WsClipChildren | WsClipSiblings,
+            (parentHwnd == 0 ? 0 : WsChild) | (visible ? WsVisible : 0) | WsClipChildren | WsClipSiblings,
             0,
             0,
-            1,
-            1,
+            width,
+            height,
             parentHwnd,
             0,
             wc.hInstance,

@@ -50,6 +50,14 @@ internal sealed class CheatsController : IDisposable
 
     public void Dispose() => _shutdown.Cancel();
 
+    public void Submit(string line)
+    {
+        if (string.IsNullOrWhiteSpace(line))
+            return;
+        EngineLog.WriteLine($"> {line.Trim()}");
+        _pendingCommands.Enqueue(Parse(line));
+    }
+
     private async Task ReadCommandsAsync(TextReader input, CancellationToken cancellationToken)
     {
         try
@@ -60,8 +68,7 @@ internal sealed class CheatsController : IDisposable
                 if (line is null)
                     return;
 
-                if (!string.IsNullOrWhiteSpace(line))
-                    _pendingCommands.Enqueue(Parse(line));
+                Submit(line);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

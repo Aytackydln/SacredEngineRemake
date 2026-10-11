@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
-using Avalonia.Media;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Pak.Weapon;
 using Sacred.Inventory.Actors;
@@ -26,11 +25,8 @@ internal sealed class CharactersWindow : Window, IAssetViewerWindow
     private CharacterAnimationChoice[] _animations = [];
     private bool _updatingAnimations;
     private bool _playing = true;
-    private readonly ListBox _inventory = new() { MinHeight = 180 };
-    private readonly ListBox _matches = new() { MinHeight = 160 };
-    private readonly TextBox _search = new() { PlaceholderText = "Search equippable item by name or ID" };
-    private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
-    private readonly Button _equip = new() { Content = "Equip", IsEnabled = false };
+    private readonly CharacterEquipmentSlotsPane _equipmentSlots;
+    private readonly CharacterBackpackPane _backpack;
     private CharacterSlotRow[] _slots = [];
     private readonly CharacterEquipmentRow[] _equipment;
     private readonly CharacterStatsPane _stats;
@@ -53,6 +49,8 @@ internal sealed class CharactersWindow : Window, IAssetViewerWindow
             .Select(item => new ModelAssetRow(item)), row => $"{row.EntryId} {row.ResourceId} {row.Model}");
         _equipment = session.Equipment.Select(item => new CharacterEquipmentRow(item,
             session.Data.GameResStore.GetString(item.IdemId.ToString(CultureInfo.InvariantCulture), item.Name))).ToArray();
+        _equipmentSlots = new(session);
+        _backpack = new(_equipment);
         _preview = new(session);
         _profile.ItemsSource = new object[] { "NPC · unrestricted class" }.Concat(Enum.GetValues<SacredCharacterClass>().Cast<object>()).ToArray();
         _stats = new(session.Data.GameResStore);
@@ -61,20 +59,14 @@ internal sealed class CharactersWindow : Window, IAssetViewerWindow
         _description = new(session);
         _profile.SelectionChanged += (_, _) => FilterEquipment();
         _profile.SelectedIndex = 0;
-        var inventoryPanel = new Grid { RowDefinitions = new("Auto,Auto,2*,Auto,2*,Auto,3*,Auto"), Margin = new Thickness(8, 0, 0, 0) };
+        var inventoryPanel = new Grid { RowDefinitions = new("Auto,Auto,*"), Margin = new Thickness(8, 0, 8, 0) };
         Add(inventoryPanel, new TextBlock { Text = "Equipment class filter" }, 0);
         Add(inventoryPanel, _profile, 1);
-        Add(inventoryPanel, _inventory, 2);
-        Add(inventoryPanel, _search, 3);
-        Add(inventoryPanel, _matches, 4);
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        buttons.Children.Add(_equip);
-        var unequip = new Button { Content = "Unequip" }; buttons.Children.Add(unequip);
-        var clear = new Button { Content = "Clear all" }; buttons.Children.Add(clear);
-        Add(inventoryPanel, buttons, 5);
-        Add(inventoryPanel, _description, 6);
-        Add(inventoryPanel, _status, 7);
-        _root = new Grid { ColumnDefinitions = new("3*,5,3*,3*,4*"), Margin = new Thickness(12) };
+        Add(inventoryPanel, _equipmentSlots, 2);
+        var backpackPanel = new Grid { RowDefinitions = new("2*,3*"), Margin = new Thickness(8, 0, 8, 0) };
+        Add(backpackPanel, _backpack, 0);
+        Add(backpackPanel, _description, 1);
+        _root = new Grid { ColumnDefinitions = new("3*,5,4*,3*,4*,4*"), Margin = new Thickness(12) };
         _root.Children.Add(_characters);
         _splitter = new GridSplitter { ResizeDirection = GridResizeDirection.Columns };
         Grid.SetColumn(_splitter, 1); _root.Children.Add(_splitter);
@@ -87,7 +79,8 @@ internal sealed class CharactersWindow : Window, IAssetViewerWindow
         previewPanel.Children.Add(_preview);
         Grid.SetColumn(previewPanel, 2); _root.Children.Add(previewPanel);
         Grid.SetColumn(inventoryPanel, 3); _root.Children.Add(inventoryPanel);
-        Grid.SetColumn(_stats, 4); _root.Children.Add(_stats);
+        Grid.SetColumn(backpackPanel, 4); _root.Children.Add(backpackPanel);
+        Grid.SetColumn(_stats, 5); _root.Children.Add(_stats);
         var banner = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12, Margin = new Thickness(12, 8) };
         banner.Children.Add(_changeCharacter); banner.Children.Add(_selectedCharacter);
         var shell = new DockPanel(); DockPanel.SetDock(banner, Dock.Top); shell.Children.Add(banner); shell.Children.Add(_root);
@@ -105,21 +98,16 @@ internal sealed class CharactersWindow : Window, IAssetViewerWindow
         };
         _animation.SelectionChanged += (_, _) => { if (!_updatingAnimations) RebuildPreview(); };
         _playPause.Click += (_, _) => SetAnimationPlaying(!_playing);
-        _inventory.SelectionChanged += (_, _) => FilterEquipment();
-        _search.TextChanged += (_, _) => FilterEquipment();
-        _matches.SelectionChanged += (_, _) =>
-        {
-            _equip.IsEnabled = _matches.SelectedItem is CharacterEquipmentRow && _characters.Selected is { Model.Length: > 0 };
-            RefreshDescription();
-        };
-        _equip.Click += (_, _) => { if (_matches.SelectedItem is CharacterEquipmentRow item && _inventory.SelectedItem is CharacterSlotRow slot) Equip(slot.Index, item.EntryId); };
-        unequip.Click += (_, _) => { if (_inventory.SelectedItem is CharacterSlotRow slot) Unequip(slot.Index); };
-        clear.Click += (_, _) => ClearInventory();
-        Closed += (_, _) => { _preview.Cancel(); _description.Cancel(); _artPresentation.Dispose(); };
+        _equipmentSlots.SelectionChanged += _ => FilterEquipment();
+        _backpack.SelectionChanged += RefreshDescription;
+        _backpack.EquipRequested += (slot, item) => Equip(slot.Index, item.EntryId);
+        _backpack.UnequipRequested += slot => Unequip(slot.Index);
+        _backpack.ClearRequested += ClearInventory;
+        Closed += (_, _) => { _preview.Cancel(); _description.Cancel(); _artPresentation.Dispose(); _equipmentSlots.Dispose(); };
         ResetInventory();
     }
 
-    public Task Ready => Task.WhenAll(_preview.CurrentLoad, _description.Ready, _artPresentation.Ready);
+    public Task Ready => Task.WhenAll(_preview.CurrentLoad, _description.Ready, _artPresentation.Ready, _equipmentSlots.Ready);
     public void Select(ushort id) => _characters.Select(row => row.EntryId == id);
     public void SetClass(string name)
     {
@@ -198,9 +186,9 @@ internal sealed class CharactersWindow : Window, IAssetViewerWindow
         {
             var templates = _session.Data.Creatures;
             var template = templates?.ResolveTemplate(character.Item);
-            var types = Enum.GetValues<EquipmentSlotType>().Where(type => type != EquipmentSlotType.SmallBelt)
-                .Concat(new[] { EquipmentSlotType.Amulet, EquipmentSlotType.Ring, EquipmentSlotType.Ring, EquipmentSlotType.Ring });
-            _actor = new SacredGameActor(template, types);
+            var characterClass = ResolveClass(template?.PlayableClassMask ?? SacredCharacterClassMask.None);
+            _actor = characterClass is { } playable ? new SacredGameActor(playable, template)
+                : new SacredGameActor(template, [EquipmentSlotType.LeftHand, EquipmentSlotType.RightHand]);
             _actor.Progression.ConfigureCombatArts(_session.Data.CombatArts.Entries);
             _actors.Add(character.EntryId, _actor);
         }
@@ -211,6 +199,7 @@ internal sealed class CharactersWindow : Window, IAssetViewerWindow
             occurrences[slot.Type] = occurrence + 1;
             return new CharacterSlotRow(index, slot) { Occurrence = occurrence };
         }).ToArray();
+        _equipmentSlots.SetActor(_slots, ResolveClass(_actor.Progression.Template?.PlayableClassMask ?? SacredCharacterClassMask.None));
         _stats.SelectActor(_actor);
         RefreshInventory();
         RebuildPreview();
@@ -218,32 +207,26 @@ internal sealed class CharactersWindow : Window, IAssetViewerWindow
 
     private void RefreshInventory(CharacterSlotRow? selected = null)
     {
-        _inventory.ItemsSource = null;
-        _inventory.ItemsSource = _slots;
-        _inventory.SelectedItem = selected ?? _slots.FirstOrDefault();
+        _equipmentSlots.Refresh();
+        if (selected is not null) _equipmentSlots.Select(selected);
         FilterEquipment();
     }
 
     private void FilterEquipment()
     {
-        var query = _search.Text?.Trim() ?? string.Empty;
-        var matches = _inventory.SelectedItem is CharacterSlotRow slot ? _equipment.Where(item =>
-            CharacterEquipment.CanEquip(slot.Type, Class, item.Item) && item.ToString().Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray() : [];
-        _matches.ItemsSource = matches;
-        _status.Text = $"{matches.Length:N0} matching definitions. Equipping creates an item with authored values; drop generation comes later.";
-        _equip.IsEnabled = false;
+        _backpack.Configure(_equipmentSlots.Selected, Class);
         RefreshDescription();
     }
 
     private void RefreshDescription()
     {
-        if (_matches.SelectedItem is CharacterEquipmentRow candidate) _description.Show(candidate.Item);
-        else if (_inventory.SelectedItem is CharacterSlotRow { Slot.Instance: { } instance }) _description.Show(instance);
+        if (_backpack.Selected is { } candidate) _description.Show(candidate.Item);
+        else if (_equipmentSlots.Selected is { Slot.Instance: { } instance }) _description.Show(instance);
         else _description.Clear();
     }
 
-    public void SelectInventorySlot(int index) => _inventory.SelectedItem = _slots.Single(slot => slot.Index == index);
-    public void SelectInventoryItem(uint itemId) => _matches.SelectedItem = _matches.Items.OfType<CharacterEquipmentRow>().Single(item => item.EntryId == itemId);
+    public void SelectInventorySlot(int index) => _equipmentSlots.Select(_slots.Single(slot => slot.Index == index));
+    public void SelectInventoryItem(uint itemId) => _backpack.Select(itemId);
     public void PrintSelectedDescription() => _description.PrintDescription();
 
     private void RebuildPreview()
@@ -284,6 +267,7 @@ internal sealed class CharactersWindow : Window, IAssetViewerWindow
         foreach (var slot in _slots) Console.WriteLine($"[Inventory] {slot}; instance {slot.Slot.Instance?.InstanceId}");
         Console.WriteLine($"[Inventory] Character list visible: {_characters.IsVisible}; class filter: {_profile.SelectedItem}.");
     }
+    public void PrintEquipmentLayout() => _equipmentSlots.PrintLayout();
     public void ClearInventory()
     {
         foreach (var slot in RequireActor().EquipmentSlots) slot.Unequip();
@@ -295,6 +279,10 @@ internal sealed class CharactersWindow : Window, IAssetViewerWindow
     public void SetSkill(byte id, int rank) => RequireActor().Progression.SetSkill(id, rank);
     public void SetCombatArt(ushort code, int rank) => RequireActor().Progression.SetCombatArt(code, rank);
     private SacredGameActor RequireActor() => _actor ?? throw new InvalidOperationException("Select a character first.");
+
+    private static SacredCharacterClass? ResolveClass(SacredCharacterClassMask mask) =>
+        Enum.GetValues<SacredCharacterClass>().Where(value => value.ToMask() == mask)
+            .Select(value => (SacredCharacterClass?)value).FirstOrDefault();
 
     private static void Add(Grid grid, Control control, int row) { Grid.SetRow(control, row); grid.Children.Add(control); }
 }

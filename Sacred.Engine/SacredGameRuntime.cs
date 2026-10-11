@@ -92,10 +92,12 @@ internal sealed partial class SacredGameRuntime : IDisposable
         ApplyCampaignRequests();
         ApplyDebugUiRequests();
         _gamepad.Poll(_window.Input);
+        UpdateCheatTerminal();
         _cheats.Update(ExecuteCheat);
         if (_window.Input.ConsumePressed(VirtualKey.F12))
             CaptureScreenshot(null);
-        _engineInput.Update();
+        if (!_debugUiControls.Terminal.IsOpen)
+            _engineInput.Update();
         _scenes.Update(deltaSeconds);
         ApplyWorldMapRequest();
         SynchronizeDebugUiControls();
@@ -627,6 +629,11 @@ internal sealed partial class SacredGameRuntime : IDisposable
         if (TrySetSectorStreamingOption(option, value, out message)) return true;
         switch (option.ToLowerInvariant())
         {
+            case "terminal" when TryParseBoolean(value, out var terminalOpen):
+                _debugUiControls.Terminal.SetOpen(terminalOpen);
+                _window.Input.TerminalWantsInput = terminalOpen;
+                message = $"cheat terminal {(terminalOpen ? "opened" : "closed")}";
+                return true;
             case "map-fit" when _scenes.ActiveScene is WorldMapScene mapScene:
                 mapScene.FitMap();
                 message = "map fitted to viewport";

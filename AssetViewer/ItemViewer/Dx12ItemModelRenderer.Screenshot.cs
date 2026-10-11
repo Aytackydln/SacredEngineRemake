@@ -9,7 +9,14 @@ namespace AssetViewer.ItemViewer;
 
 internal sealed partial class Dx12ItemModelRenderer
 {
-    public unsafe void SaveScreenshot(string path)
+    public void SaveScreenshot(string path)
+    {
+        using var bitmap = CaptureBitmap();
+        bitmap.Save(path);
+        Console.WriteLine($"[Inventory] Screenshot saved: {path}");
+    }
+
+    public unsafe Bitmap CaptureBitmap()
     {
         // Render a fresh frame directly; capture never depends on focus or Present.
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -44,14 +51,12 @@ internal sealed partial class Dx12ItemModelRenderer
         readback.Map(0, null, &pixels).CheckError();
         try
         {
-            using var bitmap = new Bitmap(PixelFormat.Rgba8888, AlphaFormat.Opaque, (nint)pixels,
+            return new Bitmap(PixelFormat.Rgba8888, _equipmentSlotSize is null ? AlphaFormat.Opaque : AlphaFormat.Unpremul, (nint)pixels,
                 new PixelSize(_renderWidth, _renderHeight), new Vector(96, 96), rowPitch);
-            bitmap.Save(path);
         }
         finally
         {
             readback.Unmap(0, null);
         }
-        Console.WriteLine($"[Inventory] Screenshot saved: {path}");
     }
 }

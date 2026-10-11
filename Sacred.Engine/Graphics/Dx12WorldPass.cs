@@ -213,7 +213,7 @@ internal sealed class Dx12WorldPass : IDisposable
         _hud = new Dx12BottomHudPass(assets, gameDirectory, graphics, textureUploader);
         _escapeMenu = new Dx12EscapeMenuPass(assets, gameDirectory, graphics, textureUploader);
         _mapUi = new Dx12WorldMapUiPass(assets, gameDirectory, graphics, textureUploader);
-        _worldUi = new Dx12WorldUiPass(graphics, _commandRecorder, _minimap, _debugOverlay, _imgui, _debugPanel, _hud, _escapeMenu, _mapUi);
+        _worldUi = new Dx12WorldUiPass(graphics, _commandRecorder, _minimap, _debugOverlay, _imgui, _debugPanel, _hud, _escapeMenu, _mapUi, debugUiControls);
     }
 
     public string SkinningStatus => $"mode {SkinningMode}; animated models GPU {_skinning.GpuModelCount}, CPU {_skinning.CpuModelCount}, skipped {_skinning.SkippedModelCount}; pipelines {(_skinDraw.IsReady ? "ready" : "unavailable")}; " +

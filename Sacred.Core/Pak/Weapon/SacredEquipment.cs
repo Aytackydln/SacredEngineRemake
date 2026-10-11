@@ -36,8 +36,16 @@ public readonly struct SacredEquipmentLayout
     [FieldOffset(16)]
     public readonly float PreviewOffsetX;
 
-    /// <summary>sWeaponInfoShared::ty; stored Y translation, ignored by the inventory world-matrix function.</summary>
+    /// <summary>sWeaponInfoShared::ty; ignored as a float by the inventory world-matrix function.
+    /// Its first two bytes are read as signed taskbar placement offsets.</summary>
     [FieldOffset(20)] public readonly float PreviewOffsetY;
+
+    /// <summary>Signed hand-slot X correction. Demo getTaskbarOffset (0x41F550) and
+    /// pureHD (0x4344C5) compute sx * 16 - this byte + 2.</summary>
+    [FieldOffset(20)] public readonly sbyte TaskbarOffsetX;
+
+    /// <summary>Signed hand-slot Y correction. Native getTaskbarOffset computes sy * 16 - this byte + 5.</summary>
+    [FieldOffset(21)] public readonly sbyte TaskbarOffsetY;
 
     /// <summary>Native preview translation Z, added to matrix +0x38 by Demo <c>TypeManager::getInventoryWorldMatrix</c>.</summary>
     [FieldOffset(24)]
@@ -159,6 +167,8 @@ public readonly record struct SacredEquipment(
 {
     public float PreviewScale { get; init; }
     public Vector3 PreviewOffset { get; init; }
+    public sbyte TaskbarOffsetX { get; init; }
+    public sbyte TaskbarOffsetY { get; init; }
     public uint BaseItemId { get; init; }
     public uint Price { get; init; }
     public byte SpawnLevel { get; init; }
@@ -222,6 +232,8 @@ public readonly record struct SacredEquipment(
         )
         {
             PreviewScale = layout.PreviewScale,
+            TaskbarOffsetX = layout.TaskbarOffsetX,
+            TaskbarOffsetY = layout.TaskbarOffsetY,
             PreviewOffset = new Vector3(
                 layout.PreviewOffsetX,
                 layout.PreviewOffsetY,

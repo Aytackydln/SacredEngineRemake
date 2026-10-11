@@ -1,5 +1,11 @@
 # Sacred.UI
 
+The Inventory components now include the native character equipment layouts,
+original equipment panel artwork and ornaments, and hand-slot item placement.
+AssetViewer hosts armor and weapon controls separately from its backpack browser,
+descriptions and stats. See [equipment research](../docs/research/ui-components/equipment-slots.md)
+for the eight character layouts and mapped Weapon.pak hand-offset bytes.
+
 Shared presentation for Sacred's original interface, usable by the Engine,
 AssetViewer, item generator and combat simulator described in
 [GameSystems.md](../GameSystems.md). This is a library, not a new application.

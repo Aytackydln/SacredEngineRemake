@@ -227,11 +227,23 @@ internal sealed unsafe partial class Dx12ImGuiRenderer : IDisposable
         io.AddKeyEvent(ImGuiKey.ModCtrl, _input.IsDown(VirtualKey.Control));
         io.AddKeyEvent(ImGuiKey.ModShift, _input.IsDown(VirtualKey.Shift));
         io.AddKeyEvent(ImGuiKey.Tab, _input.IsDown(VirtualKey.Tab));
+        io.AddKeyEvent(ImGuiKey.Enter, _input.IsDown(VirtualKey.Enter));
+        io.AddKeyEvent(ImGuiKey.Backspace, _input.IsDown(VirtualKey.Backspace));
+        io.AddKeyEvent(ImGuiKey.Delete, _input.IsDown(VirtualKey.Delete));
+        io.AddKeyEvent(ImGuiKey.Home, _input.IsDown(VirtualKey.Home));
+        io.AddKeyEvent(ImGuiKey.End, _input.IsDown(VirtualKey.End));
+        io.AddKeyEvent(ImGuiKey.A, _input.IsDown(VirtualKey.A));
+        io.AddKeyEvent(ImGuiKey.C, _input.IsDown(VirtualKey.C));
+        io.AddKeyEvent(ImGuiKey.V, _input.IsDown(VirtualKey.V));
+        io.AddKeyEvent(ImGuiKey.X, _input.IsDown(VirtualKey.X));
+        io.AddKeyEvent(ImGuiKey.Z, _input.IsDown(VirtualKey.Z));
         io.AddKeyEvent(ImGuiKey.LeftArrow, _input.IsDown(VirtualKey.Left));
         io.AddKeyEvent(ImGuiKey.RightArrow, _input.IsDown(VirtualKey.Right));
         io.AddKeyEvent(ImGuiKey.UpArrow, _input.IsDown(VirtualKey.Up));
         io.AddKeyEvent(ImGuiKey.DownArrow, _input.IsDown(VirtualKey.Down));
         io.AddKeyEvent(ImGuiKey.Escape, _input.IsDown(VirtualKey.Escape));
+        while (_input.TryConsumeTextInput(out var character))
+            io.AddInputCharacter(character);
     }
 
     public void Dispose()

@@ -2,11 +2,15 @@ namespace Sacred.Engine.Platform;
 
 public enum VirtualKey : uint
 {
+    Backspace = 0x08,
     Tab = 0x09,
     Enter = 0x0D,
     Control = 0x11,
     Shift = 0x10,
     Escape = 0x1B,
+    Home = 0x24,
+    End = 0x23,
+    Delete = 0x2E,
 
     Left = 0x25,
     Up = 0x26,
@@ -14,12 +18,14 @@ public enum VirtualKey : uint
     Down = 0x28,
 
     A = 0x41,
+    C = 0x43,
     D = 0x44,
     E = 0x45,
     F = 0x46,
     M = 0x4D,
     Q = 0x51,
     S = 0x53,
+    V = 0x56,
     W = 0x57,
 
     Z = 0x5A,
@@ -43,5 +49,6 @@ public enum VirtualKey : uint
     F8 = 0x77,
     F9 = 0x78,
     F10 = 0x79,
+    F11 = 0x7A,
     F12 = 0x7B,
 }

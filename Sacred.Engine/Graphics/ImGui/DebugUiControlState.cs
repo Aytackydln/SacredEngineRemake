@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Sacred.Core.GameBin.Scripts;
+using Sacred.Engine.Cheats;
 using Sacred.Engine.Graphics.Skinning;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Scene.InGame;
@@ -11,6 +12,7 @@ namespace Sacred.Engine.Graphics.ImGui;
 /// <summary>Bridges ImGui requests to the normal engine update path.</summary>
 internal sealed class DebugUiControlState
 {
+    public CheatTerminalState Terminal { get; } = new();
     public IReadOnlyList<SacredCampaignFiles> Campaigns { get; set; } = [];
     public string? CampaignDirectoryPath { get; set; }
     public string CampaignDisplayName { get; set; } = SacredCampaignFiles.DefaultDirectoryName;

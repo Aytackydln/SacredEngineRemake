@@ -576,11 +576,12 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
         _commandList.RSSetViewports(viewport);
         _commandList.RSSetScissorRects(scissor);
         _commandList.OMSetRenderTargets(rtv, dsv);
-        _commandList.ClearRenderTargetView(rtv, new Color4(0.05f, 0.10f, 0.09f, 1.0f));
+        _commandList.ClearRenderTargetView(rtv, _equipmentSlotSize is null
+            ? new Color4(0.05f, 0.10f, 0.09f, 1.0f) : new Color4(0, 0, 0, 0));
         _commandList.ClearDepthStencilView(dsv, ClearFlags.Depth, 1.0f, 0, 0, []);
 
         RecordGroundGrid();
-        if (!_assetPreview)
+        if (!_assetPreview && _equipmentSlotSize is null)
             RecordInventoryUi();
         if (_mesh is not null)
         {
@@ -845,6 +846,7 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
 
     private Matrix4x4 CreateWorldMatrix()
     {
+        if (_equipmentSlotSize is not null) return CreateEquipmentSlotWorldMatrix();
         if (_assetPreview)
             return CreateAssetWorldMatrix();
         var userRotation = Matrix4x4.CreateFromYawPitchRoll(_userYaw, _userPitch, _userRoll);
@@ -861,6 +863,8 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
 
     private Matrix4x4 CreateViewProjectionMatrix()
     {
+        if (_equipmentSlotSize is { } slotSize)
+            return WeaponPakPreviewTransform.CreateViewProjection(slotSize.X, slotSize.Y);
         if (_assetPreview)
             return CreateAssetViewProjectionMatrix();
         var aspect = Math.Max(0.1f, _renderWidth / (float)Math.Max(1, _renderHeight));
