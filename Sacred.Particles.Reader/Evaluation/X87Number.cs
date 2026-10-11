@@ -7,6 +7,10 @@ namespace Sacred.Particles.Reader.Evaluation;
 /// 53-bit significand can change a truncated channel by one.</summary>
 internal readonly record struct X87Number(BigInteger Significand, int Exponent)
 {
+    // BigInteger cannot represent signed zero, which native FMUL/FSTP preserve.
+    public bool NegativeZero { get; init; }
+    private bool IsNegative => Significand.Sign < 0 || Significand.IsZero && NegativeZero;
+
     public static implicit operator X87Number(double value)
     {
         if (!double.IsFinite(value)) throw new NotSupportedException("Nonfinite native preset value.");
@@ -15,10 +19,11 @@ internal readonly record struct X87Number(BigInteger Significand, int Exponent)
         var mantissa = new BigInteger(bits & 0xFFFFFFFFFFFFF);
         if (exponent != 0) mantissa += BigInteger.One << 52;
         if ((bits >> 63) != 0) mantissa = -mantissa;
-        return new X87Number(mantissa, exponent == 0 ? -1074 : exponent - 1075);
+        return new X87Number(mantissa, exponent == 0 ? -1074 : exponent - 1075)
+            { NegativeZero = mantissa.IsZero && (bits >> 63) != 0 };
     }
 
-    public double ToDouble() => Math.ScaleB((double)Significand, Exponent);
+    public double ToDouble() => Significand.IsZero && NegativeZero ? -0d : Math.ScaleB((double)Significand, Exponent);
 
     public BigInteger ToInteger(int rounding)
     {
@@ -38,16 +43,21 @@ internal readonly record struct X87Number(BigInteger Significand, int Exponent)
 
     public static X87Number operator +(X87Number a, X87Number b)
     {
+        if (a.Significand.IsZero && b.Significand.IsZero)
+            return new() { NegativeZero = a.NegativeZero && b.NegativeZero };
         var exponent = Math.Min(a.Exponent, b.Exponent);
         return Round((a.Significand << (a.Exponent - exponent)) +
                      (b.Significand << (b.Exponent - exponent)), BigInteger.One, exponent);
     }
 
-    public static X87Number operator -(X87Number a, X87Number b) => a + new X87Number(-b.Significand, b.Exponent);
+    public static X87Number operator -(X87Number a, X87Number b) => a +
+        new X87Number(-b.Significand, b.Exponent) { NegativeZero = b.Significand.IsZero && !b.NegativeZero };
     public static X87Number operator *(X87Number a, X87Number b) =>
-        Round(a.Significand * b.Significand, BigInteger.One, a.Exponent + b.Exponent);
+        a.Significand.IsZero || b.Significand.IsZero ? new() { NegativeZero = a.IsNegative != b.IsNegative } :
+            Round(a.Significand * b.Significand, BigInteger.One, a.Exponent + b.Exponent);
     public static X87Number operator /(X87Number a, X87Number b) =>
-        Round(a.Significand, b.Significand, a.Exponent - b.Exponent);
+        a.Significand.IsZero && !b.Significand.IsZero ? new() { NegativeZero = a.IsNegative != b.IsNegative } :
+            Round(a.Significand, b.Significand, a.Exponent - b.Exponent);
 
     private static X87Number Round(BigInteger numerator, BigInteger denominator, int exponent)
     {

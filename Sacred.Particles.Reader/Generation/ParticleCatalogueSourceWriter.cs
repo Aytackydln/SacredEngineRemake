@@ -44,6 +44,12 @@ internal static class ParticleCatalogueSourceWriter
                 if (entry.ElementStone is { } elementStone) actorScale += ElementStoneSourceWriter.Write(elementStone);
                 if (entry.ForgeElement is { } forgeElement) actorScale += ForgeElementSourceWriter.Write(forgeElement);
                 if (entry.Anducar is { } anducar) actorScale += AnducarSourceWriter.Write(anducar);
+                if (entry.DoorSpike is { } doorSpike) actorScale += DoorSpikeSourceWriter.Write(doorSpike);
+                if (entry.Stoned is { } stoned) actorScale += StonedSourceWriter.Write(stoned);
+                if (entry.Plong is { } plong) actorScale += PlongSourceWriter.Write(plong);
+                if (entry.Emperor is { } emperor) actorScale += EmperorSourceWriter.Write(emperor);
+                if (entry.BloodFountain is { } bloodFountain) actorScale += BloodFountainSourceWriter.Write(bloodFountain);
+                if (entry.MineSign is { } mineSign) actorScale += MineSignSourceWriter.Write(mineSign);
                 if (entry.PulseFlare is { } pulseFlare) actorScale += PulseFlareSourceWriter.Write(pulseFlare);
                 if (entry.WarCrySign is { } warCrySign) actorScale += WarCrySignSourceWriter.Write(warCrySign);
                 if (entry.ExpandingBurst is { } expanding) actorScale += ExpandingBurstSourceWriter.Write(expanding);

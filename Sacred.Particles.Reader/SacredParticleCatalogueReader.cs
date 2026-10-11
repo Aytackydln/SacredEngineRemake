@@ -32,6 +32,9 @@ public static class SacredParticleCatalogueReader
             if (!name.StartsWith("TYPE_FX_", StringComparison.Ordinal)) continue;
             var definition = reader.Read(typeId, name, address, cancellationToken);
             definitions.Add(definition);
+            events.AddRange(NativeMineSignEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeBloodFountainEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeEmperorEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeGenericEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeChangelingEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeParticleEventReader.Read(image, code, definition, options.Quality, cancellationToken));
@@ -45,6 +48,9 @@ public static class SacredParticleCatalogueReader
             events.AddRange(NativeSmallFireEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeLineEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeAnducarEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeDoorSpikeEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeStonedEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativePlongEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeLayeredFlareEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeStrikeSymbolEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeShieldedEventReader.Read(image, code, definition, options.Quality, cancellationToken));

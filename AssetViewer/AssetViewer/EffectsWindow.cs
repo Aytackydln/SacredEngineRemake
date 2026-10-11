@@ -238,7 +238,7 @@ internal sealed class EffectsWindow : Window, IAssetViewerWindow
         if (_table.Selected is not { } row) return;
         SetPlaying(true);
         var definition = (_variants.SelectedItem as EffectVariantChoice)?.Definition;
-        _release.IsVisible = definition?.ForgeElement is not null;
+        _release.IsVisible = definition?.ForgeElement is not null || definition?.DoorSpike is not null;
         _strengthControls.IsVisible = definition?.Strength is not null;
         _distanceControls.IsVisible = definition is not null && FxPreviewParameters.UsesDistance(definition);
         _distance.Maximum = (decimal)(definition is null ? FxPreviewParameters.MaximumDistance
@@ -321,6 +321,29 @@ internal sealed class EffectsWindow : Window, IAssetViewerWindow
             Console.WriteLine($"[Assets] FX selected: {row.EntryId} {row.Effect}; Glyph selector={definition.Preset}; model={glyph.ModelName}.");
             _ = _preview.LoadAsync(row.Effect, token => _session.Models.LoadModelAsync(glyph.ModelName, cancellationToken: token),
                 [], fxFactory: asset => new FxPreviewPlayback(_catalogue, glyph, asset));
+            return;
+        }
+        if (definition?.Stoned is { } stoned)
+        {
+            var modelItem = _session.Items.FirstOrDefault(item => item.ItemIndex == stoned.ItemModelTypeId);
+            if (string.IsNullOrWhiteSpace(modelItem.ModelName) ||
+                !_session.Textures.TryGetTextureName(modelItem.ModelDesc.TextureId, out var material))
+            {
+                _preview.ShowStatus("The native Stoned model/material reference is absent from the game files.");
+                return;
+            }
+            _actorLabel.Text = modelItem.ModelName;
+            Console.WriteLine($"[Assets] FX selected: {row.EntryId} {row.Effect}; Stoned model={modelItem.ModelName}; material={material}.");
+            _ = _preview.LoadAsync(row.Effect, token => _session.Models.LoadModelAsync(modelItem.ModelName, cancellationToken: token),
+                [], fxFactory: asset => new FxPreviewPlayback(_catalogue, stoned, asset, material));
+            return;
+        }
+        if (definition?.DoorSpike is { } doorSpike)
+        {
+            _actorLabel.Text = doorSpike.ModelName;
+            Console.WriteLine($"[Assets] FX selected: {row.EntryId} {row.Effect}; Door Spike count={doorSpike.DrawCount}; model={doorSpike.ModelName}.");
+            _ = _preview.LoadAsync(row.Effect, token => _session.Models.LoadModelAsync(doorSpike.ModelName, cancellationToken: token),
+                [], fxFactory: asset => new FxPreviewPlayback(_catalogue, doorSpike, asset));
             return;
         }
         if (definition?.Anducar is { } anducar)

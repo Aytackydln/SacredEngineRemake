@@ -23,7 +23,7 @@ internal static class CatalogueChecks
             var quality = (SacredParticleQuality)reference.GetProperty("quality").GetByte();
             var embedded = SacredParticleCatalogue.LoadEmbedded(quality);
             Check(ReferenceEquals(embedded, SacredParticleCatalogue.LoadEmbedded(quality)), "embedded catalogue is cached");
-            Check(embedded.Definitions.Count == 210 && embedded.DecodedCount == 34 && embedded.EventDefinitions.Count == 104, $"catalogue coverage ({quality})");
+            Check(embedded.Definitions.Count == 210 && embedded.DecodedCount == 34 && embedded.EventDefinitions.Count == 112, $"catalogue coverage ({quality})");
             Check(embedded.NativeCodeSha256 == document.RootElement.GetProperty("text_sha256").GetString(), "reference code identity");
             Check(!embedded.TryGetDefinition(uint.MaxValue, out _), "unknown ID absent");
             Check(embedded.Definitions.Where(e => e.Status != SacredParticleDefinitionStatus.Decoded).All(e => e.ParameterSets.Count == 0),
@@ -88,6 +88,8 @@ internal static class CatalogueChecks
                           GlyphEquals(saved.UnderworldGlyph, entry.UnderworldGlyph) &&
                           PongEquals(saved.PongBatter, entry.PongBatter) &&
                           AnducarEquals(saved.Anducar, entry.Anducar) &&
+                          DoorSpikeEquals(saved.DoorSpike, entry.DoorSpike) &&
+                          saved.Stoned == entry.Stoned && saved.Plong == entry.Plong &&
                           LayeredFlareEquals(saved.LayeredFlare, entry.LayeredFlare) &&
                           PulseFlareEquals(saved.PulseFlare, entry.PulseFlare) &&
                           WarCrySignEquals(saved.WarCrySign, entry.WarCrySign) &&
@@ -205,6 +207,15 @@ internal static class CatalogueChecks
         var empty = Array.Empty<string>();
         return (left with { ModelNames = empty }) == (right with { ModelNames = empty }) &&
                left.ModelNames.SequenceEqual(right.ModelNames);
+    }
+
+    private static bool DoorSpikeEquals(SacredDoorSpikeFxDefinition? left, SacredDoorSpikeFxDefinition? right)
+    {
+        if (left is null || right is null) return left is null && right is null;
+        return left.ModelName == right.ModelName && left.SurfaceTexture == right.SurfaceTexture &&
+               left.DrawCount == right.DrawCount && left.EvenHeading == right.EvenHeading && left.OddHeading == right.OddHeading &&
+               left.Tilt == right.Tilt && left.ReleaseFlag == right.ReleaseFlag && left.HasShadowPass == right.HasShadowPass &&
+               Hex(left.InitialState) == Hex(right.InitialState);
     }
 
     private static bool PongEquals(SacredPongBatterFxDefinition? left, SacredPongBatterFxDefinition? right)

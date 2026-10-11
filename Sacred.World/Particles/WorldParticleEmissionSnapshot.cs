@@ -1,5 +1,6 @@
 using System.Numerics;
 using Sacred.Particles;
+using Sacred.Particles.Particles;
 
 namespace Sacred.World.Particles;
 
@@ -25,6 +26,9 @@ public sealed record WorldParticleEmissionSnapshot(int[] RandomState, float Elap
     public float BirthSizeFactor { get; init; }
     public ParticleEmissionLine? CurrentLine { get; init; }
     public ParticleEmissionLine? ReleasedLine { get; init; }
+    public SacredEmperorFxSnapshot? Emperor { get; init; }
+    public SacredMineSignFxSnapshot? MineSign { get; init; }
+    public SacredBloodFountainFxStateLayout? BloodFountain { get; init; }
 }
 
 public interface IWorldParticleEmissionBackend

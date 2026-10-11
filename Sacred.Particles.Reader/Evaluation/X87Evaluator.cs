@@ -19,7 +19,9 @@ internal sealed class X87Evaluator(PresetMemory memory, X86Operands operands)
             case Mnemonic.Fcos: _stack[0] = Math.Cos(Top.ToDouble()); break;
             case Mnemonic.Fsqrt: _stack[0] = Math.Sqrt(Top.ToDouble()); break;
             case Mnemonic.Fxch:
-                var index = instruction.OpCount == 0 ? 1 : StackIndex(instruction.Op0Register);
+                // Iced includes implicit ST(0) as operand zero on two-operand forms.
+                var index = instruction.OpCount == 0 ? 1 :
+                    StackIndex(instruction.GetOpRegister(instruction.OpCount == 2 ? 1 : 0));
                 (_stack[0], _stack[index]) = (_stack[index], _stack[0]);
                 break;
             case Mnemonic.Fld: Push(Read(instruction, 0)); break;

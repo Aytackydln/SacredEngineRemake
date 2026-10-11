@@ -31,6 +31,8 @@ internal sealed class FxPreviewPlayback
     private readonly FxForgeElementPreview? _forgeElement;
     private readonly FxPongBatterPreview? _pong;
     private readonly FxAnducarPreview? _anducar;
+    private readonly FxDoorSpikePreview? _doorSpike;
+    private readonly FxStonedPreview? _stoned;
     private readonly FxLayeredFlarePreview? _layeredFlare;
     private readonly FxPulseFlarePreview? _pulseFlare;
     private readonly FxWarCrySignPreview? _warCrySign;
@@ -47,6 +49,7 @@ internal sealed class FxPreviewPlayback
     private readonly List<FxPreviewDraw> _draws = [];
     private readonly WorldParticleEffectPlayer _player = new();
     private readonly List<WorldParticle> _particles = [];
+    private readonly uint _manualParticleSeed = (uint)Random.Shared.Next();
     private readonly Dictionary<string, SacredTextureChannelEncoding> _encodings = new(StringComparer.OrdinalIgnoreCase);
     private float _burstElapsed;
     private bool _seeking;
@@ -88,7 +91,7 @@ internal sealed class FxPreviewPlayback
         }
         // Empty paths have no draws, but Direct3D buffers still require nonzero storage.
         var capacity = Math.Max(1, checked(_origins.Count * (definition.Capacity * (1 + definition.AdditionalDraws.Count) +
-            (definition.Halo is null ? 0 : 1) + definition.AdditionalHalos.Count)));
+            (definition.Halo is null ? 0 : 1) + definition.AdditionalHalos.Count + (definition.Emperor is null ? 0 : 1))));
         capacity += _expandingBurst?.Capacity ?? 0;
         if (capacity > ushort.MaxValue / 4) throw new NotSupportedException("FX exceeds the preview index capacity.");
         var indices = new ushort[capacity * 6];
@@ -135,11 +138,22 @@ internal sealed class FxPreviewPlayback
 
     public void RequestRelease()
     {
+        if (_doorSpike is not null) { _doorSpike.RequestRelease(); Advance(0); return; }
         if (_forgeElement is null) throw new InvalidOperationException("This FX has no decoded release controller.");
         _forgeElement.RequestRelease();
         Advance(0);
     }
     public byte? ForgePhase => _forgeElement?.Phase;
+    public FxPreviewPlayback(SacredParticleCatalogue catalogue, SacredStonedFxDefinition definition, GrnAsset asset, string materialTexture)
+    {
+        _catalogue = catalogue; _definition = null!;
+        _stoned = new(definition, catalogue.Projection, asset, materialTexture); Mesh = _stoned.Mesh;
+    }
+    public FxPreviewPlayback(SacredParticleCatalogue catalogue, SacredDoorSpikeFxDefinition definition, GrnAsset asset)
+    {
+        _catalogue = catalogue; _definition = null!;
+        _doorSpike = new(definition, catalogue.Projection, asset); Mesh = _doorSpike.Mesh;
+    }
     public FxPreviewPlayback(SacredParticleCatalogue catalogue, SacredUnderworldGlyphFxDefinition definition, GrnAsset asset)
     {
         _catalogue = catalogue; _definition = null!;
@@ -211,6 +225,8 @@ internal sealed class FxPreviewPlayback
     }
     public void RequestHit()
     {
+        if ((_definition?.Emperor is not null || _definition?.MineSign is not null) &&
+            _player.RequestHit(_definition.TypeId, _definition.Preset!.Value)) return;
         if (_pulseFlare is not null) { _pulseFlare.RequestHit(); return; }
         if (_spriteFlare is not null) { _spriteFlare.RequestRemoval(); return; }
         if (_controlledFlare is not null) { _controlledFlare.RequestToggle(); return; }
@@ -234,6 +250,12 @@ internal sealed class FxPreviewPlayback
     {
         get
         {
+            if (_stoned is not null)
+                foreach (var point in _stoned.CameraFitPoints) yield return point;
+            if (_definition?.Plong is { } plong)
+                foreach (var point in FxPlongCameraBounds.Points(plong, _catalogue.Projection)) yield return point;
+            if (_doorSpike is not null)
+                foreach (var point in _doorSpike.CameraFitPoints) yield return point;
             if (_expandingBurst is not null)
                 foreach (var point in _expandingBurst.CameraFitPoints) yield return point;
             if (_ringSurface is not null)
@@ -279,25 +301,29 @@ internal sealed class FxPreviewPlayback
     }
     public bool Playing { get; set; } = true;
     public IReadOnlyList<WorldParticle> Particles => _particles;
-    public IReadOnlyList<FxPreviewDraw> Draws => _ringSurface is { } ringSurface ? ringSurface.Draws : _warCrySign is { } sign ? sign.Draws : _pulseFlare is { } pulse ? pulse.Draws : _columnFlare is { } column ? column.Draws : _spriteFlare is { } sprite ? sprite.Draws : _controlledFlare is { } controlled ? controlled.Draws : _portal is { } portal ? portal.Draws : _elementStone is { } stone ? stone.Draws : _forgeElement is { } forge ? forge.Draws : _glyph is { } glyph ? glyph.Draws : _pong is { } pong ? pong.Draws : _anducar is { } anducar ? anducar.Draws : _layeredFlare is { } layered ? layered.Draws : _strikeSymbol is { } strike ? strike.Draws : _ringShield is { } ring ? ring.Draws : _confusion is { } confusion ? confusion.Draws : _draws;
+    public IReadOnlyList<FxPreviewDraw> Draws => _stoned is { } stoned ? stoned.Draws : _doorSpike is { } doorSpike ? doorSpike.Draws : _ringSurface is { } ringSurface ? ringSurface.Draws : _warCrySign is { } sign ? sign.Draws : _pulseFlare is { } pulse ? pulse.Draws : _columnFlare is { } column ? column.Draws : _spriteFlare is { } sprite ? sprite.Draws : _controlledFlare is { } controlled ? controlled.Draws : _portal is { } portal ? portal.Draws : _elementStone is { } stone ? stone.Draws : _forgeElement is { } forge ? forge.Draws : _glyph is { } glyph ? glyph.Draws : _pong is { } pong ? pong.Draws : _anducar is { } anducar ? anducar.Draws : _layeredFlare is { } layered ? layered.Draws : _strikeSymbol is { } strike ? strike.Draws : _ringShield is { } ring ? ring.Draws : _confusion is { } confusion ? confusion.Draws : _draws;
     public bool IsPortal => _portal is not null;
-    public bool HasSurfaceGeometry => _expandingBurst is not null || _ringSurface is not null || _warCrySign is not null || _pulseFlare is not null || _columnFlare is not null || _spriteFlare is not null || _controlledFlare is not null || _portal is not null || _elementStone is not null || _forgeElement is not null || _glyph is not null || _pong is not null || _anducar is not null || _layeredFlare is not null || _strikeSymbol is not null || _ringShield is not null || _confusion is not null;
-    public Vector3 VertexExtent(int index) => _expandingBurst is not null && index >= (_drawSlots.Length - _expandingBurst.Capacity) * 4 || _ringSurface is not null || _warCrySign is not null || _pulseFlare?.IsBillboardVertex(index) == false || _columnFlare is not null || _spriteFlare?.IsBillboardVertex(index) == false || _controlledFlare is not null || IsPortal || _confusion is not null || _ringShield is not null || _layeredFlare is not null || _anducar is not null || _forgeElement is not null || _strikeSymbol?.IsBillboardVertex(index) == false || _elementStone?.IsBillboardVertex(index) == false || _glyph?.IsBillboardVertex(index) == false || _pong?.IsBillboardVertex(index) == false
+    public bool HasSurfaceGeometry => _stoned is not null || _doorSpike is not null || _expandingBurst is not null || _ringSurface is not null || _warCrySign is not null || _pulseFlare is not null || _columnFlare is not null || _spriteFlare is not null || _controlledFlare is not null || _portal is not null || _elementStone is not null || _forgeElement is not null || _glyph is not null || _pong is not null || _anducar is not null || _layeredFlare is not null || _strikeSymbol is not null || _ringShield is not null || _confusion is not null;
+    public Vector3 VertexExtent(int index) => _stoned is not null || _doorSpike is not null || _expandingBurst is not null && index >= (_drawSlots.Length - _expandingBurst.Capacity) * 4 || _ringSurface is not null || _warCrySign is not null || _pulseFlare?.IsBillboardVertex(index) == false || _columnFlare is not null || _spriteFlare?.IsBillboardVertex(index) == false || _controlledFlare is not null || IsPortal || _confusion is not null || _ringShield is not null || _layeredFlare is not null || _anducar is not null || _forgeElement is not null || _strikeSymbol?.IsBillboardVertex(index) == false || _elementStone?.IsBillboardVertex(index) == false || _glyph?.IsBillboardVertex(index) == false || _pong?.IsBillboardVertex(index) == false
         ? Vector3.Zero : new Vector3(new Vector2(Mesh.Vertices[index].Normal.X, Mesh.Vertices[index].Normal.Y).Length());
     public ParticleEmissionLine? EmissionLine => _line ?? _castPath;
     public float? CastDistance { get; }
     public IReadOnlyList<Vector3> SampleOrigins => _origins;
-    public string PrimitiveDescription => _ringSurface is not null ? $"Native ring surfaces: {_ringSurface.Draws.Count} passes, phase={_ringSurface.Phase}, active={_ringSurface.Active}" : _warCrySign is not null ? $"War Cry Sign: {_warCrySign.Draws.Count} passes, phase={_warCrySign.Phase}, active={_warCrySign.Active}" : _pulseFlare is not null ? $"Native flare passes: {_pulseFlare.Draws.Count}, active={_pulseFlare.Active}" : _columnFlare is not null ? $"Column flares: {_columnFlare.Draws.Count}, phase={_columnFlare.Phase}, active={_columnFlare.Active}" : _spriteFlare is not null ? $"Sprite flares: {_spriteFlare.Draws.Count}, active={_spriteFlare.Active}" : _controlledFlare is not null ? $"Controlled ground flares: {_controlledFlare.Draws.Count}, active={_controlledFlare.Active}" : _confusion is not null ? $"2 ground planes, 2 helical ribbons, active={_confusion.Active}" : IsPortal ? "3 portal layers" : _elementStone is not null ? "model, 3 beams, flicker plane, 2 flares"
+    public string PrimitiveDescription => _stoned is not null ? $"Stoned: {_stoned.Draws.Count} models, age={_stoned.ElapsedTime:R}, active={_stoned.Active}" : _doorSpike is not null ? $"Door Spike: {_doorSpike.Draws.Count} models, phase={_doorSpike.Phase}, active={_doorSpike.Active}" : _ringSurface is not null ? $"Native ring surfaces: {_ringSurface.Draws.Count} passes, phase={_ringSurface.Phase}, active={_ringSurface.Active}" : _warCrySign is not null ? $"War Cry Sign: {_warCrySign.Draws.Count} passes, phase={_warCrySign.Phase}, active={_warCrySign.Active}" : _pulseFlare is not null ? $"Native flare passes: {_pulseFlare.Draws.Count}, active={_pulseFlare.Active}" : _columnFlare is not null ? $"Column flares: {_columnFlare.Draws.Count}, phase={_columnFlare.Phase}, active={_columnFlare.Active}" : _spriteFlare is not null ? $"Sprite flares: {_spriteFlare.Draws.Count}, active={_spriteFlare.Active}" : _controlledFlare is not null ? $"Controlled ground flares: {_controlledFlare.Draws.Count}, active={_controlledFlare.Active}" : _confusion is not null ? $"2 ground planes, 2 helical ribbons, active={_confusion.Active}" : IsPortal ? "3 portal layers" : _elementStone is not null ? "model, 3 beams, flicker plane, 2 flares"
         : _forgeElement is not null ? $"Forge phase {_forgeElement.Phase}: model, 2 ground flares, cylindrical strip"
         : _glyph is not null ? "2 glyph model passes, 20 ribbons, glow" : _ringShield is not null ? $"Shield surfaces: {_ringShield.Draws.Count}, phase={_ringShield.Phase}, active={_ringShield.Active}" : _strikeSymbol is not null ? $"Strike sprite: frame {_strikeSymbol.TextureFrame}, active={_strikeSymbol.Active}" : _layeredFlare is not null ? $"Ground flares: {_layeredFlare.Draws.Count} layers, active={_layeredFlare.Active}" : _anducar is not null ? $"Anducar: {_anducar.Draws.Count} model passes" : _pong is not null ? "Pong paddle: scrolling box surface and 12 glow lines" : $"{_particles.Count} particles";
-    public IReadOnlyList<string> TextureNames => _ringSurface?.TextureNames ?? _warCrySign?.TextureNames ?? _pulseFlare?.TextureNames ?? _columnFlare?.TextureNames ?? _spriteFlare?.TextureNames ?? _controlledFlare?.TextureNames ?? _portal?.TextureNames ?? _elementStone?.TextureNames ?? _forgeElement?.TextureNames ?? _glyph?.TextureNames ?? _pong?.TextureNames ?? _anducar?.TextureNames ?? _layeredFlare?.TextureNames ?? _strikeSymbol?.TextureNames ?? _ringShield?.TextureNames ?? _confusion?.TextureNames ?? new[] { _definition.Draw!.TextureName, _definition.Halo?.TextureName }
+    public IReadOnlyList<string> TextureNames => _stoned?.TextureNames ?? _doorSpike?.TextureNames ?? _ringSurface?.TextureNames ?? _warCrySign?.TextureNames ?? _pulseFlare?.TextureNames ?? _columnFlare?.TextureNames ?? _spriteFlare?.TextureNames ?? _controlledFlare?.TextureNames ?? _portal?.TextureNames ?? _elementStone?.TextureNames ?? _forgeElement?.TextureNames ?? _glyph?.TextureNames ?? _pong?.TextureNames ?? _anducar?.TextureNames ?? _layeredFlare?.TextureNames ?? _strikeSymbol?.TextureNames ?? _ringShield?.TextureNames ?? _confusion?.TextureNames ?? new[] { _definition.Draw!.TextureName, _definition.Halo?.TextureName }
         .OfType<string>().Concat(_definition.AdditionalDraws.Select(draw => draw.TextureName))
-        .Concat(_definition.AdditionalHalos.Select(halo => halo.TextureName)).Concat(_expandingBurst?.TextureNames ?? []).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        .Concat(_definition.AdditionalHalos.Select(halo => halo.TextureName))
+        .Concat(_definition.Emperor is { } emperor ? [emperor.FlareTexture] : [])
+        .Concat(_expandingBurst?.TextureNames ?? []).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     public SacredTextureChannelEncoding Encoding(string texture) => _encodings.GetValueOrDefault(texture);
     public void SetTexture(TextureAsset texture) => _encodings[texture.Name] = SacredTextureChannelAnalyzer.Analyze(texture.Rgba8);
 
     private void Start()
     {
+        if (_stoned is not null) { _stoned.Restart(); return; }
+        if (_doorSpike is not null) { _doorSpike.Restart(); return; }
         if (_ringSurface is not null) { _ringSurface.Restart(); return; }
         if (_warCrySign is not null) { _warCrySign.Restart(); return; }
         if (_pulseFlare is not null) { _pulseFlare.Restart(); return; }
@@ -315,6 +341,7 @@ internal sealed class FxPreviewPlayback
         if (_strikeSymbol is not null) { _strikeSymbol.Restart(); return; }
         if (_ringShield is not null) { _ringShield.Restart(); return; }
         _player.Clear();
+        _player.ManualParticleSeed = _definition.Plong is null ? null : _manualParticleSeed;
         _expandingBurst?.Restart();
         foreach (var origin in _origins)
         {
@@ -361,6 +388,8 @@ internal sealed class FxPreviewPlayback
 
     public void Advance(float seconds)
     {
+        if (_stoned is not null) { _stoned.Advance(seconds); return; }
+        if (_doorSpike is not null) { _doorSpike.Advance(seconds); return; }
         if (_ringSurface is not null) { _ringSurface.Advance(seconds); return; }
         if (_warCrySign is not null) { _warCrySign.Advance(seconds); return; }
         if (_pulseFlare is not null) { _pulseFlare.Advance(seconds); return; }

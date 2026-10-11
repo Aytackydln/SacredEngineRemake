@@ -11,9 +11,12 @@ public sealed class WorldParticleEffectPlayer
 {
     private readonly List<Playback> _playing = [];
     private readonly List<WorldTeleportEffectPlayback> _teleports = [];
+    private readonly List<WorldPlongEffectPlayback> _plongs = [];
     private int _nextId = -1;
 
     public IParticleGpuBackend? GpuBackend { get; set; }
+    /// <summary>Optional deterministic seed for manual burst replay; null uses a fresh runtime seed.</summary>
+    public uint? ManualParticleSeed { get; set; }
     internal void CollectGpuBatches(List<WorldGpuParticleBatch> output)
     {
         for (var i = _playing.Count - 1; i >= 0; i--) _playing[i].Emitter.CollectGpuBatches(output);
@@ -23,7 +26,7 @@ public sealed class WorldParticleEffectPlayer
         foreach (var playback in _playing) playback.Emitter.SimulationMode = mode;
     }
 
-    public int ActiveCount => _playing.Count + _teleports.Count;
+    public int ActiveCount => _playing.Count + _teleports.Count + _plongs.Count;
     public bool IsEnabled(uint typeId, bool selfTarget, int? eventPreset = null) =>
         _playing.Any(p => p.TypeId == typeId && p.EventPreset == eventPreset && p.SelfTarget == selfTarget && p.Looping);
 
@@ -55,6 +58,12 @@ public sealed class WorldParticleEffectPlayer
         if (looping && IsEnabled(typeId, selfTarget, eventPreset)) return true;
         // Bound interactive requests without changing any decoded spawn parameters.
         if (ActiveCount >= 64) return false;
+        if (definition.Plong is not null)
+        {
+            _plongs.Add(new(definition, catalogue.Projection, point,
+                heightOffset + (selfTarget ? selfHeight : 0), _nextId--, ManualParticleSeed ?? (uint)Random.Shared.Next()));
+            return true;
+        }
         if (definition.Teleport is not null)
         {
             _teleports.Add(new(definition, catalogue.Projection, point,
@@ -85,7 +94,18 @@ public sealed class WorldParticleEffectPlayer
             }
     }
 
-    public void Clear() { _playing.Clear(); _teleports.Clear(); _nextId = -1; }
+    public void Clear() { _playing.Clear(); _teleports.Clear(); _plongs.Clear(); _nextId = -1; }
+
+    /// <summary>Requests a decoded native hit flag or mine-use notification.
+    /// Emperor kind one selects its special notification.</summary>
+    public bool RequestHit(uint typeId, int eventPreset, uint kind = 0)
+    {
+        var handled = false;
+        foreach (var playback in _playing)
+            if (playback.TypeId == typeId && playback.EventPreset == eventPreset)
+                handled |= playback.Emitter.RequestEmperorHit(kind) | playback.Emitter.RequestMineUsed();
+        return handled;
+    }
 
     /// <summary>Updates native attachment inputs without resetting particles or release clocks.</summary>
     public void SetEmissionLine(uint typeId, int eventPreset, ParticleEmissionLine line)
@@ -106,6 +126,11 @@ public sealed class WorldParticleEffectPlayer
     internal void Update(float step, Vector2 selfPosition, float selfHeight,
         ParticleSimulationMode mode, List<WorldParticle> output)
     {
+        for (var i = _plongs.Count - 1; i >= 0; i--)
+        {
+            _plongs[i].Update(step, output);
+            if (!_plongs[i].IsAlive) _plongs.RemoveAt(i);
+        }
         for (var i = _teleports.Count - 1; i >= 0; i--)
         {
             _teleports[i].Update(step, output);
@@ -123,7 +148,7 @@ public sealed class WorldParticleEffectPlayer
             if (playback.Emitter.NativeRetired) { _playing.RemoveAt(i); continue; }
             playback.Remaining -= step;
             if (!playback.Looping && playback.Emitter.EmissionFinished) playback.Remaining = 0;
-            if (!playback.Looping && playback.Remaining <= 0 && playback.Emitter.ParticleCount == 0)
+            if (!playback.Looping && !playback.Emitter.ControlsRetirement && playback.Remaining <= 0 && playback.Emitter.ParticleCount == 0)
                 _playing.RemoveAt(i);
         }
     }

@@ -23,6 +23,7 @@ internal sealed partial class WorldParticleEmitter
     private float _age;
     private float _birthSizeFactor;
     public bool NativeRetired { get; private set; }
+    internal bool ControlsRetirement => _emperor is not null || _bloodFountain is not null || _mineSign is not null;
     private bool _nativeEmissionInitialized, _movementReady;
     private float _nativeReleaseTime;
     private float _emissionTime;
@@ -39,6 +40,11 @@ internal sealed partial class WorldParticleEmitter
         SacredParticleProjection projection)
     {
         _placement = placement;
+        if (placement.Definition.MineSign is { } sign)
+            _mineSign = new(sign, unchecked((uint)(placement.ScriptOffset * 397 ^ (int)placement.Creation.TypeId)));
+        if (placement.Definition.BloodFountain is { } fountain) _bloodFountain = new(fountain);
+        if (placement.Definition.Emperor is { } emperor)
+            _emperor = new(emperor, unchecked((uint)(placement.ScriptOffset * 397 ^ (int)placement.Creation.TypeId)));
         _burstPending = placement.Definition.BurstOnFirstUpdate && placement.Definition.RandomBurst is null;
         _aura = new(placement.Definition);
         _birthSizeFactor = placement.Definition.BirthSizeRamp?.InitialFactor ?? 0;
@@ -78,50 +84,6 @@ internal sealed partial class WorldParticleEmitter
 
     public bool CanEmit => _parameterSets.Length > 0;
     internal WorldParticleScriptPlacement Placement => _placement;
-    internal WorldParticleEmissionSnapshot Capture()
-    {
-        foreach (var batch in _batches) batch.RestoreCpu();
-        return new(_random.Capture(), _emissionElapsed, _nextDrawOrder,
-            _batches.Select(batch => Enumerable.Range(0, batch.Count).Select(i => batch[i]).ToArray()).ToArray())
-            { BurstPending = _burstPending, Age = _age, NativeRetired = NativeRetired, NativeEmissionInitialized = _nativeEmissionInitialized,
-                MovementReady = _movementReady, NativeReleaseTime = _nativeReleaseTime, OrbitAngle = _orbitAngle,
-                ReleasedPoint = _point?.Released,
-                CycleCountdown = _cycle?.Countdown ?? 0, CycleRandomState = _cycle?.RandomState ?? 0,
-                CycleBurst = _cycle?.Burst ?? false, BirthSizeFactor = _birthSizeFactor, Aura = _aura.Capture(),
-                CurrentLine = _line?.Current, ReleasedLine = _line?.Released };
-    }
-    internal WorldParticleEmitter(WorldParticleScriptPlacement placement, float units,
-        SacredParticleProjection projection, WorldParticleEmissionSnapshot snapshot) : this(placement, units, projection)
-    {
-        _random.Restore(snapshot.RandomState); _emissionElapsed = snapshot.Elapsed;
-        _burstPending = snapshot.BurstPending;
-        _age = snapshot.Age;
-        _birthSizeFactor = snapshot.BirthSizeFactor;
-        if (snapshot.Aura is { } aura) _aura.Restore(aura);
-        NativeRetired = snapshot.NativeRetired;
-        _nativeEmissionInitialized = snapshot.NativeEmissionInitialized;
-        _movementReady = snapshot.MovementReady;
-        _nativeReleaseTime = snapshot.NativeReleaseTime;
-        _orbitAngle = snapshot.OrbitAngle;
-        if (_point is not null && snapshot.ReleasedPoint is { } releasedPoint) _point.Restore(releasedPoint);
-        _nextDrawOrder = snapshot.NextDrawOrder;
-        _batches = _parameterSets.Select(p => new ParticleSimulationBatch(p, _capacity)).ToArray();
-        _particleCount = 0;
-        if (_line is not null && snapshot.CurrentLine is { } current && snapshot.ReleasedLine is { } released)
-            _line.Restore(current, released);
-        if (_cycle is not null)
-        {
-            _cycle.Restore(snapshot.CycleCountdown, snapshot.CycleRandomState, snapshot.CycleBurst);
-            ApplyCycleParameters();
-        }
-        if (placement.Definition.BirthSizeRamp is { } ramp)
-        {
-            _parameterSets[0] = ramp.Apply(_parameterSets[0], _birthSizeFactor);
-            _batches[0].ApplyParameters(_parameterSets[0]);
-        }
-        for (var set = 0; set < _batches.Length; set++)
-        foreach (var particle in snapshot.Particles[set]) { _batches[set].Add(particle); _particleCount++; }
-    }
     private ParticleSimulationMode _simulationMode = ParticleSimulationMode.CpuSimd;
     public ParticleSimulationMode SimulationMode
     {
@@ -130,11 +92,11 @@ internal sealed partial class WorldParticleEmitter
         {
             // These native draws share one particle vector or use an independent flare stack.
             // The standard GPU emitter ABI has a single draw/halo slot.
-            if (value is ParticleSimulationMode.Gpu or ParticleSimulationMode.GpuOnly &&
+            if ((value is ParticleSimulationMode.Gpu or ParticleSimulationMode.GpuOnly || value == ParticleSimulationMode.Auto && (_bloodFountain is not null || _mineSign is not null)) &&
                 (_placement.Definition.AdditionalDraws.Count > 0 || _placement.Definition.AdditionalHalos.Count > 0 ||
                  _placement.Definition.RetireAfterDuration || _placement.Definition.BirthSizeRamp is not null || _placement.Definition.SimulationStartSeconds > 0 ||
                  _placement.Definition.RandomBurst is not null || _placement.Definition.RadialBurst is not null || _placement.Definition.MaximumSimulationStep is not null ||
-                 _placement.Definition.Halo?.Envelope is not null)) value = ParticleSimulationMode.CpuSimd;
+                 _placement.Definition.Halo?.Envelope is not null || _emperor is not null || _bloodFountain is not null || _mineSign is not null)) value = ParticleSimulationMode.CpuSimd;
             if (value is not (ParticleSimulationMode.Gpu or ParticleSimulationMode.GpuOnly))
                 foreach (var batch in _batches) batch.RestoreCpu();
             _simulationMode = value;
@@ -155,7 +117,8 @@ internal sealed partial class WorldParticleEmitter
                     _heightOffset ?? _placement.Creation.HeightOffset ?? 0));
     }
     public int ParticleCount => _particleCount;
-    public bool EmissionFinished => OrbitFinished || _placement.Definition.EmissionDurationSeconds is { } duration &&
+    public bool EmissionFinished => _mineSign is not null ? !_mineSign.Active : _bloodFountain is not null ? !_bloodFountain.Active :
+        _emperor is not null ? !_emperor.Emitting : OrbitFinished || _placement.Definition.EmissionDurationSeconds is { } duration &&
         (_placement.Definition.EmissionClock == SacredParticleEmissionClock.CrossingUpdate ? _age > duration : _age >= duration);
 
     public void SetOrigin(Vector2 origin, float heightOffset)
@@ -192,6 +155,7 @@ internal sealed partial class WorldParticleEmitter
 
     public void EmitBurst()
     {
+        if (_mineSign is not null) return; // Count-mode requests belong to its native controller.
         if (_placement.Definition.RadialBurst is { } radial) { EmitRadialBurst(radial); return; }
         foreach (var parameters in _parameterSets)
         {
@@ -203,6 +167,9 @@ internal sealed partial class WorldParticleEmitter
 
     public void Update(float deltaSeconds, List<WorldParticle> output, bool emitting = true)
     {
+        if (_mineSign is not null) { UpdateMineSign(deltaSeconds, output); return; }
+        if (_bloodFountain is not null) { UpdateBloodFountain(deltaSeconds, output); return; }
+        if (_emperor is not null) { UpdateEmperor(deltaSeconds, output); return; }
         if (SimulationMode == ParticleSimulationMode.GpuOnly &&
             _batches.Any(batch => batch.GpuBackend is not { IsAvailable: true })) return;
         var definition = _placement.Definition;

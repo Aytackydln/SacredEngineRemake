@@ -1,12 +1,65 @@
 # Particle definitions in Sacred Gold
 
+Latest decoding: [Dwarf Mine Sign through REA](mine-sign-fx.md) adds its native
+count-scaled particle ring, radial rotation, carry stall rule and mine-use
+retirement through the shared Viewer/world/Terminal CPU path. Four layouts map
+saved/object/event fields and combat-art ratio/cap inputs. Coverage is
+**148 recipes / 113 FX rows**: 34 script and 112 event recipes plus two portals.
+**4,018,800 native comparisons**, **1,848 integration checks** and six
+screenshot-cheat captures pass. Existing reader checks, shared playback checks,
+fresh generation and Viewer/Terminal builds pass. Live combat inputs, audio,
+native random-stream coupling and GPU simulation remain pending.
+
+Previous decoding: [Blood Fountain through REA](blood-fountain-fx.md) adds all three
+native palettes, local-X jet fade and floor-collision retirement through the
+shared Viewer/world/Terminal CPU path. Three layouts map saved, object and event
+bytes. Coverage is **147 recipes / 112 FX rows**: 34 script and 111 event recipes
+plus two portals. **42,210 native comparisons**, **1,470 targeted integration
+checks**, **380 Emperor checks** and **12 screenshot-cheat captures** pass.
+Viewer/Terminal builds, fresh generation and Items.pak mapping pass. Live gameplay
+orientation/attachment, audio, notifications and GPU simulation remain pending.
+
+Previous decoding: [Emperor through REA](emperor-fx.md) adds its timed particle
+emitter, conditional randomized flare and native hit extension/size controller.
+Two layouts map the complete saved block and base/resource fields. Coverage is
+**144 recipes / 111 FX rows**: 34 script and 108 event recipes plus two portals.
+**2,277,732 native comparisons**, **380 targeted integration checks** and
+**4,959,631 existing Plong/Stoned/Teleport checks** pass. Ten live screenshot-cheat
+captures, Viewer/Terminal builds and fresh generation pass. REA's instruction and
+byte inspection works; its Ghidra analysis did not recognize these FX functions
+for decompilation. See the linked experiment notes for setup and coverage limits.
+
+Previous decoding: [Plong and Stoned](plong-and-stoned-fx.md) adds two event
+families: a forty-slot manual particle burst with gravity/bounce and a randomized
+stone model resolved through Items.pak. Six layouts map saved state, particle
+bytes, resources, owner notification and combat duration inputs. Coverage is
+**143 recipes / 110 FX rows**: 34 script and 107 event recipes plus two portals.
+**1,378,632 native comparisons** pass against 4,032 original updates/renders.
+**Over 4.9 million targeted Viewer/world/Terminal and Teleport checks** pass; all 143
+previews pass **35,221,590 geometry checks** across nine actors. Hidden console
+validation produces **20 screenshot-cheat captures** with no missing textures.
+Fresh catalogue/source verification and Viewer/Terminal builds pass. Plong uses
+the shared world/Terminal particle path. Stoned owner texture buffs, live combat
+inputs, moving attachment and world/Terminal model placement remain pending.
+
+Previous decoding: [Door Spike](door-spike-fx.md) adds its complete six-model event
+preview and native grow/hold/release/shrink controller. Four layouts map all ten
+saved scales/offsets, the 0xB0-byte state, base controls and resource handles.
+Coverage is **141 recipes / 108 FX rows**: 34 script and 105 event recipes plus
+two portals. **96,138 native comparisons** pass against 648 original updates/renders
+and 5,184 complete model/shadow submissions. **136,148 targeted Viewer checks**
+and **21 screenshot-cheat captures** pass. The shared x87 evaluator now preserves
+signed zero; all existing native reader checks, fresh catalogue comparisons,
+generated-source verification and Viewer/Terminal builds pass. World/Terminal
+model placement and scene shadows remain pending.
+
 Rendering correction: grayscale RGBA textures now keep their authored RGB
 brightness. The old classifier incorrectly selected an alpha-only mask and
 turned both ground flares into solid diamonds. **16 channel regressions** pass;
 **26 corrected captures** and **37 earlier-ring regression captures** were
 checked through console cheats. See [corrected previews](expanding-burst-fx.md#grayscale-texture-correction).
 
-Latest decoding: [Ring of Poison and Kamikaze](expanding-burst-fx.md) adds two
+Previous decoding: [Ring of Poison and Kamikaze](expanding-burst-fx.md) adds two
 complete event previews: a 150-slot particle burst, fifty expanding ring strips
 and two independently rotating ground flares. Four layouts map saved state,
 resources and Kamikaze's unsigned event radius rate. Coverage is **140 recipes /

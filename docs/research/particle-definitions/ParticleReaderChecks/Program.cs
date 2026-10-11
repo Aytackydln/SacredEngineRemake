@@ -1,5 +1,13 @@
 using Sacred.Particles;
 
+if (args.Length == 2 && args[0] == "--mine-sign-only") { ParticleReaderChecks.MineSignChecks.Run(args[1]); return 0; }
+
+if (args.Length == 2 && args[0] == "--blood-fountain-only") { ParticleReaderChecks.BloodFountainChecks.Run(args[1]); return 0; }
+
+if (args.Length == 2 && args[0] == "--emperor-only") { ParticleReaderChecks.EmperorChecks.Run(args[1]); return 0; }
+
+if (args.Length == 2 && args[0] == "--plong-stoned-only") { ParticleReaderChecks.PlongStonedChecks.Run(args[1]); return 0; }
+
 if (args.Length == 2 && args[0] == "--texture-channels-only") { await ParticleReaderChecks.TextureChannelChecks.Run(args[1]); return 0; }
 
 if (args.Length == 2 && args[0] == "--expanding-bursts-only") { ParticleReaderChecks.ExpandingBurstChecks.Run(args[1]); return 0; }
@@ -12,17 +20,23 @@ if (args.Length == 2 && args[0] == "--pulse-flare-only") { ParticleReaderChecks.
 if (args.Length == 2 && args[0] == "--column-flare-only") { ParticleReaderChecks.ColumnFlareChecks.Run(args[1]); return 0; }
 if (args.Length == 2 && args[0] == "--sprite-flare-only") { ParticleReaderChecks.SpriteFlareChecks.Run(args[1]); return 0; }
 if (args.Length == 2 && args[0] == "--controlled-flare-only") { ParticleReaderChecks.ControlledFlareChecks.Run(args[1]); return 0; }
+if (args.Length == 2 && args[0] == "--door-spike-only") { ParticleReaderChecks.DoorSpikeChecks.Run(args[1]); return 0; }
+if (args.Length == 1 && args[0] == "--signed-zero-only") { ParticleReaderChecks.SignedZeroChecks.Run(); return 0; }
 if (args.Length is < 1 or > 2)
 {
     Console.Error.WriteLine("Usage: ParticleReaderChecks <native-reference.json> [Sacred.exe]");
     return 2;
 }
+ParticleReaderChecks.SignedZeroChecks.Run();
+ParticleReaderChecks.MineSignChecks.Run(Path.Combine(Path.GetDirectoryName(args[0])!, "mine-sign-native-reference.json"));
+ParticleReaderChecks.PlongStonedChecks.Run(Path.Combine(Path.GetDirectoryName(args[0])!, "plong-stoned-native-reference.json"));
 ParticleReaderChecks.CatalogueChecks.Run(args[0], args.Length == 2 ? args[1] : null);
 ParticleReaderChecks.ElementStoneChecks.Run(Path.Combine(Path.GetDirectoryName(args[0])!, "element-stone-native-reference.json"));
 ParticleReaderChecks.ForgeElementChecks.Run(Path.Combine(Path.GetDirectoryName(args[0])!, "forge-element-native-reference.json"));
 ParticleReaderChecks.GlyphChecks.Run(Path.Combine(Path.GetDirectoryName(args[0])!, "glyph-native-reference.json"));
 ParticleReaderChecks.PongBatterChecks.Run(Path.Combine(Path.GetDirectoryName(args[0])!, "pong-batter-native-reference.json"));
 ParticleReaderChecks.AnducarChecks.Run(Path.Combine(Path.GetDirectoryName(args[0])!, "anducar-native-reference.json"));
+ParticleReaderChecks.DoorSpikeChecks.Run(Path.Combine(Path.GetDirectoryName(args[0])!, "door-spike-native-reference.json"));
 ParticleReaderChecks.LayeredFlareChecks.Run(Path.Combine(Path.GetDirectoryName(args[0])!, "layered-flare-native-reference.json"));
 ParticleReaderChecks.StrikeSymbolChecks.Run(Path.Combine(Path.GetDirectoryName(args[0])!, "strike-symbol-native-reference.json"));
 ParticleReaderChecks.RingShieldChecks.Run(Path.Combine(Path.GetDirectoryName(args[0])!, "shield-native-reference.json"));

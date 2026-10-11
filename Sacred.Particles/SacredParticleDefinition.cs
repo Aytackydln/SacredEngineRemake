@@ -53,6 +53,9 @@ public sealed record SacredParticleDefinition(
     SacredParticleDrawDefinition? Draw,
     IReadOnlyList<SacredParticleParameterSet> ParameterSets)
 {
+    public SacredEmperorFxDefinition? Emperor { get; init; }
+    public SacredBloodFountainFxDefinition? BloodFountain { get; init; }
+    public SacredMineSignFxDefinition? MineSign { get; init; }
     public SacredExpandingBurstFxDefinition? ExpandingBurst { get; init; }
     public SacredBubbleTrapExplosionFxDefinition? BubbleTrapExplosion { get; init; }
     public SacredTerrorSprinterFxDefinition? TerrorSprinter { get; init; }
@@ -119,6 +122,9 @@ public sealed record SacredParticleDefinition(
     public SacredElementStoneFxDefinition? ElementStone { get; init; }
     public SacredForgeElementFxDefinition? ForgeElement { get; init; }
     public SacredAnducarFxDefinition? Anducar { get; init; }
+    public SacredDoorSpikeFxDefinition? DoorSpike { get; init; }
+    public SacredStonedFxDefinition? Stoned { get; init; }
+    public SacredPlongFxDefinition? Plong { get; init; }
     public SacredLayeredFlareFxDefinition? LayeredFlare { get; init; }
     public SacredPulseFlareFxDefinition? PulseFlare { get; init; }
     public SacredWarCrySignFxDefinition? WarCrySign { get; init; }
