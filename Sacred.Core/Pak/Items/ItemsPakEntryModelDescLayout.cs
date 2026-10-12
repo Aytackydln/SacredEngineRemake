@@ -223,6 +223,14 @@ public readonly struct ItemsPakEntryModelDescLayout
     /// <summary>
     /// Compact model-effect selector returned by Sacred.exe 0x426520. Selector 9
     /// enables white <c>PARTICLE_GLOW03.TGA</c> billboards at <c>sera03_fx0..3</c>.
+    /// Also selects Gold 0x406510's texture matrix when GraphicFlags bit 0x10 is set:
+    /// 2: V + milliseconds/2048; 3: U + milliseconds/2048;
+    /// 4: U + milliseconds/1024; 6: V + milliseconds/1024.
+    /// 9: first-material piecewise UV translation over 2048 milliseconds.
+    /// The clock is truncated to integer milliseconds and masked to 16 bits.
+    /// 1: two diagonal passes, ticks/16384 with EffectTextureId and ticks/32767
+    /// with Gold's fixed FX_MULTITEXGLOW01.TGA, used by Seraphim equipment as well
+    /// as creatures. 5/7 select pulsing overlays; 8 selects random translations.
     /// </summary>
     [FieldOffset(110)]
     public readonly byte EffectTextureIndex;

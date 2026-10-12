@@ -212,6 +212,7 @@ public static class Dx12ShaderCatalog
         new(name,
             [
                 () => EmbeddedShaderAssemblyReloader.ReadAllBytes(HdrCommon.GetResourceName()),
+                () => EmbeddedShaderAssemblyReloader.ReadAllBytes(EmbeddedResource_Shaders.SacredItemTextureAnimation_hlsl.GetResourceName()),
                 () => EmbeddedShaderAssemblyReloader.ReadAllBytes(EmbeddedResource_Shaders.SacredTerrainTileCommon_hlsl.GetResourceName()),
                 () => EmbeddedShaderAssemblyReloader.ReadAllBytes(resource.GetResourceName())
             ], entryPoint, target);
@@ -225,6 +226,7 @@ public static class Dx12ShaderCatalog
             name,
             [
                 () => EmbeddedShaderAssemblyReloader.ReadAllBytes(HdrCommon.GetResourceName()),
+                () => EmbeddedShaderAssemblyReloader.ReadAllBytes(EmbeddedResource_Shaders.SacredItemTextureAnimation_hlsl.GetResourceName()),
                 () => EmbeddedShaderAssemblyReloader.ReadAllBytes(EmbeddedResource_Shaders.SacredObjectFocus_hlsl.GetResourceName()),
                 () => EmbeddedShaderAssemblyReloader.ReadAllBytes(resource.GetResourceName())
             ],
@@ -240,6 +242,7 @@ public static class Dx12ShaderCatalog
             name,
             [
                 () => EmbeddedShaderAssemblyReloader.ReadAllBytes(HdrCommon.GetResourceName()),
+                () => EmbeddedShaderAssemblyReloader.ReadAllBytes(EmbeddedResource_Shaders.SacredItemTextureAnimation_hlsl.GetResourceName()),
                 () => EmbeddedShaderAssemblyReloader.ReadAllBytes(SpriteCommon.GetResourceName()),
                 () => EmbeddedShaderAssemblyReloader.ReadAllBytes(StaticSpriteCommon.GetResourceName()),
                 () => EmbeddedShaderAssemblyReloader.ReadAllBytes(resource.GetResourceName())
@@ -256,6 +259,7 @@ public static class Dx12ShaderCatalog
             name,
             [
                 () => EmbeddedShaderAssemblyReloader.ReadAllBytes(HdrCommon.GetResourceName()),
+                () => EmbeddedShaderAssemblyReloader.ReadAllBytes(EmbeddedResource_Shaders.SacredItemTextureAnimation_hlsl.GetResourceName()),
                 () => EmbeddedShaderAssemblyReloader.ReadAllBytes(SpriteCommon.GetResourceName()),
                 () => EmbeddedShaderAssemblyReloader.ReadAllBytes(resource.GetResourceName())
             ],

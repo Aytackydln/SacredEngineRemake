@@ -4,10 +4,6 @@ namespace Sacred.Assets.Paks.Texture;
 
 public static class ModelTextureResolver
 {
-    // Sacred's item descriptor value at offset 112 is unrelated to effect timing.
-    // Scrolling equipment materials use a common cadence in the game.
-    private const float EffectScrollCyclesPerSecond = 0.5f;
-    private const uint PrimaryTextureTableLimit = byte.MaxValue;
 
     public static ModelTextureReference Resolve(ITextureSource textureArchive,
         uint itemTextureId,
@@ -15,7 +11,8 @@ public static class ModelTextureResolver
         SacredItemGraphicFlags graphicFlags,
         bool modelHasEffectTextureSurface,
         bool preferItemTexture,
-        string? surfaceTextureName)
+        string? surfaceTextureName,
+        byte effectSelector = 0)
     {
         var itemTextureName = string.Empty;
         var hasItemTexture = itemTextureId > 0 &&
@@ -35,7 +32,7 @@ public static class ModelTextureResolver
                         textureArchive,
                         resolvedSurfaceName,
                         graphicFlags,
-                        clampAtTextureEdges: false));
+                        effectSelector));
             }
 
             // Single-material GRNs commonly embed an export-time default; Items.pak selects the item variant.
@@ -52,7 +49,7 @@ public static class ModelTextureResolver
                         textureArchive,
                         effectTextureName,
                         graphicFlags,
-                        ShouldClampOverlay(effectTextureId, graphicFlags)),
+                        effectSelector),
                     TextureOverlayMode.MultiTextureFill);
             }
 
@@ -73,7 +70,7 @@ public static class ModelTextureResolver
                         textureArchive,
                         effectTextureName,
                         graphicFlags,
-                        ShouldClampOverlay(effectTextureId, graphicFlags)),
+                        effectSelector),
                     TextureOverlayMode.MultiTextureFill);
             }
 
@@ -89,7 +86,7 @@ public static class ModelTextureResolver
                     textureArchive,
                     effectTextureName,
                     graphicFlags,
-                    clampAtTextureEdges: false));
+                    effectSelector));
 
         return string.IsNullOrWhiteSpace(surfaceTextureName)
             ? new ModelTextureReference(string.Empty, TextureAnimation.None)
@@ -99,25 +96,15 @@ public static class ModelTextureResolver
     private static TextureAnimation CreateEffectAnimation(ITextureSource textureArchive,
         string effectTextureName,
         SacredItemGraphicFlags graphicFlags,
-        bool clampAtTextureEdges)
+        byte effectSelector)
     {
-        if ((graphicFlags &
-             (SacredItemGraphicFlags.MultitextureScroll | SacredItemGraphicFlags.VerticalTextureScroll)) == 0)
+        // Gold getComplexFX_ID (0x426520) gates the authored selector on bit 20.
+        if ((graphicFlags & SacredItemGraphicFlags.MultitextureScroll) == 0 ||
+            !textureArchive.TryResolveTextureRecord(effectTextureName, out _))
             return TextureAnimation.None;
 
-        if (!textureArchive.TryResolveTextureRecord(effectTextureName, out _))
-            return TextureAnimation.None;
-
-        return new TextureAnimation(
-            clampAtTextureEdges
-                ? TextureAnimationMode.RadialSweepBlackKey
-                : TextureAnimationMode.VerticalScrollBlackKey,
-            EffectScrollCyclesPerSecond);
+        return effectSelector is 1 or 2 or 3 or 4 or 6 or 9
+            ? new TextureAnimation(TextureAnimationMode.NativeItemTransform, 1, effectSelector)
+            : TextureAnimation.None;
     }
-
-    private static bool ShouldClampOverlay(uint effectTextureId, SacredItemGraphicFlags graphicFlags) =>
-        // External vertical-effect textures are one-shot bands that cross the UV
-        // map before repeating. Primary-table multitextures are tiled fills.
-        effectTextureId > PrimaryTextureTableLimit &&
-        (graphicFlags & SacredItemGraphicFlags.VerticalTextureScroll) != 0;
 }

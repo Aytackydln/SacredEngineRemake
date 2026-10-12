@@ -192,9 +192,13 @@ internal sealed class Dx12EquipmentPreviewPass : IDisposable
                 if (animation.Mode == TextureAnimationMode.RadialSweepBlackKey &&
                     MeshSurfaceRadialSweep.TryCalculate(asset.Mesh, surface, out var radial))
                     _constants.WriteModelColor(constants + 32, radial);
-                else _constants.WriteModelColor(constants + 32, color);
+                else _constants.WriteModelColor(constants + 32, animation.HasSecondaryGlow
+                    ? color with { W = (frame.Textures.TryGetValue(TextureAnimation.MultitextureGlowName, out var secondary) ? secondary.Slot : -1) }
+                    : color);
                 _constants.WriteTextureFlags(constants + ModelShaderLayout.TextureFlagsOffset, mode,
-                    ModelShaderVariables.PackTextureAnimation(animation.IsAnimated,
+                    animation.Mode == TextureAnimationMode.NativeItemTransform
+                        ? ModelShaderVariables.PackNativeItemTextureAnimation(animation.NativeEffectSelector)
+                        : ModelShaderVariables.PackTextureAnimation(animation.IsAnimated,
                         animation.Mode == TextureAnimationMode.RadialSweepBlackKey, false),
                     ModelShaderLayout.PreserveProjectedDepth, animation.IsAnimated ? animation.TimeScale : 0);
                 commands.SetGraphicsRoot32BitConstants(ModelShaderLayout.ModelConstantsRootParameter,

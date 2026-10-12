@@ -1392,7 +1392,7 @@ public sealed class AssetManager : IDisposable
                 item.ModelDesc.GraphicFlags,
                 modelHasEffectTextureSurface,
                 preferItemTexture,
-                surface.TextureName);
+                surface.TextureName, item.ModelDesc.EffectTextureIndex);
 
             if (!reference.Animation.IsAnimated &&
                 !reference.HasOverlay &&

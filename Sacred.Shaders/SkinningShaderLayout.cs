@@ -13,7 +13,7 @@ public static class SkinningShaderLayout
 
     public static Dx12PipelineGroupDefinition CreateModels(Dx12ShaderSet shaders, bool hdr)
     {
-        var original = Dx12PipelineCatalog.CreateModels(shaders, new() { HdrOutput = hdr });
+        var original = Dx12PipelineCatalog.CreateModels(shaders, new() { HdrOutput = hdr, SamplerAddressMode = TextureAddressMode.Wrap });
         var roots = original.RootParameters.ToList();
         roots[ModelShaderLayout.SceneConstantsRootParameter] = new(RootParameterType.ConstantBufferView, new RootDescriptor(1, 0), ShaderVisibility.All);
         for (var register = 3; register <= 7; register++)
@@ -27,6 +27,6 @@ public static class SkinningShaderLayout
             return new Dx12GraphicsPipelineDefinition(kind, vertex, p.PixelShader, p.InputLayout, p.BlendState,
                 p.RasterizerState, p.DepthStencilState, p.UsesDepthBuffer, p.RenderTargetFormat);
         });
-        return new(roots, original.StaticSamplers, pipelines);
+        return new(roots, original.StaticSamplers, pipelines, original.RootSignatureFlags);
     }
 }

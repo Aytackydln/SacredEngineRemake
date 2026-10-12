@@ -258,6 +258,8 @@ internal sealed class Dx12ModelPass
                                          model.Geometry.TryGetRadialSweep(surface, out var radialSweep)
                             ? radialSweep
                             : defaultModelColor;
+                        if (animation.HasSecondaryGlow)
+                            modelColor.W = _textureCache.Get(TextureAnimation.MultitextureGlowName)?.SrvSlot ?? -1;
                         _shaderConstants.WriteModelColor(constants + 32, modelColor);
                         SetRootConstantsIfChanged(
                             ModelShaderLayout.ModelConstantsRootParameter,
@@ -268,7 +270,9 @@ internal sealed class Dx12ModelPass
                         _shaderConstants.WriteTextureFlags(
                             constants + ModelShaderLayout.TextureFlagsOffset,
                             ModelShaderVariables.PackWorldFocus(textureMode, model.IsFocused),
-                            ModelShaderVariables.PackTextureAnimation(
+                            animation.Mode == TextureAnimationMode.NativeItemTransform
+                        ? ModelShaderVariables.PackNativeItemTextureAnimation(animation.NativeEffectSelector)
+                        : ModelShaderVariables.PackTextureAnimation(
                                 animation.IsAnimated,
                                 animation.Mode == TextureAnimationMode.RadialSweepBlackKey,
                                 overlay: false),

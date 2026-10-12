@@ -26,10 +26,10 @@ public enum SacredItemGraphicFlags : ushort
     /// <summary>Observed unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
     Byte0008 = 0x0008,
 
-    /// <summary>Scrolls an equipment multitexture fill.</summary>
+    /// <summary>Enables complex model rendering; offset 0x6E selects its texture transform (Gold 0x426520).</summary>
     MultitextureScroll = 0x0010,
 
-    /// <summary>Scrolls an effect texture vertically.</summary>
+    /// <summary>Observed flag; does not select vertical scrolling in Gold 0x406510. Use offset 0x6E.</summary>
     VerticalTextureScroll = 0x0020,
 
     /// <summary>Observed unresolved flag bit. The name preserves its raw hexadecimal value.</summary>

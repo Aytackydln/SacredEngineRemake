@@ -48,6 +48,8 @@ internal sealed record EquipmentPreviewAsset(SacredEquipment Equipment, Mesh Mes
                     StringComparer.OrdinalIgnoreCase);
             var names = materials.Values.SelectMany(m => m.HasOverlay
                 ? new[] { m.TextureName, m.OverlayTextureName! } : new[] { m.TextureName })
+                .Concat(materials.Values.Any(m => m.Animation.HasSecondaryGlow || m.OverlayAnimation.HasSecondaryGlow)
+                    ? new[] { TextureAnimation.MultitextureGlowName } : Array.Empty<string>())
                 .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             var textures = await Task.WhenAll(names.Select(async n =>
                 (Name: n, Texture: await assets.LoadModelTextureAsync(n).ConfigureAwait(false)))).ConfigureAwait(false);

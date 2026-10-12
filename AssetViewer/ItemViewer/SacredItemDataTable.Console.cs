@@ -27,4 +27,11 @@ public partial class SacredItemDataTable
         SetModelRotationSliders(new(yaw, (float)ModelPitchSlider.Value, (float)ModelRollSlider.Value));
         Console.WriteLine($"[Inventory] User rotation: yaw={ModelYawSlider.Value}, pitch={ModelPitchSlider.Value}, roll={ModelRollSlider.Value}.");
     }
+    internal void SetEquipmentRotation(float yaw, float pitch, float roll)
+    {
+        if (!float.IsFinite(yaw) || !float.IsFinite(pitch) || !float.IsFinite(roll))
+            throw new ArgumentOutOfRangeException(nameof(yaw));
+        SetModelRotationSliders(new(yaw, pitch, roll));
+        Console.WriteLine($"[Inventory] User rotation: yaw={ModelYawSlider.Value}, pitch={ModelPitchSlider.Value}, roll={ModelRollSlider.Value}.");
+    }
 }

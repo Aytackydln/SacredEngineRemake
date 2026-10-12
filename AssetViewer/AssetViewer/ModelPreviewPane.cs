@@ -186,7 +186,7 @@ internal sealed class ModelPreviewPane : UserControl
                         resolved.Equals(effectName, StringComparison.OrdinalIgnoreCase));
                 foreach (var surface in names)
                     aliases[surface!] = ModelTextureResolver.Resolve(_session.Textures, desc.TextureId, desc.EffectTextureId,
-                        desc.GraphicFlags, hasEffect, names.Length == 1, surface);
+                        desc.GraphicFlags, hasEffect, names.Length == 1, surface, desc.EffectTextureIndex);
             }
             // Direct-mesh FX replace the GRN materials with native render-call textures.
             foreach (var surface in fx is { HasSurfaceGeometry: true } ? [] : asset.Mesh?.Surfaces ?? [])
@@ -200,6 +200,10 @@ internal sealed class ModelPreviewPane : UserControl
                     TextureAsset? overlay = null;
                     if (reference.HasOverlay)
                         overlay = await _session.Textures.LoadTextureAsync(reference.OverlayTextureName!, token);
+                    if ((reference.Animation.HasSecondaryGlow || reference.OverlayAnimation.HasSecondaryGlow) &&
+                        !loaded.ContainsKey(TextureAnimation.MultitextureGlowName))
+                        loaded[TextureAnimation.MultitextureGlowName] = new ModelTextureBinding(
+                            await _session.Textures.LoadTextureAsync(TextureAnimation.MultitextureGlowName, token));
                     loaded[key] = new ModelTextureBinding(texture with { Animation = reference.Animation },
                         overlay is null ? null : overlay with { Animation = reference.OverlayAnimation }, reference.OverlayMode);
                 }

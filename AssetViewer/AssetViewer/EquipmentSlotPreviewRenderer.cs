@@ -35,10 +35,14 @@ internal sealed class EquipmentSlotPreviewRenderer(AssetViewerSession session) :
         foreach (var name in names)
         {
             var reference = ModelTextureResolver.Resolve(session.Textures, desc.TextureId, desc.EffectTextureId,
-                desc.GraphicFlags, hasEffect, names.Length == 1, name);
+                desc.GraphicFlags, hasEffect, names.Length == 1, name, desc.EffectTextureIndex);
             var texture = await session.Textures.LoadTextureAsync(reference.TextureName, token);
             TextureAsset? overlay = reference.HasOverlay
                 ? await session.Textures.LoadTextureAsync(reference.OverlayTextureName!, token) : null;
+            if ((reference.Animation.HasSecondaryGlow || reference.OverlayAnimation.HasSecondaryGlow) &&
+                !bindings.ContainsKey(TextureAnimation.MultitextureGlowName))
+                bindings[TextureAnimation.MultitextureGlowName] = new ModelTextureBinding(
+                    await session.Textures.LoadTextureAsync(TextureAnimation.MultitextureGlowName, token));
             bindings.Add(name!, new(texture with { Animation = reference.Animation },
                 overlay is null ? null : overlay with { Animation = reference.OverlayAnimation }, reference.OverlayMode));
         }

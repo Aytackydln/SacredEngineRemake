@@ -420,7 +420,8 @@ public static class Dx12PipelineCatalog
                 ModelShaderLayout.ModelSamplerRegister,
                 options.SamplerAddressMode,
                 options.SamplerBorderColor)],
-            pipelines);
+            pipelines, RootSignatureFlags.AllowInputAssemblerInputLayout |
+                RootSignatureFlags.ConstantBufferViewShaderResourceViewUnorderedAccessViewHeapDirectlyIndexed);
     }
 
     private static Dx12GraphicsPipelineDefinition Pipeline(

@@ -15,7 +15,7 @@ internal static class AssetViewerConsole
         Console.WriteLine("[Assets] FX cheats: open effects, fx <Items.pak row>, fx-implemented <true|false>, fx-search <text>, fx-variant <script|event subtype>, fx-strength <unsigned value>, fx-distance <native units, 0..2000>, fx-defaults, fx-restart, fx-actor, fx-play <true|false>, fx-time <seconds>.");
         Console.WriteLine("[Assets] FX controller cheats: fx-release (Forge compression/fade), fx-extend <timer units> (Mana duration), fx-cell <0..15> (Trap01 atlas), fx-hit (hit/toggle response), fx-step <seconds> (advance paused FX in 60 Hz steps).");
         Console.WriteLine("[Assets] Models/Effects camera cheat: zoom <wheel steps>; positive zooms in, negative zooms out.");
-        Console.WriteLine("[Assets] Cheats: open <models|equipment|textures|characters>, model <row>, item <id>, texture <archive.pak> <row>, character <row>, class <name|npc>, animations, animation <bind|default|slot|GRN name>, animation-play <true|false>, animation-time <seconds>, rotate <horizontal degrees>, effects <true|false>, equip <slot-index> <id>, unequip <slot-index>, screenshot <path.png>, screenshot-ui <path.png>, location <directory>, close <view>, gc, quit.");
+        Console.WriteLine("[Assets] Cheats: open <models|equipment|textures|characters>, model <row>, item <id>, texture <archive.pak> <row>, character <row>, class <name|npc>, animations, animation <bind|default|slot|GRN name>, animation-play <true|false>, animation-time <seconds>, rotate <horizontal degrees>, equipment-rotation <yaw> <pitch> <roll>, effects <true|false>, equip <slot-index> <id>, unequip <slot-index>, screenshot <path.png>, screenshot-ui <path.png>, location <directory>, close <view>, gc, quit.");
         _ = Task.Run(async () =>
         {
             while (Console.ReadLine() is { } input)
@@ -118,6 +118,15 @@ internal static class AssetViewerConsole
                     case EquipmentWindow equipment: equipment.RotateHorizontally(radians); break;
                     default: throw new InvalidOperationException("Open the models, equipment or characters viewer to rotate its preview.");
                 }
+                break;
+            case "equipment-rotation":
+                var axes = argument.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (axes.Length != 3) throw new ArgumentException("Usage: equipment-rotation <yaw> <pitch> <roll> (degrees)");
+                if (main.ActiveViewer is not EquipmentWindow rotationWindow)
+                    throw new InvalidOperationException("Open equipment first.");
+                rotationWindow.SetRotation(float.Parse(axes[0], CultureInfo.InvariantCulture) * MathF.PI / 180,
+                    float.Parse(axes[1], CultureInfo.InvariantCulture) * MathF.PI / 180,
+                    float.Parse(axes[2], CultureInfo.InvariantCulture) * MathF.PI / 180);
                 break;
             case "zoom":
                 var steps = double.Parse(argument, CultureInfo.InvariantCulture);

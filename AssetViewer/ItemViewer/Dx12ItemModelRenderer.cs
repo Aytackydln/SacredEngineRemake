@@ -687,6 +687,8 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
                                  MeshSurfaceRadialSweep.TryCalculate(_sourceMesh, surface, out var radialSweep)
                     ? radialSweep
                     : defaultModelColor;
+                if (animation.HasSecondaryGlow)
+                    modelColor.W = _textures.GetValueOrDefault(TextureAnimation.MultitextureGlowName)?.SrvSlot ?? -1;
                 _modelShaderConstants.WriteModelColor(constants + 32, modelColor);
 
                 _modelShaderConstants.WriteTextureFlags(
@@ -695,7 +697,9 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
                         hasTexture,
                         drawOverlay || hasOverlay,
                         drawOverlay || texture?.OverlayMode == TextureOverlayMode.MultiTextureFill),
-                    ModelShaderVariables.PackTextureAnimation(
+                    animation.Mode == TextureAnimationMode.NativeItemTransform
+                        ? ModelShaderVariables.PackNativeItemTextureAnimation(animation.NativeEffectSelector)
+                        : ModelShaderVariables.PackTextureAnimation(
                         animation.IsAnimated,
                         animation.Mode == TextureAnimationMode.RadialSweepBlackKey,
                         overlay: false),

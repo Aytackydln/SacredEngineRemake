@@ -73,6 +73,8 @@ bool has_base_texture_animation()
 
 float2 animated_tex_coord(float2 tex_coord)
 {
+    if (texture_animation_value() >= native_item_transform_encoding_offset)
+        return native_item_tex_coord(tex_coord, scene_elapsed_seconds, (uint)(texture_animation_value() - native_item_transform_encoding_offset));
     float animation_time = scene_elapsed_seconds * texture_flags.w;
     if (uses_scroll_black_key_animation())
     {
@@ -124,6 +126,9 @@ float4 RGBToTransparentRgba(float3 rgb)
 float4 sample_animated_texture(Texture2D texture_source, float2 tex_coord)
 {
     float4 color = texture_source.Sample(model_sampler, animated_tex_coord(tex_coord));
+    if (texture_animation_value() == native_item_transform_encoding_offset + 1.0f)
+        color.rgb = saturate(color.rgb + native_secondary_item_glow(
+            tex_coord, scene_elapsed_seconds, model_color.w, model_sampler));
     return RGBToTransparentRgba(color.rgb);
 }
 

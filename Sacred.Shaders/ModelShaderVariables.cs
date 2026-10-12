@@ -9,6 +9,8 @@ public static class ModelShaderVariables
     public const float TextureModeMultiTextureFill = 3.0f;
     public static float PackWorldFocus(float textureMode, bool focused) => textureMode + (focused ? 8.0f : 0.0f);
 
+    public static float PackNativeItemTextureAnimation(byte selector) => 16.0f + selector;
+
     public const float TextureAnimationNone = 1.0f;
     public const float TextureAnimationScrollBlackKey = 1.5f;
     public const float TextureAnimationRadialSweepBlackKey = 1.75f;

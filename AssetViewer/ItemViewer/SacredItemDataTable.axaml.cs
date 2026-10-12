@@ -556,6 +556,7 @@ public partial class SacredItemDataTable : UserControl
         var failedCount = 0;
         var modelHasEffectTextureSurface = ModelHasEffectTextureSurface(asset, selectedItem, archive);
         var preferItemTexture = textureNames.Length == 1;
+        Console.WriteLine($"[Inventory] Material source: item={selectedItem.ItemId}, model={selectedItem.ModelName}, vertices={asset.Mesh.Vertices.Length}, base={selectedItem.TextureId}, effect={selectedItem.EffectTextureId}, materials={string.Join(", ", textureNames)}.");
 
         if (textureNames.Length == 0)
         {
@@ -594,7 +595,7 @@ public partial class SacredItemDataTable : UserControl
                 selectedItem.GraphicFlags,
                 modelHasEffectTextureSurface,
                 preferItemTexture,
-                textureName);
+                textureName, selectedItem.ItemEffectSelector);
 
             try
             {
@@ -611,6 +612,10 @@ public partial class SacredItemDataTable : UserControl
                     overlayTexture = overlayTexture with { Animation = reference.OverlayAnimation };
                 }
 
+                if ((reference.Animation.HasSecondaryGlow || reference.OverlayAnimation.HasSecondaryGlow) &&
+                    !loaded.ContainsKey(TextureAnimation.MultitextureGlowName))
+                    loaded[TextureAnimation.MultitextureGlowName] = new ModelTextureBinding(
+                        await archive.LoadTextureAsync(TextureAnimation.MultitextureGlowName, cancellationToken));
                 loaded[textureName] = new ModelTextureBinding(baseTexture, overlayTexture, reference.OverlayMode);
             }
             catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or NotSupportedException)

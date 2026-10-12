@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Sacred.Assets.Paks.Texture;
 using Sacred.Engine.Scene;
 
 namespace Sacred.Engine.Graphics.Models;
@@ -40,6 +41,11 @@ internal sealed class ModelTextureRequests
                     _activeNames.Add(reference.OverlayTextureName);
                 if (reference.HasOverlay)
                     _overlayNames.Add(reference.OverlayTextureName!);
+                if (reference.Animation.HasSecondaryGlow || reference.OverlayAnimation.HasSecondaryGlow)
+                {
+                    _activeNames.Add(TextureAnimation.MultitextureGlowName);
+                    _overlayNames.Add(TextureAnimation.MultitextureGlowName);
+                }
             }
 
             if (model.EquipmentEffects is not { } effects)

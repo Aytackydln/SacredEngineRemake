@@ -85,7 +85,7 @@ public sealed class WorldModelRasterizer(
             for (var i = 0; i < surfaceTextures.Length; i++)
             {
                 var reference = ModelTextureResolver.Resolve(textures, item.ModelDesc.TextureId, item.ModelDesc.EffectTextureId,
-                    item.ModelDesc.GraphicFlags, false, preferItem, mesh.Surfaces[i].TextureName);
+                    item.ModelDesc.GraphicFlags, false, preferItem, mesh.Surfaces[i].TextureName, item.ModelDesc.EffectTextureIndex);
                 if (!string.IsNullOrWhiteSpace(reference.TextureName))
                     surfaceTextures[i] = await textures.LoadTextureAsync(reference.TextureName);
             }

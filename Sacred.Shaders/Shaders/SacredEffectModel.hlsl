@@ -114,6 +114,8 @@ bool uses_radial_sweep_animation()
 
 float2 animated_tex_coord(float2 tex_coord)
 {
+    if (texture_animation_value() >= native_item_transform_encoding_offset)
+        return native_item_tex_coord(tex_coord, scene_elapsed_seconds, (uint)(texture_animation_value() - native_item_transform_encoding_offset));
     if (uses_scroll_black_key_animation())
     {
         float y = tex_coord.y + scene_elapsed_seconds * texture_flags.w;
@@ -135,6 +137,12 @@ float4 sample_animated_overlay(float2 tex_coord)
         color.a *= saturate((brightness - texture_animation_black_key_threshold) * texture_animation_black_key_scale);
     }
 
+    if (texture_animation_value() == native_item_transform_encoding_offset + 1.0f)
+    {
+        color.rgb = saturate(color.rgb + native_secondary_item_glow(
+            tex_coord, scene_elapsed_seconds, model_color.w, model_sampler));
+        color.a = 1.0f;
+    }
     return color;
 }
 
@@ -147,6 +155,16 @@ float4 spatial_sweep_effect(float4 effect_color, float3 local_position)
     float alpha = saturate(effect_color.a + glow * 0.38f);
     float3 color = saturate(effect_color.rgb * (1.0f + glow * 1.9f));
     return float4(color, alpha);
+}
+
+bool uses_dual_glow()
+{
+    return texture_animation_value() == native_item_transform_encoding_offset + 1.0f;
+}
+
+float4 compose_dual_glow(float3 lit_base, float base_alpha, float4 glow)
+{
+    return float4(lit_base * base_alpha + glow.rgb * (1.0f - base_alpha), 1.0f);
 }
 
 float4 visible_effect_color(float4 color)
@@ -220,7 +238,7 @@ float4 ps_sdr(vs_output input) : SV_Target
     }
 
     // "glow" effects should not be affected by light, immediately return
-    if (base_color.a < effect_alpha_cutoff)
+    if (base_color.a < effect_alpha_cutoff && !uses_dual_glow())
     {
         float4 effect_color = sample_animated_overlay(input.tex_coord);
         return uses_radial_sweep_animation()
@@ -249,6 +267,8 @@ float4 ps_sdr(vs_output input) : SV_Target
         (specular_amount * light_direction_and_specular_strength.w * specular_surface_light);
     float3 lit_color = compose_sdr_model_lighting(base_color.rgb, surface_lighting, diffuse, specular);
 
+    if (uses_dual_glow())
+        return compose_dual_glow(lit_color, base_color.a, sample_animated_overlay(input.tex_coord));
     return float4(lit_color * base_color.a, base_color.a);
 }
 
@@ -260,7 +280,7 @@ float4 ps_hdr(vs_output input) : SV_Target
 
     float4 animated_overlay = sample_animated_overlay(input.tex_coord);
     // Glow effects are emissive and should not be affected by scene lighting.
-    if (base_color.a < effect_alpha_cutoff)
+    if (base_color.a < effect_alpha_cutoff && !uses_dual_glow())
     {
         return uses_radial_sweep_animation()
             ? hdr_spatial_sweep_effect(animated_overlay, input.local_position)
@@ -283,6 +303,8 @@ float4 ps_hdr(vs_output input) : SV_Target
         : 0.0f;
 
     float4 lerped = lerp(animated_overlay, base_color, base_color.a) * base_color.a;
+    bool dual_glow = uses_dual_glow();
+    if (dual_glow) lerped = float4(base_color.rgb, base_color.a);
     float3 ambient = model_surface_lighting(input.position.xy);
     float3 diffuse = light_color_and_diffuse_intensity.rgb *
         (diffuse_amount * max(light_color_and_diffuse_intensity.w, 0.0f));
@@ -290,5 +312,7 @@ float4 ps_hdr(vs_output input) : SV_Target
     float3 specular = light_color_and_diffuse_intensity.rgb *
         (specular_amount * max(light_direction_and_specular_strength.w, 0.0f) * specular_surface_light);
     float3 hdr = compose_sdr_model_lighting(lerped.rgb, ambient, diffuse, specular);
+    if (dual_glow)
+        return compose_dual_glow(hdr, base_color.a, animated_overlay);
     return float4(hdr, base_color.a);
 }
