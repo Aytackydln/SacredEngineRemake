@@ -26,7 +26,9 @@ try
         throw new InvalidOperationException("Error reporting test: SacredEngineRemake.error.log should contain this exception and its stack trace.");
     }
 
-    var gameDir = args.FirstOrDefault(argument => !LaunchArguments.IsTerminalMode(argument))
+    var serverEndpoint = args.FirstOrDefault(argument => argument.StartsWith("--server=", StringComparison.OrdinalIgnoreCase))?[9..];
+    var gameDir = args.FirstOrDefault(argument => !LaunchArguments.IsTerminalMode(argument) &&
+                                                !argument.StartsWith("--server=", StringComparison.OrdinalIgnoreCase))
                   ?? @"E:\SteamLibrary\steamapps\common\Sacred Gold";
 
     if (!Directory.Exists(gameDir))
@@ -55,6 +57,7 @@ try
 
     using (var game = new SacredGame(directories, saveState))
     {
+        if (serverEndpoint is not null) game.RequestServerConnection(serverEndpoint);
         try
         {
             await game.Run();

@@ -38,6 +38,8 @@ public sealed class SacredActorInventory
     public void Equip(int slotIndex, SacredItemInstance item)
     {
         ArgumentNullException.ThrowIfNull(item);
+        if (item.Definition.IsAppearanceFallback)
+            throw new ArgumentException("Appearance fallbacks cannot be inventory items.", nameof(item));
         var target = EquipmentSlots[slotIndex];
         if (!EquipmentSlotRules.AcceptsItem(target.Type, item.Definition))
             throw new ArgumentException($"This item cannot occupy {target.Type}.", nameof(item));
@@ -59,6 +61,7 @@ public sealed class SacredActorInventory
     public bool TryStore(SacredItemInstance item, int x, int y)
     {
         ArgumentNullException.ThrowIfNull(item);
+        if (item.Definition.IsAppearanceFallback) return false;
         if (!Backpack.TryPlace(item, x, y)) return false;
         CompleteStore(item);
         return true;
@@ -67,6 +70,7 @@ public sealed class SacredActorInventory
     public bool TryStore(SacredItemInstance item, bool rowFirst = false)
     {
         ArgumentNullException.ThrowIfNull(item);
+        if (item.Definition.IsAppearanceFallback) return false;
         if (!Backpack.TryPlaceFirst(item, rowFirst)) return false;
         CompleteStore(item);
         return true;

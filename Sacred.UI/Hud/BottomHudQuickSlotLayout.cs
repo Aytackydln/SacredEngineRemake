@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Sacred.Core.UI;
+using Sacred.UI.Inventory;
 using Sacred.UI.Textures;
 
 namespace Sacred.UI.Hud;
@@ -14,14 +15,16 @@ public sealed class BottomHudQuickSlotLayout
     public IReadOnlyList<BottomHudDecoration> CombatArtSlots { get; }
     public IReadOnlyList<BottomHudDecoration> CombatArtBackgrounds { get; }
     public IReadOnlyList<BottomHudDecoration> Wings { get; }
+    public WeaponQuickSlotLayout Weapon { get; }
 
     public BottomHudQuickSlotLayout(IReadOnlyList<SacredExecutableUiTextureDefinitionLayout> table)
     {
         // refreshSlotGfx uses selector 103 for the active slot, even when it is empty.
-        var activeFrame = new UiTextureRegion(table[103]);
+        Weapon = new(table);
+        var activeFrame = Weapon.Frame;
         HandSlot = new(activeFrame, new(328, 691));
         CombatArtSlots = new BottomHudDecoration[] { new(activeFrame, new(640, 691)) };
-        HandBackground = new(BottomHudSlotBackgrounds.Hand(table), HandSlot.Position);
+        HandBackground = new(Weapon.Empty, HandSlot.Position);
         CombatArtBackgrounds = new BottomHudDecoration[]
         {
             new(BottomHudSlotBackgrounds.CombatArt(table), CombatArtSlots[0].Position)

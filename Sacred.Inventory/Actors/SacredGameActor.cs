@@ -21,14 +21,14 @@ public sealed class SacredGameActor
     {
         CharacterClass = characterClass;
         Inventory = new(EquipmentSlotLayout.Create(characterClass).Select(slot => slot.Type));
-        Progression = new(template);
+        Character = new(template);
         ObserveChanges();
     }
 
     public SacredGameActor(SacredCreatureTemplate? template, IEnumerable<EquipmentSlotType> slotTypes)
     {
         Inventory = new(slotTypes);
-        Progression = new(template);
+        Character = new(template);
         ObserveChanges();
     }
 
@@ -37,7 +37,8 @@ public sealed class SacredGameActor
     public SacredActorCombatArts CombatArts => Progression.CombatArts;
     public SacredActorInventory Inventory { get; }
     public ReadOnlyCollection<EquipmentSlot> EquipmentSlots => Inventory.EquipmentSlots;
-    public SacredCharacterProgression Progression { get; }
+    public SacredActorCharacter Character { get; }
+    public SacredCharacterProgression Progression => Character.Progression;
     public SacredActorStats InherentStats { get; private set; } = SacredActorStats.Empty;
     public SacredActorStats EquipmentStats { get; private set; } = SacredActorStats.Empty;
     public SacredActorStats TotalStats { get; private set; } = SacredActorStats.Empty;
@@ -72,6 +73,9 @@ public sealed class SacredGameActor
         var clone = new SacredGameActor(Progression.Template, EquipmentSlots.Select(slot => slot.Type)) { CharacterClass = CharacterClass };
         Progression.CopyTo(clone.Progression);
         Inventory.CopyTo(clone.Inventory);
+        for (var index = 0; index < EquipmentSlots.Count; index++)
+            clone.EquipmentSlots[index].SetDefaultAppearance(EquipmentSlots[index].DefaultAppearance);
+        Character.Health.CopyTo(clone.Character.Health);
 
         return clone;
     }
@@ -80,7 +84,8 @@ public sealed class SacredGameActor
     public int EquipSet(IEnumerable<SacredEquipment> equipment)
     {
         var equipped = 0;
-        foreach (var group in equipment.Where(item => EquipmentSlots.Any(slot => EquipmentSlotRules.AcceptsItem(slot.Type, item)))
+        foreach (var group in equipment.Where(item => !item.IsAppearanceFallback &&
+                     EquipmentSlots.Any(slot => EquipmentSlotRules.AcceptsItem(slot.Type, item)))
                      .GroupBy(static item => EquipmentSlotRules.GetSlotType(item)))
         {
             var slots = EquipmentSlots

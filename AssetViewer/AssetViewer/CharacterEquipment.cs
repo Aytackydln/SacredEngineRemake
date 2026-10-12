@@ -35,7 +35,7 @@ internal static class CharacterEquipment
 
     public static ModelAttachmentReference Attachment(CharacterSlotRow slot)
     {
-        var item = slot.Slot.Equipment ?? throw new InvalidOperationException("Slot is empty.");
+        var item = slot.Slot.VisualEquipment ?? throw new InvalidOperationException("Slot has no model appearance.");
         var bones = EquipmentModelPlacement.Resolve(slot.Type, item.EquipmentType, slot.Occurrence);
         return new ModelAttachmentReference(item.Item.ModelName, bones.Item1, bones.Item2);
     }

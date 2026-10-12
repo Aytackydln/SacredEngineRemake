@@ -246,6 +246,7 @@ public readonly struct ItemsPakEntryModelDescLayout
     public uint ItemId => ResourceId;
 
     public bool IsLightEmitting => GraphicFlags.HasFlag(SacredItemGraphicFlags.LightEmitting);
+    public bool IsEquipmentFallback => GraphicFlags.HasFlag(SacredItemGraphicFlags.EquipmentFallback);
     public bool CastsStaticShadow => GraphicFlags.HasFlag(SacredItemGraphicFlags.CastsStaticShadow);
 
     /// <summary>Draws in the final world-object layer, above ordinary scenery and models.</summary>

@@ -16,6 +16,7 @@ public readonly struct SacredRuntimeVectorLayout
 }
 
 [InlineArray(19)] public struct SacredEquipmentReferences { private uint _first; }
+[InlineArray(6)] public struct SacredActorHitPointWords { private int _first; }
 
 /// <summary>Verified 2004 cCreature relationships; rendering, AI and movement bytes
 /// remain unmapped here. Gold object offsets require separate verification.</summary>
@@ -41,6 +42,13 @@ public readonly struct SacredActorComponentLayout
     [FieldOffset(0x11A)] public readonly SacredRuntimeVectorLayout ExtraBonuses;
     [FieldOffset(0x126), BinaryUnknown] public readonly byte Entry;
     [FieldOffset(0x127)] public readonly byte UpdateNetwork;
+    /// <summary>Native cCreatureHero::TP[6], signed runtime words outside sCharValHero.
+    /// HUD rendering reads TP[2] / TP[1]; other entries remain uninterpreted.</summary>
+    [FieldOffset(0x128)] public readonly SacredActorHitPointWords HitPointWords;
+    /// <summary>TP[1], written by calcHitpoints; denominator of the portrait health fraction.</summary>
+    [FieldOffset(0x12C)] public readonly int MaximumHitPoints;
+    /// <summary>TP[2], current HP; numerator of the portrait health fraction.</summary>
+    [FieldOffset(0x130)] public readonly int CurrentHitPoints;
 }
 
 /// <summary>2004 cItemBase relationships. MergedValues contains sWeaponInfo records;

@@ -8,7 +8,9 @@ using Sacred.Core.World.Sector;
 using Sacred.Engine.Rendering;
 using Sacred.Granny.Animation;
 using Sacred.Granny.Meshes;
+using Sacred.UI.Character;
 using Sacred.UI.Hud;
+using Sacred.UI.Inventory;
 using Sacred.UI.Menus;
 using Sacred.World.Particles;
 
@@ -17,6 +19,8 @@ namespace Sacred.Engine.Scene;
 public sealed class SceneState
 {
     public BottomHudState? Hud { get; set; }
+    public EquipmentUiState EquipmentUi { get; } = new();
+    public ActorPortraitPanelState Portraits { get; } = new();
     public EscapeMenuState? EscapeMenu { get; set; }
     private readonly List<SceneModel> _models = new(capacity: 32);
 

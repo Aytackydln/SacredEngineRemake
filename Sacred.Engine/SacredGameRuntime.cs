@@ -94,6 +94,8 @@ internal sealed partial class SacredGameRuntime : IDisposable
         _gamepad.Poll(_window.Input);
         UpdateCheatTerminal();
         _cheats.Update(ExecuteCheat);
+        _gameServer.Update();
+        _gameServerFiles.Update();
         if (_window.Input.ConsumePressed(VirtualKey.F12))
             CaptureScreenshot(null);
         if (!_debugUiControls.Terminal.IsOpen)
@@ -318,6 +320,7 @@ internal sealed partial class SacredGameRuntime : IDisposable
             return;
 
         _disposed = true;
+        _gameServer.Dispose();
         _cheats.Dispose();
         _scenes.Dispose();
         _resourceLoader.Dispose();
@@ -496,6 +499,8 @@ internal sealed partial class SacredGameRuntime : IDisposable
         switch (command)
         {
             case HelpCheatCommand:
+                EngineLog.WriteLine("Multiplayer: set server <host:port>; set server status; set server disconnect. TinCat connection and Sacred gameplay admission are reported separately.");
+                EngineLog.WriteLine("LAN compatibility: set server-files check; set server-files status. Reads the selected installation without blocking rendering.");
                 EngineLog.WriteLine("Sector streaming: set sectors <4|9>; set sector-upload-wait <on|off>. Defaults: 4 sectors; upload waiting off.");
                 EngineLog.WriteLine("Map: set map <ancaria|underworld|close|status>; set map-names <on|off>; set map-npcs <on|off>; set map-fit now.");
                 EngineLog.WriteLine("Map UI: set map-ui <close|waypoint|status> invokes native control actions; set map-panel <on|off> shows the diagnostic panel.");
@@ -511,6 +516,8 @@ internal sealed partial class SacredGameRuntime : IDisposable
                 EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set particles <on|off>; set particle-simulation <Auto|CpuSimd|CpuScalar|Gpu|GpuOnly>; set particle-stats show; set item-flags <hex>; set character next; set facing <degrees>; set path <x>,<y>; set door toggle; set door-list show; set hdr <on|off>; set hdr-brightness <nits|os>; set hdr-scene-format <packed|fp16>; set hdr-unlit-multiplier <0-4>; set hdr-particle-multiplier <0-4>; set pacing <vrr|vsync|limit|manual>; set fps <30-1000>; set latency <off|on|boost>; set resolution <percentage|auto>; set autoscale <on|off>; set scaling <none|bilinear|fsr1|fsr2|fsr1motionadaptive>; set granny <managed|native>.");
                 EngineLog.WriteLine("Footprints: set footprints <on|off|clear|status>; set move <x,y|stop|status> moves through the normal camera/collision path without simulated input.");
                 EngineLog.WriteLine("Bottom HUD: set hud status reports the calendar and loading state; set hud map invokes the map button action.");
+                EngineLog.WriteLine("Inventory: set hud inventory toggles the panel; set inventory <open|close|toggle|status|slot-index>; set equipment <status|clear>; set equip <model-id>; set unequip <slot-index>; set equip-set <set-index>. I toggles inventory; Escape closes it.");
+                EngineLog.WriteLine("Portraits: set portraits status; set health <0..100>; set party <status|clear|add:character-index|health:member-index:percent>. New runtime actors begin fully healed.");
                 EngineLog.WriteLine("Escape menu: set hud options opens the gears menu; set menu <open|close|escape|up|down|activate|status|continue|quit|cancelquit> controls it without simulated input.");
                 EngineLog.WriteLine("Portals: set portals status lists default-open script billboards, triggers and destinations.");
                 EngineLog.WriteLine("World transitions: set transitions status lists nearby script stairs/teleports and the current surface level.");
@@ -626,6 +633,8 @@ internal sealed partial class SacredGameRuntime : IDisposable
 
     private bool TrySetEngineCheatOption(string option, string value, out string message)
     {
+        if (TrySetServerCompatibilityOption(option, value, out message)) return true;
+        if (_gameServer.TrySetOption(option, value, out message)) return true;
         if (TrySetSectorStreamingOption(option, value, out message)) return true;
         switch (option.ToLowerInvariant())
         {

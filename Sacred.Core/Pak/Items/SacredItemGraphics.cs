@@ -44,8 +44,9 @@ public enum SacredItemGraphicFlags : ushort
     /// <summary>Observed unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
     Byte0100 = 0x0100,
 
-    /// <summary>Observed unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
-    Byte0200 = 0x0200,
+    /// <summary>Invisible inventory fallback, such as hair or a base skirt. Native
+    /// isFallbackItem tests combined descriptor bit 25 (Demo 0x413EA0 / Gold 0x426550).</summary>
+    EquipmentFallback = 0x0200,
 
     /// <summary>Observed unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
     Animal = 0x0400,

@@ -9,12 +9,24 @@ public sealed class EquipmentSlot(EquipmentSlotType type)
     public EquipmentSlotType Type { get; } = type;
     public SacredItemInstance? Instance { get; private set; }
     public SacredEquipment? Equipment => Instance?.Definition;
+    /// <summary>Authored appearance for an empty slot; never an owned or equipped item.</summary>
+    public SacredEquipment? DefaultAppearance { get; private set; }
+    public SacredEquipment? VisualEquipment => Equipment ?? DefaultAppearance;
     public event Action? Changed;
+
+    internal void SetDefaultAppearance(SacredEquipment? equipment)
+    {
+        DefaultAppearance = equipment;
+        Changed?.Invoke();
+    }
 
     public void Equip(SacredEquipment equipment) => Equip(SacredItemInstance.FromDefinition(equipment));
     public void Equip(SacredItemInstance instance)
     {
-        Instance = instance ?? throw new ArgumentNullException(nameof(instance));
+        ArgumentNullException.ThrowIfNull(instance);
+        if (instance.Definition.IsAppearanceFallback)
+            throw new ArgumentException("Appearance fallbacks cannot be inventory items.", nameof(instance));
+        Instance = instance;
         Changed?.Invoke();
     }
     public void Unequip()

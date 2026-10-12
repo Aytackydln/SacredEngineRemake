@@ -33,6 +33,7 @@ public static class EquipmentSlotRules
 
     public static bool CanEquip(SacredCharacterClass characterClass, SacredEquipment equipment)
     {
+        if (equipment.IsAppearanceFallback) return false;
         var allowedClasses = equipment.EffectiveCharacterClassMask;
         return allowedClasses == SacredCharacterClassMask.None ||
                allowedClasses.HasFlag(characterClass.ToMask());

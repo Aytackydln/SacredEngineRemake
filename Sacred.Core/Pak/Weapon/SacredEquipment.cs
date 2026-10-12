@@ -93,8 +93,9 @@ public readonly struct SacredEquipmentLayout
     [FieldOffset(132)]
     public readonly uint RawFlags;
 
-    /// <summary>Stored character-class availability flags. The six main-story bits (0x3F)
-    /// permit Underworld heroes too; Classification exposes the effective eligibility mask.</summary>
+    /// <summary>Stored character availability bits. Bit 5 denotes day Vampiress and bit 6
+    /// denotes night Vampiress on authored fallback items. Underworld class selectors live
+    /// in bits 22/23 of RawFlags. Classification exposes the effective eligibility mask.</summary>
     [FieldOffset(132)]
     public readonly SacredCharacterClassMask CharacterClassMask;
 
@@ -188,6 +189,9 @@ public readonly record struct SacredEquipment(
     public SacredCharacterClassMask EffectiveCharacterClassMask => Classification.EffectiveCharacterClassMask;
     public SacredEquipmentType EquipmentType => Classification.ResolveEquipmentType(Item.ModelDesc.Category);
     public SacredEquipmentRarityTier RarityTier => Classification.RarityTier;
+    /// <summary>Authored fallback definition. Ordinary items may inherit the same visual
+    /// descriptor through BaseItemId; that does not make them actor defaults.</summary>
+    public bool IsAppearanceFallback => BaseItemId == 0 && Item.ModelDesc.IsEquipmentFallback;
     public SacredEquipmentHandedness InferredHandedness => Classification.InferHandedness(UsageIdentifier, Height);
 
     public bool? InferredTwoHanded => InferredHandedness switch

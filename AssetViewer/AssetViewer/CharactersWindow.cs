@@ -26,6 +26,7 @@ internal sealed class CharactersWindow : Window, IAssetViewerWindow
     private bool _updatingAnimations;
     private bool _playing = true;
     private readonly CharacterEquipmentSlotsPane _equipmentSlots;
+    private readonly CharacterQuickSlotHost _quickslot;
     private readonly CharacterBackpackPane _backpack;
     private CharacterSlotRow[] _slots = [];
     private readonly CharacterEquipmentRow[] _equipment;
@@ -47,9 +48,10 @@ internal sealed class CharactersWindow : Window, IAssetViewerWindow
         Width = 1600; Height = 950;
         _characters = new(session.Items.Where(item => item.ModelDesc.Category == SacredItemCategory.Creature)
             .Select(item => new ModelAssetRow(item)), row => $"{row.EntryId} {row.ResourceId} {row.Model}");
-        _equipment = session.Equipment.Select(item => new CharacterEquipmentRow(item,
+        _equipment = session.Equipment.Where(item => !item.IsAppearanceFallback).Select(item => new CharacterEquipmentRow(item,
             session.Data.GameResStore.GetString(item.IdemId.ToString(CultureInfo.InvariantCulture), item.Name))).ToArray();
         _equipmentSlots = new(session);
+        _quickslot = new(session);
         _backpack = new(_equipment);
         _preview = new(session);
         _profile.ItemsSource = new object[] { "NPC · unrestricted class" }.Concat(Enum.GetValues<SacredCharacterClass>().Cast<object>()).ToArray();
@@ -76,6 +78,7 @@ internal sealed class CharactersWindow : Window, IAssetViewerWindow
         Grid.SetColumn(_animation, 1); animationBar.Children.Add(_animation);
         Grid.SetColumn(_playPause, 2); animationBar.Children.Add(_playPause);
         DockPanel.SetDock(animationBar, Dock.Top); previewPanel.Children.Add(animationBar);
+        DockPanel.SetDock(_quickslot, Dock.Bottom); previewPanel.Children.Add(_quickslot);
         previewPanel.Children.Add(_preview);
         Grid.SetColumn(previewPanel, 2); _root.Children.Add(previewPanel);
         Grid.SetColumn(inventoryPanel, 3); _root.Children.Add(inventoryPanel);
@@ -98,16 +101,17 @@ internal sealed class CharactersWindow : Window, IAssetViewerWindow
         };
         _animation.SelectionChanged += (_, _) => { if (!_updatingAnimations) RebuildPreview(); };
         _playPause.Click += (_, _) => SetAnimationPlaying(!_playing);
-        _equipmentSlots.SelectionChanged += _ => FilterEquipment();
+        _equipmentSlots.SelectionChanged += row => { _quickslot.Refresh(row); FilterEquipment(); };
+        _quickslot.Selected += row => _equipmentSlots.Select(row);
         _backpack.SelectionChanged += RefreshDescription;
         _backpack.EquipRequested += (slot, item) => Equip(slot.Index, item.EntryId);
         _backpack.UnequipRequested += slot => Unequip(slot.Index);
         _backpack.ClearRequested += ClearInventory;
-        Closed += (_, _) => { _preview.Cancel(); _description.Cancel(); _artPresentation.Dispose(); _equipmentSlots.Dispose(); };
+        Closed += (_, _) => { _preview.Cancel(); _description.Cancel(); _artPresentation.Dispose(); _equipmentSlots.Dispose(); _quickslot.Dispose(); };
         ResetInventory();
     }
 
-    public Task Ready => Task.WhenAll(_preview.CurrentLoad, _description.Ready, _artPresentation.Ready, _equipmentSlots.Ready);
+    public Task Ready => Task.WhenAll(_preview.CurrentLoad, _description.Ready, _artPresentation.Ready, _equipmentSlots.Ready, _quickslot.Ready);
     public void Select(ushort id) => _characters.Select(row => row.EntryId == id);
     public void SetClass(string name)
     {
@@ -189,6 +193,7 @@ internal sealed class CharactersWindow : Window, IAssetViewerWindow
             var characterClass = ResolveClass(template?.PlayableClassMask ?? SacredCharacterClassMask.None);
             _actor = characterClass is { } playable ? new SacredGameActor(playable, template)
                 : new SacredGameActor(template, [EquipmentSlotType.LeftHand, EquipmentSlotType.RightHand]);
+            SacredActorAppearance.Configure(_actor, _session.Equipment);
             _actor.Progression.ConfigureCombatArts(_session.Data.CombatArts.Entries);
             _actors.Add(character.EntryId, _actor);
         }
@@ -200,6 +205,7 @@ internal sealed class CharactersWindow : Window, IAssetViewerWindow
             return new CharacterSlotRow(index, slot) { Occurrence = occurrence };
         }).ToArray();
         _equipmentSlots.SetActor(_slots, ResolveClass(_actor.Progression.Template?.PlayableClassMask ?? SacredCharacterClassMask.None));
+        _quickslot.SetActor(_slots);
         _stats.SelectActor(_actor);
         RefreshInventory();
         RebuildPreview();
@@ -208,6 +214,7 @@ internal sealed class CharactersWindow : Window, IAssetViewerWindow
     private void RefreshInventory(CharacterSlotRow? selected = null)
     {
         _equipmentSlots.Refresh();
+        _quickslot.Refresh(selected ?? _equipmentSlots.Selected);
         if (selected is not null) _equipmentSlots.Select(selected);
         FilterEquipment();
     }
@@ -233,13 +240,13 @@ internal sealed class CharactersWindow : Window, IAssetViewerWindow
     {
         if (_characters.Selected is not { } character) return;
         if (string.IsNullOrWhiteSpace(character.Model)) { _preview.ShowStatus($"Creature row {character.EntryId} has no 3D model."); return; }
-        var attachments = _slots.Where(slot => slot.Slot.Equipment is { Item.ModelName.Length: > 0 }).ToArray();
+        var attachments = _slots.Where(slot => slot.Slot.VisualEquipment is { Item.ModelName.Length: > 0 }).ToArray();
         var references = attachments.Select(CharacterEquipment.Attachment).ToArray();
         foreach (var (slot, reference) in attachments.Zip(references))
             Console.WriteLine($"[Assets] Model slot {slot.Index}: {slot.Type} {slot.Occurrence + 1}; {reference.ModelName}; " +
                 (reference.RigidAttachBoneName is { } bone ? $"{reference.SourceAttachBoneName} -> {bone}" : "wearable skeleton"));
         var visuals = new[] { new ModelPreviewVisual(character.Item) }.Concat(attachments.Select((slot, index) =>
-            new ModelPreviewVisual(slot.Slot.Equipment!.Value.Item, slot.Slot.Equipment,
+            new ModelPreviewVisual(slot.Slot.VisualEquipment!.Value.Item, slot.Slot.VisualEquipment,
                 references[index].RigidAttachBoneName))).ToArray();
         var animation = _animation.SelectedItem as CharacterAnimationChoice ?? CharacterAnimationChoice.BindPose;
         _ = _preview.LoadActorAsync(character.Model, async token =>

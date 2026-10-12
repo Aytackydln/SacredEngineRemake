@@ -21,6 +21,7 @@
     <PackageReference Include="Vortice.Direct2D1" Version="3.8.3" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Sacred.Network\Sacred.Network.csproj" />
     <ProjectReference Include="..\Sacred.Core\Sacred.Core.csproj" />
     <ProjectReference Include="..\Sacred.Assets\Sacred.Assets.csproj" />
     <ProjectReference Include="..\Sacred.Granny\Sacred.Granny.csproj" />

@@ -22,6 +22,7 @@ public enum VirtualKey : uint
     D = 0x44,
     E = 0x45,
     F = 0x46,
+    I = 0x49,
     M = 0x4D,
     Q = 0x51,
     S = 0x53,

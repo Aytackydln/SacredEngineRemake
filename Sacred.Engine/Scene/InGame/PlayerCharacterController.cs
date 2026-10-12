@@ -12,6 +12,7 @@ using Sacred.Engine.Graphics.ImGui;
 using Sacred.Granny.Assets;
 using Sacred.Granny.Meshes;
 using Sacred.Inventory.Actors;
+using Sacred.Inventory.Items;
 using Sacred.World;
 using Sacred.World.Geometry;
 
@@ -182,6 +183,19 @@ internal sealed class PlayerCharacterController : IDisposable
         return true;
     }
 
+    internal bool EquipEquipment(uint modelId)
+    {
+        var actor = _loadout.Actor;
+        if (!_assets.TryGetEquipmentDefinition(modelId, out var equipment) ||
+            !EquipmentSlotRules.CanEquip(actor.CharacterClass, equipment)) return false;
+        var index = actor.EquipmentSlots.ToList().FindIndex(s => EquipmentSlotRules.AcceptsItem(s.Type, equipment));
+        if (index < 0) return false;
+        actor.Equip(index, SacredItemInstance.FromDefinition(equipment));
+        RequestModel(_loadout);
+        EngineLog.WriteLine($"Debug input: equipped model {modelId}; {equipment.Name}; slot {index}.");
+        return true;
+    }
+
     public bool RemoveAllEquipment()
     {
         var removed = 0;
@@ -261,6 +275,8 @@ internal sealed class PlayerCharacterController : IDisposable
 
     private void RequestModel(PlayerCharacterLoadout loadout)
     {
+        _scene.EquipmentUi.Bind(loadout.Actor);
+        _scene.Portraits.BindPlayer(loadout.Actor);
         var entryId = loadout.EntryId;
         PlayerModelRequest? supersededRequest;
         PlayerModelRequest request;

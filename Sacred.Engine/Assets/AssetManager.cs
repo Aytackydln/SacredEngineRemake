@@ -22,6 +22,7 @@ using Sacred.Granny.Abstractions;
 using Sacred.Granny.Assets;
 using Sacred.Inventory.Actors;
 using Sacred.Inventory.Effects;
+using Sacred.Inventory.Items;
 using Sacred.Particles;
 using Sacred.World.Objects;
 
@@ -141,14 +142,24 @@ public sealed class AssetManager : IDisposable
         var definition = GetPlayerCharacterDefinition(entryId);
         var template = CreatureTemplates?.ResolveTemplate(ResolvePlayerCharacterItem(definition.BaseItemId));
         var actor = new SacredGameActor(definition.CharacterClass, template);
+        SacredActorAppearance.Configure(actor, _equipmentByModelId.Values);
         actor.Progression.ConfigureCombatArts(_combatArts.Entries);
         foreach (var (slot, itemId) in definition.Items)
         {
             if (!TryResolveEquipment(itemId, out var equipment))
                 continue;
 
-            actor.EquipmentSlots.FirstOrDefault(candidate =>
-                candidate.Type == slot.ToEquipmentSlotType() && candidate.Equipment is null)?.Equip(equipment);
+            var target = actor.EquipmentSlots.FirstOrDefault(candidate =>
+                candidate.Type == slot.ToEquipmentSlotType() && candidate.Equipment is null);
+            if (target is not null)
+            {
+                // Developer loadouts retain explicit dual-wield hand placement.
+                // Armor/accessory assignments must agree with the authored item family.
+                if (target.Type is EquipmentSlotType.LeftHand or EquipmentSlotType.RightHand)
+                    target.Equip(equipment);
+                else
+                    actor.Equip(actor.EquipmentSlots.IndexOf(target), SacredItemInstance.FromDefinition(equipment));
+            }
         }
 
         return new PlayerCharacterLoadout(entryId, definition, actor);
@@ -948,6 +959,18 @@ public sealed class AssetManager : IDisposable
         }
     }
 
+    internal async Task<WorldModelAsset> LoadEquipmentPreviewAsync(SacredEquipment equipment)
+    {
+        var model = await LoadGrnModelAsync(equipment.Item.ModelName).ConfigureAwait(false);
+        return new(equipment.Item, model, CreateModelTextureAliases(model, equipment.Item), null, null);
+    }
+
+    internal bool TryGetEquipmentDefinition(uint modelId, out SacredEquipment equipment)
+    {
+        equipment = default;
+        return modelId <= ushort.MaxValue && _equipmentByModelId.TryGetValue((ushort)modelId, out equipment);
+    }
+
     public Task<GrnAsset> LoadGrnModelAsync(string relativePath, CancellationToken cancellationToken = default)
     {
         return LoadGrnModelAsync(
@@ -1245,12 +1268,11 @@ public sealed class AssetManager : IDisposable
 
     private ItemsPakEntry ResolvePlayerCharacterItem(uint itemId)
     {
-        if (!_itemsByItemId.TryGetValue(itemId, out var items))
-            throw new FileNotFoundException($"Player character item id {itemId} was not found in Items.pak.");
+        if (itemId > ushort.MaxValue || !_itemsByModelId.TryGetValue((ushort)itemId, out var item))
+            throw new FileNotFoundException($"Player character row {itemId} was not found in Items.pak.");
 
-        var item = items[0];
         if (string.IsNullOrWhiteSpace(item.ModelName))
-            throw new FileNotFoundException($"Player character item id {itemId} does not reference a model in Items.pak.");
+            throw new FileNotFoundException($"Player character row {itemId} does not reference a model in Items.pak.");
 
         return item;
     }
@@ -1263,7 +1285,7 @@ public sealed class AssetManager : IDisposable
         {
             var occurrence = occurrences.GetValueOrDefault(slot.Type);
             occurrences[slot.Type] = occurrence + 1;
-            if (slot.Equipment is { Item.ModelName.Length: > 0 } equipment)
+            if (slot.VisualEquipment is { Item.ModelName.Length: > 0 } equipment)
                 attachments.Add(new(slot.Type, equipment) { SlotOccurrence = occurrence });
         }
         return attachments.ToArray();

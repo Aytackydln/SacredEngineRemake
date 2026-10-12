@@ -19,6 +19,7 @@ public sealed class EquipmentPanelAssets
     public EquipmentPanelFrame Frame { get; }
     public UiTextureRegion WeaponSlotArt { get; }
     public UiTextureRegion WeaponSlotBackground { get; }
+    public WeaponQuickSlotLayout QuickSlot { get; }
     public IReadOnlyDictionary<string, TextureAsset> Textures { get; }
 
     private EquipmentPanelAssets(IReadOnlyList<SacredExecutableUiTextureDefinitionLayout> table,
@@ -30,6 +31,7 @@ public sealed class EquipmentPanelAssets
         Frame = new(table);
         WeaponSlotArt = new(table[103]); // Active taskbar hand frame.
         WeaponSlotBackground = BottomHudSlotBackgrounds.Hand(table);
+        QuickSlot = new(table);
         Textures = textures;
     }
 

@@ -2,18 +2,28 @@
 
 The Inventory components now include the native character equipment layouts,
 original equipment panel artwork and ornaments, and hand-slot item placement.
-AssetViewer hosts armor and weapon controls separately from its backpack browser,
-descriptions and stats. See [equipment research](../docs/research/ui-components/equipment-slots.md)
+Engine uses `VerticalPanelLayout` to stack the independent, unbound 388-pixel
+stats component above the 256-pixel equipment-slot component. AssetViewer hosts
+only the equipment slots, with no stats artwork or reserved stats space.
+Equipment and stats assets load independently. WeaponQuickSlotLayout draws main hand and offhand together
+in one taskbar frame, separately from the inventory. AssetViewer hosts this
+quickslot below its character preview. See [equipment research](../docs/research/ui-components/equipment-slots.md)
 for the eight character layouts and mapped Weapon.pak hand-offset bytes.
 
 Shared presentation for Sacred's original interface, usable by the Engine,
 AssetViewer, item generator and combat simulator described in
 [GameSystems.md](../GameSystems.md). This is a library, not a new application.
 
+`Sacred.UI.Character` now includes the top-right player and companion-party
+portrait column. Native atlas selectors come from the original executable switch;
+health binds to `SacredGameActor.Character.Health`, initially 100%. Runtime party
+members occupy the following native portrait slots. The Engine keeps inventory
+left of this column with the native gap. See [portrait findings](../docs/research/ui-components/actor-portraits.md).
+
 The bottom-center HUD is implemented in `Sacred.UI.Hud`: original panel artwork,
 inventory/options/map/quest-book/collect buttons, and the rotating day/night dial.
-The Engine hosts its DX12 drawing and pointer input. Only the map action is wired;
-the remaining buttons show their native up/down states. HUD clicks capture the
+The Engine hosts its DX12 drawing and pointer input. Inventory, options and map
+actions are wired. HUD clicks capture the
 pointer before world movement, with release-inside activation and drag cancellation.
 
 ## Existing code moved here
@@ -61,6 +71,14 @@ resolution, and shares the existing SDR/HDR UI composition.
 
 Console diagnostics: `set hud status`, `set hud map`, `set lighting day`,
 `set lighting night`, `set lighting cycle`, and `screenshot <label>`.
+
+Inventory controls: `set hud inventory`, `set inventory <open|close|toggle|status|slot-index>`,
+`set equipment <status|clear>`, `set equip <model-id>`, `set unequip <slot-index>`,
+and `set equip-set <set-index>`. The inventory button and **I** toggle the panel;
+**Escape** closes it before opening the menu. Slot clicks consume pointer gestures
+before world movement. The DX12 item atlas uses authored Weapon.pak transforms,
+depth testing and separate resources for each retired frame, without particles
+or model-bound fitting. [Integration findings](../docs/research/ui-components/engine-inventory.md).
 
 ## Escape menu integration
 

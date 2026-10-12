@@ -39,6 +39,8 @@ internal sealed class InGameScene : IGameScene
     private readonly WorldLightingController _worldLighting;
     private readonly InGameInputController _inputController;
     private readonly BottomHudInputController _hudInput;
+    private readonly InventoryInputController _inventoryInput;
+    private readonly ActorPortraitInputController _portraitInput;
     private readonly EscapeMenuController _escapeMenu;
     private readonly Win32Window _window;
     private readonly SacredGameSaveState _saveState;
@@ -102,12 +104,21 @@ internal sealed class InGameScene : IGameScene
             {
                 if (menu.IsOpen) return;
                 if (button == HudButton.Options) { menu.Open(); return; }
+                if (button == HudButton.Inventory)
+                {
+                    _scene.EquipmentUi.SetOpen(!_scene.EquipmentUi.IsOpen);
+                    return;
+                }
                 if (button != HudButton.Map) return;
                 _scene.Minimap.IsVisible = false;
                 EngineLog.WriteLine("World map requested by bottom HUD.");
                 requestSwitch(GameSceneId.WorldMap);
             });
         hud.Activated += _hudInput.Activate;
+        _inventoryInput = new(_scene.EquipmentUi, window.Input,
+            () => new Vector2(window.ClientWidth, window.ClientHeight));
+        _portraitInput = new(_scene.Portraits, window.Input,
+            () => new Vector2(window.ClientWidth, window.ClientHeight));
         _scene.Debug.StairsMapVisible = saveState.StairsTilesVisible;
         _scene.Debug.BlockedAreasVisible = saveState.BlockedTilesVisible;
         _scene.Minimap.DifficultyDisplayName = "Silver";
@@ -128,6 +139,12 @@ internal sealed class InGameScene : IGameScene
             () => renderer.RenderHeight,
             renderer.OutputToRender,
             window.SetHandCursor);
+        _scene.EquipmentUi.Changed += () =>
+        {
+            _hudInput.Cancel();
+            _inputController.SuspendGameplayInput();
+            EngineLog.WriteLine($"Inventory {(_scene.EquipmentUi.IsOpen ? "opened" : "closed")}: stats artwork and armor/accessory slots.");
+        };
         _escapeMenu = new EscapeMenuController(menu, window.Input,
             () => new Vector2(window.ClientWidth, window.ClientHeight), () =>
             {
@@ -214,6 +231,9 @@ internal sealed class InGameScene : IGameScene
     internal bool TrySetCheatOption(string option, string value, out string message)
     {
         if (_escapeMenu.TrySetCheatOption(option, value, out message)) return true;
+        if (PlayerEquipmentCheats.TryExecute(option, value, _player, out message)) return true;
+        if (InventoryPanelCheats.TryExecute(option, value, _scene.EquipmentUi, out message)) return true;
+        if (ActorPortraitCheats.TryExecute(option, value, _scene.Portraits, _assets, out message)) return true;
         if (_playerParticles.TrySetCheatOption(option, value, _camera.WorldCenter, out message)) return true;
         if (PlayerMovementCheats.TrySetOption(option, value, _camera, _inputController, out message)) return true;
         if (WorldFocusCheats.TrySetOption(option, value, _inputController, _doors, _camera,
@@ -221,7 +241,7 @@ internal sealed class InGameScene : IGameScene
         switch (option.ToLowerInvariant())
         {
             case "hud" when value.Equals("status", StringComparison.OrdinalIgnoreCase):
-                message = $"bottom HUD {(_scene.Hud!.Layout is null ? "loading" : "ready")}; calendar {_worldLighting.DayFraction * 24:0.00}h; map action available";
+                message = $"bottom HUD {(_scene.Hud!.Layout is null ? "loading" : "ready")}; calendar {_worldLighting.DayFraction * 24:0.00}h; inventory, options and map actions available";
                 return true;
             case "hud" when Enum.TryParse<HudButton>(value, true, out var hudButton) && Enum.IsDefined(hudButton):
                 _scene.Hud!.Activate(hudButton);
@@ -381,6 +401,7 @@ internal sealed class InGameScene : IGameScene
     }
     public void OnDeactivated()
     {
+        _scene.EquipmentUi.SetOpen(false);
         _scene.EscapeMenu!.Close();
         _scene.Hud!.Visible = false;
         _hudInput.Cancel();
@@ -389,8 +410,17 @@ internal sealed class InGameScene : IGameScene
     }
     public void Update(float deltaSeconds)
     {
+        var input = _window.Input;
+        if (!_scene.EscapeMenu!.IsOpen && !input.UiWantsKeyboard)
+        {
+            if (input.ConsumePressed(VirtualKey.I)) _scene.EquipmentUi.SetOpen(!_scene.EquipmentUi.IsOpen);
+            if (_scene.EquipmentUi.IsOpen && input.ConsumePressed(VirtualKey.Escape))
+                _scene.EquipmentUi.SetOpen(false);
+        }
         if (_escapeMenu.Update()) return;
         _hudInput.Update();
+        _inventoryInput.Update();
+        _portraitInput.Update();
         if (_scene.EscapeMenu!.IsOpen) return;
         _inputController.Update(deltaSeconds);
         _scene.Hud!.DayFraction = _worldLighting.DayFraction;

@@ -73,6 +73,9 @@ public sealed class SacredGame : IDisposable
 
     public SacredGameSaveState CaptureSaveState() => _runtime.CaptureSaveState();
 
+    /// <summary>Queues a Gold gameplay TinCat connection; status is logged on the game thread.</summary>
+    public void RequestServerConnection(string endpoint) => _runtime.RequestServerConnection(endpoint);
+
     /// <summary>Queues a campaign switch for the game thread. Available after world loading completes.
     /// The loading screen rebuilds scene state; completion and rejection are logged to the console.</summary>
     public void RequestCampaignChange(string campaignScriptsDirectory) =>

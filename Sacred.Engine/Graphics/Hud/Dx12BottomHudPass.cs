@@ -1,11 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using System.Threading.Tasks;
 using ImGuiNET;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Scene;
+using Sacred.Inventory.Actors;
 using Sacred.UI.Hud;
+using Sacred.UI.Inventory;
 using Sacred.UI.Textures;
 using Vortice.Direct3D12;
 
@@ -21,6 +24,9 @@ internal sealed class Dx12BottomHudPass : IDisposable
     private readonly List<ID3D12Resource> _textures = [];
     private BottomHudAssets? _assets;
     private bool _failed;
+    private readonly Dx12EquipmentPreviewPass _previews;
+    private readonly Dx12InventoryPanelPass _inventory;
+    private readonly Dx12ActorPortraitPass _portraits;
 
     public Dx12BottomHudPass(AssetManager assets, string gameDirectory,
         Dx12DeviceContext graphics, Dx12TextureUploader uploader)
@@ -28,6 +34,9 @@ internal sealed class Dx12BottomHudPass : IDisposable
         _graphics = graphics;
         _uploader = uploader;
         _load = BottomHudAssets.LoadAsync(gameDirectory, name => assets.LoadTextureAsync(name));
+        _previews = new(assets, graphics, uploader);
+        _inventory = new(assets, gameDirectory, graphics, uploader);
+        _portraits = new(assets, gameDirectory, graphics, uploader);
     }
 
     public void Build(SceneState scene)
@@ -39,15 +48,25 @@ internal sealed class Dx12BottomHudPass : IDisposable
         var viewport = new Vector2(_graphics.OutputWidth, _graphics.OutputHeight);
         // Background draw data is recorded with the output UI, behind any diagnostic windows.
         var draw = ImGuiNET.ImGui.GetBackgroundDrawList();
+        var actor = scene.EquipmentUi.Actor;
+        if (actor is not null)
+            _previews.Prepare(actor.EquipmentSlots.Where(s => s.Equipment.HasValue).Select(s => s.Equipment!.Value));
         foreach (var wing in layout.QuickSlots.Wings)
             DrawRegion(draw, wing.Region, wing.Position, viewport);
         DrawRegion(draw, layout.Panel, layout.PanelPosition, viewport);
         var handBackground = layout.QuickSlots.HandBackground;
-        DrawRegion(draw, handBackground.Region, handBackground.Position, viewport);
+        var mainHand = actor?.EquipmentSlots.FirstOrDefault(s => s.Type == EquipmentSlotType.RightHand)?.Equipment;
+        var offhand = actor?.EquipmentSlots.FirstOrDefault(s => s.Type == EquipmentSlotType.LeftHand)?.Equipment;
+        if (mainHand is null && offhand is null)
+            DrawRegion(draw, handBackground.Region, handBackground.Position, viewport);
         foreach (var background in layout.QuickSlots.CombatArtBackgrounds)
             DrawRegion(draw, background.Region, background.Position, viewport);
         var handSlot = layout.QuickSlots.HandSlot;
         DrawRegion(draw, handSlot.Region, handSlot.Position, viewport);
+        var handOrigin = BottomHudLayout.ToScreen(handSlot.Position, viewport);
+        var scale = BottomHudLayout.GetScale(viewport);
+        foreach (var hand in WeaponQuickSlotLayout.Items(mainHand, offhand))
+            _previews.Draw(draw, hand.Equipment, handOrigin, scale, true, hand.Offset.X);
         foreach (var slot in layout.QuickSlots.CombatArtSlots)
             DrawRegion(draw, slot.Region, slot.Position, viewport);
         DrawDial(draw, BottomHudAssets.DayNightDisc, state.DayFraction, viewport);
@@ -59,6 +78,8 @@ internal sealed class Dx12BottomHudPass : IDisposable
             var down = state.PressedButton == button.Button && state.HoveredButton == button.Button;
             DrawRegion(draw, down ? button.Down : button.Up, button.Position, viewport);
         }
+        _inventory.Build(scene.EquipmentUi, _previews, viewport);
+        _portraits.Build(scene);
     }
 
     private bool EnsureTextures()
@@ -111,5 +132,7 @@ internal sealed class Dx12BottomHudPass : IDisposable
         // Observe faults even if this world was disposed before the asynchronous load completed.
         _ = _load.ContinueWith(task => _ = task.Exception, TaskContinuationOptions.OnlyOnFaulted);
         foreach (var texture in _textures) texture.Dispose();
+        _inventory.Dispose(); _previews.Dispose();
+        _portraits.Dispose();
     }
 }

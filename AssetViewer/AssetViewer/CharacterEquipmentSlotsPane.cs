@@ -10,7 +10,7 @@ using Sacred.UI.Inventory;
 
 namespace AssetViewer.AssetViewer;
 
-/// <summary>Composes independent armor and weapon controls; stats and backpack are sibling components.</summary>
+/// <summary>Hosts only equipment slots; stats and weapon quickslots are independent components.</summary>
 internal sealed class CharacterEquipmentSlotsPane : UserControl, IDisposable
 {
     private readonly StackPanel _panel = new() { Spacing = 8 };
@@ -20,7 +20,6 @@ internal sealed class CharacterEquipmentSlotsPane : UserControl, IDisposable
     private EquipmentPanelAssets? _assets;
     private EquipmentPanelArtwork? _artwork;
     private CharacterArmorSlotsPane? _armor;
-    private CharacterWeaponSlotsPane? _weapons;
     private CharacterSlotRow[] _rows = [];
     private SacredCharacterClass? _class;
     private bool _disposed;
@@ -70,7 +69,7 @@ internal sealed class CharacterEquipmentSlotsPane : UserControl, IDisposable
         Console.WriteLine($"[Equipment layout] {_class?.ToString() ?? "NPC"}: {Controls().Length} controls; selected {Selected?.Index}.");
     }
 
-    private EquipmentSlotControl[] Controls() => (_armor?.Slots ?? []).Concat(_weapons?.Slots ?? []).ToArray();
+    private EquipmentSlotControl[] Controls() => (_armor?.Slots ?? []).ToArray();
 
     private async Task LoadAsync(AssetViewerSession session)
     {
@@ -97,7 +96,6 @@ internal sealed class CharacterEquipmentSlotsPane : UserControl, IDisposable
     {
         if (_assets is null || _artwork is null || _rows.Length == 0) return;
         _armor?.Dispose(); _armor = null;
-        _weapons?.Dispose();
         _panel.Children.Clear();
         _panel.Children.Add(new TextBlock { Text = "Equipment slots", FontWeight = FontWeight.Bold });
         if (_class is { } characterClass)
@@ -106,11 +104,9 @@ internal sealed class CharacterEquipmentSlotsPane : UserControl, IDisposable
             _panel.Children.Add(new Viewbox { Child = _armor, Stretch = Stretch.Uniform,
                 StretchDirection = StretchDirection.Both, HorizontalAlignment = HorizontalAlignment.Stretch });
         }
-        _weapons = new(_rows, _assets, _artwork, _previews);
-        _panel.Children.Add(_weapons);
         _panel.Children.Add(_selected);
         foreach (var slot in Controls()) slot.Selected += Select;
-        Console.WriteLine($"[Assets] Equipment layout: {_class?.ToString() ?? "NPC"}; {_armor?.Slots.Count ?? 0} armor/accessory controls; 2 weapon controls.");
+        Console.WriteLine($"[Assets] Equipment layout: {_class?.ToString() ?? "NPC"}; {_armor?.Slots.Count ?? 0} armor/accessory controls; slots only; hands hosted by quickslot.");
     }
 
     private async Task AwaitReadyAsync()
@@ -122,7 +118,7 @@ internal sealed class CharacterEquipmentSlotsPane : UserControl, IDisposable
     public void Dispose()
     {
         _disposed = true;
-        _armor?.Dispose(); _weapons?.Dispose();
+        _armor?.Dispose();
         _artwork?.Dispose();
         _ = Ready.ContinueWith(_ => _previews.Dispose(), TaskScheduler.FromCurrentSynchronizationContext());
     }
