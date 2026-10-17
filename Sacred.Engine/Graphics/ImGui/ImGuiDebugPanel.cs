@@ -45,6 +45,12 @@ internal sealed class ImGuiDebugPanel(
             DrawPanel(camera, world, scene, rendererStats, framesPerSecond);
         if (controls.PlayerPanelVisible)
             DrawPlayerPanel();
+        if (controls.GameServer.Visible)
+        {
+            DearImGui.PushFont(renderer.BodyFont);
+            ImGuiGameServerPanel.Draw(controls.GameServer);
+            DearImGui.PopFont();
+        }
 
         ImGuiWorldDebugRenderer.Draw(
             camera,
@@ -79,6 +85,12 @@ internal sealed class ImGuiDebugPanel(
             controls.PlayerPanelVisible = !controls.PlayerPanelVisible;
             EngineLog.WriteLine($"Debug input: player panel {(controls.PlayerPanelVisible ? "opened" : "closed")}");
         }
+        DearImGui.SameLine();
+        if (DearImGui.Button("GameServer"))
+        {
+            controls.GameServer.Visible = !controls.GameServer.Visible;
+            EngineLog.WriteLine($"Debug input: GameServer panel {(controls.GameServer.Visible ? "opened" : "closed")}");
+        }
         DearImGui.End();
     }
 
@@ -103,6 +115,9 @@ internal sealed class ImGuiDebugPanel(
 
         DearImGui.PushFont(renderer.BodyFont);
         DearImGui.Text($"Character: {player.CharacterName}");
+        var networkActive = controls.GameServer.Connected || controls.GameServer.Joining;
+        if (networkActive) DearImGui.TextWrapped("Offline character controls are available after disconnecting from GameServer.");
+        DearImGui.BeginDisabled(networkActive);
         _playerParticles.Draw(controls);
         DearImGui.Separator();
         if (DearImGui.CollapsingHeader("Character presets", ImGuiTreeNodeFlags.DefaultOpen))
@@ -149,6 +164,7 @@ internal sealed class ImGuiDebugPanel(
             DearImGui.Text($"ID {set.SetIdentifier}  {set.ResolvedEquipmentCount}/{set.ItemCount} items");
         }
 
+        DearImGui.EndDisabled();
         DearImGui.PopFont();
         DearImGui.End();
     }

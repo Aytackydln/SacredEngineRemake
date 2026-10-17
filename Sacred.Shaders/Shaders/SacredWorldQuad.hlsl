@@ -161,9 +161,11 @@ float4 sample_lanczos2(float2 uv)
             weight_sum += weight;
         }
     }
-    color /= max(weight_sum, 0.0001f);
-    // Preserve HDR values above one while removing negative ringing.
-    return float4(max(color.rgb, 0.0f), saturate(color.a));
+    if (weight_sum < 0.0001f)
+    {
+        discard;
+    }
+    return color / weight_sum;
 }
 
 float4 sample_upscaled(float2 uv)

@@ -42,6 +42,7 @@ internal sealed class InGameInputController
     { _interaction.Cancel(); _clickToMove.NavigateTo(_camera, _collision, target, CollisionMode); }
 
     internal bool RequestInteraction() => _interaction.Request(Focus.Target, _indoors.SurfaceLevel, CollisionMode);
+    internal bool ControllerInteractionPressed() => _gamepad.WasPressed(GamepadButtons.A);
 
     internal void CancelInteraction()
     { _interaction.Cancel(); _clickToMove.StopMoving(); _camera.StopMoving(); }
@@ -179,6 +180,11 @@ internal sealed class InGameInputController
         if ((!uiWantsMouse && _input.ConsumeRightMouseButtonPressed()) || _gamepad.WasPressed(GamepadButtons.X))
             _player.PlayAttack();
 
+        if (_scene.Portraits.Player?.Movement is { } movement)
+        {
+            _camera.WalkingSpeed = movement.WalkTilesPerSecond;
+            _camera.RunningSpeed = movement.RunTilesPerSecond;
+        }
         _camera.UpdateFromInput(
             _input,
             deltaSeconds,

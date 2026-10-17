@@ -9,4 +9,5 @@ public sealed class ActorPortraitPanelState
     public SacredActorParty Party { get; } = new();
     public ActorPortraitLayout? Layout { get; set; }
     public void BindPlayer(SacredGameActor actor) => Player = actor;
+    public void ClearPlayer() => Player = null;
 }

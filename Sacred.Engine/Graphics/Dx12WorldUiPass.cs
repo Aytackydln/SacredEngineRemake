@@ -124,6 +124,7 @@ internal sealed class Dx12WorldUiPass(
             scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0);
         if (imgui.IsFrameBegun)
         {
+            hud.BuildNpcOverheads(scene);
             hud.Build(scene);
             escapeMenu.Build(scene, imgui.EscapeMenuFont);
             if (scene.EscapeMenu is not { IsOpen: true })

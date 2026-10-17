@@ -13,15 +13,17 @@ namespace Sacred.UI.Inventory;
 public sealed class WeaponQuickSlotLayout(IReadOnlyList<SacredExecutableUiTextureDefinitionLayout> table)
 {
     public UiTextureRegion Frame { get; } = new(table[103]);
+    public UiTextureRegion InactiveFrame { get; } = new(table[102]);
     public UiTextureRegion Empty { get; } = BottomHudSlotBackgrounds.Hand(table);
+    public UiTextureRegion InactiveBackground { get; } = BottomHudSlotBackgrounds.Inactive(table);
 
     public static IEnumerable<WeaponQuickSlotItem> Items(SacredEquipment? mainHand, SacredEquipment? offhand)
     {
         // Demo cUI_Taskbar2::render: two weapons receive opposing eight-pixel corrections.
         var dualWeapons = mainHand?.Item.ModelDesc.Category == SacredItemCategory.Weapon &&
             offhand?.Item.ModelDesc.Category == SacredItemCategory.Weapon;
-        if (mainHand is { } main) yield return new(EquipmentSlotType.RightHand, main, new(dualWeapons ? 8 : 0, 0));
         if (offhand is { } off) yield return new(EquipmentSlotType.LeftHand, off, new(dualWeapons ? -8 : 0, 0));
+        if (mainHand is { } main) yield return new(EquipmentSlotType.RightHand, main, new(dualWeapons ? 8 : 0, 0));
     }
 }
 

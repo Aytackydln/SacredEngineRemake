@@ -35,6 +35,7 @@ public sealed partial class SacredCamera
     private readonly DirectionalPathfindingController _gamepadPathfinding = new();
     private float _viewportZoom;
     private Vector2? _movementTarget;
+    internal Vector2? NavigationTarget => _movementTarget;
 
     internal Action<Vector2, Vector2>? ManualMovementSegment { get; set; }
     internal Func<Vector2, Vector2?>? ManualMovementAssist { get; set; }
@@ -43,6 +44,8 @@ public sealed partial class SacredCamera
     public Vector2 CharacterFacingUnitVector { get; private set; } = Vector2.Zero;
     public float CurrentMovementSpeed { get; private set; }
     public float LocomotionAnimationSpeed { get; private set; } = 1.0f;
+    public float WalkingSpeed { get; set; } = WalkingBaseSpeed;
+    public float RunningSpeed { get; set; } = RunningBaseSpeed;
 
     private SacredCamera(int width, int height)
     {
@@ -144,7 +147,7 @@ public sealed partial class SacredCamera
         movementSpeedMultiplier = float.IsFinite(movementSpeedMultiplier)
             ? Math.Clamp(movementSpeedMultiplier, 0.25f, 4.0f)
             : 1.0f;
-        var baseSpeed = (input.IsWalkModifierDown ? WalkingBaseSpeed : RunningBaseSpeed) * movementSpeedMultiplier;
+        var baseSpeed = (input.IsWalkModifierDown ? WalkingSpeed : RunningSpeed) * movementSpeedMultiplier;
         var delta = MovementDirection(
             input,
             movementInput,

@@ -31,6 +31,7 @@ public sealed class ClickToMoveController
     private int _doorStateRevision;
     private float _heldSeconds;
     private bool _isHoldClickMovement;
+    internal bool HasRoute => _routeTarget.HasValue;
 
     public void StopMoving()
     {

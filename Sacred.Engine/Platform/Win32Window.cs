@@ -122,10 +122,10 @@ public sealed partial class Win32Window : IDisposable
 
     public InputState Input { get; } = new();
 
-    public Win32Window(
-        string title,
+    public Win32Window(string title,
         int width,
         int height,
+        bool requestFocus,
         bool borderlessFullscreen = false,
         int windowedX = 100,
         int windowedY = 100,
@@ -178,6 +178,8 @@ public sealed partial class Win32Window : IDisposable
         Width = borderlessFullscreen ? Math.Max(1, User32.GetSystemMetrics(ScreenWidthMetric)) : width;
         Height = borderlessFullscreen ? Math.Max(1, User32.GetSystemMetrics(ScreenHeightMetric)) : height;
 
+        FocusRequestsEnabled = requestFocus;
+        if (!requestFocus) windowStyle &= ~WindowStyleVisible;
         Hwnd = User32.CreateWindowEx(0, _className, title, windowStyle, windowX, windowY, Width, Height, 0, 0, wc.hInstance, 0);
         if (Hwnd == 0)
         {
@@ -185,7 +187,7 @@ public sealed partial class Win32Window : IDisposable
         }
 
         DisplayRefreshRateHz = QueryDisplayRefreshRate();
-        User32.ShowWindow(Hwnd, !borderlessFullscreen && _windowedMaximized ? ShowWindowMaximized : 5);
+        User32.ShowWindow(Hwnd, !requestFocus ? 4 : !borderlessFullscreen && _windowedMaximized ? ShowWindowMaximized : 5);
         SetTitle("SacredEngineRemake");
     }
 

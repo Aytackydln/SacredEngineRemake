@@ -13,6 +13,7 @@ public sealed class WorldElevationSampler(WorldStreamer worldStreamer)
 {
     public const float WorldHeightPerSample = 2.5f;
     public Func<IndoorTileGroup?>? ActiveIndoorGroup { get; init; }
+    public Func<VisibleWorld>? VisibleWorldProvider { get; init; }
     public float SurfaceBaseHeight => ActiveIndoorGroup?.Invoke()?.BaseHeight ?? 0;
 
     private readonly Dictionary<SectorCoord, Sector> _sectors = new(capacity: 9);
@@ -124,7 +125,7 @@ public sealed class WorldElevationSampler(WorldStreamer worldStreamer)
 
     private void RefreshSectorIndex()
     {
-        var visibleWorld = worldStreamer.VisibleWorld;
+        var visibleWorld = VisibleWorldProvider?.Invoke() ?? worldStreamer.VisibleWorld;
         if (ReferenceEquals(visibleWorld, _cachedWorld))
             return;
 

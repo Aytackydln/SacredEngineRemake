@@ -24,9 +24,11 @@ public sealed class SacredWorldArchive : IDisposable
 
     private readonly FloorPakArchive _floorPak;
     private readonly StaticPakArchive _staticPak;
+    internal StaticObjectRecord? ReadStaticRecord(uint id) => _staticPak.Get(id);
     private readonly WldxLoader _wldxLoader;
     private readonly Dictionary<uint, KeyxSectorRecord> _entriesById = new();
     private readonly Dictionary<SectorCoord, uint> _sectorIdByGrid = new();
+    private readonly Dictionary<uint, SectorCoord> _sectorGridById = new();
 
     private readonly Dictionary<SectorCoord, Task<Sector>> _sectorLoadTasks = new();
     private readonly Dictionary<SectorCoord, Sector> _loadedSectors = new();
@@ -41,8 +43,11 @@ public sealed class SacredWorldArchive : IDisposable
     public WorldParticleScriptIndex ParticleScript { get; }
     public WorldObjectScriptIndex ObjectScript { get; }
     public WorldPortalScriptIndex Portals { get; internal set; } = WorldPortalScriptIndex.Empty;
-    public WorldCampaignScripts? CampaignScripts { get; internal set; }
+    public WorldCampaignInfo? CampaignInfo { get; internal set; }
     public IReadOnlyList<SectorCoord> SectorCoordinates => _sectorIdByGrid.Keys.OrderBy(c => c.Y).ThenBy(c => c.X).ToArray();
+    public bool TryGetSectorCoordinate(uint id, out SectorCoord coord) => _sectorGridById.TryGetValue(id, out coord);
+    public Task<Sector?> TryLoadSectorById(uint id) => _sectorGridById.TryGetValue(id, out var coord)
+        ? TryLoadSector(coord) : Task.FromResult<Sector?>(null);
 
     /// <summary>Releases decoded sector data between offline batches. No sector loads may be in flight.</summary>
     public void ClearLoadedSectorCache()
@@ -183,6 +188,8 @@ public sealed class SacredWorldArchive : IDisposable
         var indoorTileGroups = new IndoorTileGroupLayer();
         var pathing = new WorldPathingLayer(SectorW, SectorH);
         var indoorAnchors = new IndoorAnchorLayer(SectorW, SectorH);
+        var anchorDeltas = new TileAnchorDeltaLayer(SectorW, SectorH);
+        var staticHeads = new TileStaticChainLayer(SectorW, SectorH);
         var visualElevation = new TerrainVisualElevationLayer(SectorW, SectorH);
         var elevation = new TerrainElevationLayer(SectorW, SectorH);
         var bakedLight = new TerrainBakedLightLayer(SectorW, SectorH);
@@ -195,6 +202,8 @@ public sealed class SacredWorldArchive : IDisposable
                 var tile = WldxTileRecord.FromBytes(tiles.AsSpan(tileOffset, WldxTileRecord.Size));
                 ground[x, y] = tile.GroundTileId;
                 pathing[x, y] = new WorldPathTile(tile.PathFlags, tile.Properties);
+                anchorDeltas[x, y] = (tile.IndoorAnchorDeltaX, tile.IndoorAnchorDeltaY);
+                staticHeads[x, y] = tile.StaticChainHeadId;
                 if (tile.PathFlags.HasFlag(WorldPathFlags.Indoor))
                     indoorAnchors[x, y] = (coord.X * SectorW + x + tile.IndoorAnchorDeltaX,
                         coord.Y * SectorH + y + tile.IndoorAnchorDeltaY);
@@ -258,7 +267,7 @@ public sealed class SacredWorldArchive : IDisposable
             pathing,
             visualElevation,
             elevation,
-            bakedLight) { IndoorAnchors = indoorAnchors };
+            bakedLight) { IndoorAnchors = indoorAnchors, TileAnchorDeltas = anchorDeltas, StaticChainHeads = staticHeads };
     }
 
     private void LoadScriptWorldObjects(WorldObjectLayer worldObjects, SectorCoord coord,
@@ -515,6 +524,7 @@ public sealed class SacredWorldArchive : IDisposable
 
             _entriesById[entry.Id] = entry;
             _sectorIdByGrid[coord] = entry.Id;
+            _sectorGridById[entry.Id] = coord;
         }
 
         _zoneMap = new WorldZoneMap(_sectorIdByGrid.Select(pair =>

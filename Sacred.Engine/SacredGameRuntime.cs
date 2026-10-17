@@ -96,11 +96,15 @@ internal sealed partial class SacredGameRuntime : IDisposable
         _cheats.Update(ExecuteCheat);
         _gameServer.Update();
         _gameServerFiles.Update();
+        UpdateServerJoin();
+        _serverWalk?.Update(deltaSeconds);
+        if (_inGameScene is { } networkScene) networkScene.NetworkConsoleWalkActive = _serverWalk is { IsComplete: false };
         if (_window.Input.ConsumePressed(VirtualKey.F12))
             CaptureScreenshot(null);
         if (!_debugUiControls.Terminal.IsOpen)
             _engineInput.Update();
         _scenes.Update(deltaSeconds);
+        UpdateGameServerDebugUi();
         ApplyWorldMapRequest();
         SynchronizeDebugUiControls();
         UpdatePendingInspection();
@@ -108,6 +112,7 @@ internal sealed partial class SacredGameRuntime : IDisposable
 
     private void ApplyDebugUiRequests()
     {
+        ApplyGameServerDebugRequests();
         ApplySectorStreamingRequests();
         if (_debugUiControls.RequestedSkinningMode is { } skinningMode)
         {
@@ -310,7 +315,7 @@ internal sealed partial class SacredGameRuntime : IDisposable
             SkinningMode = _renderer.WorldInitialized ? _renderer.SkinningMode : _initialSaveState.SkinningMode,
             CharacterName = _inGameScene?.SelectedCharacterName ?? _initialSaveState.CharacterName,
             CampaignScriptsDirectory = _campaignSelection,
-            LastLocation = _inGameScene?.PlayerWorldPosition ?? _initialSaveState.LastLocation
+            LastLocation = _inGameScene?.OfflineSavePosition ?? _initialSaveState.LastLocation
         };
     }
 
@@ -320,6 +325,8 @@ internal sealed partial class SacredGameRuntime : IDisposable
             return;
 
         _disposed = true;
+        _startupProbeCancellation?.Cancel();
+        _serverJoin?.Cancel();
         _gameServer.Dispose();
         _cheats.Dispose();
         _scenes.Dispose();
@@ -499,7 +506,9 @@ internal sealed partial class SacredGameRuntime : IDisposable
         switch (command)
         {
             case HelpCheatCommand:
+                EngineLog.WriteLine("Lighting preview: set lighting-time <HH:mm[:ss]|live|status>; screenshot [label]. Uses the native dawn/dusk curve without changing network calendar state.");
                 EngineLog.WriteLine("Multiplayer: set server <host:port>; set server status; set server disconnect. TinCat connection and Sacred gameplay admission are reported separately.");
+                EngineLog.WriteLine("Visible LAN: set server-join <host:port> <saved selection>; set server-join status; set server-character world-status. Owned walking: set server-walk [patrol] <x,y> <native control174> <tiles/sec>; set server-walk <status|stop>.");
                 EngineLog.WriteLine("LAN compatibility: set server-files check; set server-files status. Reads the selected installation without blocking rendering.");
                 EngineLog.WriteLine("Sector streaming: set sectors <4|9>; set sector-upload-wait <on|off>. Defaults: 4 sectors; upload waiting off.");
                 EngineLog.WriteLine("Map: set map <ancaria|underworld|close|status>; set map-names <on|off>; set map-npcs <on|off>; set map-fit now.");
@@ -507,7 +516,8 @@ internal sealed partial class SacredGameRuntime : IDisposable
                 EngineLog.WriteLine("Campaigns: set campaign list; set campaign status; set campaign <bin-directory-name|absolute-path> reloads the world using that script set (default NetScriptCamp).");
                 EngineLog.WriteLine("Viewport cheats: set window-size <width>x<height> resizes without activation; set viewport show reports client/output/scene dimensions. Timing cheats: set frame-log <on|off> reports frame pacing; set animation-log <on|off> reports CPU animation stages, upload bytes and completed GPU model/shadow timestamps every two seconds.");
                 EngineLog.WriteLine("GPU preparation cheat: set skin-preparation <on|off> prepares resources independently of model skinning selection.");
-                EngineLog.WriteLine("Door diagnostics: set door-list show lists decoded loaded playback positions and clip availability.");
+                 EngineLog.WriteLine("Door diagnostics: set door-list show lists decoded loaded playback positions and clip availability.");
+                 EngineLog.WriteLine("Network door receives: set server doors. Halo ordering: set halo-layering <on|off>; off restores the diagnostic overlay pass.");
                 EngineLog.WriteLine("World focus: F / gamepad A interacts; set focus <status|list|clear|interact|assist|stop|walk:x,y|cone:x,y|mouse:x,y|pointer:x,y>; set render-time <seconds|live> freezes/resumes shader animation for screenshots.");
                 EngineLog.WriteLine("Pose processing: set gpu-pose <on|off> opts independent/world models into GPU sampling/hierarchy/palettes; set gpu-pose-status show reports remaining CPU consumers. Default off; visibility is fail-open until GPU bounds are implemented.");
                 EngineLog.WriteLine("World particle emission: set world-gpu-emission <on|off> selects GPU birth/RNG/lifetime ownership for script/sector objects; set particle-stats show reports readiness and memory; set world-particle-step <0..0.1|off> controls fixed-step validation. Default off; switching off explicitly snapshots current state.");
@@ -633,11 +643,22 @@ internal sealed partial class SacredGameRuntime : IDisposable
 
     private bool TrySetEngineCheatOption(string option, string value, out string message)
     {
+        if (TrySetServerStartupOption(option, value, out message)) return true;
+        if (TrySetServerWalkOption(option,value,out message)) return true;
+        if (TrySetServerMoveOption(option, value, out message)) return true;
+        if (TrySetServerPanelOption(option, value, out message)) return true;
+        if (TrySetServerJoinOption(option,value,out message)) return true;
         if (TrySetServerCompatibilityOption(option, value, out message)) return true;
+        if (TrySetServerCharacterOption(option, value, out message)) return true;
+        if (TrySetServerDisconnectOption(option, value, out message)) return true;
         if (_gameServer.TrySetOption(option, value, out message)) return true;
         if (TrySetSectorStreamingOption(option, value, out message)) return true;
         switch (option.ToLowerInvariant())
         {
+            case "halo-layering" when TryParseBoolean(value, out var haloLayering):
+                _renderer.SetLightHaloLayering(haloLayering);
+                message = $"light halos {(haloLayering ? "follow their source sprite" : "use the diagnostic overlay pass")}";
+                return true;
             case "terminal" when TryParseBoolean(value, out var terminalOpen):
                 _debugUiControls.Terminal.SetOpen(terminalOpen);
                 _window.Input.TerminalWantsInput = terminalOpen;

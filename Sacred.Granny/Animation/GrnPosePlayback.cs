@@ -49,6 +49,16 @@ public sealed class GrnPosePlayback
             Animation, seconds, mode, materialize);
         return request;
     }
+    public GrnPoseRequest RequestBlend(float seconds, GrnPoseTimeMode mode, bool materializeCpuVertices, GrnPoseBlend blend)
+    {
+        ArgumentNullException.ThrowIfNull(blend.Source);
+        if (!float.IsFinite(blend.SourceSeconds) || !float.IsFinite(blend.TargetWeight) || !Enum.IsDefined(blend.SourceMode))
+            throw new ArgumentOutOfRangeException(nameof(blend));
+        var request = CreateRequest(seconds, mode, materializeCpuVertices) with { Blend = blend };
+        Sink.Submit(request);
+        LastRequest = request;
+        return request;
+    }
     /// <summary>Cancel deferred work when an owner is explicitly reset or its storage is recycled.</summary>
     public void InvalidateRequests()
     {

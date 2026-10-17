@@ -97,9 +97,9 @@ internal static class SacredEquipmentStatsCalculator
         }
     }
 
-    // Gold 0x568EF0: selector 1..6 scales the inherent attribute; other bytes return
-    // the signed magnitude unchanged. Equipment never recursively scales its own bonuses.
-    private static float ResolveValue(SacredEquipmentBonus bonus, SacredActorStats inherent)
+    // Gold 0x568C40: selector 1..6 scales the current attribute; other bytes return
+    // the signed magnitude unchanged. The caller supplies the attribute snapshot for its calculation stage.
+    internal static float ResolveValue(SacredEquipmentBonus bonus, SacredActorStats inherent)
     {
         SacredActorStat? source = bonus.AttributeSelector switch
         {
@@ -110,15 +110,15 @@ internal static class SacredEquipmentStatsCalculator
         return source is { } attribute ? (float)(inherent[attribute] * bonus.Value * 0.01f) : bonus.Value;
     }
 
-    private static SacredActorStat? Attribute(ushort code) => code switch
+    internal static SacredActorStat? Attribute(ushort code) => code switch
     {
         815 => SacredActorStat.Strength, 816 => SacredActorStat.Dexterity, 817 => SacredActorStat.Endurance,
         818 => SacredActorStat.PhysicalRegeneration, 819 => SacredActorStat.MentalRegeneration,
         820 => SacredActorStat.Charisma, _ => null
     };
 
-    // Gold 0x568DE0 handles selectors 1..6; all remaining selectors fall through to true.
-    private static bool AppliesToHero(byte restriction, byte hero) => restriction switch
+    // Gold 0x568B30 handles selectors 1..6; all remaining selectors fall through to true.
+    internal static bool AppliesToHero(byte restriction, byte hero) => restriction switch
     {
         >= 1 and <= 5 => restriction == hero,
         6 => hero is 6 or 7,

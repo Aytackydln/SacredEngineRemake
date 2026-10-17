@@ -7,6 +7,9 @@ using Sacred.Core.GameBin.Scripts;
 using Sacred.Core.GameRes;
 using Sacred.Core.World;
 using Sacred.Core.World.Sector;
+using Sacred.GameplayHost;
+using Sacred.GameplayHost.Networking;
+using Sacred.GameplayHost.Scripting;
 using Sacred.World;
 using Sacred.World.Map;
 using Sacred.World.Renderer.Terminal;
@@ -30,12 +33,37 @@ catch (ArgumentException exception)
 }
 
 using var logging = new RendererLog(options.Verbose);
+
+if (options.ProbeNetworkStartupProfile is { } probeProfile)
+{
+    try
+    {
+        using var cancel = new CancellationTokenSource();
+        ConsoleCancelEventHandler handler = (_, args) => { args.Cancel = true; cancel.Cancel(); };
+        Console.CancelKeyPress += handler;
+        try
+        {
+            var result = await SacredNetworkHostStartupProbe.RunSavedCharacterAsync(options.GameDirectory,
+                SacredCampaignFiles.Resolve(options.GameDirectory, options.CampaignScriptsDirectory), probeProfile,
+                options.NetworkProbeHost, options.NetworkProbePort, RendererLog.Info, cancel.Token);
+            return result.Execution.StartupCompleted ? 0 : 3;
+        }
+        finally { Console.CancelKeyPress -= handler; }
+    }
+    catch (Exception error) { Console.Error.WriteLine($"Host startup probe failed: {error.Message}"); return 1; }
+}
 try
 {
+    if (options.CheckNetworkStartup)
+    {
+        var state = WorldScriptStartupInspection.RunFromInstallation(options.GameDirectory,
+            SacredCampaignFiles.Resolve(options.GameDirectory, options.CampaignScriptsDirectory), RendererLog.Info);
+        return state.StartupCompleted ? 0 : 3;
+    }
     RendererLog.Info($"Loading Sacred world from: {options.GameDirectory}");
     var pakDirectory = Path.Combine(options.GameDirectory, "pak");
     using var textures = TexturePakArchive.LoadFromDirectory(pakDirectory);
-    using var world = SacredWorldArchiveFactory.Load(options.GameDirectory, options.CampaignScriptsDirectory);
+    using var world = SacredGameplayWorldFactory.Load(options.GameDirectory, options.CampaignScriptsDirectory);
     using var renderer = new WorldRenderSession(pakDirectory, world, textures);
     Directory.CreateDirectory(options.OutputDirectory);
     if (options.AllSectors || options.SectorX.HasValue)
@@ -58,8 +86,7 @@ try
                       $"{worldCenter.Y.ToString("F2", CultureInfo.InvariantCulture)} (day).");
 
     var stopwatch = Stopwatch.StartNew();
-    var scripts = world.CampaignScripts ?? WorldCampaignScripts.Load(
-        SacredCampaignFiles.Resolve(options.GameDirectory, options.CampaignScriptsDirectory));
+    var scripts = world.CampaignInfo ?? throw new InvalidOperationException("Gameplay host did not supply campaign presentation metadata.");
     var annotations = WorldMapAnnotations.Load(options.GameDirectory, scripts,
         new GameResStore(SacredResUnpack.UnpackAsDictionary(Path.Combine(options.GameDirectory, "scripts", "us", "global.res"))));
     var map = await new WorldMapRasterizer(textures).RenderAsync(worldCenter, options.Map, annotations, options.MapNpcs);

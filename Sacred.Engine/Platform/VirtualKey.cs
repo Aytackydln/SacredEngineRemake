@@ -7,6 +7,7 @@ public enum VirtualKey : uint
     Enter = 0x0D,
     Control = 0x11,
     Shift = 0x10,
+    Alt = 0x12,
     Escape = 0x1B,
     Home = 0x24,
     End = 0x23,

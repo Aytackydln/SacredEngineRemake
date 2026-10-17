@@ -20,6 +20,7 @@ public static class EquipmentModelPlacement
             (EquipmentSlotType.Ring, _) =>
                 (occurrence % 2 == 0 ? "Bip01 L Finger31" : "Bip01 R Finger31", "Bone_weapon_01"),
             (EquipmentSlotType.LeftHand, SacredEquipmentType.Shield) => ("Bip01 L Forearm", "Bone_weapon_02"),
+            (EquipmentSlotType.RightHand, SacredEquipmentType.Shield) => ("Bip01 R Forearm", "Bone_weapon_01"),
             (EquipmentSlotType.LeftHand, _) => ("Bip01 L Hand", "Bone_weapon_02"),
             (EquipmentSlotType.RightHand, _) => ("Bip01 R Hand", "Bone_weapon_01"),
             (EquipmentSlotType.Wings, SacredEquipmentType.Wings) => ("Bip01 Spine2", "Bone_spine"),

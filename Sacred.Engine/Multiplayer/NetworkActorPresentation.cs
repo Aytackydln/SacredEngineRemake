@@ -1,0 +1,116 @@
+using System;
+using System.Numerics;
+using Sacred.Core.Pak.Creature;
+using Sacred.Core.Pak.Items;
+using Sacred.Engine.Animation;
+using Sacred.Engine.Assets;
+using Sacred.Engine.Scene;
+using Sacred.Network.Gameplay;
+using Sacred.World.Geometry;
+using Sacred.World.Networking;
+
+namespace Sacred.Engine.Multiplayer;
+
+/// <summary>One independent animation and equipped skeleton per native creature reference.</summary>
+internal sealed class NetworkActorPresentation
+{
+    private readonly CharacterAnimationState? _animation;
+    private Vector2 _lastPosition;
+    private float _rotation;
+    private float _groundOffset;
+    private uint? _lastFacing;
+    private GoldMovementEvent? _lastMovement;
+    private GoldMovementBody? _movementBody;
+    private GoldObjectBaseState? _lastBaseState;
+    private long? _conversationVersion;
+    private readonly SacredNetworkMovementPlayback _motion = new();
+    private uint _locomotionAction = 2;
+    public bool IsLocal { get; init; }
+    public Func<Vector2, float>? TerrainHeight { get; init; }
+    public SceneModel Model { get; }
+    public bool Animated => _animation?.AnimatedMesh is not null;
+    public float ConversationMotionFactor(SacredNetworkNpcConversationState state) => _animation?.NpcAnimation(state.Motion)?.PlaybackSpeedMultiplier ?? 1;
+    public SacredNpcAnimationTiming? ConversationTiming { get; set; }
+    public bool ApplyConversation(SacredNetworkNpcConversationState? state, SacredNetworkNpcConversations conversations)
+    {
+        if (state?.ActionStage is 101 or 102)
+        {
+            var replacing = _conversationVersion is not null && state.Version != _conversationVersion;
+            if (state.NeedsAnimation && state.Version != _conversationVersion && Animated && ConversationTiming is { } timing &&
+                _animation!.NpcAnimation(state.Motion) is { } clip && conversations.StartAnimation(state.Reference, state.Version, clip.DurationSeconds / timing.PlaybackSpeed))
+            {
+                // Native 0x593320 promotes the previous target when interrupted. Starting
+                // through idle first discards its clip clock and produces a visible jump.
+                _animation.PlayNpcAnimation(clip, timing);
+                _conversationVersion = state.Version;
+                EngineLog.WriteLine($"Network NPC conversation: ref {state.Reference}; {state.Motion}; clip {clip.Name}, {clip.DurationSeconds:0.###} seconds; speed {timing.PlaybackSpeed:0.###}, blend {timing.BlendSeconds:0.###} seconds.");
+            }
+            else if (replacing)
+            { _animation?.StopNpcAnimation(); _conversationVersion = null; }
+            if (state.FacingPosition is { } target) FaceLocalHero(target);
+            return true;
+        }
+        if (_conversationVersion is not null) { _animation?.StopNpcAnimation(); _conversationVersion = null; }
+        if (state?.FacingPosition is { } receiverTarget) FaceLocalHero(receiverTarget);
+        return state?.FacingPosition is not null;
+    }
+    public void FaceLocalHero(Vector2 hero)
+    {
+        var direction = hero - _lastPosition;
+        if (direction.LengthSquared() < .0000001f) return;
+        _rotation = SacredNetworkFacing.ToModelRadians(SacredNetworkFacing.FromTileDirection(direction));
+        Model.SetPose(Model.Position, new(0, 0, _rotation), Model.DepthAnchor, Model.GroundPlaneZ);
+    }
+
+    public NetworkActorPresentation(uint reference, PlayerCharacterAsset asset, PlayerCharacterAnimations? animations,
+        ItemsPakEntry item, Vector2 position)
+    {
+        var mesh = asset.Model.Mesh ?? throw new InvalidOperationException("Creature model has no geometry.");
+        _lastPosition = position;
+        _rotation = WorldModelPose.RotationRadians(item.ModelDesc.Angle3D);
+        _groundOffset = asset.Model.Diagnostics?.WholeModelBounds is { } bounds ? -bounds.Min.Z * WorldModelPose.Scale : 0;
+        Model = new($"Network ref {reference}, resource {item.ItemIndex}", mesh, new(position, 0),
+            new(0, 0, _rotation), WorldModelPose.Scale, asset.TextureAliases, asset.EquipmentEffects,
+            blockRadius: item.ModelDesc.BlockRadius);
+        Model.SetModelProjection(WorldModelPose.CameraProjection);
+        if (animations is not null)
+        {
+            _animation = new(asset.Model, animations, mesh, asset.EquipmentEffects);
+            if (_animation.AnimatedMesh is { } animated) Model.SetAnimatedMesh(animated);
+        }
+    }
+
+    public void Update(GoldReplicatedObject actor, float height, float deltaSeconds)
+    {
+        var reported = SacredNetworkPosition.ToTiles(actor.BaseState);
+        var position = IsLocal ? reported : _motion.Update(actor, deltaSeconds);
+        var direction = position - _lastPosition;
+        var changedPosition = direction.LengthSquared() > 0.0000001f;
+        var moving = IsLocal ? actor.Movement is not null : _motion.Moving;
+        if (moving && changedPosition && (IsLocal || !_motion.Snapped))
+            _rotation = -(MathF.Atan2(direction.Y, direction.X) + MathF.PI / 4);
+        else if ((actor.FacingBits ?? actor.BaseState.Word28) is var facing &&
+                 (!moving && actor.PositionOpcode is 0x162 or 0x165 || facing != _lastFacing ||
+                  actor.BaseState != _lastBaseState || !IsLocal && changedPosition && _motion.Snapped))
+        {
+            // Full snapshots derive this heading from physical +0x70; stop/position packets carry the angle word.
+            var degrees = BitConverter.UInt32BitsToSingle(facing);
+            if (float.IsFinite(degrees)) _rotation = SacredNetworkFacing.ToModelRadians(facing);
+        }
+        _lastFacing = actor.FacingBits ?? actor.BaseState.Word28;
+        _lastBaseState = actor.BaseState;
+        if (!ReferenceEquals(actor.Movement, _lastMovement))
+        {
+            _lastMovement = actor.Movement;
+            _movementBody = actor.Movement?.Body;
+        }
+        var action = _movementBody?.Word1F8 ?? actor.Creature!.Word1F8;
+        if (action is 1 or 2) _locomotionAction = action;
+        _animation?.SetLocomotionState(moving ? _locomotionAction == 1 ? CharacterAnimationStateId.Walk : CharacterAnimationStateId.Run
+            : CharacterAnimationStateId.Idle);
+        _animation?.Update(deltaSeconds);
+        height = TerrainHeight?.Invoke(position) ?? height;
+        Model.SetPose(new(position, height + _groundOffset), new(0, 0, _rotation), position, height);
+        _lastPosition = position;
+    }
+}

@@ -20,6 +20,14 @@ public sealed class EquipmentUiState
         Layout = null;
     }
 
+    public void ClearActor()
+    {
+        SetOpen(false);
+        Actor = null;
+        SelectedSlot = null;
+        Layout = null;
+    }
+
     public void SetOpen(bool open)
     {
         if (IsOpen == open) return;

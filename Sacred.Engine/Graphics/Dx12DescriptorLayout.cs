@@ -24,7 +24,7 @@ internal static class Dx12DescriptorLayout
     public const int PlayerOcclusionMap = ShadowMap + 1;
     public const int FirstMinimap = PlayerOcclusionMap + 1;
     public const int FirstHudTexture = FirstMinimap + Dx12MinimapPass.DescriptorsPerFrame * Dx12DeviceContext.FrameCount;
-    public const int MaximumHudTextures = 6;
+    public const int MaximumHudTextures = 7;
     public const int EscapeMenuTexture = FirstHudTexture + MaximumHudTextures;
     public const int FirstWorldMapUiTexture = EscapeMenuTexture + 1;
     public const int MaximumWorldMapUiTextures = 2;
@@ -34,5 +34,7 @@ internal static class Dx12DescriptorLayout
     public const int EquipmentDescriptorsPerFrame = 128;
     public const int FirstPortraitTexture = FirstEquipmentPreview + EquipmentDescriptorsPerFrame * Dx12DeviceContext.FrameCount;
     public const int MaximumPortraitTextures = 64;
-    public const int TotalCount = FirstPortraitTexture + MaximumPortraitTextures;
+    public const int FirstNpcOverheadTexture = FirstPortraitTexture + MaximumPortraitTextures;
+    public const int MaximumNpcOverheadTextures = 64;
+    public const int TotalCount = FirstNpcOverheadTexture + MaximumNpcOverheadTextures;
 }

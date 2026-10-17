@@ -18,11 +18,14 @@ namespace Sacred.Engine.Scene;
 
 public sealed class SceneState
 {
+    public NpcOverheadSceneState NpcOverheads { get; } = new();
     public BottomHudState? Hud { get; set; }
     public EquipmentUiState EquipmentUi { get; } = new();
     public ActorPortraitPanelState Portraits { get; } = new();
     public EscapeMenuState? EscapeMenu { get; set; }
     private readonly List<SceneModel> _models = new(capacity: 32);
+    private IReadOnlyList<SceneModel> _worldModels = Array.Empty<SceneModel>();
+    private IReadOnlyList<SceneModel> _replicatedModels = Array.Empty<SceneModel>();
 
     public bool GpuParticlesEnabled { get; set; }
     public IReadOnlyList<TerrainStaticSprite> FootprintSprites { get; set; } = Array.Empty<TerrainStaticSprite>();
@@ -50,6 +53,7 @@ public sealed class SceneState
     /// <summary>Clears an offline scene without reserving a player slot.</summary>
     public void ClearModels()
     {
+        _worldModels = Array.Empty<SceneModel>(); _replicatedModels = Array.Empty<SceneModel>();
         _models.Clear();
         ModelSetRevision++;
     }
@@ -83,6 +87,12 @@ public sealed class SceneState
     /// </summary>
     public void SetWorldModels(IReadOnlyList<SceneModel> models)
     {
+        _worldModels = models;
+        if (_replicatedModels.Count != 0)
+        {
+            var combined = new List<SceneModel>(models.Count + _replicatedModels.Count);
+            combined.AddRange(models); combined.AddRange(_replicatedModels); models = combined;
+        }
         if (_models.Count == 0)
             throw new InvalidOperationException("World models require the player model to be initialized first.");
 
@@ -106,6 +116,14 @@ public sealed class SceneState
         for (var index = 0; index < models.Count; index++)
             _models.Add(models[index]);
         ModelSetRevision++;
+    }
+
+    public void SetReplicatedModels(IReadOnlyList<SceneModel> models)
+    {
+        ArgumentNullException.ThrowIfNull(models);
+        if (ReferenceEquals(_replicatedModels, models)) return;
+        _replicatedModels = models;
+        SetWorldModels(_worldModels);
     }
 }
 

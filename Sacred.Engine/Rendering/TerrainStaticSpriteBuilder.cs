@@ -161,12 +161,14 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                     surfaceLightSourceCount++;
                 }
 
+                var hasLightHalo = false;
                 if (item is { } animatedHaloItem &&
                     WorldParticleMapper.TryResolveAnimatedSpriteHalo(
                         animatedHaloItem,
                         miniObjectReference,
                         out var haloReference))
                 {
+                    hasLightHalo = true;
                     // Cache the emitter appearance while the source atlas still
                     // owns its CPU pixels. The independently loaded halo mask
                     // may not become ready until after sprite upload releases
@@ -188,7 +190,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                             haloAppearance.Colour,
                             AnimatedSpriteHaloAppearanceCache.HaloOpacity,
                             WorldLightShape.RadialHalo,
-                            haloMask));
+                            haloMask) { SourceStaticObjectId = staticObject.StaticId });
                     }
                 }
 
@@ -240,6 +242,7 @@ internal sealed class TerrainStaticSpriteBuilder(AssetManager assets)
                     1.0f)
                 {
                     IsAnimatedMiniObject = isAnimatedMiniObject,
+                    HasLightHalo = hasLightHalo,
                     IsMiniObject = item?.ModelDesc.UsesMiniObjectTexture == true,
                     UsesSpriteDepth = item?.ModelDesc.GraphicType.HasFlag(SacredItemGraphicType.UsesSpriteDepth) == true,
                     HeightLevel = staticObject.GeometricHeightLayer,

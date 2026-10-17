@@ -16,6 +16,40 @@ internal sealed class Dx12WorldPainterPass(Dx12SpritePass sprites, Dx12ModelPass
     private readonly List<Submission> _submissions = new();
     private readonly List<StaticSpriteDrawRange> _ranges = new();
     private readonly SceneModel[] _oneModel = new SceneModel[1];
+    public Action<uint>? BeforeSprite { get; set; }
+    public Func<uint, bool>? HasSpriteEffect { get; set; }
+
+    public void RecordFront(WorldSpriteBatch batch, SceneState scene, Dx12SceneColorProfile display,
+        Dx12FrameContext frame, int width, int height)
+    {
+        if (batch.Submissions is not { } submissions || batch.StaticRanges is not { } ranges) return;
+        _ranges.Clear();
+        var rangeIndex = 0;
+        foreach (var submission in submissions)
+        {
+            while (rangeIndex < ranges.Count && submission.Instance >=
+                   ranges[rangeIndex].StartInstance + ranges[rangeIndex].InstanceCount) rangeIndex++;
+            if (rangeIndex == ranges.Count) break;
+            var range = ranges[rangeIndex];
+            if (!range.IsPostModel) continue;
+            if (submission.Sprite.HasLightHalo && HasSpriteEffect?.Invoke(submission.Sprite.StaticObjectId) == true)
+            {
+                Flush();
+                BeforeSprite?.Invoke(submission.Sprite.StaticObjectId);
+            }
+            AppendRange(range with { StartInstance = submission.Instance, InstanceCount = 1 });
+        }
+        Flush();
+
+        void Flush()
+        {
+            if (_ranges.Count == 0) return;
+            sprites.RecordTransparentStatic(batch with { StaticRanges = _ranges },
+                scene.Lighting.WorldSurfaceAmbientColour, display.SceneWhiteScale,
+                display.UnlitSpriteScale, frame, width, height);
+            _ranges.Clear();
+        }
+    }
 
     public void Record(WorldSpriteBatch batch, SacredCamera camera, SceneState scene,
         Dx12SceneColorProfile display, Dx12FrameContext frame, int width, int height)
@@ -52,7 +86,8 @@ internal sealed class Dx12WorldPainterPass(Dx12SpritePass sprites, Dx12ModelPass
                     // patch list before walking the Objects queue.
                     sprite.IsGroundDecal ? float.NegativeInfinity : sprite.ParticleDepthKey ?? sprite.TileDepth, sprite.TileWorldX,
                     sprite.ChainDepth, sprite.InsertionOrder, null,
-                    range with { StartInstance = submission.Instance, InstanceCount = 1 }));
+                    range with { StartInstance = submission.Instance, InstanceCount = 1 },
+                    sprite.HasLightHalo ? sprite.StaticObjectId : null));
             }
         }
         for (var index = 0; firstLayer <= WorldRenderLayer.Objects && lastLayer >= WorldRenderLayer.Objects &&
@@ -64,7 +99,7 @@ internal sealed class Dx12WorldPainterPass(Dx12SpritePass sprites, Dx12ModelPass
             // runtime objects belonging to that same tile.
             var x = (int)MathF.Floor(anchor.X);
             var y = (int)MathF.Floor(anchor.Y);
-            _submissions.Add(new Submission(3, x + y, x, int.MaxValue, index, model, default));
+            _submissions.Add(new Submission(3, x + y, x, int.MaxValue, index, model, default, null));
         }
         _submissions.Sort(static (left, right) =>
         {
@@ -84,12 +119,12 @@ internal sealed class Dx12WorldPainterPass(Dx12SpritePass sprites, Dx12ModelPass
                 continue;
             }
             var next = submission.Range;
-            if (_ranges.Count > 0 && _ranges[^1] is var previous &&
-                previous.StartInstance + previous.InstanceCount == next.StartInstance &&
-                previous with { StartInstance = next.StartInstance, InstanceCount = 1 } == next)
-                _ranges[^1] = previous with { InstanceCount = previous.InstanceCount + 1 };
-            else
-                _ranges.Add(next);
+            if (submission.SourceId is { } source && HasSpriteEffect?.Invoke(source) == true)
+            {
+                Flush();
+                BeforeSprite?.Invoke(source);
+            }
+            AppendRange(next);
         }
         Flush();
 
@@ -103,6 +138,15 @@ internal sealed class Dx12WorldPainterPass(Dx12SpritePass sprites, Dx12ModelPass
         }
     }
 
+    private void AppendRange(StaticSpriteDrawRange next)
+    {
+        if (_ranges.Count > 0 && _ranges[^1] is var previous &&
+            previous.StartInstance + previous.InstanceCount == next.StartInstance &&
+            previous with { StartInstance = next.StartInstance, InstanceCount = 1 } == next)
+            _ranges[^1] = previous with { InstanceCount = previous.InstanceCount + 1 };
+        else _ranges.Add(next);
+    }
+
     private readonly record struct Submission(int Queue, float Diagonal, int X, int Chain,
-        int Insertion, SceneModel? Model, StaticSpriteDrawRange Range);
+        int Insertion, SceneModel? Model, StaticSpriteDrawRange Range, uint? SourceId);
 }

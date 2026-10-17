@@ -119,4 +119,7 @@ public readonly struct ModelsMetadataMotionLayout
     [FieldOffset(0x00)]
     [BinaryString("MotionName", 0x20, "ISO-8859-1")]
     private readonly byte _motionName;
+    /// <summary>Gold 0x413610: applied when 0.8 &lt;= value &lt; 5; neutral 0/1 and
+    /// values outside that interval leave the requested playback speed unchanged.</summary>
+    [FieldOffset(0x9C)] public readonly float PlaybackSpeedMultiplier;
 }

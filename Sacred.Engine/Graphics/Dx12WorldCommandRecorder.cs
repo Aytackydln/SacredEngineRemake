@@ -133,6 +133,15 @@ internal sealed class Dx12WorldCommandRecorder
             renderWidth,
             renderHeight,
             worldSpriteRevision);
+        _worldPainter.HasSpriteEffect = _lightHalos.HasSource;
+        _worldPainter.BeforeSprite = source =>
+        {
+            if (!_lightHalos.HasSource(source)) return;
+            _commandList.OMSetRenderTargets(renderTarget, null);
+            _lightHalos.RecordSource(source, scene.Lighting.NightBlend,
+                displayProfile.ParticleColorMultiplier, frame, renderWidth, renderHeight);
+            _commandList.OMSetRenderTargets(renderTarget, depthStencil);
+        };
         _sprites.SetParticleColorMultiplier(displayProfile.ParticleColorMultiplier);
         var surfaceLightCount = _lightHalos.SurfaceLightCount;
         _surfaceLights.Record(
@@ -266,20 +275,13 @@ internal sealed class Dx12WorldCommandRecorder
         }
 
         _worldPainter.Record(spriteBatch, camera, scene, displayProfile, frame, renderWidth, renderHeight);
-        _sprites.RecordTransparentStatic(
-            spriteBatch,
-            scene.Lighting.WorldSurfaceAmbientColour,
-            displayProfile.SceneWhiteScale,
-            displayProfile.UnlitSpriteScale,
-            frame,
-            renderWidth,
-            renderHeight);
+        _worldPainter.RecordFront(spriteBatch, scene, displayProfile, frame, renderWidth, renderHeight);
 
         // GPU particles use the same depth-tested pipeline as CPU particle sprites.
         _commandList.OMSetRenderTargets(renderTarget, depthStencil);
         GpuParticles?.Draw(_commandList,displayProfile,renderWidth,renderHeight,_models.GpuTimings!);
 
-        // Light halos are screen-space overlays in Sacred and must remain above depth-tested art.
+        // Effects without a visible source sprite retain their overlay fallback.
         _commandList.OMSetRenderTargets(renderTarget, null);
         _lightHalos.Record(
             lightHaloInstanceCount,

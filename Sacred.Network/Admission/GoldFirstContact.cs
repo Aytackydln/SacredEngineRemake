@@ -33,6 +33,29 @@ public sealed class GoldFirstContact
 
     public byte[] ToPayload() => _payload.ToArray();
 
+    /// <summary>Reproduce native cleared-request construction using a complete saved profile and explicit client selections.</summary>
+    public static GoldFirstContact Create(ReadOnlySpan<byte> profile, GoldFirstContactParameters parameters,
+        GoldLanCompatibility compatibility)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(parameters.Name);
+        ArgumentNullException.ThrowIfNull(compatibility);
+        if (profile.Length != GoldFirstContactLayout.ProfileBytes)
+            throw new InvalidDataException("Gold admission requires a complete 556-byte native profile.");
+        var payload = new byte[GoldFirstContactLayout.Size];
+        BinaryPrimitives.WriteInt32LittleEndian(payload, parameters.LobbyIdentity);
+        payload[GoldFirstContactLayout.CharacterTypeOffset] = parameters.CharacterType;
+        payload[GoldFirstContactLayout.ProfileByte7Offset] = parameters.ProfileByte7;
+        payload[GoldFirstContactLayout.ConnectionSpeedOffset] = parameters.ConnectionSpeed;
+        payload[GoldFirstContactLayout.ProfileFlag9Offset] = parameters.ProfileFlag9;
+        // Native producer copies at most 256 name bytes, including an unterminated full buffer.
+        var characters = Math.Min(parameters.Name.Length, GoldFirstContactLayout.NameBytes / 2);
+        for (var index = 0; index < characters; index++)
+            BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(GoldFirstContactLayout.NameOffset + index * 2), parameters.Name[index]);
+        profile.CopyTo(payload.AsSpan(GoldFirstContactLayout.ProfileOffset));
+        return new GoldFirstContact(payload).WithInstallation(compatibility);
+    }
+
     /// <summary>Pre-slot identity and sequence zero match the native initial send.</summary>
     public GoldMessage CreateMessage() => new(GoldFirstContactLayout.Opcode, 0, 0, 0, ToPayload());
 

@@ -17,7 +17,7 @@ internal sealed class ArchiveEvidence(string game, string output)
         var statics = new PakTable(Path.Combine(game, "World/Static.PAK"));
         var mixedRaw = new PakTable(Path.Combine(pak, "mixed.pak"));
         using var textures = TexturePakArchive.LoadFromDirectory(pak);
-        using var world = SacredWorldArchiveFactory.Load(game);
+        using var world = Sacred.GameplayHost.SacredGameplayWorldFactory.Load(game);
         var usedItems = new HashSet<ushort>();
         var instanceRows = new List<object>();
         var itemBytes = File.ReadAllBytes(Path.Combine(pak, "Items.pak"));

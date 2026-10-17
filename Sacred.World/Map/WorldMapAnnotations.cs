@@ -12,15 +12,11 @@ public sealed record WorldMapAnnotations(
 {
     public static WorldMapAnnotations Empty { get; } = new([], []);
 
-    public static WorldMapAnnotations Load(string gameDirectory, WorldCampaignScripts scripts, GameResStore resources)
+    public static WorldMapAnnotations Load(string gameDirectory, WorldCampaignInfo campaign, GameResStore resources)
     {
         var labels = new List<WorldMapLabel>();
-        var depth = 0;
-        foreach (var command in SacredCompiledScriptReader.Read(scripts.StartupCode))
+        foreach (var label in campaign.MapLabels)
         {
-            if (command.Opcode == SacredScriptPortalOpcodes.If) { depth++; continue; }
-            if (command.Opcode == SacredScriptPortalOpcodes.EndBlock) { depth = Math.Max(0, depth - 1); continue; }
-            if (depth != 0 || !SacredMapAnnotationReader.TryReadLabel(command, out var label)) continue;
             var key = label.Resource;
             var text = key.StartsWith("res:", StringComparison.OrdinalIgnoreCase)
                 ? ResolveResource(key[4..], resources) : key;
@@ -30,7 +26,7 @@ public sealed record WorldMapAnnotations(
                     unchecked((sbyte)label.Curvature), unchecked((sbyte)label.AngleDegrees), text));
         }
         var npcs = SacredMapAnnotationReader.ReadNpcs(File.ReadAllBytes(Path.Combine(gameDirectory, "bin", "merc.bin")));
-        Console.WriteLine($"World map annotations loaded: {labels.Count} labels, {npcs.Count} service markers ({scripts.Files.Name}).");
+        Console.WriteLine($"World map annotations loaded: {labels.Count} labels, {npcs.Count} service markers ({campaign.Files.Name}).");
         return new(labels.Distinct().ToArray(), npcs);
     }
 

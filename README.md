@@ -42,7 +42,13 @@ fall back to the managed implementation until the Granny 1 skeleton/animation AP
 mapped.
 
 ### Sacred.World
-Logic about game world. Compositing, paths, world scripts etc.
+Shared world terrain, navigation/collision, visual indexes, rendering and network replica bindings.
+
+### Sacred.GameplayHost
+Gameplay host work shared by offline play and the native multiplayer client-host
+role: campaign bytecode loading, script execution, trigger/object construction and
+startup diagnostics. The platform-independent host references World and Network;
+Engine and the terminal consume it. See [the ownership plan](docs/game-server/gameplay-host.md).
 
 ### Sacred.World.Renderer.Terminal
 Terminal project that outputs images of game world, map and minimap.

@@ -9,6 +9,8 @@ public enum WorldPathFlags : byte
     Indoor = 0x01,
     /// <summary>Tile belongs to an authored town area.</summary>
     Town = 0x02,
+    /// <summary>Trigger cell marker. Gold 0x493601/0x493649 sets it from pending
+    /// 16-byte script positions on the matching outdoor/indoor surfaces.</summary>
     Trigger = 0x04,
     RuntimeBlocked = 0x08,
     /// <summary>Runtime marker, for tracks and splashes.</summary>
@@ -17,7 +19,8 @@ public enum WorldPathFlags : byte
     Byte20 = 0x20,
     /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal byte value.</summary>
     Byte40 = 0x40,
-    /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal byte value.</summary>
+    /// <summary>Sector script-patch marker. Gold 0x49354A and 0x4AB160 set it for
+    /// matching 88-byte patch records. Other uses of this bit remain unmapped.</summary>
     Byte80 = 0x80,
 }
 

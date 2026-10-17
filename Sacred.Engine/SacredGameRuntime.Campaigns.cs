@@ -56,10 +56,11 @@ internal sealed partial class SacredGameRuntime
 
     private void SynchronizeCampaignControls()
     {
-        var files = _inGameScene?.CampaignScripts?.Files;
+        var files = _inGameScene?.CampaignInfo?.Files;
         _debugUiControls.CampaignDirectoryPath = files?.DirectoryPath;
         _debugUiControls.CampaignDisplayName = files?.Name ?? _campaignSelection;
         _debugUiControls.CampaignChangeAvailable = _inGameScene is not null && !_campaignReloadPending &&
+            !_gameServer.IsConnected && _serverJoin is not { IsFinished: false } &&
             _scenes.ActiveSceneId != GameSceneId.GameLoading;
     }
 
@@ -83,13 +84,18 @@ internal sealed partial class SacredGameRuntime
         }
         if (value.Equals("status", StringComparison.OrdinalIgnoreCase))
         {
-            var scripts = _inGameScene?.CampaignScripts;
+            var scripts = _inGameScene?.CampaignInfo;
             message = scripts is null ? $"campaign {_campaignSelection}: loading" :
-                $"campaign {scripts.Files.Name}: {scripts.Functions.Count:N0} functions, " +
-                $"{scripts.Positions.Count:N0} positions, quest code {scripts.QuestCode.Length} bytes, " +
-                $"quest pool code {scripts.QuestPoolCode.Length} bytes";
+                $"campaign {scripts.Files.Name}: {scripts.FunctionCount:N0} functions, " +
+                $"{scripts.PositionCount:N0} positions, quest code {scripts.QuestCodeLength} bytes, " +
+                $"quest pool code {scripts.QuestPoolCodeLength} bytes";
             if (_campaignReloadPending) message += $"; reloading {_campaignSelection}";
             return true;
+        }
+        if (_gameServer.IsConnected || _serverJoin is { IsFinished: false })
+        {
+            message = "Disconnect from GameServer before changing campaign.";
+            return false;
         }
         if (_inGameScene is null || _campaignReloadPending || _scenes.ActiveSceneId == GameSceneId.GameLoading)
         {

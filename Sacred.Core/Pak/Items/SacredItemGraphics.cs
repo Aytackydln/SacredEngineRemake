@@ -23,7 +23,8 @@ public enum SacredItemGraphicFlags : ushort
     /// <summary>Observed unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
     Byte0004 = 0x0004,
 
-    /// <summary>Observed unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    /// <summary>Gold 0x428460: the default overhead dialog/service icon render path.
+    /// This is combined descriptor bit 19; HasNpcDialogMarker exposes its meaning.</summary>
     Byte0008 = 0x0008,
 
     /// <summary>Enables complex model rendering; offset 0x6E selects its texture transform (Gold 0x426520).</summary>
@@ -41,7 +42,8 @@ public enum SacredItemGraphicFlags : ushort
     /// </summary>
     FrontLayer = 0x0080,
 
-    /// <summary>Observed unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
+    /// <summary>Gold 0x428650 tests this bit; object manager 0x5FB530 maps it to cObject flag 0x800.
+    /// Its gameplay meaning remains unresolved.</summary>
     Byte0100 = 0x0100,
 
     /// <summary>Invisible inventory fallback, such as hair or a base skirt. Native

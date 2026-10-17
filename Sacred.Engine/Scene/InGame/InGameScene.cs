@@ -10,6 +10,7 @@ using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Graphics;
 using Sacred.Engine.Graphics.ImGui;
+using Sacred.Engine.Multiplayer;
 using Sacred.Engine.Platform;
 using Sacred.Granny.Diagnostics;
 using Sacred.Particles;
@@ -23,7 +24,7 @@ using Sacred.World.Portals;
 
 namespace Sacred.Engine.Scene.InGame;
 
-internal sealed class InGameScene : IGameScene
+internal sealed partial class InGameScene : IGameScene
 {
     private readonly AnimatedModelDebugCrowd _debugCrowd = new();
     private readonly AssetManager _assets;
@@ -44,14 +45,14 @@ internal sealed class InGameScene : IGameScene
     private readonly EscapeMenuController _escapeMenu;
     private readonly Win32Window _window;
     private readonly SacredGameSaveState _saveState;
-    internal WorldCampaignScripts? CampaignScripts { get; }
+    internal WorldCampaignInfo? CampaignInfo { get; }
     private WorldMapAnnotations? _mapAnnotations;
     private readonly SacredWorldArchive _worldArchive;
     private MinimapRegionNames? _regionNames;
     internal WorldMapAnnotations GetMapAnnotations(string gameDirectory)
     {
         if (_mapAnnotations is not null) return _mapAnnotations;
-        _mapAnnotations = CampaignScripts is { } scripts
+        _mapAnnotations = CampaignInfo is { } scripts
             ? WorldMapAnnotations.Load(gameDirectory, scripts, _assets.Resources)
             : WorldMapAnnotations.Empty;
         _regionNames = new MinimapRegionNames(_worldArchive, _mapAnnotations);
@@ -75,7 +76,7 @@ internal sealed class InGameScene : IGameScene
         Renderer = renderer;
         _window = window;
         _saveState = saveState;
-        CampaignScripts = resources.WorldArchive.CampaignScripts;
+        CampaignInfo = resources.WorldArchive.CampaignInfo;
         _worldArchive = resources.WorldArchive;
         var startPosition = saveState.LastLocation ?? new Vector2(
             (resources.WorldArchive.StartSector.X + 0.5f) * WorldStreamer.SectorTileCount,
@@ -89,12 +90,13 @@ internal sealed class InGameScene : IGameScene
         _particles.SetSimulationMode(saveState.ParticleSimulation);
         _playerParticles = new PlayerParticleEffectsController(_particles, _scene, new WorldElevationSampler(_worldStreamer));
         _camera = SacredCamera.CreateDefault(window.ClientWidth, window.ClientHeight);
+        _scene.NpcOverheads.Camera = _camera;
         _footprints = new PlayerFootprintController(_assets, _worldStreamer, _scene);
         _player = new PlayerCharacterController(_assets, _scene, saveState.CharacterName);
         _doors = new DoorSceneController(_assets, _scene, new WorldDoorStateLayer(
             resources.WorldArchive.ObjectScript.Placements.Where(p => p.Door is not null).Select(p => p.Door!)),
             () => _camera.WorldCenter);
-        _worldLighting = new WorldLightingController(saveState.WorldLightingMode);
+        _worldLighting = new WorldLightingController(saveState.WorldLightingMode, resources.NightDarkness);
         var hud = new BottomHudState { Visible = false, DayFraction = _worldLighting.DayFraction };
         _scene.Hud = hud;
         var menu = new EscapeMenuState(_assets.Resources);
@@ -204,17 +206,20 @@ internal sealed class InGameScene : IGameScene
     internal void SetNoClipEnabled(bool enabled) =>
         SetCollisionMode(enabled ? CollisionCheatMode.NoClip : CollisionCheatMode.Walk);
 
-    internal PlayerDebugPanelState CreatePlayerDebugPanelState() => _player.CreateDebugPanelState();
+    internal PlayerDebugPanelState CreatePlayerDebugPanelState() => _networkPresentation is not null && _scene.EquipmentUi.Actor is { } actor
+        ? new($"Network player {_networkPresentation.World.PlayerSlot}", _networkPresentation.World.LocalHero.BaseState.ObjectType, [],
+            actor.EquipmentSlots.Select((slot, index) => new PlayerEquipmentSlotState(index, slot.Type.ToString(), slot.Equipment?.Name, slot.Equipment?.IdemId)).ToArray(), [])
+        : _player.CreateDebugPanelState();
     internal PlayerParticlePanelState CreatePlayerParticlePanelState() => _playerParticles.CreateState(_camera.WorldCenter);
     internal bool ExecutePlayerParticleRequest(PlayerParticleRequest request) =>
         _playerParticles.Execute(request, _camera.WorldCenter);
 
-    internal bool RemovePlayerEquipment(int slotIndex) => _player.RemoveEquipment(slotIndex);
-    internal bool RemoveAllPlayerEquipment() => _player.RemoveAllEquipment();
+    internal bool RemovePlayerEquipment(int slotIndex) => _networkPresentation is null && _player.RemoveEquipment(slotIndex);
+    internal bool RemoveAllPlayerEquipment() => _networkPresentation is null && _player.RemoveAllEquipment();
 
-    internal bool EquipPlayerItemSet(int setIndex) => _player.EquipItemSet(setIndex);
+    internal bool EquipPlayerItemSet(int setIndex) => _networkPresentation is null && _player.EquipItemSet(setIndex);
 
-    internal bool SelectPlayerCharacter(uint entryId) => _player.SelectModel(entryId);
+    internal bool SelectPlayerCharacter(uint entryId) => _networkPresentation is null && _player.SelectModel(entryId);
 
     internal Task<TextureAsset> LoadTextureAsync(string textureName, CancellationToken cancellationToken) =>
         _assets.LoadTextureAsync(textureName, cancellationToken);
@@ -230,7 +235,10 @@ internal sealed class InGameScene : IGameScene
 
     internal bool TrySetCheatOption(string option, string value, out string message)
     {
+        if (TrySetNetworkInteraction(option, value, out message)) return true;
+        if (WorldLightingCheats.TryExecute(option, value, _worldLighting, _scene.Lighting, out message)) return true;
         if (_escapeMenu.TrySetCheatOption(option, value, out message)) return true;
+        if (_networkPresentation is { } network && NetworkCharacterCheats.TryExecute(option, value, _scene, network.World.Replicas, out message)) return true;
         if (PlayerEquipmentCheats.TryExecute(option, value, _player, out message)) return true;
         if (InventoryPanelCheats.TryExecute(option, value, _scene.EquipmentUi, out message)) return true;
         if (ActorPortraitCheats.TryExecute(option, value, _scene.Portraits, _assets, out message)) return true;
@@ -238,10 +246,13 @@ internal sealed class InGameScene : IGameScene
         if (PlayerMovementCheats.TrySetOption(option, value, _camera, _inputController, out message)) return true;
         if (WorldFocusCheats.TrySetOption(option, value, _inputController, _doors, _camera,
                 _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0, out message)) return true;
+        if (TrySetNpcOverheads(option, value, out message)) return true;
         switch (option.ToLowerInvariant())
         {
             case "hud" when value.Equals("status", StringComparison.OrdinalIgnoreCase):
-                message = $"bottom HUD {(_scene.Hud!.Layout is null ? "loading" : "ready")}; calendar {_worldLighting.DayFraction * 24:0.00}h; inventory, options and map actions available";
+                message = $"bottom HUD {(_scene.Hud!.Layout is null ? "loading" : "ready")}; calendar {_worldLighting.DayFraction * 24:0.00}h; " +
+                    $"level {_scene.EquipmentUi.Actor?.Progression.Level}; quick slots {_scene.Hud.Layout?.QuickSlots.HandSlots.Count}; " +
+                    $"selected weapon {_scene.Hud.SelectedWeaponSlot}, combat art {_scene.Hud.SelectedCombatArtSlot}; inventory, options and map actions available";
                 return true;
             case "hud" when Enum.TryParse<HudButton>(value, true, out var hudButton) && Enum.IsDefined(hudButton):
                 _scene.Hud!.Activate(hudButton);
@@ -395,7 +406,7 @@ internal sealed class InGameScene : IGameScene
     public void OnActivated()
     {
         _window.Input.ClearTransientEvents();
-        _scene.Hud!.Visible = true;
+        _scene.Hud!.Visible = _scene.EquipmentUi.Actor is not null;
         _inputController.OnActivated();
         _window.RequestFocus();
     }
@@ -411,26 +422,28 @@ internal sealed class InGameScene : IGameScene
     public void Update(float deltaSeconds)
     {
         var input = _window.Input;
+        _scene.NpcOverheads.ShowStates = _scene.NpcOverheads.ShowStatesOverride ?? (!input.UiWantsKeyboard && input.IsDown(VirtualKey.Alt));
         if (!_scene.EscapeMenu!.IsOpen && !input.UiWantsKeyboard)
         {
-            if (input.ConsumePressed(VirtualKey.I)) _scene.EquipmentUi.SetOpen(!_scene.EquipmentUi.IsOpen);
+            if (_scene.EquipmentUi.Actor is not null && input.ConsumePressed(VirtualKey.I)) _scene.EquipmentUi.SetOpen(!_scene.EquipmentUi.IsOpen);
             if (_scene.EquipmentUi.IsOpen && input.ConsumePressed(VirtualKey.Escape))
                 _scene.EquipmentUi.SetOpen(false);
         }
-        if (_escapeMenu.Update()) return;
+        if (_escapeMenu.Update()) { UpdatePausedNetworkMovement(deltaSeconds); return; }
         _hudInput.Update();
         _inventoryInput.Update();
         _portraitInput.Update();
-        if (_scene.EscapeMenu!.IsOpen) return;
-        _inputController.Update(deltaSeconds);
+        if (_scene.EscapeMenu!.IsOpen) { UpdatePausedNetworkMovement(deltaSeconds); return; }
+        UpdateNetworkBinding(deltaSeconds);
+        if (_networkPresentation is null) _inputController.Update(deltaSeconds);
         _scene.Hud!.DayFraction = _worldLighting.DayFraction;
         _footprints.Update(deltaSeconds, _camera);
         Renderer.UpdateAutoRenderResolution(_camera.Zoom);
-        _doors.Update(_worldStreamer.VisibleWorld, _camera.WorldCenter, deltaSeconds, _scene.Indoor.ActiveGroup);
+        _doors.Update(PresentedWorld, _camera.WorldCenter, deltaSeconds, _scene.Indoor.ActiveGroup);
         _debugCrowd.Update(_scene, deltaSeconds);
-        _playerParticles.Update();
+        if (_networkPresentation is null) _playerParticles.Update();
         using (AnimationPerformance.Measure(AnimationCpuStage.Particles))
-        _particles.Update(deltaSeconds, _worldStreamer.VisibleWorld, _scene.Indoor.ActiveGroup,
+        _particles.Update(deltaSeconds, PresentedWorld, _scene.Indoor.ActiveGroup,
             _camera.WorldCenter, _playerParticles.SelfHeight);
         _scene.GpuParticlesEnabled = _particles.GpuEmissionEnabled || _particles.SelectedSimulationMode is ParticleSimulationMode.Gpu or ParticleSimulationMode.GpuOnly;
         _scene.GpuWorldEmitters = _particles.GpuEmitters;
@@ -441,7 +454,7 @@ internal sealed class InGameScene : IGameScene
     public ValueTask RenderAsync(SceneRenderContext context) =>
         context.Renderer.RenderFrameAsync(
             _camera,
-            _worldStreamer.VisibleWorld,
+            PresentedWorld,
             _scene,
             _particles.Particles,
             _particles.Revision,
@@ -530,6 +543,7 @@ internal sealed class InGameScene : IGameScene
             return;
 
         _disposed = true;
+        DisposeNetworkBinding();
         _window.SetHandCursor(false);
         _player.Dispose();
         _worldStreamer.Dispose();

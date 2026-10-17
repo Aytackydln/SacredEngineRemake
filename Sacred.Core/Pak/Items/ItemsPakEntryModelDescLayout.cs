@@ -52,6 +52,8 @@ public readonly struct ItemsPakEntryModelDescLayout
     /// </summary>
     [FieldOffset(2)]
     public readonly SacredItemGraphicFlags GraphicFlags;
+    /// <summary>Gold 0x428460: combined descriptor bit 19 selects the default NPC dialog icon path.</summary>
+    public bool HasNpcDialogMarker => (GraphicFlags & SacredItemGraphicFlags.Byte0008) != 0;
 
     /// <summary>
     /// Texture.pak descriptor index used by atlas-backed mini objects. Static.pak
@@ -97,7 +99,9 @@ public readonly struct ItemsPakEntryModelDescLayout
     [FieldOffset(28)]
     public readonly uint BookTextId;
 
-    /// <summary>Object resource identifier (<c>cObjectShared::resourceid</c>).</summary>
+    /// <summary>Object script-resource identifier (<c>cObjectShared::resourceid</c>).
+    /// Gold 0x44A1C0 / 0x428830 use it when native instance +0x3C is zero;
+    /// this is distinct from the Items.pak item/type index.</summary>
     [FieldOffset(32)]
     public readonly uint ResourceId;
 
@@ -279,6 +283,16 @@ public readonly struct ItemsPakEntryModelDescLayout
         var copy = this;
         var bytes = MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref copy, 1));
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.Slice(32, 4), itemId);
+        return copy;
+    }
+
+    /// <summary>Gold 0x434100 rebuilds this index in Weapon.pak record order.
+    /// Base-visual copying preserves the child's rebuilt index.</summary>
+    public ItemsPakEntryModelDescLayout WithWeaponEntry(ushort weaponEntry)
+    {
+        var copy = this;
+        var bytes = MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref copy, 1));
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.Slice(24, 2), weaponEntry);
         return copy;
     }
 

@@ -5,4 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Sacred.Core/Sacred.Core.csproj" />
+  </ItemGroup>
 </Project>

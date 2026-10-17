@@ -63,6 +63,10 @@ public readonly struct CreatureGoldRecordLayout
     [FieldOffset(0)] public readonly uint ItemType;
     [FieldOffset(4)] public readonly SacredCreatureClass Class;
     [FieldOffset(5)] public readonly byte HorseClass;
+    /// <summary>Gold 0x52E23B tests bit 0x20 and sets creature behavior +0x1F4 bit 0x01000000.
+    /// Character seed 0x586C00 tests bit 0x40 and sets behavior bit 0x08000000.
+    /// Gold path speed 0x4F7692 tests bit 1: with actor behavior 0x00200000, force run action/base speed 200.
+    /// Other bits and these behaviors' gameplay meanings remain unresolved.</summary>
     [FieldOffset(6)] public readonly ushort Flags;
     [FieldOffset(8)] public readonly ushort ExperienceMinimum;
     [FieldOffset(10)] public readonly ushort ExperienceMaximum;

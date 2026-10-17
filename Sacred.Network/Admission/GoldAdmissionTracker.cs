@@ -71,6 +71,18 @@ public sealed class GoldAdmissionTracker
                     if (next.Phase != GoldAdmissionPhase.SlotAssigned)
                         throw new InvalidDataException("Gold server startup message requires an assigned Sacred slot.");
                 }
+                else if (entry is GoldParticipantStartApprovedEvent or GoldHostWorldAvailableEvent or GoldSectorEntryEvent)
+                {
+                    // Native host-start broadcasts carry server sender zero and retained player origin.
+                    if (message.Sender != 0 || message.Origin > 16 || next.Phase != GoldAdmissionPhase.SlotAssigned)
+                        throw new InvalidDataException("Gold world startup requires a server message and an assigned Sacred slot.");
+                }
+                else if (entry is GoldSectorInterestEvent)
+                {
+                    if (message.Sender is < 1 or > 16 || message.Origin != message.Sender || next.Phase != GoldAdmissionPhase.SlotAssigned)
+                        throw new InvalidDataException("Gold sector interest requires an admitted client identity.");
+                }
+                next = next with { WorldStartup = GoldWorldStartupReducer.Apply(next.WorldStartup, entry) };
             }
             Volatile.Write(ref _status, next);
         }

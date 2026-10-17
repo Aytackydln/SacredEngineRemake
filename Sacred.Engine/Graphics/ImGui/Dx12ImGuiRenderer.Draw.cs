@@ -54,7 +54,8 @@ internal sealed unsafe partial class Dx12ImGuiRenderer
             -2.0f / drawData.DisplaySize.Y,
             -1.0f - drawData.DisplayPos.X * (2.0f / drawData.DisplaySize.X),
             1.0f + drawData.DisplayPos.Y * (2.0f / drawData.DisplaySize.Y),
-            uiPaperWhiteNits
+            uiPaperWhiteNits,
+            0
         };
         _commandList.SetGraphicsRoot32BitConstants(
             ImGuiShaderLayout.ConstantsRootParameter,
@@ -76,6 +77,7 @@ internal sealed unsafe partial class Dx12ImGuiRenderer
         var globalVertexOffset = 0;
         var globalIndexOffset = 0;
         var clipOffset = drawData.DisplayPos;
+        var additive = false;
         for (var listIndex = 0; listIndex < drawData.CmdListsCount; listIndex++)
         {
             var drawList = drawData.CmdLists[listIndex];
@@ -101,7 +103,14 @@ internal sealed unsafe partial class Dx12ImGuiRenderer
                     continue;
 
                 _commandList.RSSetScissorRects(new RawRect(left, top, right, bottom));
-                var textureSlot = command.TextureId == 0 ? _fontSrvSlot : checked((int)command.TextureId);
+                var nextAdditive = command.TextureId < 0;
+                if (nextAdditive != additive)
+                {
+                    additive = nextAdditive;
+                    _commandList.SetGraphicsRoot32BitConstant(ImGuiShaderLayout.ConstantsRootParameter,
+                        additive ? 1u : 0u, ImGuiShaderLayout.AdditiveConstantOffset);
+                }
+                var textureSlot = command.TextureId == 0 ? _fontSrvSlot : ImGuiTextureReference.Slot(command.TextureId);
                 _commandList.SetGraphicsRootDescriptorTable(
                     ImGuiShaderLayout.TextureRootParameter,
                     _srvHeapGpuStart + textureSlot * _srvDescriptorSize);

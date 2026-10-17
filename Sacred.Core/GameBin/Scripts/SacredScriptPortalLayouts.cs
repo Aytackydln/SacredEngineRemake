@@ -21,7 +21,8 @@ public readonly struct SacredScriptTriggerCornerLayout
     [FieldOffset(0)] public readonly SacredScriptArgumentKind Kind;
     [FieldOffset(1)] public readonly int X;
     [FieldOffset(5)] public readonly int Y;
-    /// <summary>Trigger surface level; Gold replaces values outside 0..16 with zero.</summary>
+    /// <summary>Operand 0x0C supplies the trigger surface; Gold replaces values outside 0..16 with zero.
+    /// Operand 0x0D retains this third Int32 in the file, but SetBaseTrigger does not consume it.</summary>
     [FieldOffset(9)] public readonly int SurfaceLevel;
 }
 

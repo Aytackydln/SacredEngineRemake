@@ -27,8 +27,9 @@ try
     }
 
     var serverEndpoint = args.FirstOrDefault(argument => argument.StartsWith("--server=", StringComparison.OrdinalIgnoreCase))?[9..];
+    var serverCharacter = args.FirstOrDefault(argument => argument.StartsWith("--server-character=", StringComparison.OrdinalIgnoreCase))?[19..];
     var gameDir = args.FirstOrDefault(argument => !LaunchArguments.IsTerminalMode(argument) &&
-                                                !argument.StartsWith("--server=", StringComparison.OrdinalIgnoreCase))
+                                                !argument.StartsWith("--", StringComparison.OrdinalIgnoreCase))
                   ?? @"E:\SteamLibrary\steamapps\common\Sacred Gold";
 
     if (!Directory.Exists(gameDir))
@@ -54,17 +55,22 @@ try
     };
 
     var saveState = SacredEngineRemakeConfig.Load(gameDir);
+    if(args.Contains("--no-focus")) saveState=saveState with { RequestWindowFocus=false, BorderlessFullscreen=false, WindowedMaximized=false };
 
     using (var game = new SacredGame(directories, saveState))
     {
-        if (serverEndpoint is not null) game.RequestServerConnection(serverEndpoint);
+        if (serverEndpoint is not null)
+        {
+            if(serverCharacter is not null && int.TryParse(serverCharacter,out var selection)) game.RequestServerJoin(serverEndpoint,selection);
+            else game.RequestServerConnection(serverEndpoint);
+        }
         try
         {
             await game.Run();
         }
         finally
         {
-            SacredEngineRemakeConfig.Save(gameDir, game.CaptureSaveState());
+            if(serverEndpoint is null) SacredEngineRemakeConfig.Save(gameDir, game.CaptureSaveState());
         }
     }
 

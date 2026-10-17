@@ -1,6 +1,5 @@
 using Sacred.Assets.Paks.Models;
 using Sacred.Core.Pak.Weapon;
-using Sacred.Granny;
 using Sacred.Granny.Animation;
 using Sacred.Inventory.Actors;
 
@@ -11,7 +10,11 @@ public sealed record PlayerCharacterAnimations(
     GrnAnimationClip Walk,
     GrnAnimationClip Run,
     GrnAnimationClip Defend,
-    GrnAnimationClip Attack);
+    GrnAnimationClip Attack)
+{
+    public GrnAnimationClip? NpcTalk { get; init; }
+    public GrnAnimationClip? NpcReactionAttack { get; init; }
+}
 
 internal static class CharacterWeaponStyleResolver
 {

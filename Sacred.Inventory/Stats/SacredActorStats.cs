@@ -23,6 +23,13 @@ public sealed class SacredActorStats
     public FrozenDictionary<ushort, int> CombatArts { get; }
     public double this[SacredActorStat stat] => Values.GetValueOrDefault(stat);
 
+    internal SacredActorStats WithValue(SacredActorStat stat, double value)
+    {
+        var values = Values.ToDictionary();
+        values[stat] = value;
+        return new(values, Skills.ToDictionary(), CombatArts.ToDictionary());
+    }
+
     public static SacredActorStats operator +(SacredActorStats left, SacredActorStats right) => new(
         left.Values.Keys.Concat(right.Values.Keys).Distinct().ToDictionary(key => key, key => left[key] + right[key]),
         left.Skills.Keys.Concat(right.Skills.Keys).Distinct().ToDictionary(key => key,

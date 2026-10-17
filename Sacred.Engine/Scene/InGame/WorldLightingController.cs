@@ -16,22 +16,12 @@ public enum WorldLightingMode
 public sealed class WorldLightingController
 {
     private static readonly Vector3 DayAmbientColor = new(1.00f, 1.00f, 0.95f);
-    private static readonly Vector3 NightAmbientColor = new(0.83f, 0.86f, 1.0f);
-
-    private static readonly float NightAmbientIntensity = 0.48f;
-    private static readonly float DayAmbientIntensity = 0.7f;
+    private static readonly float DayAmbientIntensity = 0.35f;
     
     private static readonly Vector3 DayLightColor = new(1.0f, 0.93f, 0.82f);
-    private static readonly Vector3 NightLightColor = new(0.46f, 0.60f, 1f);
-
-    private static readonly float DayDiffuseIntensity = 0.75f;
-    private static readonly float NightDiffuseIntensity = 0.25f;
+    private static readonly float DayDiffuseIntensity = 1.00f;
 
     private static readonly float DaySpecularIntensity = 0.12f;
-    private static readonly float NightSpecularIntensity = 0.40f;
-
-    private static readonly Vector3 DayWorldSurfaceAmbientColour = Vector3.One;
-    private static readonly Vector3 NightWorldSurfaceAmbientColour = new(0.48f, 0.49f, 0.52f);
 
     private const float DayDurationSeconds = 15.0f;
     private const float NightDurationSeconds = 10.0f;
@@ -42,9 +32,29 @@ public sealed class WorldLightingController
         DayDurationSeconds + NightDurationSeconds + TransitionDurationSeconds * 2.0f;
     private float _cycleElapsedSeconds;
     private bool _zoneInitialized;
+    private float? _networkDayFraction;
+    private float? _debugDayFraction;
+    private readonly float _nightDarkness;
 
-    public WorldLightingController(WorldLightingMode mode = WorldLightingMode.TimedDayNightCycle)
+    public void SetDebugDayFraction(float? fraction)
     {
+        if (fraction is { } value && (!float.IsFinite(value) || value < 0 || value >= 1))
+            throw new ArgumentOutOfRangeException(nameof(fraction));
+        _debugDayFraction = fraction;
+    }
+
+    public void SetNetworkDayFraction(float? fraction)
+    {
+        if (fraction is { } value && (!float.IsFinite(value) || value < 0 || value >= 1))
+            throw new ArgumentOutOfRangeException(nameof(fraction));
+        _networkDayFraction = fraction;
+    }
+
+    public WorldLightingController(WorldLightingMode mode = WorldLightingMode.TimedDayNightCycle, float nightDarkness = 0.5f)
+    {
+        if (!float.IsFinite(nightDarkness) || nightDarkness < 0 || nightDarkness > 1)
+            throw new ArgumentOutOfRangeException(nameof(nightDarkness));
+        _nightDarkness = nightDarkness;
         Mode = mode;
         ResetClock();
     }
@@ -57,21 +67,29 @@ public sealed class WorldLightingController
     {
         get
         {
+            if ((_debugDayFraction ?? _networkDayFraction) is { } fraction) return fraction;
             if (Mode == WorldLightingMode.Day) return 0.5f;
             if (Mode is WorldLightingMode.Night or WorldLightingMode.PitchBlack) return 0;
-            // Map the existing unequal-duration phases to continuous calendar intervals:
-            // day 08..16, dusk 16..20, night 20..04, dawn 04..08.
+            // Keep the accelerated preview durations, mapped to native calendar phases.
             var elapsed = _cycleElapsedSeconds;
             if (elapsed < DayDurationSeconds)
-                return (8 + 8 * elapsed / DayDurationSeconds) / 24;
+                return (WorldDayNightLighting.DawnEnd +
+                    (WorldDayNightLighting.DuskStart - WorldDayNightLighting.DawnEnd) * elapsed / DayDurationSeconds) /
+                    WorldDayNightLighting.MinutesPerDay;
             elapsed -= DayDurationSeconds;
             if (elapsed < TransitionDurationSeconds)
-                return (16 + 4 * elapsed / TransitionDurationSeconds) / 24;
+                return (WorldDayNightLighting.DuskStart +
+                    (WorldDayNightLighting.DuskEnd - WorldDayNightLighting.DuskStart) * elapsed / TransitionDurationSeconds) /
+                    WorldDayNightLighting.MinutesPerDay;
             elapsed -= TransitionDurationSeconds;
             if (elapsed < NightDurationSeconds)
-                return ((20 + 8 * elapsed / NightDurationSeconds) / 24) % 1;
+                return ((WorldDayNightLighting.DuskEnd +
+                    (WorldDayNightLighting.MinutesPerDay - WorldDayNightLighting.DuskEnd + WorldDayNightLighting.DawnStart) *
+                    elapsed / NightDurationSeconds) / WorldDayNightLighting.MinutesPerDay) % 1;
             elapsed -= NightDurationSeconds;
-            return (4 + 4 * elapsed / TransitionDurationSeconds) / 24;
+            return (WorldDayNightLighting.DawnStart +
+                (WorldDayNightLighting.DawnEnd - WorldDayNightLighting.DawnStart) * elapsed / TransitionDurationSeconds) /
+                WorldDayNightLighting.MinutesPerDay;
         }
     }
 
@@ -113,13 +131,13 @@ public sealed class WorldLightingController
 
         if (zone == WorldZone.Cave)
         {
-            ApplyProfile(1.0f, lighting);
+            ApplyCaveProfile(lighting);
             ApplyCelestialLighting(lighting);
             lighting.ShadowMode = SceneShadowMode.None;
             lighting.ShadowOpacity = 0.0f;
             lighting.OutdoorShadowOpacity = 0.0f;
         }
-        else if (Mode == WorldLightingMode.PitchBlack)
+        else if (_debugDayFraction is null && _networkDayFraction is null && Mode == WorldLightingMode.PitchBlack)
         {
             ApplyPitchBlack(lighting);
             ApplyCelestialLighting(lighting);
@@ -154,7 +172,8 @@ public sealed class WorldLightingController
         _ => ModeDisplayName,
     };
 
-    private string ModeDisplayName => Mode switch
+    private string ModeDisplayName => _debugDayFraction is { } debug ? $"Preview: {debug * 24:0.00}h" :
+        _networkDayFraction is { } fraction ? $"Network: {fraction * 24:0.00}h" : Mode switch
     {
         WorldLightingMode.Day => "Day",
         WorldLightingMode.Night => "Night",
@@ -168,27 +187,7 @@ public sealed class WorldLightingController
         }
     };
 
-    private float GetNightBlend() => Mode switch
-    {
-        WorldLightingMode.Day => 0.0f,
-        WorldLightingMode.Night => 1.0f,
-        _ => GetTimedNightBlend()
-    };
-
-    private float GetTimedNightBlend()
-    {
-        var phase = GetCyclePhase();
-        return phase switch
-        {
-            LightingCyclePhase.Day => 0.0f,
-            LightingCyclePhase.Dusk => SmoothStep((_cycleElapsedSeconds - DayDurationSeconds) /
-                                                  TransitionDurationSeconds),
-            LightingCyclePhase.Night => 1.0f,
-            _ => 1.0f - SmoothStep(
-                (_cycleElapsedSeconds - DayDurationSeconds - TransitionDurationSeconds - NightDurationSeconds) /
-                TransitionDurationSeconds)
-        };
-    }
+    private float GetNightBlend() => WorldDayNightLighting.GetNightValue(DayFraction) / 255f;
 
     private LightingCyclePhase GetCyclePhase()
     {
@@ -204,20 +203,33 @@ public sealed class WorldLightingController
         return LightingCyclePhase.Dawn;
     }
 
-    private static void ApplyProfile(float nightBlend, SceneLighting lighting)
+    private void ApplyProfile(float nightBlend, SceneLighting lighting)
     {
         var blend = Math.Clamp(nightBlend, 0.0f, 1.0f);
-        lighting.LightColor = Vector3.Lerp(DayLightColor, NightLightColor, blend);
-        lighting.AmbientColor = Vector3.Lerp(DayAmbientColor, NightAmbientColor, blend);
-        lighting.AmbientIntensity = Lerp(DayAmbientIntensity, NightAmbientIntensity, blend);
-        lighting.DiffuseIntensity = Lerp(DayDiffuseIntensity, NightDiffuseIntensity, blend);
-        // Moonlight keeps a cool diffuse response, but never contributes a specular lobe.
-        lighting.SpecularIntensity = Lerp(DaySpecularIntensity, NightSpecularIntensity, blend);
-        // The reference captures retain roughly half of the daytime surface value
-        // away from local lights, with only a slight cool bias. Keep that filter
-        // shared by terrain and world sprites before local lights are accumulated.
-        lighting.WorldSurfaceAmbientColour = Vector3.Lerp(DayWorldSurfaceAmbientColour, NightWorldSurfaceAmbientColour, blend);
+        var surfaceColour = WorldDayNightLighting.GetSurfaceColour(
+            (int)MathF.Round(blend * 255), _nightDarkness);
+        // Native hilight_getIntensity_wp (0x41B3C0) exposes the same palette RGB
+        // to models. Retain the renderer's daytime shading, modulated by that
+        // filter, instead of introducing a separate blue moonlight/specular ramp.
+        lighting.LightColor = DayLightColor * surfaceColour;
+        lighting.AmbientColor = DayAmbientColor * surfaceColour;
+        lighting.AmbientIntensity = DayAmbientIntensity;
+        lighting.DiffuseIntensity = DayDiffuseIntensity;
+        lighting.SpecularIntensity = DaySpecularIntensity;
+        lighting.WorldSurfaceAmbientColour = surfaceColour;
         lighting.NightBlend = blend;
+    }
+
+    private static void ApplyCaveProfile(SceneLighting lighting)
+    {
+        // The existing cave presentation is independent of the outdoor clock.
+        lighting.LightColor = new Vector3(0.46f, 0.60f, 1f);
+        lighting.AmbientColor = new Vector3(0.83f, 0.86f, 1f);
+        lighting.AmbientIntensity = 0.48f;
+        lighting.DiffuseIntensity = 0.25f;
+        lighting.SpecularIntensity = 0.40f;
+        lighting.WorldSurfaceAmbientColour = new Vector3(0.48f, 0.49f, 0.52f);
+        lighting.NightBlend = 1;
     }
 
     private void ApplyCelestialLighting(SceneLighting lighting)
@@ -229,7 +241,7 @@ public sealed class WorldLightingController
         lighting.DirectionToLight = solar.DirectionToLight;
         lighting.DirectionToSun = solar.DirectionToSun;
         lighting.SunHeight = solar.SunHeight;
-        lighting.OutdoorShadowOpacity = Mode == WorldLightingMode.PitchBlack ? 0.0f : solar.ShadowOpacity;
+        lighting.OutdoorShadowOpacity = _debugDayFraction is null && _networkDayFraction is null && Mode == WorldLightingMode.PitchBlack ? 0.0f : solar.ShadowOpacity;
         lighting.ShadowOpacity = lighting.OutdoorShadowOpacity;
         lighting.ShadowMode = lighting.ShadowOpacity > 0.0f
             ? SceneShadowMode.Directional
@@ -238,9 +250,11 @@ public sealed class WorldLightingController
 
     private void ResetClock()
     {
+        _debugDayFraction = null;
         // A freshly entered timed cycle starts at noon, matching the fixed Day profile.
         _cycleElapsedSeconds = Mode == WorldLightingMode.TimedDayNightCycle
-            ? DayDurationSeconds * 0.5f
+            ? DayDurationSeconds * (720f - WorldDayNightLighting.DawnEnd) /
+              (WorldDayNightLighting.DuskStart - WorldDayNightLighting.DawnEnd)
             : 0.0f;
     }
 
@@ -258,14 +272,6 @@ public sealed class WorldLightingController
         lighting.ShadowOpacity = 0;
         lighting.ShadowMode = SceneShadowMode.None;
     }
-
-    private static float SmoothStep(float value)
-    {
-        var clamped = Math.Clamp(value, 0.0f, 1.0f);
-        return clamped * clamped * (3.0f - 2.0f * clamped);
-    }
-
-    private static float Lerp(float from, float to, float amount) => from + (to - from) * amount;
 
     private enum LightingCyclePhase
     {

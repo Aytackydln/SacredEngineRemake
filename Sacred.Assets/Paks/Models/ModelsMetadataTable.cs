@@ -25,6 +25,12 @@ internal sealed class ModelsMetadataTable
 
     private readonly string[] _motionNames;
     private readonly Dictionary<string, ModelMotionTable> _modelMotions;
+    private readonly Dictionary<uint, float> _motionSpeeds = [];
+    public float MotionPlaybackSpeed(uint index) => _motionSpeeds.GetValueOrDefault(index, 1);
+    public float CharacterPlaybackSpeed(string modelName, CharacterMotionKind kind, CharacterMotionWeaponStyle style) =>
+        _modelMotions.TryGetValue(modelName, out var table) ? MotionPlaybackSpeed(table.GetWithFallback(kind, style)) : 1;
+    public float ModelPlaybackSpeed(string modelName, byte slot) =>
+        _modelMotions.TryGetValue(modelName, out var table) ? MotionPlaybackSpeed(table.MotionIndexes[slot]) : 1;
 
     private ModelsMetadataTable(
         string[] motionNames,
@@ -73,7 +79,14 @@ internal sealed class ModelsMetadataTable
                 modelMotions.TryAdd(modelName, ReadMotionTable(record));
         }
 
-        return new ModelsMetadataTable(motionNames, modelMotions);
+        var result = new ModelsMetadataTable(motionNames, modelMotions);
+        for (var index = 0; index < motionNames.Length; index++)
+        {
+            var offset = checked((int)motionTableOffset + index * MotionRecordSize + 0x9C);
+            var speed = BinaryPrimitives.ReadSingleLittleEndian(bytes.AsSpan(offset));
+            result._motionSpeeds.TryAdd((uint)index, speed is >= .8f and < 5f ? speed : 1);
+        }
+        return result;
     }
 
     public bool TryGetMotionName(uint motionIndex, out string name)

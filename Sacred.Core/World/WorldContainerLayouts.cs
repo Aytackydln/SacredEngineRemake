@@ -9,7 +9,8 @@ public readonly struct KeyxHeaderLayout
     /// <summary>Serialized header size.</summary>
     public const int SerializedSize = 0x100;
 
-    /// <summary>Number of 0x300-byte sector records.</summary>
+    /// <summary>Number of 0x300-byte sector records. Gold allocates a runtime sector table
+    /// with one additional reserved zero slot and sends its size in host finish opcode 0x18.</summary>
     [FieldOffset(0x04)] public readonly uint SectorCount;
 }
 

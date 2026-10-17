@@ -7,6 +7,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Sacred.GameplayHost\Sacred.GameplayHost.csproj" />
     <ProjectReference Include="..\Sacred.World\Sacred.World.csproj" />
     <ProjectReference Include="..\Sacred.Assets\Sacred.Assets.csproj" />
     <ProjectReference Include="..\Sacred.Granny\Sacred.Granny.csproj" />

@@ -9,7 +9,7 @@ using Sacred.Network.TinCat;
 namespace Sacred.Network.Connection;
 
 /// <summary>One Gold gameplay transport. TinCat admission does not assign a Sacred player slot.</summary>
-public sealed class GoldGameConnection : IAsyncDisposable
+public sealed partial class GoldGameConnection : IAsyncDisposable
 {
     private readonly object _lifetimeGate = new();
     private readonly TcpClient _client = new() { NoDelay = true };
@@ -30,6 +30,7 @@ public sealed class GoldGameConnection : IAsyncDisposable
 
     public ChannelReader<GoldConnectionEvent> Events => _events.Reader;
     public Task Completion => _run ?? Task.CompletedTask;
+    public bool IsStopping => _stop.IsCancellationRequested;
     public GoldAdmissionStatus Admission => _admission.Status;
 
     public void Start(string host, int port) => StartCore(host, port, null);
@@ -98,23 +99,28 @@ public sealed class GoldGameConnection : IAsyncDisposable
             await _sendGate.WaitAsync(linked.Token).ConfigureAwait(false);
             try
             {
-                if (_firstContact is not null && message.Opcode != GoldFirstContactLayout.Opcode)
-                {
-                    var status = Admission;
-                    if (status.Phase != GoldAdmissionPhase.SlotAssigned || message.Sender != status.PlayerSlot)
-                        throw new InvalidOperationException("Message sender no longer has an assigned Sacred slot.");
-                    message = message with { Sequence = unchecked((ushort)(_sendSequence + 1)) };
-                }
-                var body = GoldEnvelopeCodec.Encode(GoldMessageCodec.Encode(message));
-                var payload = TinCatCustomData.Encode(TinCatLogin.GameModule, 0, body);
                 if (passwordRequest) _admission.BeginPassword();
-                if (_firstContact is not null) _sendSequence = message.Sequence;
-                try { await WriteFrameAsync(TinCatLogin.CustomData, payload, linked.Token).ConfigureAwait(false); }
-                catch (Exception e) when (e is IOException or SocketException or ObjectDisposedException or OperationCanceledException)
-                { Stop(); throw; }
+                await WriteGoldMessageAsync(message, linked.Token).ConfigureAwait(false);
             }
             finally { _sendGate.Release(); }
         }
+    }
+
+    private async ValueTask WriteGoldMessageAsync(GoldMessage message, CancellationToken cancellationToken)
+    {
+        if (_firstContact is not null && message.Opcode != GoldFirstContactLayout.Opcode)
+        {
+            var status = Admission;
+            if (status.Phase != GoldAdmissionPhase.SlotAssigned || message.Sender != status.PlayerSlot)
+                throw new InvalidOperationException("Message sender no longer has an assigned Sacred slot.");
+            message = message with { Sequence = unchecked((ushort)(_sendSequence + 1)) };
+        }
+        var body = GoldEnvelopeCodec.Encode(GoldMessageCodec.Encode(message));
+        var payload = TinCatCustomData.Encode(TinCatLogin.GameModule, 0, body);
+        if (_firstContact is not null) _sendSequence = message.Sequence;
+        try { await WriteFrameAsync(TinCatLogin.CustomData, payload, cancellationToken).ConfigureAwait(false); }
+        catch (Exception e) when (e is IOException or SocketException or ObjectDisposedException or OperationCanceledException)
+        { Stop(); throw; }
     }
 
     public void Stop()

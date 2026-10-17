@@ -4,7 +4,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Sacred.Assets;
+using Sacred.Assets.Executable;
+using Sacred.Assets.GameBin.Balance;
 using Sacred.Assets.GameBin.Sets;
+using Sacred.Assets.GameBin.WeaponModifiers;
 using Sacred.Assets.Paks.Creature;
 using Sacred.Assets.Paks.Items;
 using Sacred.Assets.Paks.Mixed;
@@ -17,8 +20,10 @@ using Sacred.Core.GameBin.Sets;
 using Sacred.Core.GameRes;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Pak.Weapon;
+using Sacred.GameplayHost;
 using Sacred.Granny.Abstractions;
 using Sacred.Granny.Loading;
+using Sacred.Inventory.Stats;
 using Sacred.World;
 
 namespace Sacred.Engine.Assets;
@@ -103,12 +108,17 @@ internal sealed class GameResourceLoader : IDisposable
         {
             assets = new AssetManager(texturePak, tilesPak, items, equipment, itemSets, mixedPak, modelsPak, resources)
             {
-                CreatureTemplates = _creatures
+                CreatureTemplates = _creatures,
+                MovementCalculator = LoadMovementCalculator(equipment),
+                NpcConversations = LoadNpcConversations()
             };
             world = worldArchive;
             _ownershipTransferred = true;
             ReleaseTransferredReferences();
-            return new LoadedGameResources(assets, world);
+            return new LoadedGameResources(assets, world)
+            {
+                NightDarkness = OriginalLightingSettings.ReadNightDarkness(_gameDirectory)
+            };
         }
         catch
         {
@@ -118,7 +128,26 @@ internal sealed class GameResourceLoader : IDisposable
         }
     }
 
+    private SacredNpcConversationDefinitions? LoadNpcConversations()
+    {
+        try { return SacredNpcConversationDefinitions.Load(_gameDirectory); }
+        catch (InvalidDataException error)
+        {
+            EngineLog.WriteLine($"NPC conversation definitions unavailable: {error.Message} Receives remain queued.");
+            return null;
+        }
+    }
+
     private void LoadTexturePak() => _texturePak = TexturePakArchive.LoadFromDirectory(_pakDirectory);
+
+    private SacredMovementCalculator LoadMovementCalculator(SacredEquipment[] equipment)
+    {
+        var bin = Path.Combine(_gameDirectory, "bin");
+        var balance = BalanceBinArchive.Load(Path.Combine(bin, "Balance.bin"));
+        var modifiers = WeaponModifiersBinArchive.Load(Path.Combine(bin, "wpmod.bin"));
+        EngineLog.WriteLine($"Movement definitions loaded: {balance.Profiles.Count} Balance.bin profiles, scale {balance.MovementScale}; {modifiers.Count} wpmod.bin records.");
+        return new(balance, modifiers, equipment.ToDictionary(item => item.IdemId));
+    }
 
     private void LoadCreaturePak()
     {
@@ -168,7 +197,7 @@ internal sealed class GameResourceLoader : IDisposable
         EngineLog.WriteLine($"Item sets loaded: {_itemSets.Count} records from {path}.");
     }
 
-    private void LoadWorldArchive() => _worldArchive = SacredWorldArchiveFactory.Load(_gameDirectory,
+    private void LoadWorldArchive() => _worldArchive = SacredGameplayWorldFactory.Load(_gameDirectory,
         CampaignScriptsDirectory ?? _directories.CampaignScriptsDirectory,
         _directories.StairsMapPath, _directories.DefPosPath);
 
@@ -213,4 +242,7 @@ internal sealed class GameResourceLoader : IDisposable
 
 internal sealed record ResourceLoadStep(string DisplayName, Action Load);
 
-internal sealed record LoadedGameResources(AssetManager Assets, SacredWorldArchive WorldArchive);
+internal sealed record LoadedGameResources(AssetManager Assets, SacredWorldArchive WorldArchive)
+{
+    public float NightDarkness { get; init; } = 0.5f;
+}

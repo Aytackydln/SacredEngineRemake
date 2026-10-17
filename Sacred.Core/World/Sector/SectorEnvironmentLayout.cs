@@ -23,10 +23,15 @@ public readonly struct SectorEnvironmentLayout
     [FieldOffset(0xAE)] public readonly SectorEntryMask MonstersValid;
     [FieldOffset(0xAF)] public readonly SectorSpawnEntries Monsters;
     [FieldOffset(0xCF)] public readonly ushort MonsterMinCount;
+    /// <summary>Also overwritten by script opcode 100's first integer (Gold 0x4A9715).</summary>
     [FieldOffset(0xD1)] public readonly ushort MonsterMaxCount;
+    /// <summary>Also overwritten by script opcode 100's second integer (Gold 0x4A970E).</summary>
     [FieldOffset(0xD3)] public readonly ushort MonsterMinLevel;
+    /// <summary>Also overwritten by script opcode 100's third integer (Gold 0x4A971C).</summary>
     [FieldOffset(0xD5)] public readonly ushort MonsterMaxLevel;
-    /// <summary>Native region01: the sector's region number, read by cSector::getRegionNumber.
+    /// <summary>Native region01: raw region number, read by Gold 0x622D50.
+    /// Gold 0x602250 maps this through a signed-byte table to a separate script-region number.
+    /// The raw number indexes the 256-row global region flag table.
     /// Stored at KEYX record +0x2C0 (environment +0xD7).</summary>
     [FieldOffset(0xD7)] public readonly byte Region;
     [FieldOffset(0xD8), BinaryUnknown] public readonly WorldBytes23 ReservedD8;

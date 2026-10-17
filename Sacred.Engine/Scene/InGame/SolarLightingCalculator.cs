@@ -6,7 +6,8 @@ namespace Sacred.Engine.Scene.InGame;
 /// <summary>Builds the fixed, user-adjustable celestial direction and shadow data.</summary>
 internal static class SolarLightingCalculator
 {
-    private const float MaximumShadowOpacity = 0.75f;
+    // Gold getObjShadowCol (0x41B9E0): alpha is 255 - nightValue.
+    private const float MaximumShadowOpacity = 1.0f;
 
     // These reproduce the previous fixed 0.45 daytime direction. They are static so
     // debug controls can tune the authored shadow projection without coupling it to time of day.

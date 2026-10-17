@@ -15,6 +15,10 @@ internal sealed record RendererOptions(
 {
     public WorldMapKind Map { get; init; }
     public bool MapOnly { get; init; }
+    public bool CheckNetworkStartup { get; init; }
+    public int? ProbeNetworkStartupProfile { get; init; }
+    public string NetworkProbeHost { get; init; } = "127.0.0.1";
+    public int NetworkProbePort { get; init; } = 2006;
     public bool MapNpcs { get; init; } = true;
     public bool OpenDoors { get; init; }
     public string CampaignScriptsDirectory { get; init; } = SacredCampaignFiles.DefaultDirectoryName;
@@ -44,6 +48,10 @@ internal sealed record RendererOptions(
         var zoom = 0.75f;
         var map = WorldMapKind.Ancaria;
         var mapOnly = false;
+        var checkNetworkStartup = false;
+        int? probeNetworkProfile = null;
+        var networkProbeHost = "127.0.0.1";
+        var networkProbePort = 2006;
         var mapNpcs = true;
         var openDoors = false;
         byte? indoorLevel = null;
@@ -78,6 +86,16 @@ internal sealed record RendererOptions(
                         throw new ArgumentException("--map requires ancaria or underworld.");
                     break;
                 case "--map-only": mapOnly = true; break;
+                case "--check-network-startup": checkNetworkStartup = true; break;
+                case "--probe-network-startup":
+                    probeNetworkProfile = ParsePositiveInt(Read(args, ref index, argument), argument);
+                    if (probeNetworkProfile > 8) throw new ArgumentException("--probe-network-startup requires a saved profile selection 1..8.");
+                    break;
+                case "--network-host": networkProbeHost = Read(args, ref index, argument); break;
+                case "--network-port":
+                    networkProbePort = ParsePositiveInt(Read(args, ref index, argument), argument);
+                    if (networkProbePort > 65535) throw new ArgumentException("--network-port must be 1..65535.");
+                    break;
                 case "--no-map-npcs": mapNpcs = false; break;
                 case "--game": gameDirectory = Read(args, ref index, argument); break;
                 case "--campaign": campaign = Read(args, ref index, argument); break;
@@ -155,7 +173,8 @@ internal sealed record RendererOptions(
             height,
             zoom)
         {
-            Map = map, MapOnly = mapOnly, MapNpcs = mapNpcs,
+            Map = map, MapOnly = mapOnly, MapNpcs = mapNpcs, CheckNetworkStartup = checkNetworkStartup,
+            ProbeNetworkStartupProfile = probeNetworkProfile, NetworkProbeHost = networkProbeHost, NetworkProbePort = networkProbePort,
             OpenDoors = openDoors, IndoorLevel = indoorLevel, AllSectors = allSectors,
             CampaignScriptsDirectory = campaign,
             SectorX = sectorX, SectorY = sectorY, Format = format, ParticleSeconds = particleSeconds,
@@ -167,6 +186,10 @@ internal sealed record RendererOptions(
     public static string Help =>
         "Sacred.World.Renderer.Terminal <game-directory> [options]\n" +
         "  --campaign <name|path> Script directory under bin, or absolute path (default: NetScriptCamp)\n" +
+        "  --check-network-startup Execute isolated multiplayer startup; exit 3 if a required handler is missing\n" +
+        "  --probe-network-startup <1..8> Saved profile for live first-host startup inspection; empty server required\n" +
+        "  --network-host <host> Probe endpoint (default: 127.0.0.1)\n" +
+        "  --network-port <port> Probe port (default: 2006)\n" +
         "  --output <directory>  Image destination (default: ./world-debug-images)\n" +
         "  --format <tga|bmp>    Output format (default: tga)\n" +
         "  --renderer <software|gpu|auto> Default: software; auto currently selects software\n" +

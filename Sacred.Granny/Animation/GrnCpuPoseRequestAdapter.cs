@@ -19,7 +19,8 @@ public sealed class GrnCpuPoseRequestAdapter : IGrnPoseRequestSink
             _animation = request.Animation;
             _sourceVersion = request.SourceVersion;
         }
-        var pose = request.TimeMode == GrnPoseTimeMode.Clamp
+        var pose = request.Blend is { } blend ? _owner.Evaluator.EvaluateBlended(request.TimeSeconds, request.TimeMode, blend)
+            : request.TimeMode == GrnPoseTimeMode.Clamp
             ? _owner.Evaluator.EvaluateClamped(request.TimeSeconds)
             : _owner.Evaluator.Evaluate(request.TimeSeconds);
         EvaluatedSequence = request.Sequence;

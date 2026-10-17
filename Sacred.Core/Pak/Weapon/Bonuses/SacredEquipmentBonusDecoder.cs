@@ -29,7 +29,7 @@ public static class SacredEquipmentBonusDecoder
         var damageKind = (type & 0x4000) != 0 ? SacredEquipmentDamageKind.Weapon
             : (type & 0x2000) != 0 ? SacredEquipmentDamageKind.Spell : SacredEquipmentDamageKind.All;
 
-        // Gold 0x568EF0 reads this byte for runtime values even when the description
+        // Gold 0x568C40 reads this byte for runtime values even when the description
         // switch omits an attribute suffix. Preserve the archive selector on every code.
         return new(code, value, kind, unit, attribute, (byte)((type >> 8) & 15), (byte)type, element, damageKind);
     }

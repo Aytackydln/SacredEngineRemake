@@ -32,7 +32,7 @@ internal sealed class GameServerCompatibilityCheck
         {
             var compatibility = task.GetAwaiter().GetResult();
             Compatibility = compatibility;
-            _status = $"LAN file check complete; version {compatibility.Version}; 25 fingerprint fields; native player profile/world entry pending";
+            _status = $"LAN file check complete; version {compatibility.Version}; 25 fingerprint fields; saved-character admission available; hero/world entry pending";
             EngineLog.WriteLine($"Network: {_status}.");
             for (var index = 0; index < GoldDataFingerprints.Count; index++)
                 EngineLog.WriteLine($"Network fingerprint bit {index}: {GoldDataFingerprints.Fields[index].RelativePath}, 0x{compatibility.Fingerprints[index]:X8}.");

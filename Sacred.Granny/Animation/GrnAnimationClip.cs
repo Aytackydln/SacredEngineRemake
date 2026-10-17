@@ -6,7 +6,10 @@ public sealed record GrnAnimationClip(
     string Name,
     GrnSkeleton Skeleton,
     GrnTransformTrack?[] Tracks,
-    float DurationSeconds);
+    float DurationSeconds)
+{
+    public float PlaybackSpeedMultiplier { get; init; } = 1;
+}
 
 public sealed record GrnTransformTrack(
     float[] TranslationTimes,

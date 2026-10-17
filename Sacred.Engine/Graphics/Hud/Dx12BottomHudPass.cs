@@ -27,6 +27,7 @@ internal sealed class Dx12BottomHudPass : IDisposable
     private readonly Dx12EquipmentPreviewPass _previews;
     private readonly Dx12InventoryPanelPass _inventory;
     private readonly Dx12ActorPortraitPass _portraits;
+    private readonly Dx12NpcOverheadPass _npcOverheads;
 
     public Dx12BottomHudPass(AssetManager assets, string gameDirectory,
         Dx12DeviceContext graphics, Dx12TextureUploader uploader)
@@ -37,7 +38,9 @@ internal sealed class Dx12BottomHudPass : IDisposable
         _previews = new(assets, graphics, uploader);
         _inventory = new(assets, gameDirectory, graphics, uploader);
         _portraits = new(assets, gameDirectory, graphics, uploader);
+        _npcOverheads = new(assets, gameDirectory, graphics, uploader);
     }
+    public void BuildNpcOverheads(SceneState scene) => _npcOverheads.Build(scene);
 
     public void Build(SceneState scene)
     {
@@ -49,24 +52,31 @@ internal sealed class Dx12BottomHudPass : IDisposable
         // Background draw data is recorded with the output UI, behind any diagnostic windows.
         var draw = ImGuiNET.ImGui.GetBackgroundDrawList();
         var actor = scene.EquipmentUi.Actor;
+        layout.QuickSlots.SetSlots(assets.SlotDefinitions.GetSlotCount(actor?.Progression.Level ?? 0),
+            state.SelectedWeaponSlot, state.SelectedCombatArtSlot);
         if (actor is not null)
-            _previews.Prepare(actor.EquipmentSlots.Where(s => s.Equipment.HasValue).Select(s => s.Equipment!.Value));
+            _previews.Prepare(actor.EquipmentSlots.Where(s => s.Equipment.HasValue).Select(s => s.Equipment!.Value)
+                .Concat(HudWeaponSet.Equipment(state.WeaponSets ?? [])));
         foreach (var wing in layout.QuickSlots.Wings)
             DrawRegion(draw, wing.Region, wing.Position, viewport);
         DrawRegion(draw, layout.Panel, layout.PanelPosition, viewport);
-        var handBackground = layout.QuickSlots.HandBackground;
         var mainHand = actor?.EquipmentSlots.FirstOrDefault(s => s.Type == EquipmentSlotType.RightHand)?.Equipment;
         var offhand = actor?.EquipmentSlots.FirstOrDefault(s => s.Type == EquipmentSlotType.LeftHand)?.Equipment;
-        if (mainHand is null && offhand is null)
-            DrawRegion(draw, handBackground.Region, handBackground.Position, viewport);
+        foreach (var background in layout.QuickSlots.HandBackgrounds)
+            DrawRegion(draw, background.Region, background.Position, viewport);
         foreach (var background in layout.QuickSlots.CombatArtBackgrounds)
             DrawRegion(draw, background.Region, background.Position, viewport);
-        var handSlot = layout.QuickSlots.HandSlot;
-        DrawRegion(draw, handSlot.Region, handSlot.Position, viewport);
-        var handOrigin = BottomHudLayout.ToScreen(handSlot.Position, viewport);
         var scale = BottomHudLayout.GetScale(viewport);
-        foreach (var hand in WeaponQuickSlotLayout.Items(mainHand, offhand))
-            _previews.Draw(draw, hand.Equipment, handOrigin, scale, true, hand.Offset.X);
+        for (var index = 0; index < layout.QuickSlots.HandSlots.Count; index++)
+        {
+            var handSlot = layout.QuickSlots.HandSlots[index];
+            DrawRegion(draw, handSlot.Region, handSlot.Position, viewport);
+            var set = state.WeaponSets is { } sets && index < sets.Count ? sets[index]
+                : index == state.SelectedWeaponSlot ? new(mainHand, offhand) : default;
+            var origin = BottomHudLayout.ToScreen(handSlot.Position, viewport);
+            foreach (var hand in WeaponQuickSlotLayout.Items(set.MainHand, set.Offhand))
+                _previews.Draw(draw, hand.Equipment, origin, scale, true, hand.Offset.X);
+        }
         foreach (var slot in layout.QuickSlots.CombatArtSlots)
             DrawRegion(draw, slot.Region, slot.Position, viewport);
         DrawDial(draw, BottomHudAssets.DayNightDisc, state.DayFraction, viewport);
@@ -101,7 +111,7 @@ internal sealed class Dx12BottomHudPass : IDisposable
                 _slots.Add(name, slot);
             }
             _assets = assets;
-            EngineLog.WriteLine($"Bottom HUD loaded: native executable definitions, {assets.Textures.Count} original atlases; left/right wings, distinct empty hand/combat-art backgrounds and map button ready.");
+            EngineLog.WriteLine($"Bottom HUD loaded: native executable definitions, {assets.Textures.Count} original atlases; level-based slots, selected/inactive backgrounds, wings and map button ready.");
             return true;
         }
         catch (Exception exception)
@@ -134,5 +144,6 @@ internal sealed class Dx12BottomHudPass : IDisposable
         foreach (var texture in _textures) texture.Dispose();
         _inventory.Dispose(); _previews.Dispose();
         _portraits.Dispose();
+        _npcOverheads.Dispose();
     }
 }

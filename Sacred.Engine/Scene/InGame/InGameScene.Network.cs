@@ -1,0 +1,171 @@
+using System;
+using System.Linq;
+using System.Numerics;
+using System.Threading;
+using System.Threading.Tasks;
+using Sacred.Core.World.Sector;
+using Sacred.Engine.Multiplayer;
+using Sacred.Inventory.Actors;
+using Sacred.Network.Gameplay;
+using Sacred.World;
+using Sacred.World.Networking;
+
+namespace Sacred.Engine.Scene.InGame;
+
+internal sealed partial class InGameScene
+{
+    private Task<SacredNetworkWorldBinding>? _networkWorldLoad;
+    private NetworkScenePresentation? _networkPresentation;
+    private SceneModel? _offlinePlayerModel;
+    private SacredGameActor? _offlinePortraitPlayer;
+    private SacredGameActor? _offlineEquipmentPlayer;
+    private SacredGameActor[] _offlineParty = [];
+    private bool _offlineHudVisible;
+    private Vector2? _offlineNetworkPosition;
+    private string? _networkBindingError;
+    private GameServerClientController? _networkClient;
+    private NetworkMovementInput? _networkMovement;
+    internal bool NetworkConsoleWalkActive { get; set; }
+    internal void ConfigureNetworkConnection(GameServerClientController client) => _networkClient = client;
+    internal string NetworkMovementStatus => _networkMovement?.Status ?? "movement waits for the local actor";
+    internal void NavigateNetworkTo(Vector2 target)
+    {
+        if (!NetworkWorldReady || !NetworkWorld.CanNavigateSector(NetworkWorld.LocalHero.BaseState.Sector) || _networkMovement is null) throw new InvalidOperationException("Wait for the current sector's native initialization before navigating.");
+        _networkMovement.NavigateTo(target);
+    }
+    internal void StopNetworkMovement() => _networkMovement?.Stop();
+    private void UpdatePausedNetworkMovement(float deltaSeconds)
+    {
+        UpdateNetworkBinding(deltaSeconds, allowMovementInput: false);
+        _scene.Hud!.DayFraction = _worldLighting.DayFraction;
+    }
+    internal Vector2 OfflineSavePosition => _offlineNetworkPosition ?? PlayerWorldPosition;
+    internal string? NetworkBindingError => _networkBindingError;
+    internal bool NetworkWorldReady => _networkPresentation is { LocalModelReady:true } view && view.World.IsCurrentSession;
+    internal SacredNetworkWorldBinding NetworkWorld => _networkPresentation?.World ?? throw new InvalidOperationException("Network world is not bound.");
+
+    internal Vector2[] FindNetworkWalkRoute(Vector2 target)
+    {
+        var world=NetworkWorld;
+        if(!NetworkWorldReady || !world.CanNavigateSector(world.LocalHero.BaseState.Sector) || world.LocalHero.BaseState.Surface!=0) throw new InvalidOperationException("Console walking requires initialized outdoor network sectors.");
+        var collision=new WorldCollisionResolver(_worldStreamer,()=>null,_doors.States)
+            { VisibleWorldProvider = () => world.VisibleWorld, SectorReadyProvider = world.CanNavigateSector };
+        var finder=new WorldClickPathFinder(collision);
+        if(!finder.TryFindRoute(world.LocalPosition,target,_camera.Zoom,out var route)) throw new InvalidOperationException("No authored walk route to that target.");
+            if(route.Any(point => !world.TryGetMovementPosition(point, out _)))
+            throw new NotSupportedException("Console walking requires loaded, confirmed terrain along its route.");
+        return route.ToArray();
+    }
+    private VisibleWorld PresentedWorld => _networkPresentation?.World.VisibleWorld ?? _worldStreamer.VisibleWorld;
+    internal string NetworkWorldStatus => _networkPresentation is { } view
+        ? $"bound {view.World.Sectors.Count} native sectors, {view.ModelCount} creature models ({view.AnimatedCount} animated); local model ready {view.LocalModelReady}; terrain loading {view.World.VisibleWorld.LoadingSectors}, error {view.World.TerrainError ?? "none"}; native sector work pending {view.World.PendingNativeSectorWork}; active patches {view.World.SectorPatches.Active.Count}, local enter notifications {view.World.SectorPatches.EnterNotificationCount}; {NetworkMovementStatus}"
+        : _networkWorldLoad is not null ? "loading confirmed network sectors" : _networkBindingError ?? "unbound";
+
+    internal string BindNetworkWorld(GoldWorldReplica replicas)
+    {
+        if (_networkPresentation is not null || _networkWorldLoad is not null) throw new InvalidOperationException("A network world is already bound or loading.");
+        _networkBindingError = null;
+        _networkWorldLoad = SacredNetworkWorldBinding.LoadAsync(_worldArchive,replicas);
+        return "loading confirmed native sectors for scene binding";
+    }
+
+    private void UpdateNetworkBinding() => UpdateNetworkBinding(1.0f / 60);
+    private void UpdateNetworkBinding(float deltaSeconds) => UpdateNetworkBinding(deltaSeconds, allowMovementInput: true);
+    private void UpdateNetworkBinding(float deltaSeconds, bool allowMovementInput)
+    {
+        if (_networkWorldLoad is { IsCompleted:true } load)
+        {
+            _networkWorldLoad = null;
+            try
+            {
+                var world = load.GetAwaiter().GetResult();
+                if (world.IsCurrentSession)
+                {
+                    _networkPresentation = new(world,_assets,_scene);
+                    _offlinePlayerModel = _scene.Models[0];
+                    _offlinePortraitPlayer = _scene.Portraits.Player;
+                    _offlineEquipmentPlayer = _scene.EquipmentUi.Actor;
+                    _offlineParty = _scene.Portraits.Party.Members.ToArray();
+                    _offlineHudVisible = _scene.Hud!.Visible;
+                    _offlineNetworkPosition = PlayerWorldPosition;
+                    _scene.Portraits.ClearPlayer(); _scene.Hud.Visible = false; _scene.EquipmentUi.ClearActor();
+                    _scene.Portraits.Party.Clear();
+                    _inputController.SuspendGameplayInput();
+                    Teleport(world.LocalPosition);
+                    _scene.Indoor.ActiveGroup = null; // The currently supported network actor surface is outdoor zero.
+                    _doors.BindNetworkWorld(world, _networkClient);
+                    if (_networkClient is { } client) _networkMovement = new(_camera, world, _worldStreamer, client, _window.Input, _doors)
+                    { ControllerInteractionPressed = _inputController.ControllerInteractionPressed };
+                    EngineLog.WriteLine($"Network scene bound: player {world.PlayerSlot}, {world.Sectors.Count} authored sectors, {world.WorldObjects.Count()} world replicas; local movement awaits native sending.");
+                }
+            }
+            catch (Exception error) { _networkBindingError = "Network scene binding failed: " + error.Message; EngineLog.WriteLine(_networkBindingError); }
+        }
+        if (_networkPresentation is not { } view) return;
+        if (!view.World.IsCurrentSession)
+        {
+            _doors.BindNetworkWorld(null, null);
+            view.Dispose(); _networkPresentation = null;
+            _networkMovement?.Stop(); _networkMovement = null;
+            _window.SetHandCursor(false);
+            if (_offlinePlayerModel is { } previous) _scene.SetModel(0,previous);
+            _scene.Portraits.ClearPlayer();
+            if (_offlinePortraitPlayer is { } actor) _scene.Portraits.BindPlayer(actor);
+            _scene.Portraits.Party.Clear();
+            foreach (var member in _offlineParty) _scene.Portraits.Party.Add(member);
+            _offlineParty = [];
+            _scene.EquipmentUi.ClearActor();
+            if (_offlineEquipmentPlayer is { } equipmentActor) _scene.EquipmentUi.Bind(equipmentActor);
+            _offlineEquipmentPlayer = null;
+            _worldLighting.SetNetworkDayFraction(null);
+            _scene.Hud!.Visible = _offlineHudVisible;
+            _scene.Hud.WeaponSets = null;
+            _scene.Hud.SelectedWeaponSlot = 0;
+            _scene.Hud.SelectedCombatArtSlot = 0;
+            _offlinePlayerModel = null;
+            _offlinePortraitPlayer = null;
+            if (_offlineNetworkPosition is { } position) Teleport(position);
+            _offlineNetworkPosition = null;
+            EngineLog.WriteLine("Network scene detached: session ended.");
+            return;
+        }
+        if (_networkMovement is null || !view.LocalModelReady || !view.World.CanNavigateSector(view.World.LocalHero.BaseState.Sector) || NetworkConsoleWalkActive)
+        {
+            if (NetworkConsoleWalkActive) _networkMovement?.Stop();
+            else _networkMovement?.Suspend();
+            var position=view.World.LocalPosition;
+            var height=view.World.OutdoorHeight(view.World.LocalHero.BaseState);
+            _camera.CenterOnTile(position.X,position.Y);
+            _camera.SetSurfaceHeight(height);
+            _scene.Debug.ActorTerrainHeight=height;
+        }
+        else
+        {
+            if (_scene.Portraits.Player?.Movement is { } movement)
+            {
+                _camera.WalkingSpeed = movement.WalkTilesPerSecond;
+                _camera.RunningSpeed = movement.RunTilesPerSecond;
+            }
+            if (!allowMovementInput || _scene.EscapeMenu!.IsOpen) _networkMovement.Stop();
+            _networkMovement.Update(_window.Input, Renderer.RenderWidth, Renderer.RenderHeight, Renderer.OutputToRender,
+                deltaSeconds, allowMovementInput && !_scene.EscapeMenu!.IsOpen && !_window.Input.UiWantsKeyboard);
+        }
+        _window.SetHandCursor(_networkMovement?.HasObjectHover == true);
+        view.Update(deltaSeconds);
+        _worldLighting.SetNetworkDayFraction(view.World.Replicas.Calendar.DayFraction);
+        var positionForZone = view.World.LocalPosition;
+        var coord = new SectorCoord((int)MathF.Floor(positionForZone.X / Sector.TileCount), (int)MathF.Floor(positionForZone.Y / Sector.TileCount));
+        var zone = view.World.VisibleWorld.Sectors.FirstOrDefault(sector => sector.Coord == coord)?.Zone ?? WorldZone.Outdoors;
+        _worldLighting.Update(0, _scene.Lighting, zone);
+    }
+
+    private void DisposeNetworkBinding()
+    {
+        _networkMovement?.Stop();
+        _doors.BindNetworkWorld(null, null);
+        _networkPresentation?.Dispose();
+        if (_networkWorldLoad is { } load)
+            _ = load.ContinueWith(t => { _ = t.Exception; }, CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,TaskScheduler.Default);
+    }
+}

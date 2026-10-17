@@ -39,7 +39,7 @@ internal sealed partial class DoorSceneController
     private readonly HashSet<SectorCoord> _visibleSectorCoordinates = [];
     private IndoorTileGroupId? _activeIndoorGroupId;
 
-    public WorldDoorStateLayer States { get; }
+    public WorldDoorStateLayer States { get; private set; }
 
     public DoorSceneController(AssetManager assets, SceneState scene, WorldDoorStateLayer states,
         Func<Vector2> playerPosition)
@@ -56,6 +56,11 @@ internal sealed partial class DoorSceneController
         float deltaSeconds,
         IndoorTileGroup? activeIndoorGroup)
     {
+        if (_networkWorld is not null)
+        {
+            UpdateNetworkObjects(focus, deltaSeconds);
+            return;
+        }
         var indoorGroupChanged = _activeIndoorGroupId != activeIndoorGroup?.Id;
         if (VisibleSectorsChanged(world.Sectors) || indoorGroupChanged)
         {
@@ -102,6 +107,8 @@ internal sealed partial class DoorSceneController
 
     private bool TryToggle(WorldModelPlacement target)
     {
+
+        if (_networkWorld is not null) return TryRequestNetworkInteraction(target);
 
         if (!target.Item.ModelDesc.IsSelectable ||
             !_models.TryGetValue(target.StaticObject.StaticId, out var model) ||
@@ -359,8 +366,9 @@ internal sealed partial class DoorSceneController
         return closest;
     }
 
-    private DoorState GetDoorState(StaticWorldObject placement) =>
-        placement.DoorTriggerId is { } id
+    private DoorState GetDoorState(StaticWorldObject placement) => _networkWorld is not null
+        ? NetworkObjectOpen(placement.StaticId) ? DoorState.Open : DoorState.Closed
+        : placement.DoorTriggerId is { } id
             ? States.IsOpen(id) ? DoorState.Open : DoorState.Closed
             : _doorStates.GetValueOrDefault(placement.StaticId, DoorState.Closed);
 

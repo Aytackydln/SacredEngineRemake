@@ -39,7 +39,7 @@ internal static class LauncherError
 
         // Startup may fail before the game creates a window. Give the dialog a
         // normal game window as its owner without initializing the renderer.
-        using var errorWindow = new Win32Window("Sacred Engine Remake", 1280, 800);
+        using var errorWindow = new Win32Window("Sacred Engine Remake", 1280, 800, requestFocus: true, borderlessFullscreen: true);
         ShowDialog(errorWindow.Hwnd, message);
     }
 

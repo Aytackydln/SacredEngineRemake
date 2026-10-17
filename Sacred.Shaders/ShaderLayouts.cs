@@ -90,5 +90,6 @@ public static class ImGuiShaderLayout
     public const int SamplerRegister = 0; // HLSL: register(s0)
     public const int ConstantsRootParameter = 0;
     public const int TextureRootParameter = 1;
-    public const int ConstantsCount = 5;
+    public const int ConstantsCount = 6;
+    public const int AdditiveConstantOffset = 5;
 }

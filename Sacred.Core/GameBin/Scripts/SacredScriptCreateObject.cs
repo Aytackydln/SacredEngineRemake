@@ -14,4 +14,8 @@ public sealed record SacredScriptCreateObject(
     short? HeightOffset,
     string? SymbolicTilePosition = null,
     ushort? FacingDegrees = null,
-    string? TriggerReference = null);
+    string? TriggerReference = null)
+{
+    public string? TakeScript { get; init; }
+    public string? UseScript { get; init; }
+}

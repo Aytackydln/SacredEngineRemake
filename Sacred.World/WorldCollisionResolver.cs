@@ -26,6 +26,10 @@ public sealed class WorldCollisionResolver(
     private const int MaximumSlideIterations = 4;
 
     private readonly WorldNavigationTileSource _navigation = new(worldStreamer, activeIndoorGroup);
+    /// <summary>Uses confirmed multiplayer terrain with the same authored collision rules.</summary>
+    public Func<VisibleWorld>? VisibleWorldProvider { init => _navigation.WorldProvider = value; }
+    /// <summary>Restricts navigation to sectors whose required session work completed.</summary>
+    public Func<SectorCoord, bool>? SectorReadyProvider { init => _navigation.SectorReady = value; }
 
     public WorldCollisionResolver(WorldStreamer worldStreamer)
         : this(worldStreamer, static () => null)

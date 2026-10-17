@@ -16,7 +16,8 @@ public readonly struct SacredWeaponModifierLayout
     [FieldOffset(12)] public readonly uint ItemId3;
     [FieldOffset(16)] public readonly uint ItemId4;
     [FieldOffset(20)] public readonly int ItemCount;
-    /// <summary>Percentage factor applied when generating damage/protection.</summary>
+    /// <summary>Percentage factor applied when generating damage/protection. Also the over-level
+    /// armor movement penalty coefficient (Gold CalcResults 0x57A067), valid only in 1..999.</summary>
     [FieldOffset(24)] public readonly int Modifier;
     [FieldOffset(28), BinaryUnknown] public readonly int Variance;
     [FieldOffset(32)] public readonly SacredModifierRange PhysicalDamage;

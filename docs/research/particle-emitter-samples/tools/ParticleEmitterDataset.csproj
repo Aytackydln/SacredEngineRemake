@@ -10,4 +10,5 @@
     <ProjectReference Include="../../../../Sacred.Assets/Sacred.Assets.csproj" />
     <ProjectReference Include="../../../../Sacred.World/Sacred.World.csproj" />
   </ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../../Sacred.GameplayHost/Sacred.GameplayHost.csproj" /></ItemGroup>
 </Project>

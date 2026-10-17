@@ -11,6 +11,7 @@ public sealed class GrnPoseEvaluator
     private readonly byte[] _worldTransformStates;
     private Matrix4x4[] _animationLocals = [];
     private bool _needsEvaluation = true;
+    private GrnPoseBlend? _blend;
 
     public GrnPoseEvaluator(GrnSkinningData data, GrnAnimationClip animation)
     {
@@ -42,6 +43,13 @@ public sealed class GrnPoseEvaluator
 
     public GrnPose Evaluate(float timeSeconds) => EvaluateSampled(GrnAnimationSampler.WrapTime(timeSeconds, Animation.DurationSeconds));
     public GrnPose EvaluateClamped(float timeSeconds) => EvaluateSampled(Math.Clamp(timeSeconds, 0.0f, MathF.Max(0, Animation.DurationSeconds)));
+    public GrnPose EvaluateBlended(float seconds, GrnPoseTimeMode mode, GrnPoseBlend blend)
+    {
+        _blend = blend;
+        _needsEvaluation = true;
+        try { return mode == GrnPoseTimeMode.Clamp ? EvaluateClamped(seconds) : Evaluate(seconds); }
+        finally { _blend = null; _needsEvaluation = true; }
+    }
 
     private GrnPose EvaluateSampled(float time)
     {
@@ -49,6 +57,7 @@ public sealed class GrnPoseEvaluator
         using (AnimationPerformance.Measure(AnimationCpuStage.Sampling)) SampleAnimationLocals(time);
         using (AnimationPerformance.Measure(AnimationCpuStage.Palettes))
         {
+            Pose.SampleTimeSeconds = time;
             Array.Clear(_worldTransformStates);
             for (var i = 0; i < Pose.WorldTransforms.Length; i++) ComputeSkinBoneWorldTransform(i);
             for (var i = 0; i < Pose.RegularTransforms.Length; i++)
@@ -86,7 +95,8 @@ public sealed class GrnPoseEvaluator
         _worldTransformStates[boneIndex] = 1;
         var skinBone = _data.Bones[boneIndex];
         var animationBoneIndex = _animationBoneBySkinBone[boneIndex];
-        var local = animationBoneIndex >= 0 ? _animationLocals[animationBoneIndex] : skinBone.RestLocal;
+        var local = _blend is { } blend ? GrnPoseBlender.Local(skinBone, Animation, Pose.SampleTimeSeconds, blend)
+            : animationBoneIndex >= 0 ? _animationLocals[animationBoneIndex] : skinBone.RestLocal;
         var parentIndex = skinBone.ParentIndex;
         if (parentIndex == boneIndex) Pose.WorldTransforms[boneIndex] = local;
         else if ((uint)parentIndex >= (uint)Pose.WorldTransforms.Length || !ComputeSkinBoneWorldTransform(parentIndex))

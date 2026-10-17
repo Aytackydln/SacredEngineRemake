@@ -8,8 +8,8 @@ namespace Sacred.Core.Runtime;
 [InlineArray(8)] public struct SacredActorBytes { private byte _first; }
 
 /// <summary>2004 character value block (sCharValHero), embedded in the character
-/// component at +8. Offsets through Level are also verified in Gold CalcResults.
-/// The complete 238-byte layout is established for the 2004 executable only.</summary>
+/// component at +8. Gold saves and full value streams retain the same 238-byte extent;
+/// movement, attributes, allocations and learned-skill inputs are verified against Gold CalcResults.</summary>
 [StructLayout(LayoutKind.Explicit, Pack = 1, Size = Size)]
 public readonly struct SacredActorValuesLayout
 {
@@ -31,12 +31,17 @@ public readonly struct SacredActorValuesLayout
     [FieldOffset(52)] public readonly short AttackSpeed;
     [FieldOffset(54)] public readonly short CastSpeed;
     [FieldOffset(56)] public readonly short WalkSpeed;
+    /// <summary>Calculated movement percentage, not a world or tile rate. Gold getWalkSpeed 0x585070;
+    /// applies to both walk/run template speeds. WalkSpeed retains the original native name.</summary>
+    [FieldOffset(56)] public readonly short MovementSpeedPercent;
     [FieldOffset(58)] public readonly ushort RemainingSkillPoints;
     [FieldOffset(60), BinaryUnknown] public readonly ushort SkillLearn;
     [FieldOffset(62)] public readonly uint Gold;
     /// <summary>Runtime base values in ST, WI, GS, RP, RM, CH order, before level growth.</summary>
     [FieldOffset(66)] public readonly SacredAttributeWords BaseAttributes;
     [FieldOffset(78)] public readonly ushort Level;
+    /// <summary>Runtime horse movement profile selector; Gold getParam(13) substitutes one for zero
+    /// before indexing the Balance.bin movement profile map.</summary>
     [FieldOffset(80)] public readonly byte HorseClass;
     [FieldOffset(81), BinaryUnknown] public readonly byte Reserved;
     [FieldOffset(82)] public readonly float Attack;

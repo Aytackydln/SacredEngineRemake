@@ -65,8 +65,8 @@ float surface_light_at(float2 pixel_position)
 float3 model_surface_lighting(float2 pixel_position)
 {
     float3 ambient = ambient_color_and_intensity.rgb * ambient_color_and_intensity.w;
-    return min((ambient + surface_light_at(pixel_position)) *
-        world_focus_light_scale(texture_flags.x, scene_elapsed_seconds), 1.0f);
+    return (ambient + surface_light_at(pixel_position)) *
+        world_focus_light_scale(texture_flags.x, scene_elapsed_seconds);
 }
 
 float3 compose_sdr_model_lighting(float3 base_color, float3 surface_lighting, float3 diffuse, float3 specular)
@@ -74,8 +74,8 @@ float3 compose_sdr_model_lighting(float3 base_color, float3 surface_lighting, fl
     // Screen the directional terms into the remaining SDR headroom. Add-then-saturate
     // flattens bright texture detail and turns specular highlights into clipped white.
     float3 lit_color = base_color * surface_lighting;
-    lit_color += saturate(base_color * diffuse) * (1.0f - lit_color);
-    lit_color += saturate(specular) * (1.0f - lit_color);
+    lit_color += base_color * diffuse * (1.0f - lit_color);
+    lit_color += specular * (1.0f - lit_color);
     return lit_color;
 }
 

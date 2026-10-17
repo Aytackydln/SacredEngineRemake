@@ -22,6 +22,7 @@ internal sealed class GpuPoseBackendSelection
             if (model.Geometry.Animation is not { } animation) continue;
             var playback = animation.Playback;
             var reason = !Enabled ? "explicit CPU pose selection" :
+                playback.LastRequest?.Blend is not null ? "CPU pose blending; GPU skeletal drawing retained" :
                 !skinningEnabled ? "CPU skeletal drawing selected" :
                 !pipelinesReady ? failure ?? "GPU pose pipelines pending" :
                 i == 0 ? "player attachments/model seeds await phases 9-10" :

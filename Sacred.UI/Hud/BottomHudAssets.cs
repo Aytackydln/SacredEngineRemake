@@ -16,6 +16,7 @@ public sealed class BottomHudAssets
     public const string DayNightMask = "GUI_daynightalpha.TGA";
     public BottomHudLayout Layout { get; }
     public IReadOnlyDictionary<string, TextureAsset> Textures { get; }
+    public SacredQuickSlotDefinitions SlotDefinitions { get; private init; } = null!;
 
     private BottomHudAssets(BottomHudLayout layout, Dictionary<string, TextureAsset> textures)
     {
@@ -36,11 +37,15 @@ public sealed class BottomHudAssets
             .Concat(layout.QuickSlots.CombatArtSlots.Select(d => d.Region.TextureName))
             .Append(layout.QuickSlots.HandSlot.Region.TextureName)
             .Append(layout.QuickSlots.HandBackground.Region.TextureName)
+            .Append(layout.QuickSlots.Weapon.InactiveBackground.TextureName)
             .Concat(layout.QuickSlots.CombatArtBackgrounds.Select(d => d.Region.TextureName))
             .Concat(new[] { layout.Panel.TextureName, DayNightDisc, DayNightMask })
             .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var textures = await Task.WhenAll(names.Select(loadTexture)).ConfigureAwait(false);
         return new(layout, names.Select((name, index) => (name, textures[index]))
-            .ToDictionary(pair => pair.name, pair => pair.Item2, StringComparer.OrdinalIgnoreCase));
+            .ToDictionary(pair => pair.name, pair => pair.Item2, StringComparer.OrdinalIgnoreCase))
+        {
+            SlotDefinitions = SacredQuickSlotDefinitions.Read(executable)
+        };
     }
 }

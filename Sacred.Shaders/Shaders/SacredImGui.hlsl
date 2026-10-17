@@ -10,6 +10,7 @@ cbuffer ImGuiConstants : register(b0)
     float2 scale;
     float2 translate;
     float paper_white_nits;
+    uint additive_blend;
 }
 
 struct vertex_input
@@ -43,7 +44,7 @@ float4 sample_ui(vertex_output input)
 float4 ps_sdr(vertex_output input) : SV_Target
 {
     float4 color = sample_ui(input);
-    return float4(color.rgb * color.a, color.a);
+    return additive_blend != 0 ? float4(color.rgb, 0.0f) : float4(color.rgb * color.a, color.a);
 }
 
 float4 ps_hdr(vertex_output input) : SV_Target

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Sacred.UI.Hud;
 
@@ -7,6 +8,9 @@ public sealed class BottomHudState
 {
     public bool Visible { get; set; } = true;
     public BottomHudLayout? Layout { get; set; }
+    public IReadOnlyList<HudWeaponSet>? WeaponSets { get; set; }
+    public int SelectedWeaponSlot { get; set; }
+    public int SelectedCombatArtSlot { get; set; }
     /// <summary>Calendar fraction: midnight=0, noon=0.5. The host owns the clock.</summary>
     public float DayFraction { get; set; } = 0.5f;
     public HudButton? HoveredButton { get; set; }

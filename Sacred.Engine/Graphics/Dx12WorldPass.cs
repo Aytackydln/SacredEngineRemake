@@ -236,6 +236,8 @@ internal sealed class Dx12WorldPass : IDisposable
         _models.AnimationTimeOverride = float.IsFinite(seconds) ? seconds : null;
     }
 
+    public void SetLightHaloLayering(bool enabled) => _lightHalos.LayerWithSource = enabled;
+
     public Task StartPreparation()
     {
         if (_preparationCompletion is null)

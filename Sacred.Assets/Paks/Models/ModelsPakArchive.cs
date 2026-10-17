@@ -194,10 +194,11 @@ public sealed class ModelsPakArchive : IDisposable
             animationRecord,
             cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-        return _assetLoader.TryExtractAnimation(
+        var clip = _assetLoader.TryExtractAnimation(
             animationPayload,
             motionName,
             ReadModelPayloadMetadata(metadataPrefix).Scale);
+        return clip is null ? null : clip with { PlaybackSpeedMultiplier = _metadata.CharacterPlaybackSpeed(baseModelName, kind, weaponStyle) };
     }
 
     /// <summary>Loads an animation from the native per-model motions[] slot.</summary>
@@ -224,10 +225,11 @@ public sealed class ModelsPakArchive : IDisposable
             _streamLock,
             animationRecord,
             cancellationToken).ConfigureAwait(false);
-        return _assetLoader.TryExtractAnimation(
+        var clip = _assetLoader.TryExtractAnimation(
             animationPayload,
             motionName,
             ReadModelPayloadMetadata(metadataPrefix).Scale);
+        return clip is null ? null : clip with { PlaybackSpeedMultiplier = _metadata.ModelPlaybackSpeed(modelName, motionSlot) };
     }
 
     private async Task<GrnAsset> LoadCharacterModelAsync(
@@ -295,7 +297,7 @@ public sealed class ModelsPakArchive : IDisposable
             motionName,
             baseMetadata.Scale);
         cancellationToken.ThrowIfCancellationRequested();
-        return animation;
+        return animation is null ? null : animation with { PlaybackSpeedMultiplier = _metadata.MotionPlaybackSpeed(motionIndex) };
     }
 
     private static ModelPayloadMetadata ReadModelPayloadMetadata(ReadOnlySpan<byte> payload)

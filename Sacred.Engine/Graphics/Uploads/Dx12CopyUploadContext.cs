@@ -14,7 +14,7 @@ internal sealed class Dx12CopyUploadContext : IDisposable
     }
     public ID3D12CommandAllocator Allocator { get; }
     public ID3D12GraphicsCommandList Commands { get; }
-    public List<ID3D12Resource> UploadBuffers { get; } = [];
+    public Dx12UploadPage? Staging { get; set; }
     public HashSet<TextureUploadOperation> Operations { get; } = [];
     public ulong FenceValue { get; set; }
     public void Begin()
@@ -24,15 +24,14 @@ internal sealed class Dx12CopyUploadContext : IDisposable
     }
     public void Release()
     {
-        foreach (var resource in UploadBuffers)
-            resource.Dispose();
-        UploadBuffers.Clear();
+        Staging?.Reset();
         Operations.Clear();
         FenceValue = 0;
     }
     public void Dispose()
     {
         Release();
+        Staging?.Dispose();
         Commands.Dispose();
         Allocator.Dispose();
     }

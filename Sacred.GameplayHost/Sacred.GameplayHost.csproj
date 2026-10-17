@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Sacred.Core\Sacred.Core.csproj" />
+    <ProjectReference Include="..\Sacred.Assets\Sacred.Assets.csproj" />
+    <ProjectReference Include="..\Sacred.Network\Sacred.Network.csproj" />
+    <ProjectReference Include="..\Sacred.World\Sacred.World.csproj" />
+  </ItemGroup>
+</Project>

@@ -105,10 +105,8 @@ internal sealed class CheatsController : IDisposable
     }
 
     private static CheatCommand ParseSetOption(string[] parts) =>
-        parts.Length >= 3 && parts[1].Equals("campaign", StringComparison.OrdinalIgnoreCase)
+        parts.Length >= 3
             ? new SetOptionCheatCommand(parts[1], string.Join(' ', parts, 2, parts.Length - 2).Trim('"'))
-            : parts.Length == 3
-            ? new SetOptionCheatCommand(parts[1], parts[2])
             : new InvalidCheatCommand("Usage: set <option> <value>");
 
     private static CheatCommand ParseScreenshot(string[] parts) =>

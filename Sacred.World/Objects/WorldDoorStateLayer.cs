@@ -7,6 +7,7 @@ public sealed class WorldDoorStateLayer
 {
     private readonly Dictionary<uint, WorldDoorDefinition> _doors = [];
     private readonly HashSet<uint> _open = [];
+    private readonly HashSet<uint> _locked = [];
     private readonly Dictionary<(int X, int Y, int Surface), HashSet<uint>> _cells = [];
     public int Revision { get; private set; }
 
@@ -16,6 +17,7 @@ public sealed class WorldDoorStateLayer
         {
             if (!_doors.TryAdd(door.Id, door)) continue;
             if (door.InitiallyOpen) _open.Add(door.Id);
+            if (door.Locked) _locked.Add(door.Id);
             foreach (var cell in door.BlockingCells)
             {
                 // Exterior and the first indoor floor share the movement plane.
@@ -27,7 +29,16 @@ public sealed class WorldDoorStateLayer
     }
 
     public bool IsOpen(uint id) => _open.Contains(id);
-    public bool IsLocked(uint id) => !_doors.TryGetValue(id, out var door) || door.Locked;
+    public bool IsLocked(uint id) => !_doors.ContainsKey(id) || _locked.Contains(id);
+
+    /// <summary>Apply authoritative session state, including received lock changes.</summary>
+    public void ApplyReceivedState(uint id, bool open, bool locked)
+    {
+        if (!_doors.ContainsKey(id)) return;
+        var changed = open ? _open.Add(id) : _open.Remove(id);
+        changed |= locked ? _locked.Add(id) : _locked.Remove(id);
+        if (changed) Revision++;
+    }
     public bool WouldOverlap(uint id, Vector2 position, float radius, int surfaceLevel)
     {
         if (!_doors.TryGetValue(id, out var door)) return false;

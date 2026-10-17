@@ -32,11 +32,7 @@ public sealed class SacredGame : IDisposable
         _window = new Win32Window(
             "Sacred Remake",
             initialSaveState.WindowedWidth,
-            initialSaveState.WindowedHeight,
-            initialSaveState.BorderlessFullscreen,
-            initialSaveState.WindowedX,
-            initialSaveState.WindowedY,
-            initialSaveState.WindowedMaximized);
+            initialSaveState.WindowedHeight, initialSaveState.RequestWindowFocus, initialSaveState.BorderlessFullscreen, initialSaveState.WindowedX, initialSaveState.WindowedY, initialSaveState.WindowedMaximized);
         _renderer = new Dx12Renderer(
             _window,
             gameDirectory,
@@ -75,6 +71,7 @@ public sealed class SacredGame : IDisposable
 
     /// <summary>Queues a Gold gameplay TinCat connection; status is logged on the game thread.</summary>
     public void RequestServerConnection(string endpoint) => _runtime.RequestServerConnection(endpoint);
+    public void RequestServerJoin(string endpoint, int selection) => _runtime.RequestServerJoin(endpoint,selection);
 
     /// <summary>Queues a campaign switch for the game thread. Available after world loading completes.
     /// The loading screen rebuilds scene state; completion and rejection are logged to the console.</summary>

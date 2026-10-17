@@ -1,53 +1,83 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Sacred.Assets.Executable;
 using Sacred.Core.UI;
 using Sacred.UI.Inventory;
 using Sacred.UI.Textures;
 
 namespace Sacred.UI.Hud;
 
-/// <summary>The native starting hand/combat-art frames and their ornamental taskbar wings.</summary>
+/// <summary>Native level-dependent hand/combat-art frames and their ornamental taskbar wings.</summary>
 public sealed class BottomHudQuickSlotLayout
 {
-    public BottomHudDecoration HandSlot { get; }
-    public BottomHudDecoration HandBackground { get; }
-    public IReadOnlyList<BottomHudDecoration> CombatArtSlots { get; }
-    public IReadOnlyList<BottomHudDecoration> CombatArtBackgrounds { get; }
-    public IReadOnlyList<BottomHudDecoration> Wings { get; }
+    public BottomHudDecoration HandSlot => HandSlots[0];
+    public BottomHudDecoration HandBackground => HandBackgrounds[0];
+    public IReadOnlyList<BottomHudDecoration> HandSlots { get; private set; } = [];
+    public IReadOnlyList<BottomHudDecoration> HandBackgrounds { get; private set; } = [];
+    public IReadOnlyList<BottomHudDecoration> CombatArtSlots { get; private set; } = [];
+    public IReadOnlyList<BottomHudDecoration> CombatArtBackgrounds { get; private set; } = [];
+    public IReadOnlyList<BottomHudDecoration> Wings { get; private set; } = [];
     public WeaponQuickSlotLayout Weapon { get; }
+    private readonly UiTextureRegion _combatArtBackground;
+    private readonly UiTextureRegion _leftEnd, _leftContinuation, _rightEnd, _rightContinuation;
+    private (int Count, int Weapon, int Art) _configuration;
 
     public BottomHudQuickSlotLayout(IReadOnlyList<SacredExecutableUiTextureDefinitionLayout> table)
     {
-        // refreshSlotGfx uses selector 103 for the active slot, even when it is empty.
         Weapon = new(table);
-        var activeFrame = Weapon.Frame;
-        HandSlot = new(activeFrame, new(328, 691));
-        CombatArtSlots = new BottomHudDecoration[] { new(activeFrame, new(640, 691)) };
-        HandBackground = new(Weapon.Empty, HandSlot.Position);
-        CombatArtBackgrounds = new BottomHudDecoration[]
-        {
-            new(BottomHudSlotBackgrounds.CombatArt(table), CombatArtSlots[0].Position)
-        };
+        _combatArtBackground = BottomHudSlotBackgrounds.CombatArt(table);
+        _leftEnd = new(table[5]);
+        _leftContinuation = new(table[6 + Random.Shared.Next(2)]);
+        _rightEnd = new(table[8]);
+        _rightContinuation = new(table[9 + Random.Shared.Next(2)]);
+        SetSlots(1, 0, 0);
+    }
 
-        // setSlotCount(1) tiles from x=362-66 and x=560+66 toward the center.
-        // Follow-on ornaments are chosen once, as in the native rand() & 1 path.
-        var leftEnd = new UiTextureRegion(table[5]);
-        var leftContinuation = new UiTextureRegion(table[6 + Random.Shared.Next(2)]);
-        var rightEnd = new UiTextureRegion(table[8]);
-        var rightContinuation = new UiTextureRegion(table[9 + Random.Shared.Next(2)]);
-        Wings = new BottomHudDecoration[]
+    public void SetSlots(int count, int selectedWeapon, int selectedCombatArt)
+    {
+        count = Math.Clamp(count, 1, SacredQuickSlotDefinitions.MaximumSlots);
+        // Keep invalid received selections unselected, matching native equality tests.
+        var configuration = (count, selectedWeapon, selectedCombatArt);
+        if (_configuration == configuration) return;
+        var hands = new BottomHudDecoration[count];
+        var handBackgrounds = new BottomHudDecoration[count];
+        var arts = new BottomHudDecoration[count];
+        var artBackgrounds = new BottomHudDecoration[count];
+        for (var index = 0; index < count; index++)
         {
-            Wing(leftEnd, 296),
-            Wing(leftContinuation, 296 + leftEnd.Size.X),
-            Wing(rightEnd, 626),
-            Wing(rightContinuation, 626 - rightEnd.Size.X)
-        };
+            var handPosition = new Vector2(394 + 66 * (index - count), 691);
+            var artPosition = new Vector2(640 + 66 * index, 691);
+            hands[index] = new(index == selectedWeapon ? Weapon.Frame : Weapon.InactiveFrame, handPosition);
+            handBackgrounds[index] = new(index == selectedWeapon ? Weapon.Empty : Weapon.InactiveBackground, handPosition);
+            arts[index] = new(index == selectedCombatArt ? Weapon.Frame : Weapon.InactiveFrame, artPosition);
+            artBackgrounds[index] = new(index == selectedCombatArt ? _combatArtBackground : Weapon.InactiveBackground, artPosition);
+        }
+        var wings = new List<BottomHudDecoration>();
+        for (float x = 362 - 66 * count; x < 397;)
+        {
+            var region = x == 362 - 66 * count ? _leftEnd : _leftContinuation;
+            wings.Add(Wing(region, x));
+            x += region.Size.X;
+        }
+        for (float x = 560 + 66 * count; x > 547;)
+        {
+            var region = x == 560 + 66 * count ? _rightEnd : _rightContinuation;
+            wings.Add(Wing(region, x));
+            x -= region.Size.X;
+        }
+        HandSlots = hands;
+        HandBackgrounds = handBackgrounds;
+        CombatArtSlots = arts;
+        CombatArtBackgrounds = artBackgrounds;
+        Wings = wings;
+        _configuration = configuration;
     }
 
     public bool ContainsPointer(Vector2 point, Vector2 viewport)
     {
-        if (GetBounds(HandSlot, viewport).Contains(point)) return true;
+        foreach (var slot in HandSlots)
+            if (GetBounds(slot, viewport).Contains(point)) return true;
         foreach (var slot in CombatArtSlots)
             if (GetBounds(slot, viewport).Contains(point)) return true;
         foreach (var wing in Wings)

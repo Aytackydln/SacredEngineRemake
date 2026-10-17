@@ -19,6 +19,7 @@ public sealed class SacredCharacterProgression
     public SacredCharacterProgression(SacredCreatureTemplate? template)
     {
         Template = template;
+        MovementProfileSelector = template?.HorseClass ?? 0;
         BaseStats = SacredActorBaseStats.FromTemplate(template);
         _skills = template?.StartingSkills
             .Concat(template.Class == SacredCreatureClass.Hero ? Enumerable.Empty<byte>() : template.AvailableSkills.Take(6))
@@ -32,6 +33,7 @@ public sealed class SacredCharacterProgression
     public SacredActorCombatArts CombatArts { get; }
     /// <summary>Original imported value block, including results not yet calculated by the remake.</summary>
     public SacredActorValuesLayout? NativeValues { get; private set; }
+    public byte MovementProfileSelector { get; private set; }
     public uint Experience { get; private set; }
     public uint Gold { get; private set; }
     public ushort RemainingSkillPoints { get; private set; }
@@ -40,14 +42,20 @@ public sealed class SacredCharacterProgression
     public event Action? Changed;
     public int GetAllocatedAttribute(SacredActorStat attribute) => _attributes.GetValueOrDefault(attribute);
 
-    /// <summary>Imports the verified 2004 value block only, without following native
+    /// <summary>Imports the native value block only, without following native
     /// pointers or interpreting a complete save. Validates before modifying this actor.</summary>
-    public void ImportNativeValues(ReadOnlySpan<byte> bytes)
+    public void ImportNativeValues(ReadOnlySpan<byte> bytes) => ImportValues(bytes, true);
+
+    /// <summary>Imports values belonging to an identified replicated object. Its current
+    /// appearance template is supplied by the object's resource, independently of the retained value block.</summary>
+    public void ImportNativeObjectValues(ReadOnlySpan<byte> bytes) => ImportValues(bytes, false);
+
+    private void ImportValues(ReadOnlySpan<byte> bytes, bool requireTemplateMatch)
     {
         if (bytes.Length != SacredActorValuesLayout.Size)
-            throw new ArgumentException("A 2004 actor value block must contain exactly 238 bytes.", nameof(bytes));
+            throw new ArgumentException("A native actor value block must contain exactly 238 bytes.", nameof(bytes));
         var source = MemoryMarshal.Read<SacredActorValuesLayout>(bytes);
-        if (source.Level == 0 || Template is { } template && source.ItemType != template.ItemType)
+        if (source.Level == 0 || requireTemplateMatch && Template is { } template && source.ItemType != template.ItemType)
             throw new ArgumentException("The value block does not match this actor's template or level.", nameof(bytes));
         var skills = new Dictionary<byte, int>();
         for (var index = 0; index < 8; index++)
@@ -57,6 +65,7 @@ public sealed class SacredCharacterProgression
                 throw new ArgumentException("The value block contains duplicate learned skills.", nameof(bytes));
         }
         NativeValues = source;
+        MovementProfileSelector = source.HorseClass;
         BaseStats = SacredActorBaseStats.FromNativeValues(source);
         _level = source.Level;
         Experience = source.Experience;
@@ -80,6 +89,39 @@ public sealed class SacredCharacterProgression
     {
         if (level == 0) throw new ArgumentOutOfRangeException(nameof(level));
         _level = level;
+        Changed?.Invoke();
+    }
+
+    /// <summary>Replace received or saved progression counters without granting skills or calculating rewards.</summary>
+    public void SetProgression(ushort level, uint experience, uint gold, ushort remainingSkillPoints)
+    {
+        if (level == 0) throw new ArgumentOutOfRangeException(nameof(level));
+        _level = level;
+        Experience = experience;
+        Gold = gold;
+        RemainingSkillPoints = remainingSkillPoints;
+        Changed?.Invoke();
+    }
+
+    /// <summary>Gold compact values carry progression inputs, but omit base attributes and calculated speeds.</summary>
+    public void ImportNativeProgression(ushort level, uint experience, uint gold, ushort remainingSkillPoints,
+        ReadOnlySpan<byte> allocations, ReadOnlySpan<byte> skillIds, ReadOnlySpan<byte> skillLevels, byte horseClass)
+    {
+        if (level == 0 || allocations.Length != 8 || skillIds.Length != 8 || skillLevels.Length != 8)
+            throw new ArgumentException("Invalid compact character progression.");
+        var skills = new Dictionary<byte, int>();
+        for (var index = 0; index < 8; index++)
+            if (skillIds[index] != 0 && !skills.TryAdd(skillIds[index], skillLevels[index]))
+                throw new ArgumentException("Duplicate native learned skill.");
+        _level = level;
+        Experience = experience;
+        Gold = gold;
+        RemainingSkillPoints = remainingSkillPoints;
+        MovementProfileSelector = horseClass;
+        _attributes.Clear();
+        for (var index = 0; index < 6; index++) _attributes[(SacredActorStat)index] = allocations[index];
+        _skills.Clear();
+        foreach (var entry in skills) _skills.Add(entry.Key, entry.Value);
         Changed?.Invoke();
     }
 
@@ -117,7 +159,6 @@ public sealed class SacredCharacterProgression
             var basis = BaseStats[attribute];
             values[attribute] = basis + basis * (Level - 1) / 10;
         }
-        if (Template is { } source) values[SacredActorStat.MovementSpeed] = source.RunSpeed;
         foreach (var (attribute, points) in _attributes)
             values[attribute] = values.GetValueOrDefault(attribute) + points;
         // CalcResults writes the six native results to unsigned words, including at debug levels.
@@ -131,6 +172,7 @@ public sealed class SacredCharacterProgression
         target._level = _level;
         target.BaseStats = BaseStats;
         target.NativeValues = NativeValues;
+        target.MovementProfileSelector = MovementProfileSelector;
         target.Experience = Experience;
         target.Gold = Gold;
         target.RemainingSkillPoints = RemainingSkillPoints;

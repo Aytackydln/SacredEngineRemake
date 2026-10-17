@@ -21,9 +21,10 @@ public readonly record struct KeyxSectorRecord
     [FieldOffset(0x28)] public readonly uint ServerRevisionId;
     /// <summary>Native surround[8]. Neighbor order is not inferred here.</summary>
     [FieldOffset(0x2C)] public readonly SectorNeighbors Neighbors;
-    /// <summary>Raw authored X position used to derive the sector-grid origin.</summary>
+    /// <summary>Raw world-unit X origin. Gold adds 25, divides by float 53.66563034057617,
+    /// truncates toward zero to tile units, then divides by 64 for the sector grid.</summary>
     [FieldOffset(0x3C)] public readonly int RawX;
-    /// <summary>Raw authored Y position used to derive the sector-grid origin.</summary>
+    /// <summary>Raw world-unit Y origin; the same native biased/truncated conversion as RawX.</summary>
     [FieldOffset(0x40)] public readonly int RawY;
     /// <summary>Native bis_x and bis_y, the opposite authored sector bounds.</summary>
     [FieldOffset(0x44)] public readonly int RawEndX;

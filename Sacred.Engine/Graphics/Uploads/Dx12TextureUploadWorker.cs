@@ -19,13 +19,16 @@ internal sealed class Dx12TextureUploadWorker : IDisposable
     private readonly Dx12TextureCopyRecorder _recorder;
     private readonly Dx12CopyUploadContext[] _contexts;
     private readonly AutoResetEvent _opportunity = new(false);
+    private readonly AutoResetEvent _copyCompleted = new(false);
+    private readonly WaitHandle[] _wakeEvents;
+    private readonly object _admissionLock = new();
+    private readonly object _stopLock = new();
     private readonly Thread _thread;
     private TextureUploadOperation? _active;
     private ulong _fenceValue;
     private volatile bool _stopped;
     private int _stopJoined;
     private int _pending;
-    private int _byteBudget = 4 * 1024 * 1024;
     private double _timeBudgetMilliseconds = 2;
 
     public Dx12TextureUploadWorker(ID3D12Device device)
@@ -34,9 +37,10 @@ internal sealed class Dx12TextureUploadWorker : IDisposable
         _fence = device.CreateFence(0, FenceFlags.None);
         _recorder = new Dx12TextureCopyRecorder(device);
         _contexts = [new(device), new(device)];
+        _wakeEvents = [_opportunity, _copyCompleted];
         _thread = new Thread(WorkerLoop) { IsBackground = true, Name = "Sacred texture copy worker", Priority = ThreadPriority.BelowNormal };
         _thread.Start();
-        EngineLog.WriteLine("Texture copy worker started: 4 MiB / 2 ms recording budget per foreground frame; two submissions in flight.");
+        EngineLog.WriteLine("Texture copy worker started: frame-independent, 16 MiB / 2 ms batches; two fence-tracked staging pages (32 MiB maximum).");
     }
 
     public int PendingCount => Volatile.Read(ref _pending);
@@ -47,7 +51,6 @@ internal sealed class Dx12TextureUploadWorker : IDisposable
 
     public void EnableBulkUploads()
     {
-        Volatile.Write(ref _byteBudget, 16 * 1024 * 1024);
         Volatile.Write(ref _timeBudgetMilliseconds, 4);
     }
 
@@ -55,30 +58,31 @@ internal sealed class Dx12TextureUploadWorker : IDisposable
         out TextureUploadTicket ticket)
     {
         ticket = null!;
-        if (_stopped) return false;
         if (width <= 0 || height <= 0 || pixels.LongLength < checked((long)width * height * 4))
             throw new ArgumentException($"Invalid source pixels for texture {name} ({width}x{height}).");
-        // Terrain preparation and the frame thread both produce requests.
-        // Reserve capacity atomically so their combined queue remains bounded.
-        while (true)
+        // Admission and stop share a boundary: no producer can enqueue after shutdown drained the queue.
+        lock (_admissionLock)
         {
-            var pending = PendingCount;
-            if (pending >= MaximumPendingUploads) return false;
-            if (Interlocked.CompareExchange(ref _pending, pending + 1, pending) == pending) break;
+            if (_stopped || PendingCount >= MaximumPendingUploads) return false;
+            ticket = new TextureUploadTicket(name, width, height, pixels, releaseSource);
+            Interlocked.Increment(ref _pending);
+            _requests.Enqueue(ticket);
+            _opportunity.Set();
         }
-        ticket = new TextureUploadTicket(name, width, height, pixels, releaseSource);
-        _requests.Enqueue(ticket);
         return true;
     }
 
-    public void OnForegroundFrameSubmitted() => _opportunity.Set();
+    public void OnForegroundFrameSubmitted() { if (PendingCount != 0) _opportunity.Set(); }
 
     public void Stop()
     {
-        if (Interlocked.Exchange(ref _stopJoined, 1) != 0) return;
-        _stopped = true;
-        _opportunity.Set();
-        _thread.Join();
+        lock (_stopLock)
+        {
+            if (_stopJoined != 0) return;
+            lock (_admissionLock) { _stopped = true; _opportunity.Set(); }
+            _thread.Join();
+            _stopJoined = 1;
+        }
     }
 
     private void WorkerLoop()
@@ -87,21 +91,30 @@ internal sealed class Dx12TextureUploadWorker : IDisposable
         {
             while (true)
             {
-                _opportunity.WaitOne();
                 CollectCompleted();
                 if (_stopped) break;
+                Dx12CopyUploadContext? available = null;
+                var nextFence = ulong.MaxValue;
                 foreach (var context in _contexts)
                 {
-                    if (context.FenceValue != 0) continue;
-                    SubmitBudget(context);
-                    break;
+                    if (context.FenceValue == 0) available ??= context;
+                    else nextFence = Math.Min(nextFence, context.FenceValue);
                 }
+                if (available is not null && (_active is not null || !_requests.IsEmpty))
+                {
+                    SubmitBudget(available);
+                    continue;
+                }
+                // Copy retirement drives progress even while rendering is paused or frame-capped.
+                if (nextFence != ulong.MaxValue)
+                    _fence.SetEventOnCompletion(nextFence, _copyCompleted.SafeWaitHandle.DangerousGetHandle()).CheckError();
+                WaitHandle.WaitAny(_wakeEvents);
             }
         }
         catch (Exception exception)
         {
             EngineLog.WriteLine($"Texture copy worker failed: {exception}");
-            _stopped = true;
+            lock (_admissionLock) _stopped = true;
         }
         finally
         {
@@ -124,7 +137,7 @@ internal sealed class Dx12TextureUploadWorker : IDisposable
         context.Begin();
         var timer = Stopwatch.StartNew();
         var bytes = 0;
-        var budget = Volatile.Read(ref _byteBudget);
+        const int budget = Dx12UploadPage.Capacity;
         while (bytes < budget && (bytes == 0 || timer.Elapsed.TotalMilliseconds < Volatile.Read(ref _timeBudgetMilliseconds)))
         {
             if (_active is null)
@@ -222,6 +235,7 @@ internal sealed class Dx12TextureUploadWorker : IDisposable
         Stop();
         foreach (var context in _contexts) context.Dispose();
         _opportunity.Dispose();
+        _copyCompleted.Dispose();
         _fence.Dispose();
         _queue.Dispose();
     }

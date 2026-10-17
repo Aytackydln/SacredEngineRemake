@@ -26,10 +26,13 @@ internal sealed class Dx12LightHaloPass : IDisposable
     private ID3D12RootSignature? _rootSignature;
     private ID3D12PipelineState? _pipeline;
     private ID3D12Resource? _haloTexture;
+    private LightHaloFrameState? _activeState;
+    private readonly HashSet<int> _recorded = [];
 
     public int CandidateCount { get; private set; }
     public int InstanceCount { get; private set; }
     public int SurfaceLightCount { get; private set; }
+    public bool LayerWithSource { get; set; } = true;
 
     public Dx12LightHaloPass(
         ID3D12Device device,
@@ -104,6 +107,8 @@ internal sealed class Dx12LightHaloPass : IDisposable
         ulong spriteRevision)
     {
         var state = _frameStates[frame.Index];
+        _activeState = state;
+        _recorded.Clear();
         var hasPlayerLight = playerLightWorldPosition.HasValue &&
                              lighting.PlayerLightDiameter > 0.0f &&
                              lighting.PlayerLightOpacity > 0.0f;
@@ -128,6 +133,7 @@ internal sealed class Dx12LightHaloPass : IDisposable
 
         if (CandidateCount == 0)
         {
+            state.Sources.Clear();
             state.Remember(
                 spriteRevision,
                 camera.ViewCenter,
@@ -145,6 +151,7 @@ internal sealed class Dx12LightHaloPass : IDisposable
             return 0;
         }
 
+        state.Sources.Clear();
         var screenTransform = IsometricProjection.CreateScreenTransform(
             camera.ViewCenter,
             camera.ViewportZoom,
@@ -209,6 +216,8 @@ internal sealed class Dx12LightHaloPass : IDisposable
 
             instances[instanceCount++] = new LightHaloInstance(
                 drawPosition.X, drawPosition.Y, diameter, light.Opacity, light.Colour, (uint)light.Shape);
+            if (light.SourceStaticObjectId is { } source)
+                state.Sources[source] = instanceCount - 1;
         }
 
         state.Remember(
@@ -239,8 +248,31 @@ internal sealed class Dx12LightHaloPass : IDisposable
         int renderWidth,
         int renderHeight)
     {
-        var visibleEffectCount = instanceCount - SurfaceLightCount;
-        if (visibleEffectCount == 0 || _haloTexture is null ||
+        // Source-linked effects already painted in the scenery traversal. Keep
+        // unlinked/offscreen-source effects visible without drawing them twice.
+        for (var start = SurfaceLightCount; start < instanceCount;)
+        {
+            if (_recorded.Contains(start)) { start++; continue; }
+            var end = start + 1;
+            while (end < instanceCount && !_recorded.Contains(end)) end++;
+            RecordRange(start, end - start, nightBlend, whiteNits, frame, renderWidth, renderHeight);
+            start = end;
+        }
+    }
+
+    public bool HasSource(uint source) => LayerWithSource && _activeState?.Sources.ContainsKey(source) == true;
+
+    public void RecordSource(uint source, float nightBlend, float whiteNits,
+        Dx12FrameContext frame, int renderWidth, int renderHeight)
+    {
+        if (_activeState?.Sources.TryGetValue(source, out var instance) != true || !_recorded.Add(instance)) return;
+        RecordRange(instance, 1, nightBlend, whiteNits, frame, renderWidth, renderHeight);
+    }
+
+    private unsafe void RecordRange(int start, int count, float nightBlend, float whiteNits,
+        Dx12FrameContext frame, int renderWidth, int renderHeight)
+    {
+        if (count == 0 || _haloTexture is null ||
             _pipeline is null || _rootSignature is null)
             return;
 
@@ -263,7 +295,7 @@ internal sealed class Dx12LightHaloPass : IDisposable
         _commandList.SetGraphicsRootShaderResourceView(
             LightHaloShaderLayout.InstanceBufferRootParameter,
             frame.LightHaloInstanceBuffer.GPUVirtualAddress +
-            (ulong)(SurfaceLightCount * InstanceStride));
+            (ulong)(start * InstanceStride));
         _commandList.SetGraphicsRootDescriptorTable(
             LightHaloShaderLayout.TextureTableRootParameter,
             _haloTextureGpuHandle);
@@ -271,7 +303,7 @@ internal sealed class Dx12LightHaloPass : IDisposable
         // zero for this shader-only instancing path; StartInstanceLocation is
         // intended for input-layout instance data and left the shader reading
         // the leading surface-light records (which it correctly discarded).
-        _commandList.DrawInstanced(4, (uint)visibleEffectCount, 0, 0);
+        _commandList.DrawInstanced(4, (uint)count, 0, 0);
     }
 
     public void Dispose()
@@ -282,6 +314,7 @@ internal sealed class Dx12LightHaloPass : IDisposable
 
     private sealed class LightHaloFrameState
     {
+        public Dictionary<uint, int> Sources { get; } = [];
         private ulong _spriteRevision;
         private Vector2 _worldCenter;
         private float _viewportZoom;

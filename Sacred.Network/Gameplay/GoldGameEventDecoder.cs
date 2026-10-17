@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using Sacred.Core.Pax.Hero.Inventory;
 using Sacred.Network.Admission;
 using Sacred.Network.Protocol;
 
@@ -13,6 +14,81 @@ public static class GoldGameEventDecoder
         var payload = message.Payload.AsSpan();
         switch (message.Opcode)
         {
+            case GoldNpcDialogActionLayout.BeginOpcode:
+            case GoldNpcDialogActionLayout.EndOpcode:
+                return GoldNpcDialogActionCodec.Decode(message);
+            case GoldNpcIdleAnimationLayout.Opcode:
+                return GoldNpcIdleAnimationCodec.Decode(message);
+            case GoldScriptDialogReplica.UpdateOpcode:
+                return GoldScriptDialogReplica.Decode(message);
+            case GoldWorldTriggerCodec.CreateOpcode:
+            case GoldWorldTriggerCodec.ClearOpcode:
+            case GoldWorldTriggerCodec.SetOpcode:
+                return GoldWorldTriggerCodec.Decode(message);
+            case GoldScriptResourceLayout.RemoveNameOpcode:
+            case GoldScriptResourceLayout.RegisterNameOpcode:
+                return GoldScriptResourceCodec.Decode(message);
+            case GoldWorldEnvironmentLayout.Opcode:
+                RequireExact(payload, message.Sender == 0 ? GoldWorldEnvironmentLayout.Size : 0, message.Opcode);
+                return new GoldWorldEnvironmentEvent(message with { Payload = payload.ToArray() });
+            case GoldObjectLifecycleLayout.RemoveOpcode:
+            case GoldObjectLifecycleLayout.ImmediateRemoveOpcode:
+            case GoldObjectLifecycleLayout.OwnerOpcode:
+                return GoldObjectLifecycleCodec.Decode(message);
+            case GoldWorldRegionFlagsCodec.SetOpcode:
+            case GoldWorldRegionFlagsCodec.ClearOpcode:
+                return GoldWorldRegionFlagsCodec.Decode(message);
+            case GoldScriptVariableLayout.AppendOpcode:
+            case GoldScriptVariableLayout.UpdateOpcode:
+                return GoldScriptVariableCodec.Decode(message);
+            case GoldWorldBankLayout.Bank1Opcode:
+            case GoldWorldBankLayout.Bank2Opcode:
+            case GoldWorldBankLayout.Bank3Opcode:
+            case GoldWorldBankLayout.Bank4Opcode:
+                return GoldWorldBankCodec.Decode(message);
+            case GoldEquipmentRemovalLayout.Opcode:
+                return GoldEquipmentRemovalCodec.Decode(message);
+            case GoldEquipmentAssignmentLayout.Opcode:
+                return GoldEquipmentAssignmentCodec.Decode(message);
+            case GoldCreatureMountLayout.Opcode:
+                return GoldCreatureMountCodec.Decode(message);
+            case GoldMovementTriggerDeletionLayout.Opcode:
+                return GoldMovementTriggerDeletionCodec.Decode(message);
+            case GoldPlayerStatisticsLayout.Opcode:
+                return GoldPlayerStatisticsCodec.Decode(message);
+            case GoldObjectTriggerLayout.Opcode:
+                return GoldObjectTriggerCodec.Decode(message);
+            case GoldDeathScriptLayout.Opcode:
+                return GoldDeathScriptCodec.Decode(message);
+            case GoldCreatureUpdateLayout.StateOpcode:
+            case GoldCreatureUpdateLayout.ValuesOpcode:
+                return GoldCreatureUpdateCodec.Decode(message);
+            case GoldObjectPositionCodec.Opcode:
+                return GoldObjectPositionCodec.Decode(message);
+            case GoldWorldEntryCodec.ParticipantUploadOpcode:
+            case GoldWorldEntryCodec.HostUploadOpcode:
+                RequireExact(payload, 0, message.Opcode);
+                return new GoldWorldUploadEvent(message, message.Opcode == GoldWorldEntryCodec.HostUploadOpcode);
+            case GoldWorldEntryCodec.ParticipantStartOpcode:
+                RequireExact(payload, 0, message.Opcode);
+                return message.Sender == 0 ? new GoldParticipantStartApprovedEvent(message) : new GoldParticipantStartRequestEvent(message);
+            case GoldWorldEntryCodec.HostStartOpcode:
+                if (message.Sender == 0)
+                {
+                    RequireExact(payload, 0, message.Opcode);
+                    return new GoldHostWorldAvailableEvent(message);
+                }
+                RequireExact(payload, 4, message.Opcode);
+                return new GoldHostStartRequestEvent(message, Word(payload, 0));
+            case GoldWorldEntryCodec.PeerReadyOpcode:
+                RequireExact(payload, 0, message.Opcode);
+                return new GoldPeerReadyEvent(message);
+            case GoldSectorEntryLayout.Opcode:
+                return message.Sender == 0 ? new GoldSectorEntryEvent(message, GoldSectorEntry.FromPayload(payload)) :
+                    new GoldSectorInterestEvent(message, GoldSectorInterestRequest.FromPayload(payload));
+            case GoldInventoryCodec.Opcode:
+                Require(payload, 4 + SacredSavedInventoryLayout.MinimumSize, message.Opcode);
+                return new GoldInventoryEvent(message, Word(payload, 0), SacredSavedInventory.FromPayload(payload[4..]));
             case GoldFirstContactLayout.Opcode:
                 return new GoldFirstContactEvent(message, GoldFirstContact.FromPayload(payload));
             case GoldPlayerDataLayout.Opcode:
@@ -43,11 +119,18 @@ public static class GoldGameEventDecoder
                 return new GoldReferenceRequestEvent(message, count);
             case GoldReferenceCodec.RangeOpcode:
                 RequireExact(payload, 8, message.Opcode);
+                if (message.Sender != 0)
+                {
+                    if (message.Sender > 16) throw new InvalidDataException("Invalid Gold trigger-reference request sender.");
+                    return new GoldTriggerRangeRequestEvent(message, Word(payload, 0), Word(payload, 4));
+                }
                 return new GoldReferenceRangeEvent(message, Word(payload, 0), Word(payload, 4));
             // GameServer 0x4962A0 (start/update), 0x496AB0 (end).
             case 0x161:
             case 0x163:
                 Require(payload, 24, message.Opcode);
+                if (payload.Length > GoldMovementLayout.PrefixSize)
+                    _ = GoldMovementBody.FromPayload(message.Opcode, payload[GoldMovementLayout.PrefixSize..]);
                 return new GoldMovementEvent(message, Word(payload, 0), Word(payload, 4), Word(payload, 8),
                     Word(payload, 12), Word(payload, 16), Word(payload, 20), payload[24..].ToArray());
             case 0x162:
@@ -57,11 +140,9 @@ public static class GoldGameEventDecoder
             case 0x164:
                 Require(payload, 4, message.Opcode);
                 return new GoldIdleEvent(message, Word(payload, 0), payload[4..].ToArray());
-            // 0x4C7881 / 0x4C7758: object ref is NOT a script trigger or Static.pak ID.
-            case 0x111:
-            case 0x112:
-                Require(payload, 4, message.Opcode);
-                return new GoldDoorEvent(message, Word(payload, 0), message.Opcode == 0x112, payload[4..].ToArray());
+            case GoldDoorLayout.CloseOpcode:
+            case GoldDoorLayout.OpenOpcode:
+                return GoldDoorCodec.Decode(message);
             case 0x169:
             case 0x16B:
             case 0x16F:
@@ -81,7 +162,7 @@ public static class GoldGameEventDecoder
     private static void RequireObjectState(ReadOnlySpan<byte> payload, int prefixSize, ushort opcode)
     {
         Require(payload, prefixSize + GoldObjectStateLayout.Size, opcode);
-        _ = GoldObjectBaseState.FromPayload(payload[prefixSize..]);
+        GoldObjectStateReader.Validate(payload[prefixSize..], opcode);
     }
     private static void RequireExact(ReadOnlySpan<byte> bytes, int size, ushort opcode)
     {

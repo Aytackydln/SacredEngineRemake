@@ -16,6 +16,9 @@ internal static class BottomHudSlotBackgrounds
     public static UiTextureRegion CombatArt(IReadOnlyList<SacredExecutableUiTextureDefinitionLayout> table) =>
         Read(table, "GUI_spell01.TGA");
 
+    public static UiTextureRegion Inactive(IReadOnlyList<SacredExecutableUiTextureDefinitionLayout> table) =>
+        Read(table, "GUI_spell10.TGA");
+
     private static UiTextureRegion Read(IReadOnlyList<SacredExecutableUiTextureDefinitionLayout> table,
         string textureName) => new(table.Single(record =>
         // The native backgrounds occupy the bottom-right cell of their respective sheets.

@@ -9,9 +9,13 @@ namespace Sacred.Core.Pak.Weapon;
 public readonly struct SacredEquipmentInstanceLayout
 {
     public const int Size = 130;
+    /// <summary>Resource retained in the value record. Gold serializes it independently of
+    /// the parent object's current visual resource; the two need not be equal.</summary>
     [FieldOffset(0)] public readonly uint ItemType;
     [FieldOffset(4)] public readonly uint Flags;
     [FieldOffset(8)] public readonly uint Price;
+    /// <summary>Eight parent socket-kind bytes. Gold 0x5BE9E0 enables merged record i only
+    /// when this byte is 1, 2, 3 or 4; 3/4 share returned socket category 3.</summary>
     [FieldOffset(12)] public readonly SacredEquipmentSlotTypes SlotTypes;
     [FieldOffset(20)] public readonly byte MinimumLevel;
     [FieldOffset(21)] public readonly byte MinimumStrength;

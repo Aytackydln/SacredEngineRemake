@@ -413,6 +413,8 @@ public readonly record struct TerrainStaticSprite(
     public float? ParticleDepthKey { get; init; }
     /// <summary>Marks a file-authored mini-object animation such as a fixture flame.</summary>
     public bool IsAnimatedMiniObject { get; init; }
+    /// <summary>Keeps an emitter out of baked terrain so its halo can paint behind its artwork.</summary>
+    public bool HasLightHalo { get; init; }
     /// <summary>Draws after world models and ignores their depth, as authored by Items.pak.</summary>
     public bool IsFrontLayer { get; init; }
     /// <summary>Sprites with fractional alpha must use alpha composition.</summary>
@@ -443,7 +445,11 @@ public readonly record struct TerrainWorldLight(
     Vector3 Colour,
     float Opacity,
     WorldLightShape Shape,
-    StaticSpriteAsset? Mask = null);
+    StaticSpriteAsset? Mask = null)
+{
+    /// <summary>Authored emitter sprite; its halo paints immediately before that sprite.</summary>
+    public uint? SourceStaticObjectId { get; init; }
+}
 
 public enum WorldLightShape : uint
 {

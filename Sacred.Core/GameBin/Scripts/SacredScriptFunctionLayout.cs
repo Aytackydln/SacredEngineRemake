@@ -16,5 +16,7 @@ public readonly struct SacredScriptFunctionLayout
     [FieldOffset(68)] public readonly int ByteLength;
     [FieldOffset(72)] public readonly int Quest;
     [FieldOffset(76)] public readonly int Number;
+    /// <summary>Retained four-byte storage; Gold 0x46BA90 tests only its first byte.</summary>
     [FieldOffset(80)] public readonly uint Deleted;
+    [FieldOffset(80)] public readonly byte DeletedFlag;
 }

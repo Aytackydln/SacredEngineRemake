@@ -7,12 +7,16 @@ namespace Sacred.World;
 /// <summary>Selects the shared ground navigation plane or one isolated upper-floor grid.</summary>
 internal sealed class WorldNavigationTileSource(WorldStreamer worldStreamer, Func<IndoorTileGroup?> activeIndoorGroup)
 {
+    public Func<VisibleWorld>? WorldProvider { get; set; }
+    public Func<SectorCoord, bool>? SectorReady { get; set; }
     private readonly Dictionary<SectorCoord, Sector> _sectors = new(9);
     private readonly Dictionary<long, WorldPathTile> _groundFloorTiles = [];
     private VisibleWorld? _cachedWorld;
 
     public bool TryGetTile(int x, int y, byte surfaceLevel, out WorldPathTile tile)
     {
+        if (SectorReady is { } ready && !ready(new(FloorDiv(x, Sector.TileCount), FloorDiv(y, Sector.TileCount))))
+        { tile = default; return false; }
         if (surfaceLevel > 1)
         {
             if (activeIndoorGroup() is { } upper &&
@@ -44,7 +48,7 @@ internal sealed class WorldNavigationTileSource(WorldStreamer worldStreamer, Fun
 
     private void Refresh()
     {
-        var world = worldStreamer.VisibleWorld;
+        var world = WorldProvider?.Invoke() ?? worldStreamer.VisibleWorld;
         if (ReferenceEquals(world, _cachedWorld)) return;
         _cachedWorld = world;
         _sectors.Clear();

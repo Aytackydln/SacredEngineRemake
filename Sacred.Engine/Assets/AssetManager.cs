@@ -8,6 +8,7 @@ using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Assets.CombatArts;
+using Sacred.Assets.Executable;
 using Sacred.Assets.Paks.Creature;
 using Sacred.Assets.Paks.Mixed;
 using Sacred.Assets.Paks.Models;
@@ -23,12 +24,13 @@ using Sacred.Granny.Assets;
 using Sacred.Inventory.Actors;
 using Sacred.Inventory.Effects;
 using Sacred.Inventory.Items;
+using Sacred.Inventory.Stats;
 using Sacred.Particles;
 using Sacred.World.Objects;
 
 namespace Sacred.Engine.Assets;
 
-public sealed class AssetManager : IDisposable
+public sealed partial class AssetManager : IDisposable
 {
     // Initial capacities reduce resizing; texture retention is bounded by the LRU limits.
     private const int MaxTextureCacheEntries = 64;
@@ -88,6 +90,8 @@ public sealed class AssetManager : IDisposable
     public IReadOnlyList<SacredSetEntry> ItemSets { get; }
     public GameResStore Resources { get; }
     public CreaturePakArchive? CreatureTemplates { get; init; }
+    public SacredMovementCalculator? MovementCalculator { get; init; }
+    public SacredNpcConversationDefinitions? NpcConversations { get; init; }
 
     internal AssetManager(
         TexturePakArchive texturePak,
@@ -142,6 +146,7 @@ public sealed class AssetManager : IDisposable
         var definition = GetPlayerCharacterDefinition(entryId);
         var template = CreatureTemplates?.ResolveTemplate(ResolvePlayerCharacterItem(definition.BaseItemId));
         var actor = new SacredGameActor(definition.CharacterClass, template);
+        if (MovementCalculator is { } movement) actor.ConfigureMovement(movement);
         SacredActorAppearance.Configure(actor, _equipmentByModelId.Values);
         actor.Progression.ConfigureCombatArts(_combatArts.Entries);
         foreach (var (slot, itemId) in definition.Items)

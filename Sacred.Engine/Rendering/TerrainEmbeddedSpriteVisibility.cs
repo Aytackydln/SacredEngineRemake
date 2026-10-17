@@ -41,7 +41,7 @@ internal static class TerrainEmbeddedSpriteVisibility
                 continue;
             }
 
-            if (!sprite.RendersOverWater && !sprite.UsesSpriteDepth)
+            if (!sprite.HasLightHalo && !sprite.RendersOverWater && !sprite.UsesSpriteDepth)
             {
                 if (!sprite.IsMiniObject)
                     continue;

@@ -164,6 +164,8 @@ public sealed partial class Dx12Renderer : IDisposable
 
     public void QueueScreenshot(string? label) => _pendingScreenshotLabels.Enqueue(label);
 
+    public void SetLightHaloLayering(bool enabled) => GetWorldPass().SetLightHaloLayering(enabled);
+
     public void SetRenderScalingMode(RenderScalingMode mode)
     {
         if (RenderScalingMode == mode)

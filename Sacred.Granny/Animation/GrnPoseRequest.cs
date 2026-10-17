@@ -9,7 +9,10 @@ public enum GrnPoseTimeMode { Loop, Clamp }
 public readonly record struct GrnPoseRequest(
     GrnPoseInstanceHandle Instance, ulong Sequence, ulong SourceVersion,
     GrnAnimationClip Animation, float TimeSeconds, GrnPoseTimeMode TimeMode,
-    bool MaterializeCpuVertices);
+    bool MaterializeCpuVertices)
+{
+    public GrnPoseBlend? Blend { get; init; }
+}
 
 public interface IGrnPoseRequestSink
 {

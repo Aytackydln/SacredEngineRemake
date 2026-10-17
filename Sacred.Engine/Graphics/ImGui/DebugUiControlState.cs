@@ -13,6 +13,7 @@ namespace Sacred.Engine.Graphics.ImGui;
 internal sealed class DebugUiControlState
 {
     public CheatTerminalState Terminal { get; } = new();
+    public GameServerDebugPanelState GameServer { get; } = new();
     public IReadOnlyList<SacredCampaignFiles> Campaigns { get; set; } = [];
     public string? CampaignDirectoryPath { get; set; }
     public string CampaignDisplayName { get; set; } = SacredCampaignFiles.DefaultDirectoryName;
