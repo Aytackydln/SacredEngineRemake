@@ -7,6 +7,11 @@ internal static class WorldScriptSectorHandlers
 {
     public static bool Execute(WorldScriptExecutionContext context, SacredScriptCommand command)
     {
+        if (command.Opcode == SacredScriptSpawnEquipmentLayout.Opcode)
+        {
+            context.AddSpawnEquipment(SacredScriptSpawnEquipment.Read(command));
+            return true;
+        }
         if (command.Opcode != SacredScriptExecutionOpcodes.SetSectorMonsterParameters) return false;
         // Native clears ten argument words for each command, then uses only the first three.
         var values = SacredScriptOperandReader.Read(command)

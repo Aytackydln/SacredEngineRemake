@@ -4,6 +4,7 @@ using Sacred.Assets.Paks.Texture;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.World.Sector;
 using Sacred.Granny.Meshes;
+using Sacred.Inventory.Effects;
 using Sacred.World.Geometry;
 
 namespace Sacred.Engine.Scene.InGame;
@@ -15,7 +16,7 @@ internal static class WorldSceneModelFactory
         ItemsPakEntry item,
         Mesh mesh,
         IReadOnlyDictionary<string, ModelTextureReference> textureAliases,
-        Vector3 sourceOriginOffset)
+        Vector3 sourceOriginOffset, EquipmentEffectScene? effects = null)
     {
         // Script-created objects retain their absolute tile anchor in the static-object
         // record. ProjectedX/Y are sprite-space values and must never be inverted for a
@@ -30,6 +31,7 @@ internal static class WorldSceneModelFactory
                 placement.ScriptFacingDegrees)),
             WorldModelPose.Scale,
             textureAliases,
+            equipmentEffects: effects,
             sourceOriginOffset: sourceOriginOffset,
             blockRadius: item.ModelDesc.BlockRadius) { IsWorldObject = true };
         model.SetPose(model.Position, model.Rotation,

@@ -112,7 +112,7 @@ internal sealed class PlayerCharacterController : IDisposable
                 worldCenter,
                 GroundPlaneZ,
                 cameraWorldMovement);
-        _animation?.Update(deltaSeconds, locomotionAnimationSpeed);
+        _animation?.Update(deltaSeconds, locomotionAnimationSpeed * _loadout.Actor.LocomotionPlaybackSpeed);
     }
 
     public void PlayAttack() => _animation?.PlayAttack();

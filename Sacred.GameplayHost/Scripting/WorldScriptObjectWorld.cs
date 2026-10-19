@@ -10,7 +10,7 @@ namespace Sacred.GameplayHost.Scripting;
 
 /// <summary>Startup construction of container objects from original templates and granted IDs.
 /// Unsupported families/effects fail before allocation; callbacks are retained in native use/take order.</summary>
-public sealed class WorldScriptObjectWorld
+public sealed class WorldScriptObjectWorld : IWorldScriptObjectWorld
 {
     private readonly SacredObjectTemplateArchive _templates;
     private readonly GoldObjectReferencePool _references;
@@ -38,7 +38,7 @@ public sealed class WorldScriptObjectWorld
     public IReadOnlyList<WorldScriptCreatedObject> Objects { get; }
     public IReadOnlyList<GoldObjectScriptCallback> Callbacks { get; }
 
-    internal void Create(WorldScriptExecutionContext context, SacredScriptCommand command)
+    public void Create(WorldScriptExecutionContext context, SacredScriptCommand command)
     {
         if (!context.IsExecutingStartup) throw new InvalidDataException("Live CreateObj requires sector/ownership dispatch.");
         var creation = SacredScriptObjectCreationReader.Read(command,

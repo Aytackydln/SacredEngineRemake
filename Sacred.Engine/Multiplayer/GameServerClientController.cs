@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Sacred.Core.Pax.Hero;
 using Sacred.Core.World;
+using Sacred.GameplayHost.World;
 using Sacred.Network.Admission;
 using Sacred.Network.Connection;
 using Sacred.Network.Gameplay;
@@ -24,7 +25,9 @@ internal sealed partial class GameServerClientController : IDisposable
     private readonly Dictionary<(byte Sender, byte Origin, uint Id), GoldInventoryEvent> _inventories = [];
     private readonly List<uint> _allocatedReferences = [];
     private readonly HashSet<uint> _referenceSet = [];
-    public GoldWorldReplica WorldReplicas { get; } = new();
+    public GoldObjectReferencePool ObjectReferences { get; } = new();
+    private readonly IGameplayReplicaSession _gameplay = new SacredGameplayReplicaSession();
+    public GoldWorldReplica WorldReplicas => _gameplay.Replicas;
     public int GrantedReferenceCount => _allocatedReferences.Count;
     public int EventsReceived => _eventsReceived;
     public uint LocalMovementControl { get; private set; }
@@ -64,6 +67,7 @@ internal sealed partial class GameServerClientController : IDisposable
         var plan = GoldSavedCharacterReferencePlan.Create(source, connection.Admission.PlayerSlot, _allocatedReferences.ToArray());
         var prepared = GoldSavedCharacterImportPreparation.Create(plan);
         var packets = GoldSavedCharacterPacketPreparation.Create(prepared);
+        ObjectReferences.Consume(plan.References.Values.Where(reference => reference != plan.PlayerSlot).ToArray());
         _referencePlan = plan;
         LocalMovementControl = source.Hero.Creature.MovementControl;
         _importPreparation = prepared;
@@ -93,7 +97,7 @@ internal sealed partial class GameServerClientController : IDisposable
             throw new InvalidOperationException("Initial sector interest requires a completed and approved participant upload.");
         if (_sectorInterest is not null) throw new InvalidOperationException("Initial sector interest already requested; disconnect before retrying.");
         var current = WorldReplicas.Objects[WorldReplicas.LocalPlayerSlot].BaseState.Sector;
-        _sectorInterest = new(connection, WorldReplicas, index, () => checked((uint)(_allocatedReferences.Count - _referencePlan.ObjectCount)));
+        _sectorInterest = new(connection, WorldReplicas, index, () => checked((uint)ObjectReferences.Available));
         var message = _sectorInterest.Request(current);
         EngineLog.WriteLine($"Network: {message}.");
         return message;
@@ -158,6 +162,14 @@ internal sealed partial class GameServerClientController : IDisposable
         }
         else if (value.Equals("doors", StringComparison.OrdinalIgnoreCase))
             message = GameServerDoorDiagnostics.Write(WorldReplicas.DoorInteractions);
+        else if (value.Equals("containers", StringComparison.OrdinalIgnoreCase))
+        {
+            var containers = WorldReplicas.ContainerInteractions;
+            foreach (var pending in containers.Pending)
+                EngineLog.WriteLine($"Network container activation pending: object {pending.Event.ObjectReference}, trigger {pending.Object.BaseState.TriggerReference}; native callback/model execution required.");
+            message = $"{containers.ReceivedCount} container receives, {containers.AppliedCount} applied, {containers.AlreadyActivatedCount} already activated, " +
+                $"{containers.MissingOrInactiveCount} missing/inactive/wrong type, {containers.Pending.Count} pending native activations";
+        }
         else if (value.Equals("inventories", StringComparison.OrdinalIgnoreCase))
         {
             message = $"{_inventories.Count} retained Gold inventory streams; item/owner binding pending";
@@ -261,7 +273,7 @@ internal sealed partial class GameServerClientController : IDisposable
         if (!_uploadReported && _uploadSession?.Completion is { IsCompleted: true } upload)
         {
             _uploadReported = true;
-            if (upload.IsCompletedSuccessfully && _characterPackets is { } packets) WorldReplicas.SeedCharacter(packets);
+            if (upload.IsCompletedSuccessfully && _characterPackets is { } packets) _gameplay.SeedCharacter(packets);
             EngineLog.WriteLine(upload.IsCompletedSuccessfully ? "Network character upload complete: participant finish sent; waiting for server approval and sector data." :
                 $"Network character upload failed: {upload.Exception?.GetBaseException().Message ?? "cancelled"}; reconnect required.");
         }
@@ -286,7 +298,7 @@ internal sealed partial class GameServerClientController : IDisposable
                     }
                     break;
                 case GoldConnectionClosed closed:
-                    WorldReplicas.Clear();
+                    _gameplay.Clear();
                     _status = $"closed: {closed.Reason}";
                     EngineLog.WriteLine($"Network: {_status}.");
                     break;
@@ -300,7 +312,7 @@ internal sealed partial class GameServerClientController : IDisposable
 
     private void Receive(GoldGameEvent gameEvent)
     {
-        WorldReplicas.Apply(gameEvent);
+        _gameplay.Apply(gameEvent);
         var opcode = gameEvent.Message.Opcode;
         _opcodeCounts.TryGetValue(opcode, out var count);
         _opcodeCounts[opcode] = count + 1;
@@ -308,6 +320,10 @@ internal sealed partial class GameServerClientController : IDisposable
         // Bounded diagnostics until native object admission/removal and reference mappings are implemented.
         switch (gameEvent)
         {
+            case GoldObjectFlightEvent flight:
+                WorldReplicas.Objects.TryGetValue(flight.ObjectReference, out var flyingObject);
+                EngineLog.WriteLine($"Network item flight: ref {flight.ObjectReference}, opcode 0x{flight.Message.Opcode:X3}, sender {flight.Message.Sender}, origin {flight.Message.Origin}, owner {flyingObject?.BaseState.Owner}; applied {flyingObject?.Flight == flight}; arc {flight.IsItemArc}, height {flight.InitialHeight}.");
+                break;
             case GoldAdmissionEvent admission:
                 _admission = $"Sacred slot {admission.PlayerSlot}, flags 0x{admission.Flags:X2}; initial character/world import pending";
                 EngineLog.WriteLine($"Network admission: {_admission}.");
@@ -338,6 +354,7 @@ internal sealed partial class GameServerClientController : IDisposable
                 EngineLog.WriteLine($"Network time probe: {(_connection?.Admission.Phase == GoldAdmissionPhase.SlotAssigned ? "native reply sent" : "retained in transport diagnostics")}.");
                 break;
             case GoldReferenceBatchEvent references:
+                ObjectReferences.Apply(references.Batch);
                 foreach (var reference in references.Batch.References)
                     if (_referenceSet.Add(reference)) _allocatedReferences.Add(reference);
                 EngineLog.WriteLine($"Network allocated object references: {references.Batch.Count}; hero/player references are separate; world import pending.");
@@ -369,6 +386,10 @@ internal sealed partial class GameServerClientController : IDisposable
                 EngineLog.WriteLine($"Network door receive: object {door.ObjectReference}, requested {(door.Open ? "open" : "closed")}; " +
                     $"{WorldReplicas.DoorInteractions.Pending.Count} pending native activations. Inspect set server doors.");
                 break;
+            case GoldContainerActivationEvent container:
+                EngineLog.WriteLine($"Network container receive: object {container.ObjectReference}; applied {WorldReplicas.ContainerInteractions.AppliedCount}, " +
+                    $"already activated {WorldReplicas.ContainerInteractions.AlreadyActivatedCount}, pending {WorldReplicas.ContainerInteractions.Pending.Count}.");
+                break;
             case GoldInventoryEvent inventory when _inventories.ContainsKey((inventory.Message.Sender, inventory.Message.Origin, inventory.InventoryId)) || _inventories.Count < 64:
                 _inventories[(inventory.Message.Sender, inventory.Message.Origin, inventory.InventoryId)] = inventory;
                 break;
@@ -387,6 +408,7 @@ internal sealed partial class GameServerClientController : IDisposable
         _movements.Clear(); _objects.Clear(); _doors.Clear(); _opcodeCounts.Clear();
         _inventories.Clear();
         _allocatedReferences.Clear(); _referenceSet.Clear(); _referencePlan = null; _importPreparation = null;
+        ObjectReferences.Clear();
         _characterPackets = null;
         if (_uploadSession is { } session)
         {
@@ -396,7 +418,7 @@ internal sealed partial class GameServerClientController : IDisposable
         _uploadSession = null; _uploadReported = false;
         _sectorInterest?.ObserveCompletion();
         _sectorInterest = null;
-        WorldReplicas.Clear();
+        _gameplay.Clear();
         _eventsReceived = 0;
         LocalMovementControl = 0;
         _status = "offline";

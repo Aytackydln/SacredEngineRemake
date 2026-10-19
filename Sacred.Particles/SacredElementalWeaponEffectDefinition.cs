@@ -6,7 +6,11 @@ namespace Sacred.Particles;
 public enum SacredElementalWeaponEffectKind { Fire, Magic, Poison }
 
 public sealed record SacredElementalWeaponSelectionDefinition(
-    float PhysicalThresholdScale, float LowDamageReference, float HighDamageReference);
+    float PhysicalThresholdScale, float LowDamageReference, float HighDamageReference)
+{
+    /// <summary>cItemBase +0x1DC, initialized by Gold 0x5BE22B; activation requires a strict excess.</summary>
+    public float MinimumIntensity { get; init; }
+}
 
 /// <summary>Damage selection, glow-line, and particle constants recovered from
 /// cWeapon3D::toggleVisuals and cItemBase::renderItemEffects in Sacred.exe.</summary>

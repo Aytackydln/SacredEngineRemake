@@ -14,6 +14,21 @@ public static class GoldGameEventDecoder
         var payload = message.Payload.AsSpan();
         switch (message.Opcode)
         {
+            case GoldCombatLayout.HealthOpcode:
+            case GoldCombatLayout.DamageOpcode:
+            case GoldCombatLayout.BowOpcode:
+            case GoldCombatLayout.BattleOpcode:
+                return GoldCombatCodec.Decode(message);
+            case GoldObjectFlightStopCodec.Opcode:
+                return GoldObjectFlightStopCodec.Decode(message);
+            case GoldItemPickupCodec.RequestOpcode:
+            case GoldItemPickupCodec.TakenOpcode:
+                return GoldItemPickupCodec.Decode(message);
+            case GoldObjectFlightLayout.DropOpcode:
+            case GoldObjectFlightLayout.ForcedOpcode:
+                return GoldObjectFlightCodec.Decode(message);
+            case GoldContainerActivationCodec.Opcode:
+                return GoldContainerActivationCodec.Decode(message);
             case GoldNpcDialogActionLayout.BeginOpcode:
             case GoldNpcDialogActionLayout.EndOpcode:
                 return GoldNpcDialogActionCodec.Decode(message);

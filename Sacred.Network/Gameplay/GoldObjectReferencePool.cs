@@ -24,5 +24,13 @@ public sealed class GoldObjectReferencePool
     }
 
     public bool TryAllocate(out uint reference) => _available.TryDequeue(out reference);
+    /// <summary>Consume an already validated saved-character plan in native grant order.
+    /// Validation precedes mutation so an inconsistent plan cannot partly drain the pool.</summary>
+    public void Consume(ReadOnlySpan<uint> references)
+    {
+        if (!_available.Take(references.Length).SequenceEqual(references.ToArray()))
+            throw new InvalidDataException("Saved-character references differ from the available native reservation order.");
+        foreach (var reference in references) _available.Dequeue();
+    }
     public void Clear() { _available.Clear(); _issued.Clear(); }
 }

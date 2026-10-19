@@ -79,7 +79,7 @@ internal sealed class NetworkWorldObjectInput(DoorSceneController objects, Sacre
     public bool Request(uint reference)
     {
         var target = objects.FocusTargets.FirstOrDefault(target => target.Id == reference);
-        if (target.Model is null) throw new InvalidOperationException("Wait for the received object's model to load in the current sector.");
+        if (target.Model is null) throw new InvalidOperationException("The received object is not currently available for interaction.");
         return Request(target);
     }
     private bool Request(WorldFocusTarget target)

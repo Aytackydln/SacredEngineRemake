@@ -96,9 +96,14 @@ internal static class GrnAnimationSampler
             ? Quaternion.Normalize(value)
             : Quaternion.Identity;
 
-    private static Matrix4x4 Lerp(Matrix4x4 left, Matrix4x4 right, float amount) => new(
-        float.Lerp(left.M11, right.M11, amount), float.Lerp(left.M12, right.M12, amount), float.Lerp(left.M13, right.M13, amount), 0.0f,
-        float.Lerp(left.M21, right.M21, amount), float.Lerp(left.M22, right.M22, amount), float.Lerp(left.M23, right.M23, amount), 0.0f,
-        float.Lerp(left.M31, right.M31, amount), float.Lerp(left.M32, right.M32, amount), float.Lerp(left.M33, right.M33, amount), 0.0f,
-        0.0f, 0.0f, 0.0f, 1.0f);
+    private static Matrix4x4 Lerp(Matrix4x4 left, Matrix4x4 right, float amount)
+    {
+        // Runtime SIMD implementation, with portable fallback. Preserve the original
+        // scale/shear-only semantics even when authored matrices contain other fields.
+        var result = Matrix4x4.Lerp(left, right, amount);
+        result.M14 = result.M24 = result.M34 = 0;
+        result.M41 = result.M42 = result.M43 = 0;
+        result.M44 = 1;
+        return result;
+    }
 }

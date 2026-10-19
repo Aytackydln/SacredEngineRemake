@@ -52,10 +52,14 @@ graphics flags. General elemental affixes/`weapon_gl01` are a separate branch.
 `cWeapon3D::getMagicStaffType` at `5CEA50` scans the live merged modifier rows,
 masks the low 16 bits of `BonusG`, and accepts only resolved modifier codes 1–51.
 It does not turn every model containing `weapon_gl01` into a glowing weapon. The
-static equipment preview honors literal resolved codes and the corresponding
-MageStaff generation groups; unrelated swords and shields with the same helper
-remain unlit. The recovered FIREBALL variants keep their different native energy
+static equipment preview honors literal resolved codes only. Generation-group
+suffixes do not select FX, including on MageStaff items. Equipped actors use their
+received instance values and merged records, rather than the Weapon.pak prototype.
+The recovered FIREBALL variants keep their different native energy
 color tables and `PARTICLE_GLOW01.TGA` trails.
+
+The [live Bellevue and Battle Mage comparison](weapon-instance-fx.md) records the
+resolved modifier scan, signed elemental maxima and strict 0.1 activation threshold.
 
 FIREBALL draw `76B540` calls `stdLensflare` with selector zero. The texture switch
 at `762EF2` resolves that selector to `PARTICLE_FLARE02.TGA`, and `76B5C4` supplies
@@ -92,8 +96,9 @@ effect mask:
 
 This is a synthesized snapshot of effect instances already attached to an item
 object. It is not stored in Items.pak, Weapon.pak, or the GRN. In particular,
-Items.pak graphics flag `0008`, tested by `428460`, controls unrelated render/UI
-branches at `44B8BF` and `599F44`; it is not the native particle selector. The
+Items.pak graphics flag `0008`, tested by `428460`, selects the separate
+[world sparkle draw](world-item-sparkles.md) at `44B8BF`, and participates in NPC
+icon selection at `599F44`; it is not the attached particle-system selector. The
 3072 beam is also absent from this mask: native code selects it directly with
 item predicate `4283C0` in draw paths `5BF710` and `6F2ECD`. There is therefore no
 single persistent "has native particles" byte covering every 3D item. Native

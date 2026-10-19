@@ -12,6 +12,10 @@ internal static class NetworkCharacterCheats
         message = string.Empty;
         switch (option.ToLowerInvariant())
         {
+            case "server-combat":
+                var combat = world.Combat;
+                message = $"received combat: {combat.Attacks} attacks; {combat.DamageEvents} damage events; {combat.HealthUpdates} absolute HP updates, {combat.HealingUpdates} increases; history {combat.Recent.Count}; version {combat.Version}";
+                return true;
             case "equipment" when value.Equals("status", StringComparison.OrdinalIgnoreCase):
                 if (scene.EquipmentUi.Actor is { } actor)
                     for (var index = 0; index < actor.EquipmentSlots.Count; index++)

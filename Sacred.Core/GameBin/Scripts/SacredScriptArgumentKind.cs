@@ -29,9 +29,16 @@ public enum SacredScriptArgumentKind : byte
     /// <summary>CreateNPC: signed Int32 level input, optionally a native expression.
     /// Gold passes it through level initialization, difficulty/region limits and value recalculation.</summary>
     CreatureLevel = 0x1F,
+    /// <summary>Gold operand 0x1D: UInt32 script-resource identity; the native operand
+    /// reader also resolves its optional dialogue/logging text.</summary>
+    ScriptResourceId = 0x1D,
     /// <summary>Three Int32 world coordinates. CreateNPC negates X/Y into its placement scratch
     /// words and retains the previous surface input, ignoring this operand's Z (Gold 0x48279A).</summary>
     WorldPosition = 0x20,
+    /// <summary>CreateNPC: trader service, construction-mode mask 4; marks explicit behavior.</summary>
+    CreatureTrader = 0x24,
+    /// <summary>CreateNPC: combo service, construction-mode mask 8; marks explicit behavior.</summary>
+    CreatureComboMaster = 0x25,
     /// <summary>SetTrigger: initialize/update state mask with bit 0 set.</summary>
     TriggerStateOn = 0x26,
     /// <summary>SetTrigger: initialize/update state mask with bit 0 clear.</summary>
@@ -42,16 +49,40 @@ public enum SacredScriptArgumentKind : byte
     ObjectReference = 0x29,
     /// <summary>TriggerPatch cell: three Int32 values (tile X, Y, surface).</summary>
     TriggerPatchPosition = 0x2A,
+    /// <summary>CreateNPC: low behavior selector 8, aggression zero; no explicit marker.</summary>
+    CreatureBehavior8 = 0x2B,
     /// <summary>SetTrigger: clear bit 0 and set state bit 0x8000.</summary>
     TriggerState8000On = 0x2C,
     /// <summary>SetTrigger: clear state bit 0x8000.</summary>
     TriggerState8000Off = 0x2D,
+    /// <summary>CreateNPC, Gold 0x48292F: replace the low behavior word with 0x10
+    /// and set aggression input zero. This selector does not mark explicit behavior.</summary>
+    CreatureBehavior10 = 0x2E,
+    /// <summary>CreateNPC, Gold 0x482949: low behavior selector 0x40; preserve high flags.</summary>
+    CreatureBehavior40 = 0x2F,
+    CreatureBehavior20 = 0x30,
+    CreatureBehavior40Alias = 0x31,
+    CreatureBehavior80 = 0x32,
+    /// <summary>FillRegion: minimum and maximum levels (two Int32 values).</summary>
+    PopulationLevels = 0x33,
+    /// <summary>FillRegion: sector grid X/Y (two Int32 values).</summary>
+    PopulationSector = 0x34,
+    /// <summary>FillRegion: minimum count, maximum count and area divisor (three Int32 values).</summary>
+    PopulationDensity = 0x35,
+    /// <summary>FillRegion: signed value copied to each generated creature +0x255.</summary>
+    PopulationCreatureValue = 0x36,
+    /// <summary>FillRegion: resource type, signed weight and group (three Int32 values).</summary>
+    PopulationWeightedType = 0x19,
     /// <summary>CreateObj NUL-terminated take callback suffix; native registration prepends "Take:".</summary>
     ObjectTakeScript = 0x41,
+    /// <summary>CreateNPC: low behavior selector 0x400, aggression zero; no explicit marker.</summary>
+    CreatureBehavior400 = 0x42,
     /// <summary>CreateNPC: low behavior selector 0x4000; preserves high flags (Gold 0x4828BA).</summary>
     CreatureBehavior4000 = 0x46,
     /// <summary>Compiled "npc" selector (Gold 0x45810A); SetNPCState replaces the low behavior word with 0x8000. No payload.</summary>
     CreatureNpcBehavior = 0x4C,
+    /// <summary>NUL-terminated ECS_ spell selector, decoded by Gold 0x472BC0.</summary>
+    CreatureSpellSelector = 0x67,
     /// <summary>CreateNPC UInt16 selector (Gold 0x4827DB): zero enables regional
     /// type substitution and clears creature +0x2B7 mask 0x0008; positive sets it.
     /// Omitted input defaults to the separate signed runtime sentinel -1.</summary>
@@ -60,5 +91,11 @@ public enum SacredScriptArgumentKind : byte
     CreatureStationary = 0x74,
     /// <summary>CreateObj NUL-terminated use callback suffix; native registration prepends "Use:".</summary>
     ObjectUseScript = 0x83,
+    /// <summary>Opcode 115: two signed Int32 values, equipment-pool index and percent comparison threshold.</summary>
+    SpawnEquipmentFirstPool = 0x87,
+    SpawnEquipmentSecondPool = 0x88,
+    SpawnEquipmentThirdPool = 0x89,
+    /// <summary>Opcode 115: a single unsigned byte, retained as the equipment generator's return selector.</summary>
+    SpawnEquipmentSelector = 0x8B,
     HeightOffset = 0x7E
 }

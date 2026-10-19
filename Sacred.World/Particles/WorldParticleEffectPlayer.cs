@@ -27,6 +27,11 @@ public sealed class WorldParticleEffectPlayer
     }
 
     public int ActiveCount => _playing.Count + _teleports.Count + _plongs.Count;
+    /// <summary>A received FX object can relocate independently of its wearer.</summary>
+    internal void SetObjectOrigin(Vector2 position, float height)
+    {
+        foreach (var playback in _playing) playback.Emitter.SetOrigin(position, height);
+    }
     public bool IsEnabled(uint typeId, bool selfTarget, int? eventPreset = null) =>
         _playing.Any(p => p.TypeId == typeId && p.EventPreset == eventPreset && p.SelfTarget == selfTarget && p.Looping);
 

@@ -1,10 +1,12 @@
 using System;
 using System.Numerics;
+using System.Threading.Tasks;
 using Sacred.Core.Pak.Creature;
 using Sacred.Core.Pak.Items;
 using Sacred.Engine.Animation;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Scene;
+using Sacred.Granny.Animation;
 using Sacred.Network.Gameplay;
 using Sacred.World.Geometry;
 using Sacred.World.Networking;
@@ -18,21 +20,33 @@ internal sealed class NetworkActorPresentation
     private Vector2 _lastPosition;
     private float _rotation;
     private float _groundOffset;
+    private float _pendingHeight;
     private uint? _lastFacing;
     private GoldMovementEvent? _lastMovement;
     private GoldMovementBody? _movementBody;
-    private GoldObjectBaseState? _lastBaseState;
+    private long? _lastPositionVersion;
     private long? _conversationVersion;
     private readonly SacredNetworkMovementPlayback _motion = new();
     private uint _locomotionAction = 2;
+    private NetworkCombatAnimation? _combat;
+    public Func<uint, Task<GrnAnimationClip?>>? CombatMotionLoader { get; init; }
     public bool IsLocal { get; init; }
     public Func<Vector2, float>? TerrainHeight { get; init; }
     public SceneModel Model { get; }
     public bool Animated => _animation?.AnimatedMesh is not null;
+    public bool Moving { get; private set; }
+    public float LocomotionPlaybackSpeed { get; set; } = 1;
+    public void QueueAnimation(CharacterAnimationBatch batch)
+    {
+        if (_animation is not null) batch.Add(_animation, LocomotionPlaybackSpeed);
+    }
+    public void CompleteAnimation()
+        => Model.SetPose(new(_lastPosition, _pendingHeight + _groundOffset), new(0, 0, _rotation), _lastPosition, _pendingHeight);
     public float ConversationMotionFactor(SacredNetworkNpcConversationState state) => _animation?.NpcAnimation(state.Motion)?.PlaybackSpeedMultiplier ?? 1;
     public SacredNpcAnimationTiming? ConversationTiming { get; set; }
     public bool ApplyConversation(SacredNetworkNpcConversationState? state, SacredNetworkNpcConversations conversations)
     {
+        if (_combat?.Active == true) { _conversationVersion = null; return true; }
         if (state?.ActionStage is 101 or 102)
         {
             var replacing = _conversationVersion is not null && state.Version != _conversationVersion;
@@ -82,23 +96,25 @@ internal sealed class NetworkActorPresentation
 
     public void Update(GoldReplicatedObject actor, float height, float deltaSeconds)
     {
+        if (_combat is null && _animation is not null && CombatMotionLoader is not null)
+            _combat = new(_animation, CombatMotionLoader);
+        _combat?.Update(actor, deltaSeconds);
         var reported = SacredNetworkPosition.ToTiles(actor.BaseState);
         var position = IsLocal ? reported : _motion.Update(actor, deltaSeconds);
-        var direction = position - _lastPosition;
-        var changedPosition = direction.LengthSquared() > 0.0000001f;
         var moving = IsLocal ? actor.Movement is not null : _motion.Moving;
-        if (moving && changedPosition && (IsLocal || !_motion.Snapped))
+        Moving = moving;
+        var direction = _motion.Direction;
+        if (!IsLocal && moving && direction != Vector2.Zero)
             _rotation = -(MathF.Atan2(direction.Y, direction.X) + MathF.PI / 4);
         else if ((actor.FacingBits ?? actor.BaseState.Word28) is var facing &&
-                 (!moving && actor.PositionOpcode is 0x162 or 0x165 || facing != _lastFacing ||
-                  actor.BaseState != _lastBaseState || !IsLocal && changedPosition && _motion.Snapped))
+                 (facing != _lastFacing || actor.PositionVersion != _lastPositionVersion))
         {
             // Full snapshots derive this heading from physical +0x70; stop/position packets carry the angle word.
             var degrees = BitConverter.UInt32BitsToSingle(facing);
             if (float.IsFinite(degrees)) _rotation = SacredNetworkFacing.ToModelRadians(facing);
         }
         _lastFacing = actor.FacingBits ?? actor.BaseState.Word28;
-        _lastBaseState = actor.BaseState;
+        _lastPositionVersion = actor.PositionVersion;
         if (!ReferenceEquals(actor.Movement, _lastMovement))
         {
             _lastMovement = actor.Movement;
@@ -108,9 +124,8 @@ internal sealed class NetworkActorPresentation
         if (action is 1 or 2) _locomotionAction = action;
         _animation?.SetLocomotionState(moving ? _locomotionAction == 1 ? CharacterAnimationStateId.Walk : CharacterAnimationStateId.Run
             : CharacterAnimationStateId.Idle);
-        _animation?.Update(deltaSeconds);
         height = TerrainHeight?.Invoke(position) ?? height;
-        Model.SetPose(new(position, height + _groundOffset), new(0, 0, _rotation), position, height);
+        _pendingHeight = height;
         _lastPosition = position;
     }
 }

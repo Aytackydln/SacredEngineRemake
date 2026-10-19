@@ -17,6 +17,7 @@ public sealed class SacredNetworkMovementPlayback
     private bool _hasPath;
     public bool Moving { get; private set; }
     public bool Snapped { get; private set; }
+    public Vector2 Direction => _hasPath ? new(_path.Direction.X, _path.Direction.Y) : Vector2.Zero;
 
     public Vector2 Update(GoldReplicatedObject actor, float seconds)
     {
@@ -24,7 +25,7 @@ public sealed class SacredNetworkMovementPlayback
         var reported = SacredNetworkPosition.ToTiles(actor.BaseState);
         var changedAnchor = _basis is null || actor.PositionVersion != _positionVersion;
         var replaced = changedAnchor && actor.PositionOpcode is 0x169 or 0x16B or 0x16C or 0x16E or 0x16F;
-        var relocation = changedAnchor && actor.PositionOpcode == 0x165;
+        var relocation = changedAnchor && actor.PositionOpcode is 0x165 or GoldCombatLayout.BowOpcode or GoldCombatLayout.BattleOpcode;
         Snapped = _basis is null || replaced || relocation;
         var newMovement = actor.MovementVersion != _movementVersion || !ReferenceEquals(actor.Movement, _movement);
         if (Snapped)

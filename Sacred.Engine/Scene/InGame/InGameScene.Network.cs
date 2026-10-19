@@ -5,10 +5,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Multiplayer;
+using Sacred.GameplayHost.World;
 using Sacred.Inventory.Actors;
 using Sacred.Network.Gameplay;
 using Sacred.World;
+using Sacred.World.Geometry;
 using Sacred.World.Networking;
+using Sacred.World.Particles;
 
 namespace Sacred.Engine.Scene.InGame;
 
@@ -81,7 +84,8 @@ internal sealed partial class InGameScene
                 var world = load.GetAwaiter().GetResult();
                 if (world.IsCurrentSession)
                 {
-                    _networkPresentation = new(world,_assets,_scene);
+                    _networkPresentation = new(world,_assets,_scene)
+                    { GameplayObjects = new SacredNetworkObjectWorld(world, _assets, _networkClient, EngineLog.WriteLine) };
                     _offlinePlayerModel = _scene.Models[0];
                     _offlinePortraitPlayer = _scene.Portraits.Player;
                     _offlineEquipmentPlayer = _scene.EquipmentUi.Actor;
@@ -93,7 +97,7 @@ internal sealed partial class InGameScene
                     _inputController.SuspendGameplayInput();
                     Teleport(world.LocalPosition);
                     _scene.Indoor.ActiveGroup = null; // The currently supported network actor surface is outdoor zero.
-                    _doors.BindNetworkWorld(world, _networkClient);
+                    _doors.BindGameplayWorld(_networkPresentation.GameplayObjects);
                     if (_networkClient is { } client) _networkMovement = new(_camera, world, _worldStreamer, client, _window.Input, _doors)
                     { ControllerInteractionPressed = _inputController.ControllerInteractionPressed };
                     EngineLog.WriteLine($"Network scene bound: player {world.PlayerSlot}, {world.Sectors.Count} authored sectors, {world.WorldObjects.Count()} world replicas; local movement awaits native sending.");
@@ -104,7 +108,7 @@ internal sealed partial class InGameScene
         if (_networkPresentation is not { } view) return;
         if (!view.World.IsCurrentSession)
         {
-            _doors.BindNetworkWorld(null, null);
+            _doors.BindGameplayWorld(null);
             view.Dispose(); _networkPresentation = null;
             _networkMovement?.Stop(); _networkMovement = null;
             _window.SetHandCursor(false);
@@ -118,6 +122,7 @@ internal sealed partial class InGameScene
             if (_offlineEquipmentPlayer is { } equipmentActor) _scene.EquipmentUi.Bind(equipmentActor);
             _offlineEquipmentPlayer = null;
             _worldLighting.SetNetworkDayFraction(null);
+            _particles.ObjectEffects.Clear();
             _scene.Hud!.Visible = _offlineHudVisible;
             _scene.Hud.WeaponSets = null;
             _scene.Hud.SelectedWeaponSlot = 0;
@@ -152,6 +157,15 @@ internal sealed partial class InGameScene
         }
         _window.SetHandCursor(_networkMovement?.HasObjectHover == true);
         view.Update(deltaSeconds);
+        _particles.ObjectEffects.Synchronize(view.World.WorldObjects, reference =>
+            view.GameplayObjects.Objects.TryGetValue(reference, out var wearer)
+                ? new WorldObjectFxAttachment(new(wearer.Position.X, wearer.Position.Y),
+                    wearer.Drop?.Height ?? view.World.OutdoorHeight(wearer.Replica!.BaseState) /
+                        (WorldModelPose.Scale * WorldModelPose.CameraProjection.M33),
+                    wearer.Definition.ModelDesc.BlockRadius)
+                    { Orientation = wearer.Drop?.Orientation ?? Matrix4x4.CreateRotationZ(wearer.RotationRadians),
+                        InstanceVersion = wearer.InstanceVersion }
+                : null);
         _worldLighting.SetNetworkDayFraction(view.World.Replicas.Calendar.DayFraction);
         var positionForZone = view.World.LocalPosition;
         var coord = new SectorCoord((int)MathF.Floor(positionForZone.X / Sector.TileCount), (int)MathF.Floor(positionForZone.Y / Sector.TileCount));
@@ -162,7 +176,7 @@ internal sealed partial class InGameScene
     private void DisposeNetworkBinding()
     {
         _networkMovement?.Stop();
-        _doors.BindNetworkWorld(null, null);
+        _doors.BindGameplayWorld(null);
         _networkPresentation?.Dispose();
         if (_networkWorldLoad is { } load)
             _ = load.ContinueWith(t => { _ = t.Exception; }, CancellationToken.None,

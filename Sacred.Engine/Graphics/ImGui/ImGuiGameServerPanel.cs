@@ -23,6 +23,7 @@ internal static class ImGuiGameServerPanel
         if (!contents) { DearImGui.End(); return; }
 
         DearImGui.TextWrapped("Join the original GameServer as a participant. Keep the original client in its started game.");
+        ImGuiGameServerDiscoveryPanel.Draw(panel);
         DearImGui.BeginDisabled(panel.Connected || panel.Joining);
         DearImGui.SetNextItemWidth(-1);
         DearImGui.InputText("##server-endpoint", ref panel.Endpoint, 256);

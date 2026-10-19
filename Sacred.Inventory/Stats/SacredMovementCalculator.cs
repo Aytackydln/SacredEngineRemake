@@ -15,6 +15,15 @@ namespace Sacred.Inventory.Stats;
 public sealed class SacredMovementCalculator(SacredMovementBalance balance,
     IReadOnlyList<SacredWeaponModifier> modifiers, IReadOnlyDictionary<uint, SacredEquipment> equipment)
 {
+    /// <summary>Gold 0x4F75F0/0x413610: the path factor before integer speed truncation.
+    /// The selected motion's Models.tmp multiplier is applied by animation playback.</summary>
+    public float AnimationPlaybackSpeed(short percent, float actorFactor = 1)
+    {
+        if (!float.IsFinite(actorFactor) || actorFactor < 0) throw new ArgumentOutOfRangeException(nameof(actorFactor));
+        var factor = (float)(percent * (double)actorFactor * .01f);
+        return factor * balance.MovementScale;
+    }
+
     public int BasePercent(byte horseClass) => balance.GetProfile(horseClass).MovementSpeedPercent;
     public int BasePercent(SacredCharacterProgression progression) => progression.Template?.Class == SacredCreatureClass.Horse
         ? BasePercent(progression.MovementProfileSelector) : progression.Template?.ItemType == 5 ? 120 : 130;

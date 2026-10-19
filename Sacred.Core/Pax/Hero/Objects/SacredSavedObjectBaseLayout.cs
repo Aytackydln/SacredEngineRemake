@@ -17,9 +17,13 @@ public readonly struct SacredSavedObjectBaseLayout
     [FieldOffset(10)] public readonly uint ObjectReference;
     [FieldOffset(14)] public readonly uint Resource;
     /// <summary>Native base +0x14 flags. Bit 0x10 marks an inactive/removed object;
-    /// Gold removal 0x5FC3D3 sets it and receive/owner/movement paths reject that object.</summary>
+    /// Gold removal 0x5FC3D3 sets it and receive/owner/movement paths reject that object.
+    /// For containers, bit 0x4000 marks opened/broken (Gold 0x7DF309 / 0x5CA447).
+    /// Bit 0x100000 is Flying (Gold SetupFly 0x44DED0 / flight-stop receive 0x806202).</summary>
     [FieldOffset(18)] public readonly uint Flags;
     public bool IsInactive => (Flags & 0x10) != 0;
+    /// <summary>Only meaningful when the original resource category selects cContainer.</summary>
+    public bool IsContainerActivated => (Flags & 0x4000) != 0;
     [FieldOffset(22)] public readonly ushort Sector;
     [FieldOffset(24)] public readonly int X;
     [FieldOffset(28)] public readonly int Y;

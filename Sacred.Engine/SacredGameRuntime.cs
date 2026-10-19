@@ -114,6 +114,18 @@ internal sealed partial class SacredGameRuntime : IDisposable
     {
         ApplyGameServerDebugRequests();
         ApplySectorStreamingRequests();
+        if (_debugUiControls.RequestedStaticCutoutsEnabled is { } staticCutouts)
+        {
+            _debugUiControls.RequestedStaticCutoutsEnabled = null;
+            _renderer.StaticCutoutsEnabled = staticCutouts;
+            EngineLog.WriteLine($"Debug input: {_renderer.StaticCutoutStatus}");
+        }
+        if (_debugUiControls.RequestedStaticCutoutBudgetMiB is { } staticCutoutBudget)
+        {
+            _debugUiControls.RequestedStaticCutoutBudgetMiB = null;
+            _renderer.StaticCutoutBudgetMiB = staticCutoutBudget;
+            EngineLog.WriteLine($"Debug input: {_renderer.StaticCutoutStatus}");
+        }
         if (_debugUiControls.RequestedSkinningMode is { } skinningMode)
         {
             _debugUiControls.RequestedSkinningMode = null;
@@ -251,6 +263,8 @@ internal sealed partial class SacredGameRuntime : IDisposable
         SynchronizeCampaignControls();
         _debugUiControls.SectorLoadMode = _sectorLoadMode;
         _debugUiControls.WaitForSectorGpuUploads = _waitForSectorGpuUploads;
+        _debugUiControls.StaticCutoutsEnabled = _renderer.StaticCutoutsEnabled;
+        _debugUiControls.StaticCutoutBudgetMiB = _renderer.StaticCutoutBudgetMiB;
         _debugUiControls.HdrEnabled = _renderer.IsHdrEnabled;
         _debugUiControls.FramePacingMode = _framePacing.Mode;
         _debugUiControls.ManualFrameRate = _framePacing.ManualFrameRate;
@@ -305,6 +319,8 @@ internal sealed partial class SacredGameRuntime : IDisposable
             GrannyBackend = _grannyBackend,
             SectorLoadMode = _sectorLoadMode,
             WaitForSectorGpuUploads = _waitForSectorGpuUploads,
+            StaticCutoutsEnabled = _renderer.StaticCutoutsEnabled,
+            StaticCutoutBudgetMiB = _renderer.StaticCutoutBudgetMiB,
             WorldLightingMode = _inGameScene?.WorldLightingMode ?? _initialSaveState.WorldLightingMode,
             StairsTilesVisible = _inGameScene?.StairsTilesVisible ?? _initialSaveState.StairsTilesVisible,
             BlockedTilesVisible = _inGameScene?.BlockedTilesVisible ?? _initialSaveState.BlockedTilesVisible,
@@ -327,6 +343,7 @@ internal sealed partial class SacredGameRuntime : IDisposable
         _disposed = true;
         _startupProbeCancellation?.Cancel();
         _serverJoin?.Cancel();
+        _serverDiscovery.Dispose();
         _gameServer.Dispose();
         _cheats.Dispose();
         _scenes.Dispose();
@@ -518,12 +535,14 @@ internal sealed partial class SacredGameRuntime : IDisposable
                 EngineLog.WriteLine("GPU preparation cheat: set skin-preparation <on|off> prepares resources independently of model skinning selection.");
                  EngineLog.WriteLine("Door diagnostics: set door-list show lists decoded loaded playback positions and clip availability.");
                  EngineLog.WriteLine("Network door receives: set server doors. Halo ordering: set halo-layering <on|off>; off restores the diagnostic overlay pass.");
+                 EngineLog.WriteLine("Static cutouts: set static-cutouts <on|off|status|reset-stats>; set static-cutout-budget <0-4096 MiB>. Off by default. GPU timings: set frame-log on; set animation-log on.");
                 EngineLog.WriteLine("World focus: F / gamepad A interacts; set focus <status|list|clear|interact|assist|stop|walk:x,y|cone:x,y|mouse:x,y|pointer:x,y>; set render-time <seconds|live> freezes/resumes shader animation for screenshots.");
                 EngineLog.WriteLine("Pose processing: set gpu-pose <on|off> opts independent/world models into GPU sampling/hierarchy/palettes; set gpu-pose-status show reports remaining CPU consumers. Default off; visibility is fail-open until GPU bounds are implemented.");
                 EngineLog.WriteLine("World particle emission: set world-gpu-emission <on|off> selects GPU birth/RNG/lifetime ownership for script/sector objects; set particle-stats show reports readiness and memory; set world-particle-step <0..0.1|off> controls fixed-step validation. Default off; switching off explicitly snapshots current state.");
                 EngineLog.WriteLine("Model skinning: set skinning <auto|cpu|gpu|gpuonly> (default Auto); set gpu-skinning <on|off> aliases Gpu/Cpu. GpuOnly skips unavailable draws; set gpu-only <on|off> controls both skinning and particles. set skin-crowd <0..128> adds independent asset-driven poses; set skin-stats show reports resource bytes; set shader-reload now; set quit now.");
                 EngineLog.WriteLine("Particle cheats: set player-panel <on|off>; set particle-panel <on|off|play|toggles>; set particle-list <all|filter>; set particle-target <self|x,y>; set particle-follow <on|off>; set particle-play <FX name>; set particle-enable <FX name>; set particle-disable <FX name>; set particle-model <on|off>; set particle-stop all; set particle-crowd <0..64> creates asset-driven stress previews.");
                 EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set particles <on|off>; set particle-simulation <Auto|CpuSimd|CpuScalar|Gpu|GpuOnly>; set particle-stats show; set item-flags <hex>; set character next; set facing <degrees>; set path <x>,<y>; set door toggle; set door-list show; set hdr <on|off>; set hdr-brightness <nits|os>; set hdr-scene-format <packed|fp16>; set hdr-unlit-multiplier <0-4>; set hdr-particle-multiplier <0-4>; set pacing <vrr|vsync|limit|manual>; set fps <30-1000>; set latency <off|on|boost>; set resolution <percentage|auto>; set autoscale <on|off>; set scaling <none|bilinear|fsr1|fsr2|fsr1motionadaptive>; set granny <managed|native>.");
+                EngineLog.WriteLine("GameServer: set server-panel <on|off>; set server-discovery <on|off|refresh|status|UDP-port>; set server-join <host:port> <saved selection 1..8>; set server disconnect.");
                 EngineLog.WriteLine("Footprints: set footprints <on|off|clear|status>; set move <x,y|stop|status> moves through the normal camera/collision path without simulated input.");
                 EngineLog.WriteLine("Bottom HUD: set hud status reports the calendar and loading state; set hud map invokes the map button action.");
                 EngineLog.WriteLine("Inventory: set hud inventory toggles the panel; set inventory <open|close|toggle|status|slot-index>; set equipment <status|clear>; set equip <model-id>; set unequip <slot-index>; set equip-set <set-index>. I toggles inventory; Escape closes it.");
@@ -655,6 +674,21 @@ internal sealed partial class SacredGameRuntime : IDisposable
         if (TrySetSectorStreamingOption(option, value, out message)) return true;
         switch (option.ToLowerInvariant())
         {
+            case "static-cutouts" when TryParseBoolean(value, out var cutouts):
+                _renderer.StaticCutoutsEnabled = cutouts;
+                message = _renderer.StaticCutoutStatus;
+                return true;
+            case "static-cutouts" when value.Equals("status", StringComparison.OrdinalIgnoreCase):
+                message = _renderer.StaticCutoutStatus;
+                return true;
+            case "static-cutouts" when value.Equals("reset-stats", StringComparison.OrdinalIgnoreCase):
+                _renderer.ResetStaticSpriteStatistics();
+                message = "sprite preparation statistics reset";
+                return true;
+            case "static-cutout-budget" when int.TryParse(value, out var cutoutBudget) && cutoutBudget is >= 0 and <= 4096:
+                _renderer.StaticCutoutBudgetMiB = cutoutBudget;
+                message = _renderer.StaticCutoutStatus;
+                return true;
             case "halo-layering" when TryParseBoolean(value, out var haloLayering):
                 _renderer.SetLightHaloLayering(haloLayering);
                 message = $"light halos {(haloLayering ? "follow their source sprite" : "use the diagnostic overlay pass")}";

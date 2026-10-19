@@ -3,6 +3,7 @@ using Sacred.Assets.Paks.Texture;
 using Sacred.Core.Pak.Items;
 using Sacred.Granny.Animation;
 using Sacred.Granny.Assets;
+using Sacred.Inventory.Effects;
 
 namespace Sacred.Engine.Assets;
 
@@ -12,4 +13,7 @@ public sealed record WorldModelAsset(
     GrnAsset Model,
     IReadOnlyDictionary<string, ModelTextureReference> TextureAliases,
     GrnAnimationClip? OpenAnimation,
-    GrnAnimationClip? CloseAnimation);
+    GrnAnimationClip? CloseAnimation)
+{
+    public EquipmentEffectScene? Effects { get; init; }
+}

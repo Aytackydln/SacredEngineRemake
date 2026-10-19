@@ -59,7 +59,7 @@ public static class GoldWorldBankLayout
             _ => throw new ArgumentOutOfRangeException(nameof(index))
         } : index switch
         {
-            0 => WordSize, 1 => 292, 2 => 8, 3 => 88, 4 => 280, 5 => 88, 6 => 8,
+            0 => WordSize, 1 => 292, 2 => 8, 3 => 88, 4 => GoldSectorObjectRestoreLayout.Size, 5 => 88, 6 => 8,
             _ => throw new ArgumentOutOfRangeException(nameof(index))
         };
     }

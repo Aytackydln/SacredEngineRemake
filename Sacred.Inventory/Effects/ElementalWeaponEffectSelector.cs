@@ -11,10 +11,11 @@ public static class ElementalWeaponEffectSelector
 {
     public static SelectedElementalWeaponEffect? Select(SacredEquipmentDamage damage)
     {
-        var physical = damage.PhysicalDamageMaximum;
-        var fire = damage.FireDamageMaximum;
-        var magic = damage.MagicDamageMaximum;
-        var poison = damage.PoisonDamageMaximum;
+        // Gold 0x5CE08E sign-extends the four runtime maximum-damage words.
+        var physical = unchecked((short)damage.PhysicalDamageMaximum);
+        var fire = unchecked((short)damage.FireDamageMaximum);
+        var magic = unchecked((short)damage.MagicDamageMaximum);
+        var poison = unchecked((short)damage.PoisonDamageMaximum);
         var kind = fire > poison && fire > magic ? SacredElementalWeaponEffectKind.Fire
             : poison > fire && poison > magic ? SacredElementalWeaponEffectKind.Poison
             : magic > poison && magic > fire ? SacredElementalWeaponEffectKind.Magic
@@ -35,6 +36,7 @@ public static class ElementalWeaponEffectSelector
         if (definition is null) return null;
         var low = selection.LowDamageReference * definition.IntensityLowScale;
         var high = selection.HighDamageReference * definition.IntensityHighScale;
-        return new SelectedElementalWeaponEffect(definition, Math.Clamp((elemental - low) / (high - low), 0, 1));
+        var intensity = Math.Clamp((elemental - low) / (high - low), 0, 1);
+        return intensity > selection.MinimumIntensity ? new SelectedElementalWeaponEffect(definition, intensity) : null;
     }
 }

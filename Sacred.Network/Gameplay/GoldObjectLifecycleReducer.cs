@@ -19,6 +19,8 @@ internal static class GoldObjectLifecycleReducer
             {
                 BaseState = current.BaseState with { Flags = current.BaseState.Flags | GoldObjectLifecycleLayout.InactiveFlag },
                 Movement = null,
+                Attack = null, AttackVersion = current.AttackVersion + 1,
+                Flight = null, FlightVersion = current.FlightVersion + 1,
                 RemovalOpcode = removal.Message.Opcode
             },
             GoldObjectOwnerEvent owner => current with { BaseState = current.BaseState with { Owner = owner.Owner } },

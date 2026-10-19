@@ -46,6 +46,8 @@ public sealed class SacredGame : IDisposable
             initialSaveState.AutoRenderResolutionMaximumPercentage,
             initialSaveState.AutoRenderResolutionStepSnapping,
             initialSaveState.AutoRenderResolutionStepPercentage);
+        _renderer.StaticCutoutsEnabled = initialSaveState.StaticCutoutsEnabled;
+        _renderer.StaticCutoutBudgetMiB = initialSaveState.StaticCutoutBudgetMiB;
         _framePacing = new FramePacingController(
             _renderer,
             _latency,

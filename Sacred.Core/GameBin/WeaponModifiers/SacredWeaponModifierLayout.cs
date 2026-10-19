@@ -19,7 +19,10 @@ public readonly struct SacredWeaponModifierLayout
     /// <summary>Percentage factor applied when generating damage/protection. Also the over-level
     /// armor movement penalty coefficient (Gold CalcResults 0x57A067), valid only in 1..999.</summary>
     [FieldOffset(24)] public readonly int Modifier;
-    [FieldOffset(28), BinaryUnknown] public readonly int Variance;
+    /// <summary>Damage spread percentage (Gold 0x5D042D): minimum = value * (1 - spread),
+    /// maximum = value * (1 + spread), truncated separately. Spread is capped at 100.0,
+    /// after multiplying by the native single-precision 0.01 constant.</summary>
+    [FieldOffset(28)] public readonly int Variance;
     [FieldOffset(32)] public readonly SacredModifierRange PhysicalDamage;
     [FieldOffset(44)] public readonly SacredModifierRange FireDamage;
     [FieldOffset(56)] public readonly SacredModifierRange MagicDamage;
@@ -31,14 +34,21 @@ public readonly struct SacredWeaponModifierLayout
     [FieldOffset(128)] public readonly SacredModifierRange Attack;
     [FieldOffset(140)] public readonly SacredModifierRange Defense;
     [FieldOffset(152)] public readonly int WeaponType;
+    /// <summary>Minimum generation level after multiplication by Balance.bin +0x111C.
+    /// Gold 0x5D52D0 raises the level after computing the combat level factor.</summary>
     [FieldOffset(156)] public readonly int MinimumLevel;
-    [FieldOffset(160)] public readonly SacredModifierRange Requirement0;
-    [FieldOffset(172)] public readonly SacredModifierRange Requirement1;
-    [FieldOffset(184)] public readonly SacredModifierRange Requirement2;
-    /// <summary>Native requirement selector; 1 Strength, 2 Dexterity, 3 Endurance, 4 Charisma.</summary>
-    [FieldOffset(196)] public readonly int RequirementType0;
-    [FieldOffset(200)] public readonly int RequirementType1;
-    [FieldOffset(204)] public readonly int RequirementType2;
-    [FieldOffset(208), BinaryUnknown] public readonly ushort SpellMask;
-    [FieldOffset(210), BinaryUnknown] public readonly ushort SpellCount;
+    /// <summary>Compatibility view of the first eligibility row; Minimum is the level divisor,
+    /// and Maximum is not read by Gold's eligibility generation stage.</summary>
+    [FieldOffset(164)] public readonly SacredModifierRange Requirement0;
+    [FieldOffset(176)] public readonly SacredModifierRange Requirement1;
+    [FieldOffset(188)] public readonly SacredModifierRange Requirement2;
+    [FieldOffset(160), BinaryUnknown] public readonly int WordA0;
+    [FieldOffset(164)] public readonly SacredEquipmentEligibilityLayout Eligibility0;
+    [FieldOffset(176)] public readonly SacredEquipmentEligibilityLayout Eligibility1;
+    [FieldOffset(188)] public readonly SacredEquipmentEligibilityLayout Eligibility2;
+    /// <summary>Gold 0x5D54F5 eligibility selector: 10..17 adds a class flag; values
+    /// above 100 store skill (selector - 100) and generated rank. Not an attribute selector.</summary>
+    [FieldOffset(200)] public readonly int RequirementType0;
+    [FieldOffset(204)] public readonly int RequirementType1;
+    [FieldOffset(208)] public readonly int RequirementType2;
 }

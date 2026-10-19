@@ -12,6 +12,8 @@ public sealed class GoldMovementPathPlayback
     public GoldMovementPoint Position { get; private set; }
     public bool Moving => _speed > 0 && _index >= 0 && _index < _points.Length - 1;
     public int Speed => _speed;
+    /// <summary>Unquantized segment vector. Frame-sized integer steps are not a heading.</summary>
+    public GoldMovementPoint Direction { get; private set; }
 
     public void ReadBank(ReadOnlySpan<byte> bank, GoldMovementPoint position)
     {
@@ -27,6 +29,7 @@ public sealed class GoldMovementPathPlayback
         _remainderX = BinaryPrimitives.ReadInt32LittleEndian(bank[GoldMovementPathLayout.RemainderXOffset..]);
         _remainderY = BinaryPrimitives.ReadInt32LittleEndian(bank[GoldMovementPathLayout.RemainderYOffset..]);
         Position = position;
+        SelectDirection();
     }
 
     /// <summary>0x161 replaces only the route/index. Fractional progress survives route refreshes.</summary>
@@ -38,6 +41,21 @@ public sealed class GoldMovementPathPlayback
         // Native event 0x201 overwrites point zero with the actor's current anchor.
         if (_points.Length > 0) _points[0] = position;
         Position = position;
+        SelectDirection();
+    }
+
+    private void SelectDirection()
+    {
+        Direction = default;
+        if (!Moving) return;
+        // Duplicate points are skipped by Advance too; they cannot supply a facing.
+        for (var i = _index; i + 1 < _points.Length; i++)
+        {
+            var first = _points[i]; var next = _points[i + 1];
+            if (first == next) continue;
+            Direction = new(unchecked(next.X - first.X), unchecked(next.Y - first.Y));
+            return;
+        }
     }
 
     public GoldMovementPoint Advance(float seconds)
@@ -58,7 +76,7 @@ public sealed class GoldMovementPathPlayback
             var distance = SacredNpcDistance.Between(first.X, first.Y, target.X, target.Y);
             if (distance == 0)
             {
-                if (_index + 2 < _points.Length) { _index++; continue; }
+                if (_index + 2 < _points.Length) { _index++; SelectDirection(); continue; }
                 _points = [];
                 return Position;
             }
@@ -67,6 +85,7 @@ public sealed class GoldMovementPathPlayback
                 remaining -= (int)distance;
                 Position = target;
                 _index++;
+                SelectDirection();
                 if (_index + 1 == _points.Length) return Position;
                 continue;
             }

@@ -175,6 +175,7 @@ internal sealed class Dx12WorldPass : IDisposable
             Dx12DescriptorLayout.DebugOverlay,
             Dx12DescriptorLayout.SurfaceLightMap);
         _models.GpuTimings = graphics.GpuAnimationTimings;
+        _sprites.GpuTimings = graphics.GpuAnimationTimings;
         _models.SkinDraw = _skinDraw;
         _debugOverlay = new Dx12DebugOverlay(
             graphics.CommandList,
@@ -238,6 +239,11 @@ internal sealed class Dx12WorldPass : IDisposable
 
     public void SetLightHaloLayering(bool enabled) => _lightHalos.LayerWithSource = enabled;
 
+    public bool StaticCutoutsEnabled { get => _sprites.Cutouts.Enabled; set => _sprites.Cutouts.Enabled = value; }
+    public int StaticCutoutBudgetMiB { get => _sprites.Cutouts.BudgetMiB; set => _sprites.Cutouts.BudgetMiB = value; }
+    public string StaticCutoutStatus => _sprites.CutoutStatus;
+    public void ResetStaticSpriteStatistics() => _sprites.ResetStatistics();
+
     public Task StartPreparation()
     {
         if (_preparationCompletion is null)
@@ -299,6 +305,7 @@ internal sealed class Dx12WorldPass : IDisposable
     {
         var modelGeometryReady = PrepareModels(request.Scene);
         _modelTextures.PrepareFrame(request.Scene, _graphics.CurrentFrame);
+        _sprites.Cutouts.SetView(request.Camera, _graphics.RenderWidth, _graphics.RenderHeight);
         _sprites.PrepareTextures(
             prepared.LiquidSprites,
             prepared.StaticSprites,
@@ -323,6 +330,7 @@ internal sealed class Dx12WorldPass : IDisposable
     {
         var modelGeometryReady = PrepareModels(scene);
         _modelTextures.PrepareFrame(scene, _graphics.CurrentFrame);
+        _sprites.Cutouts.SetView(camera, _graphics.RenderWidth, _graphics.RenderHeight);
         _sprites.PrepareTextures(
             prepared.LiquidSprites,
             prepared.StaticSprites,

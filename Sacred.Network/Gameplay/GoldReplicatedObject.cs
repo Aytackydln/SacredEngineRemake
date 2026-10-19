@@ -6,8 +6,13 @@ public sealed record GoldReplicatedObject(GoldObjectBaseState BaseState, GoldCre
 {
     /// <summary>Identifies one lifetime of a runtime reference; movement and activation preserve it.</summary>
     public long InstanceVersion { get; init; }
+    /// <summary>Latest concrete item values generation; movement preserves equipped appearance.</summary>
+    public long ItemValuesVersion { get; init; }
     /// <summary>Physical state for every 3D instance, including doors and world props.</summary>
     public GoldPhysicalState? Physical { get; init; }
+    public GoldObjectFxState? Fx { get; init; }
+    /// <summary>Container extension selected by the original Items.pak category, never by payload length.</summary>
+    public GoldContainerState? Container { get; init; }
     /// <summary>Locally dispatched world-object activation generation.</summary>
     public long ActivationVersion { get; init; }
     /// <summary>Trigger state after the local model activation; later received changes override its pose.</summary>
@@ -27,4 +32,13 @@ public sealed record GoldReplicatedObject(GoldObjectBaseState BaseState, GoldCre
     public long MovementVersion { get; init; }
     /// <summary>Latest native 0x166/0x167 removal form. A full replacement starts a new active instance.</summary>
     public ushort? RemovalOpcode { get; init; }
+    /// <summary>Latest accepted SetupFly command; playback keeps its clock outside authoritative state.</summary>
+    public GoldObjectFlightEvent? Flight { get; init; }
+    public long FlightVersion { get; init; }
+    /// <summary>Client TP[2] after received damage and absolute HP corrections, also available without a values block.</summary>
+    public int? CurrentHitPoints { get; init; }
+    /// <summary>Last absolute HP from a values/health packet, before locally received damage.</summary>
+    public int? ReportedHitPoints { get; init; }
+    public GoldCreatureAttackEvent? Attack { get; init; }
+    public long AttackVersion { get; init; }
 }

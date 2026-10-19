@@ -19,7 +19,10 @@ public readonly struct SectorEnvironmentLayout
     [FieldOffset(0x76)] public readonly SectorSpawnEntries Animals;
     [FieldOffset(0x96)] public readonly ushort AnimalMinCount;
     [FieldOffset(0x98)] public readonly ushort AnimalMaxCount;
-    [FieldOffset(0x9A), BinaryUnknown] public readonly WorldBytes20 Reserved9A;
+    /// <summary>Last FillRegion performance-clock time in milliseconds (low UInt32).
+    /// Gold 0x47CC23 divides by 1000 to choose its timer threshold; 0x47CCC3 updates it.</summary>
+    [FieldOffset(0x9A)] public readonly uint PopulationTimestampMilliseconds;
+    [FieldOffset(0x9E), BinaryUnknown] public readonly WorldBytes16 Reserved9E;
     [FieldOffset(0xAE)] public readonly SectorEntryMask MonstersValid;
     [FieldOffset(0xAF)] public readonly SectorSpawnEntries Monsters;
     [FieldOffset(0xCF)] public readonly ushort MonsterMinCount;

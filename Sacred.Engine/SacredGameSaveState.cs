@@ -38,6 +38,8 @@ public sealed record SacredGameSaveState
     public WorldLightingMode WorldLightingMode { get; init; } = WorldLightingMode.TimedDayNightCycle;
     public SectorLoadMode SectorLoadMode { get; init; } = SectorLoadMode.Four;
     public bool WaitForSectorGpuUploads { get; init; }
+    public bool StaticCutoutsEnabled { get; init; }
+    public int StaticCutoutBudgetMiB { get; init; } = 128;
     public bool StairsTilesVisible { get; init; }
     public bool BlockedTilesVisible { get; init; }
     public float PlayerMovementSpeedMultiplier { get; init; } = 1.0f;

@@ -8,6 +8,8 @@ public sealed record SacredScriptCreateCreature(string? Name, uint TypeId, IRead
     int Aggression, bool HasExplicitBehavior)
 {
     public const ushort Opcode = 1;
+    /// <summary>Native CreateNPC command-mode scratch; service bits also suppress regional substitution.</summary>
+    public uint ConstructionFlags { get; init; }
     /// <summary>Operand 0x6B; default -1. Zero additionally enables the native regional
     /// replacement pass before construction. Flag application requires the constructed actor.</summary>
     public int Flag2B7Mask08Input { get; init; } = -1;

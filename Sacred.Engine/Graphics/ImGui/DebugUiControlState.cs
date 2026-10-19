@@ -27,6 +27,10 @@ internal sealed class DebugUiControlState
     public WorldLightingMode WorldLightingMode { get; set; }
     public SectorLoadMode SectorLoadMode { get; set; } = SectorLoadMode.Four;
     public bool WaitForSectorGpuUploads { get; set; }
+    public bool StaticCutoutsEnabled { get; set; }
+    public int StaticCutoutBudgetMiB { get; set; } = 128;
+    public bool? RequestedStaticCutoutsEnabled { get; set; }
+    public int? RequestedStaticCutoutBudgetMiB { get; set; }
     public SectorLoadMode? RequestedSectorLoadMode { get; set; }
     public bool? RequestedWaitForSectorGpuUploads { get; set; }
     public bool BorderlessFullscreen { get; set; }

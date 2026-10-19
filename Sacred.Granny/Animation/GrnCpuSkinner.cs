@@ -25,14 +25,12 @@ public static class GrnCpuSkinner
         var transforms = vertex.UsesRigidBoneTransform ? pose.RigidSkinTransforms : pose.SkinTransforms;
         var position = Vector3.Zero;
         var normal = Vector3.Zero;
-        var totalWeight = 0.0f;
-        foreach (var influence in data.Influences.Slice(vertex.InfluenceOffset, vertex.InfluenceCount))
+        var range = data.CpuInfluences.Ranges[index];
+        var totalWeight = range.TotalWeight;
+        foreach (var influence in data.CpuInfluences.Influences.AsSpan(range.Offset, range.Count))
         {
-            if ((uint)influence.BoneIndex >= (uint)transforms.Length ||
-                !float.IsFinite(influence.Weight) || influence.Weight <= 0.0f) continue;
             position += Vector3.Transform(vertex.BindPosition, transforms[influence.BoneIndex]) * influence.Weight;
             normal += Vector3.TransformNormal(vertex.BindNormal, transforms[influence.BoneIndex]) * influence.Weight;
-            totalWeight += influence.Weight;
         }
         var rawPosition = totalWeight > 0.000001f ? position / totalWeight : vertex.BindPosition;
         var rawNormal = totalWeight > 0.000001f ? normal / totalWeight : vertex.BindNormal;
@@ -48,12 +46,11 @@ public static class GrnCpuSkinner
         var vertex = pose.Data.Vertices[index];
         var transforms = vertex.UsesRigidBoneTransform ? pose.RigidSkinTransforms : pose.SkinTransforms;
         var position = Vector3.Zero;
-        var totalWeight = 0f;
-        foreach (var influence in pose.Data.Influences.Slice(vertex.InfluenceOffset, vertex.InfluenceCount))
+        var range = pose.Data.CpuInfluences.Ranges[index];
+        var totalWeight = range.TotalWeight;
+        foreach (var influence in pose.Data.CpuInfluences.Influences.AsSpan(range.Offset, range.Count))
         {
-            if ((uint)influence.BoneIndex >= (uint)transforms.Length || !float.IsFinite(influence.Weight) || influence.Weight <= 0) continue;
             position += Vector3.Transform(vertex.BindPosition, transforms[influence.BoneIndex]) * influence.Weight;
-            totalWeight += influence.Weight;
         }
         return pose.Data.Projection.Project(totalWeight > .000001f ? position / totalWeight : vertex.BindPosition);
     }

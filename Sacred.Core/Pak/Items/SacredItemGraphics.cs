@@ -23,8 +23,11 @@ public enum SacredItemGraphicFlags : ushort
     /// <summary>Observed unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
     Byte0004 = 0x0004,
 
-    /// <summary>Gold 0x428460: the default overhead dialog/service icon render path.
-    /// This is combined descriptor bit 19; HasNpcDialogMarker exposes its meaning.</summary>
+    /// <summary>Gold 0x428460: enables the two-layer world sparkle draw at 0x408B70
+    /// when the model has no wearer (call site 0x44B8B5). Combined descriptor bit 19.</summary>
+    WorldSparkles = 0x0008,
+
+    /// <summary>Compatibility name for <see cref="WorldSparkles"/>.</summary>
     Byte0008 = 0x0008,
 
     /// <summary>Enables complex model rendering; offset 0x6E selects its texture transform (Gold 0x426520).</summary>

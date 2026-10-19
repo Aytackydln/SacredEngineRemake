@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Numerics;
+using Sacred.Network.Discovery;
 using Sacred.Network.Gameplay;
 
 namespace Sacred.Engine.Graphics.ImGui;
@@ -9,6 +10,10 @@ internal sealed class GameServerDebugPanelState
 {
     public bool Visible { get; set; }
     public string Endpoint = "127.0.0.1:2006";
+    public int DiscoveryPort = 2005;
+    public bool RefreshDiscoveryRequested { get; set; }
+    public string DiscoveryStatus { get; set; } = "Open this panel to discover LAN games.";
+    public IReadOnlyList<GoldLanAnnouncement> Servers { get; set; } = [];
     public int Selection { get; set; }
     public string GameDirectory { get; set; } = string.Empty;
     public IReadOnlyList<GameServerSavedHeroChoice> Heroes { get; set; } = [];

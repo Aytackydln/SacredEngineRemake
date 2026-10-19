@@ -23,8 +23,12 @@ public readonly struct SacredActorValuesLayout
     [FieldOffset(16)] public readonly ushort MentalRegeneration;
     [FieldOffset(18)] public readonly ushort Charisma;
     /// <summary>First six bytes are allocations in ST, WI, GS, RP, RM, CH order.
-    /// Semantics of the final two bytes remain unresolved.</summary>
+    /// Byte six is the calculated attribute-bonus mask below; byte seven remains unresolved.</summary>
     [FieldOffset(20)] public readonly SacredActorBytes AttributeAllocations;
+    /// <summary>Native +0x22, Gold CalcResults 0x57B156..0x57B19E: bits 0..5 mark nonzero
+    /// calculated bonuses to the six current attribute words at +0x10..+0x1A.
+    /// This is an output mask, independent of the six allocated point bytes.</summary>
+    [FieldOffset(26)] public readonly byte CalculatedAttributeBonusMask;
     [FieldOffset(28)] public readonly SacredActorBytes SkillIds;
     [FieldOffset(36)] public readonly SacredActorBytes SkillLevels;
     [FieldOffset(44)] public readonly SacredActorBytes SkillBonuses;

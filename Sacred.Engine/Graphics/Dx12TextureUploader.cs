@@ -15,6 +15,9 @@ public sealed class Dx12TextureUploader
 
     public Dx12TextureUploader(ID3D12Device device) => _device = device;
 
+    internal ulong GetAllocationBytes(ID3D12Resource resource) =>
+        _device.GetResourceAllocationInfo(0, resource.Description).SizeInBytes;
+
     public void CreateShaderResourceView(ID3D12Resource texture, CpuDescriptorHandle descriptor) =>
         _device.CreateShaderResourceView(texture, null, descriptor);
 

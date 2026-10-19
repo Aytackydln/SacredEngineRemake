@@ -11,6 +11,9 @@ namespace Sacred.Engine.Graphics.Sprites;
 /// <summary>Records painter-ordered sprite ranges with direct texture indexing.</summary>
 internal sealed class Dx12SpriteBatchRecorder
 {
+    public int DrawCallCount { get; set; }
+    public Dx12GpuAnimationTimings? GpuTimings { get; set; }
+    public bool IsLiquid { get; set; }
     public float? AnimationTimeOverride { get; set; }
     public float ParticleColorMultiplier { get; set; } = 1.0f;
     private const float AlphaCutoff = 64.0f / 255.0f;
@@ -92,7 +95,9 @@ internal sealed class Dx12SpriteBatchRecorder
         _commandList.SetGraphicsRootShaderResourceView(
             StaticSpriteShaderLayout.InstanceBufferRootParameter,
             frame.SpriteInstanceBuffer.GPUVirtualAddress + (ulong)(startInstance * InstanceStride));
-        _commandList.DrawInstanced(6, (uint)instanceCount, 0, 0);
+        using (GpuTimings?.Measure(IsLiquid ? AnimationGpuStage.LiquidSpriteDraws : AnimationGpuStage.StaticSpriteDraws))
+            _commandList.DrawInstanced(6, (uint)instanceCount, 0, 0);
+        if (!IsLiquid) DrawCallCount++;
     }
 
 }

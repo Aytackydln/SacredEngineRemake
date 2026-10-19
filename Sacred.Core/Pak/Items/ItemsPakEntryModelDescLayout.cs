@@ -52,8 +52,10 @@ public readonly struct ItemsPakEntryModelDescLayout
     /// </summary>
     [FieldOffset(2)]
     public readonly SacredItemGraphicFlags GraphicFlags;
-    /// <summary>Gold 0x428460: combined descriptor bit 19 selects the default NPC dialog icon path.</summary>
-    public bool HasNpcDialogMarker => (GraphicFlags & SacredItemGraphicFlags.Byte0008) != 0;
+    /// <summary>Gold 0x428460 / 0x44B8B5: sparkles around an unattached world model.</summary>
+    public bool EmitsWorldSparkles => (GraphicFlags & SacredItemGraphicFlags.WorldSparkles) != 0;
+    /// <summary>Compatibility predicate also consumed by the NPC overhead presentation.</summary>
+    public bool HasNpcDialogMarker => EmitsWorldSparkles;
 
     /// <summary>
     /// Texture.pak descriptor index used by atlas-backed mini objects. Static.pak

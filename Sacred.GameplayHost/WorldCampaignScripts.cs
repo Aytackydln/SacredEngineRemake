@@ -1,5 +1,6 @@
 using Sacred.Assets.Executable;
 using Sacred.Assets.GameBin;
+using Sacred.Assets.GameBin.Balance;
 using Sacred.Core.GameBin.Scripts;
 using Sacred.Core.World.Stairs;
 
@@ -17,6 +18,10 @@ public sealed class WorldCampaignScripts
         {
             try { Regions = SacredRegionDefinitions.Load(gameDirectory); }
             catch (InvalidDataException) { /* Already initialized regions do not require this lookup. */ }
+            try { PopulationDefinitions = SacredPopulationDefinitions.Load(gameDirectory); }
+            catch (InvalidDataException) { /* FillRegion retains an explicit dependency if absent. */ }
+            var balance = Path.Combine(gameDirectory, "bin", "Balance.bin");
+            if (File.Exists(balance)) PopulationBalance = PopulationBalanceBinReader.Load(balance);
         }
         StartupCode = File.ReadAllBytes(files.StartCodePath);
         FunctionCode = File.ReadAllBytes(files.FunctionCodePath);
@@ -37,6 +42,8 @@ public sealed class WorldCampaignScripts
 
     public SacredCampaignFiles Files { get; }
     public SacredRegionDefinitions? Regions { get; }
+    public SacredPopulationDefinitions? PopulationDefinitions { get; }
+    public SacredPopulationBalance? PopulationBalance { get; }
     public ReadOnlyMemory<byte> StartupCode { get; }
     public ReadOnlyMemory<byte> FunctionCode { get; }
     public ReadOnlyMemory<byte> Vectors { get; }

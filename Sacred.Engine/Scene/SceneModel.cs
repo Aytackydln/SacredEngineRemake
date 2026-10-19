@@ -21,6 +21,7 @@ public sealed class SceneModel : ISceneModelBounds
     private readonly SceneModelBounds _bounds;
     private Vector3 _modelOffset;
     private Matrix4x4 _modelProjection = Matrix4x4.Identity;
+    private Matrix4x4 _modelOrientation = Matrix4x4.Identity;
     // GRN extraction centers mesh vertices; world props retain their authored pivot here.
     private readonly Vector3 _sourceOriginOffset;
 
@@ -94,10 +95,20 @@ public sealed class SceneModel : ISceneModelBounds
     public IReadOnlySet<(string TextureName, ParticleTextureMode Mode)>? DisabledEquipmentEffects { get; internal set; }
     public Matrix4x4 Transform => _transform;
     public Matrix4x4 ModelProjection => _modelProjection;
+    public Matrix4x4 ModelOrientation => _modelOrientation;
+
+    /// <summary>Native three-axis orientation before camera adaptation. Keep projection/shadow scale independent.</summary>
+    public void SetModelOrientation(Matrix4x4 orientation)
+    {
+        if (_modelOrientation == orientation) return;
+        _modelOrientation = orientation;
+        RebuildTransform();
+    }
 
     /// <summary>Adapts an authored model camera to the scene camera after model facing.</summary>
     public void SetModelProjection(Matrix4x4 projection)
     {
+        if (_modelProjection == projection) return;
         _modelProjection = projection;
         RebuildTransform();
     }
@@ -193,7 +204,7 @@ public sealed class SceneModel : ISceneModelBounds
     private void RebuildTransform(Vector2? cameraWorldMovement = null)
     {
         var previous = _transform;
-        var rotation = Matrix4x4.CreateFromYawPitchRoll(Rotation.X, Rotation.Y, Rotation.Z);
+        var rotation = _modelOrientation * Matrix4x4.CreateFromYawPitchRoll(Rotation.X, Rotation.Y, Rotation.Z);
         var renderPosition = RenderPosition + Vector3.Transform(_modelOffset, rotation * _modelProjection);
         _transform = Matrix4x4.CreateTranslation(_sourceOriginOffset) *
                      Matrix4x4.CreateScale(Scale) *

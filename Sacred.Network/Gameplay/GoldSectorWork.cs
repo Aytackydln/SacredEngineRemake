@@ -5,9 +5,9 @@ public sealed record GoldSectorWork(long Session, long Id, long Reply, int Slot,
     GoldSectorEntrySlot Entry, GoldSectorWorkState State = GoldSectorWorkState.Queued, string? Error = null)
 {
     public bool ExecuteScripts { get; init; } = Entry.RequestsScripts;
-    /// <summary>Gold's zero-mode receive branch always runs its patch pass and local
-    /// enter notification, even when no initialization was requested.</summary>
-    public bool ApplyPatches => Entry.ScriptMode == 0;
+    /// <summary>The zero-mode receive branch and the completed native EnterSector
+    /// producer both run 0x493440, followed by the receiver's local enter notification.</summary>
+    public bool ApplyPatches => Entry.ScriptMode == 0 || ExecuteScripts;
     /// <summary>Retain the pending vectors present when this reply arrived. Loading terrain
     /// asynchronously must not substitute a later bank for a previously queued operation.</summary>
     public GoldWorldBankSnapshot? PatchBank { get; init; }

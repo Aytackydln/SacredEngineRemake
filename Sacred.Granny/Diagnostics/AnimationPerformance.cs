@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 namespace Sacred.Granny.Diagnostics;
 
-public enum AnimationCpuStage { Sampling, Palettes, Skinning, Bounds, Effects, VertexUpload, PaletteUpload, SurfaceQueries, ParticleSeeds, Particles, ParticlePreparation, ParticleGpuPreparation, PoseRequests, Attachments, NativeEffects, EquipmentVertices }
+public enum AnimationCpuStage { Sampling, Palettes, Skinning, Bounds, Effects, VertexUpload, PaletteUpload, SurfaceQueries, ParticleSeeds, Particles, ParticlePreparation, ParticleGpuPreparation, PoseRequests, Attachments, NativeEffects, EquipmentVertices, CharacterBatchWall }
 
 /// <summary>Optional renderer-independent counters. Disabled scopes do not read the clock.</summary>
 public static class AnimationPerformance

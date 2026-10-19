@@ -1,4 +1,5 @@
 using Sacred.Core.Pak.Weapon;
+using Sacred.Inventory.Items;
 
 namespace Sacred.Inventory.Effects;
 
@@ -9,6 +10,8 @@ public readonly record struct EquipmentEffectAttachment(
     SacredEquipmentDamage Damage,
     float ModelBoundsSize)
 {
+    /// <summary>Concrete values take precedence over the shared definition's generation inputs.</summary>
+    public SacredItemInstance? Instance { get; init; }
     public uint ItemId { get; init; }
     public uint BaseItemId { get; init; }
     public SacredEquipmentBonusTypes BonusTypes { get; init; }

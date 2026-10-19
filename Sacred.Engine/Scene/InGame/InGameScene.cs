@@ -7,18 +7,19 @@ using System.Threading.Tasks;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.World.Sector;
+using Sacred.Engine.Animation;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Graphics;
 using Sacred.Engine.Graphics.ImGui;
 using Sacred.Engine.Multiplayer;
 using Sacred.Engine.Platform;
+using Sacred.GameplayHost.World;
 using Sacred.Granny.Diagnostics;
 using Sacred.Particles;
 using Sacred.UI.Hud;
 using Sacred.UI.Menus;
 using Sacred.World;
 using Sacred.World.Map;
-using Sacred.World.Objects;
 using Sacred.World.Particles;
 using Sacred.World.Portals;
 
@@ -93,8 +94,7 @@ internal sealed partial class InGameScene : IGameScene
         _scene.NpcOverheads.Camera = _camera;
         _footprints = new PlayerFootprintController(_assets, _worldStreamer, _scene);
         _player = new PlayerCharacterController(_assets, _scene, saveState.CharacterName);
-        _doors = new DoorSceneController(_assets, _scene, new WorldDoorStateLayer(
-            resources.WorldArchive.ObjectScript.Placements.Where(p => p.Door is not null).Select(p => p.Door!)),
+        _doors = new DoorSceneController(_assets, _scene, SacredOfflineObjectWorld.Create(_assets, resources.WorldArchive),
             () => _camera.WorldCenter);
         _worldLighting = new WorldLightingController(saveState.WorldLightingMode, resources.NightDarkness);
         var hud = new BottomHudState { Visible = false, DayFraction = _worldLighting.DayFraction };
@@ -330,6 +330,10 @@ internal sealed partial class InGameScene : IGameScene
                 _scene.Debug.VisibleItemGraphicFlags = itemFlags;
                 message = $"Items.pak graphic flag overlay set to 0x{(ushort)itemFlags:X4}";
                 return true;
+            case "animation-workers" when int.TryParse(value, out var workers) && workers >= 1 && workers <= Environment.ProcessorCount:
+                CharacterAnimationBatch.WorkerLimit = workers;
+                message = $"character animation worker limit: {workers}; 1 selects serial evaluation";
+                return true;
             case "skin-crowd" when int.TryParse(value, out var crowdCount) && crowdCount >= 0 && crowdCount <= 128:
                 _debugCrowd.Count = crowdCount;
                 message = $"independent animated debug instances: {crowdCount}";
@@ -440,6 +444,7 @@ internal sealed partial class InGameScene : IGameScene
         _footprints.Update(deltaSeconds, _camera);
         Renderer.UpdateAutoRenderResolution(_camera.Zoom);
         _doors.Update(PresentedWorld, _camera.WorldCenter, deltaSeconds, _scene.Indoor.ActiveGroup);
+        _particles.ObjectSparkles.SetObjects(_doors.DroppedItemSparkles);
         _debugCrowd.Update(_scene, deltaSeconds);
         if (_networkPresentation is null) _playerParticles.Update();
         using (AnimationPerformance.Measure(AnimationCpuStage.Particles))

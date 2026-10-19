@@ -51,7 +51,7 @@ internal static class ModelEffectSourceWriter
         var standardGlowTexture = image.String((uint)code.At(0x401353).GetImmediate(0), 128);
         source.AppendLine($"    internal static readonly SacredStandardModelEffectDefinition StandardGlow = new(0x5BF3BDu, \"{standardGlowTexture}\", 0x{Immediate(0x5BF433):X8}u, {F(Math.Abs(BitConverter.UInt32BitsToSingle(Immediate(0x5BF438))))}, 10);");
         source.AppendLine($"    internal static readonly SacredBillboardSizeAnimation ItemBillboardSizeAnimation = new({F(image.Single(0x890768))}, {F(image.Single(0x890768) + 32767 * image.Single(0x890718))});");
-        source.AppendLine($"    internal static readonly SacredElementalWeaponSelectionDefinition ElementalSelection = new({F(image.Single(0x890910))}, {F(SpawnWeaponMinimum)}, {F(SpawnWeaponMaximum)});");
+        source.AppendLine($"    internal static readonly SacredElementalWeaponSelectionDefinition ElementalSelection = new({F(image.Single(0x890910))}, {F(SpawnWeaponMinimum)}, {F(SpawnWeaponMaximum)}) {{ MinimumIntensity = {F(BitConverter.UInt32BitsToSingle(Immediate(0x5BE22B)))} }};");
         source.AppendLine("    internal static readonly IReadOnlyList<SacredElementalWeaponEffectDefinition> ElementalDefinitions = Array.AsReadOnly<SacredElementalWeaponEffectDefinition>([");
         AddElemental("Fire", 0x5CE08E, 0x308, 0x77A8E0, 0x77A9C7,
             0x40FF8844, 4, 0, .5f, .5f, image.Single(0x890910));

@@ -31,8 +31,7 @@ public static class WorldScriptStartupInspection
         ArgumentNullException.ThrowIfNull(log);
         var definitions = WorldScriptDefinitions.Read(File.ReadAllBytes(scripts.Files.DefPosPath));
         var context = new WorldScriptExecutionContext(definitions, scripts.Functions, scripts.FunctionCode, multiplayer: true)
-        { CreateWorldTrigger = triggers is null ? null : triggers.Create, PatchWorldTrigger = triggers is null ? null : triggers.Patch,
-            ObjectWorld = objects };
+        { WorldTriggers = triggers, ObjectWorld = objects };
         log($"Network startup execution: {scripts.Files.Name}; {context.Definitions.Records.Count} authored definitions, {context.Functions.Count} functions loaded.");
         try { new WorldScriptExecutor(context).ExecuteStartup(scripts.StartupCode, cancellationToken); }
         catch (WorldScriptExecutionFailure failure) { log($"Network startup blocked: {failure.Message}"); }

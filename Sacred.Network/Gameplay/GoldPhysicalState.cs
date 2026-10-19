@@ -41,6 +41,15 @@ public sealed class GoldPhysicalState
         return new(bytes);
     }
 
+    public GoldPhysicalState WithDirection(GoldPhysicalVector direction)
+    {
+        var bytes = ToPayload();
+        BinaryPrimitives.WriteSingleLittleEndian(bytes.AsSpan(GoldPhysicalStateLayout.Vector70Offset), direction.X);
+        BinaryPrimitives.WriteSingleLittleEndian(bytes.AsSpan(GoldPhysicalStateLayout.Vector70Offset + 4), direction.Y);
+        BinaryPrimitives.WriteSingleLittleEndian(bytes.AsSpan(GoldPhysicalStateLayout.Vector70Offset + 8), direction.Z);
+        return new(bytes);
+    }
+
     internal static void Validate(ReadOnlySpan<byte> payload)
     {
         _ = GoldObjectBaseState.FromPayload(payload);

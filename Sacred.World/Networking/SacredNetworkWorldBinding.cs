@@ -12,6 +12,7 @@ public sealed class SacredNetworkWorldBinding : IDisposable
     private readonly VisibleWorld _initialWorld;
     private SacredNetworkTerrainStream? _terrain;
     private SacredNetworkPatchTerrain? _patchTerrain;
+    private SacredWorldArchive? _archive;
     private readonly SacredNetworkSectorCopies _copies = new();
     public SacredNetworkSectorPatches SectorPatches { get; private set; } = null!;
     public SacredNetworkDoorStates DoorStates { get; private set; } = null!;
@@ -26,6 +27,24 @@ public sealed class SacredNetworkWorldBinding : IDisposable
     public long SessionVersion { get; }
     public VisibleWorld VisibleWorld => _terrain?.World ?? _initialWorld;
     public bool TerrainSettled => _terrain?.IsSettled == true;
+    /// <summary>Gold's ambient scan queries a two-tile border and lazily loads
+    /// neighboring terrain through 0x634340. Current session copies take precedence.</summary>
+    public async Task<IReadOnlyDictionary<SectorCoord,Sector>> LoadPopulationTerrainAsync(ushort sector)
+    {
+        var archive=_archive ?? throw new InvalidOperationException("Population requires bound original terrain.");
+        if(!IsCurrentSession || !archive.TryGetSectorCoordinate(sector,out var center))
+            throw new InvalidOperationException("Population sector belongs to a retired or missing world.");
+        var sessionCopies=Sectors.Values.ToDictionary(row=>row.Coord);
+        var tasks=new List<Task<Sector?>>();
+        for(var dy=-1;dy<=1;dy++)
+            for(var dx=-1;dx<=1;dx++)
+            {
+                var coordinate=new SectorCoord(center.X+dx,center.Y+dy);
+                tasks.Add(sessionCopies.TryGetValue(coordinate,out var loaded)?Task.FromResult<Sector?>(loaded):archive.TryLoadSector(coordinate));
+            }
+        var loadedSectors=await Task.WhenAll(tasks).ConfigureAwait(false);
+        return loadedSectors.OfType<Sector>().ToDictionary(row=>row.Coord);
+    }
     public string? TerrainError => _terrain?.Error;
     // Native reply work is retained until a verified script/actor initializer handles it.
     public int PendingNativeSectorWork => IsCurrentSession
@@ -44,7 +63,7 @@ public sealed class SacredNetworkWorldBinding : IDisposable
             throw new InvalidOperationException("Sector patch work belongs to a retired session.");
         if (!Replicas.SectorWork.Work.TryGetValue(work.Id, out var current) || !ReferenceEquals(current, work) || work.State != GoldSectorWorkState.Executing)
             throw new InvalidOperationException("Sector patch work requires the current executing queue operation.");
-        if (!work.ApplyPatches) throw new InvalidOperationException("Sector patch pass requires the native zero-mode branch.");
+        if (!work.ApplyPatches) throw new InvalidOperationException("Sector patch pass requires a zero-mode reply or completed EnterSector production.");
         if (TerrainError is { } error) throw new InvalidDataException(error);
         if (!TerrainSettled || !Sectors.TryGetValue(work.Entry.Sector, out var sector)) return false;
         var patches = work.PatchBank ?? Replicas.WorldBanks.Current.GetValueOrDefault(GoldWorldBankLayout.Bank3Opcode);
@@ -135,6 +154,7 @@ public sealed class SacredNetworkWorldBinding : IDisposable
         cancellationToken.ThrowIfCancellationRequested();
         // A caller checks session identity again when committing this result on its update thread.
         var binding = new SacredNetworkWorldBinding(replicas, loaded.ToDictionary(row => row.Sector, row => row.Data), slot, sessionVersion, hero.BaseState.Sector);
+        binding._archive=archive;
         binding.DoorStates = new(replicas, archive.ObjectScript.Placements.Where(placement => placement.Door is not null).Select(placement => placement.Door!));
         binding._patchTerrain = new(archive, binding._copies);
         binding.SectorPatches = new(archive.ReadStaticRecord, binding._patchTerrain);

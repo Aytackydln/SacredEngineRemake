@@ -15,8 +15,13 @@ internal static class NetworkActorAppearance
     {
         var key = new StringBuilder().Append(creature.BaseState.ObjectType);
         foreach (var reference in creature.Creature!.EquipmentReferences)
-            key.Append(':').Append(reference).Append('/').Append(replicas.Objects.TryGetValue(reference, out var item) &&
-                (item.BaseState.Flags & GoldObjectLifecycleLayout.InactiveFlag) == 0 && item.Item is not null ? item.BaseState.ObjectType : 0);
+        {
+            key.Append(':').Append(reference).Append('/');
+            if (replicas.Objects.TryGetValue(reference, out var item) &&
+                (item.BaseState.Flags & GoldObjectLifecycleLayout.InactiveFlag) == 0 && item.Item is not null)
+                key.Append(item.BaseState.ObjectType).Append('/').Append(item.ItemValuesVersion);
+            else key.Append(0);
+        }
         return key.ToString();
     }
 

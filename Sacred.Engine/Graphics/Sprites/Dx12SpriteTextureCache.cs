@@ -32,8 +32,15 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
     private int _nextLiquid;
     private int _nextStatic;
     private bool _scanReady = true;
+    private ulong _residencyRevision;
+    private long _residentBytes;
+    private long _uploadedBytes;
+    private ulong _releasedCutoutSlotsRevision;
+    public Dx12StaticCutoutCache Cutouts { get; }
+    private readonly Func<StaticSpriteAsset, ID3D12Resource?> _findStaticResource;
+    public string MemoryStatus => $"source sprite textures {_residentBytes} bytes committed; uploaded {_uploadedBytes} bytes";
 
-    public Dx12SpriteTextureCache(Dx12TextureUploader uploader, Dx12TextureUploadWorker uploads,
+    public Dx12SpriteTextureCache(ID3D12Device device, Dx12TextureUploader uploader, Dx12TextureUploadWorker uploads,
         ID3D12GraphicsCommandList commandList, ID3D12DescriptorHeap srvHeap, int descriptorSize, int firstSrvSlot)
     {
         _uploader = uploader;
@@ -42,17 +49,26 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
         _srvHeapStart = srvHeap.GetCPUDescriptorHandleForHeapStart();
         _descriptorSize = descriptorSize;
         _firstSrvSlot = firstSrvSlot;
+        _findStaticResource = FindStaticResource;
         for (var slot = firstSrvSlot + MaximumTextureCount - 1; slot >= firstSrvSlot; slot--)
             _freeSrvSlots.Push(slot);
+        Cutouts = new(device, commandList, uploader, _freeSrvSlots, _srvHeapStart, descriptorSize, firstSrvSlot);
     }
 
-    public ulong ResidencyRevision { get; private set; }
+    public ulong ResidencyRevision => _residencyRevision + Cutouts.Revision;
     public bool IsPrepared(ulong revision) => _preparedSpriteRevision == revision;
 
     public void Prepare(IReadOnlyList<TerrainLiquidSprite> liquids, IReadOnlyList<TerrainStaticSprite> statics,
         Dx12FrameContext frame, ulong revision)
     {
         CollectCompleted();
+        Cutouts.Prepare(statics, frame, revision, _findStaticResource);
+        if (_releasedCutoutSlotsRevision != Cutouts.ReleasedSlotsRevision)
+        {
+            _releasedCutoutSlotsRevision = Cutouts.ReleasedSlotsRevision;
+            _preparedSpriteRevision = ulong.MaxValue;
+            RestartScan();
+        }
         if (IsPrepared(revision)) return;
         if (_scanningSpriteRevision != revision)
         {
@@ -170,7 +186,10 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
             var texture = new SpriteTexture(resource, pending.Slot);
             if (pending.StaticSource is { } active) _staticTextures.Add(active, texture);
             else _liquidTextures.Add(pending.LiquidName!, texture);
-            ResidencyRevision++;
+            _residencyRevision++;
+            var description = resource.Description;
+            _residentBytes += (long)_uploader.GetAllocationBytes(resource);
+            _uploadedBytes += (long)description.Width * description.Height * 4;
             published++;
         }
         if (published > 0)
@@ -183,6 +202,8 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
         slot = found ? (uint)(texture!.SrvSlot - _firstSrvSlot) : 0;
         return found;
     }
+    private ID3D12Resource? FindStaticResource(StaticSpriteAsset source) =>
+        _staticTextures.TryGetValue(source, out var texture) ? texture.Resource : null;
     public bool TryGetLiquidSlot(string name, out uint slot)
     {
         var found = _liquidTextures.TryGetValue(name, out var texture);
@@ -193,6 +214,7 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
 
     public void Dispose()
     {
+        Cutouts.Dispose();
         foreach (var pending in _pending) pending.Ticket.Cancel();
         _pending.Clear();
         foreach (var texture in _staticTextures.Values) texture.Resource.Dispose();

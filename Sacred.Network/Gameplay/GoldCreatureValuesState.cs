@@ -58,6 +58,13 @@ public sealed class GoldCreatureValuesState
 
     public byte[] ToPayload() => _payload.ToArray();
 
+    public GoldCreatureValuesState WithCurrentHitPoints(int hitPoints)
+    {
+        var copy = _payload.ToArray();
+        BinaryPrimitives.WriteInt32LittleEndian(copy.AsSpan(GoldCreatureValuesLayout.CurrentHitPointsOffset), hitPoints);
+        return new(copy, _bounds, IsFull);
+    }
+
     private int FieldOffset(int nativeOffset, int compactOffset) => IsFull
         ? GoldCreatureValuesLayout.FullBlock08Offset + nativeOffset - 8 : compactOffset;
     private uint Word(int offset) => BinaryPrimitives.ReadUInt32LittleEndian(_payload.AsSpan(offset));

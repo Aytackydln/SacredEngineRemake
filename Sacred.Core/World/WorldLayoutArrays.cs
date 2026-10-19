@@ -9,4 +9,5 @@ namespace Sacred.Core.World;
 [InlineArray(4)] public struct SectorSpawnEntries { private SectorSpawnLayout _first; }
 [InlineArray(7)] public struct WorldBytes7 { private byte _first; }
 [InlineArray(20)] public struct WorldBytes20 { private byte _first; }
+[InlineArray(16)] public struct WorldBytes16 { private byte _first; }
 [InlineArray(23)] public struct WorldBytes23 { private byte _first; }

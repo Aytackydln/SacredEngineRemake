@@ -20,8 +20,8 @@ public static class SacredEquipmentMagicEffectSelector
         in SacredEquipmentBonusGroups bonusGroups,
         SacredEquipmentType equipmentType)
     {
-        // Prefer literal resolved codes already present in the prototype. Runtime
-        // modifier rows use this representation when 0x5CEA50 scans them.
+        // Only literal resolved codes participate. Generation group families in
+        // Weapon.pak are inputs to item generation, not visual effect codes.
         for (var index = 0; index < 8; index++)
         {
             var group = bonusGroups[index];
@@ -37,29 +37,21 @@ public static class SacredEquipmentMagicEffectSelector
                 return (SacredEquipmentMagicEffectVariant)variant;
         }
 
-        // Mage-staff prototypes encode their preview effect behind a generation
-        // family (6xx, 8xx, 10xx). Other equipment can use the same group numbers
-        // for unrelated generated bonuses; treating every group suffix as a
-        // resolved runtime code incorrectly enables FIREBALL on ordinary weapons.
-        if (equipmentType != SacredEquipmentType.MageStaff)
-            return SacredEquipmentMagicEffectVariant.None;
+        return SacredEquipmentMagicEffectVariant.None;
+    }
 
-        for (var index = 0; index < 8; index++)
+    /// <summary>Gold scans the base value block, then every merged record in vector
+    /// order. Unlike stat aggregation, this scan does not filter by socket kind.</summary>
+    public static SacredEquipmentMagicEffectVariant Select(in SacredEquipmentInstanceLayout values,
+        IReadOnlyList<SacredEquipmentInstanceLayout> records)
+    {
+        var variant = Select(values.BonusTypes, values.BonusGroups, default);
+        if (variant != SacredEquipmentMagicEffectVariant.None) return variant;
+        foreach (var record in records)
         {
-            var encoded = (ushort)bonusGroups[index];
-            var family = encoded / 100;
-            if (family is not (6 or 8 or 10))
-                continue;
-
-            var code = encoded % 100;
-            if (code is < 1 or > 51)
-                continue;
-
-            var variant = VariantByBonusCode[code - 1];
-            if (variant != 0)
-                return (SacredEquipmentMagicEffectVariant)variant;
+            variant = Select(record.BonusTypes, record.BonusGroups, default);
+            if (variant != SacredEquipmentMagicEffectVariant.None) return variant;
         }
-
         return SacredEquipmentMagicEffectVariant.None;
     }
 }

@@ -8,7 +8,7 @@ namespace Sacred.GameplayHost.Scripting;
 
 /// <summary>File-derived trigger state and SetTrigger registrations. Sparse unwritten IDs remain unknown;
 /// they must receive proven native initialization before a complete bank can be produced.</summary>
-public sealed class WorldScriptTriggerRegistry
+public sealed class WorldScriptTriggerRegistry : IWorldScriptTriggerRegistry
 {
     private readonly Dictionary<uint, GoldWorldTriggerState> _records = [];
     private readonly Dictionary<string, uint> _names = new(WorldScriptNameComparer.Instance);

@@ -36,6 +36,8 @@ public sealed class GrnSkinningData
             if (!string.IsNullOrWhiteSpace(_bones[i].Name)) _bonesByName.TryAdd(_bones[i].Name, i);
         }
         Projection = skin.Projection;
+        CpuInfluences = new(this);
+        Hierarchy = GrnPoseHierarchy.Compile(this);
     }
 
     public ReadOnlySpan<GrnBone> Bones => _bones;
@@ -44,6 +46,8 @@ public sealed class GrnSkinningData
     public ReadOnlySpan<Matrix4x4> InverseBindTransforms => _inverseBind;
     public ReadOnlySpan<Matrix4x4> InverseRigidBindTransforms => _inverseRigidBind;
     public GrnMeshProjection Projection { get; }
+    internal GrnSkinInfluenceTable CpuInfluences { get; }
+    internal GrnPoseHierarchy.Step[] Hierarchy { get; }
     public GrnSkinBounds Bounds => _bounds.Value;
     public bool TryFindBone(string name, out int index) => _bonesByName.TryGetValue(name, out index);
     internal Matrix4x4 GetInverseBindTransform(int index) => _inverseBind[index];

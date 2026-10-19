@@ -48,6 +48,9 @@ internal sealed class Dx12SpriteInstanceBuilder
     public int VisibleStaticSpriteCount { get; private set; }
     public int VisibleStaticShadowCount { get; private set; }
     public int LegacyShadowDrawCallCount { get; private set; }
+    public int CutoutCount { get; private set; }
+    public double QuadPixels { get; private set; }
+    public double OriginalQuadPixels { get; private set; }
 
     public unsafe WorldSpriteBatch Prepare(
         SacredCamera camera,
@@ -210,6 +213,9 @@ internal sealed class Dx12SpriteInstanceBuilder
         var shadowTextureReady = false;
         var shadowTextureSlot = 0u;
         var shadowAtlasTexelSize = Vector2.Zero;
+        var cutoutCount = 0;
+        var quadPixels = 0.0;
+        var originalQuadPixels = 0.0;
 
         for (var index = 0; index < staticSprites.Count; index++)
         {
@@ -295,6 +301,17 @@ internal sealed class Dx12SpriteInstanceBuilder
 
             if (spriteVisible)
             {
+                originalQuadPixels += StaticCutoutBinding.VisibleArea(drawPosition, drawWidth, drawHeight, renderWidth, renderHeight);
+                if (_textureCache.Cutouts.TryGet(sprite, drawWidth, drawHeight, out var cutout))
+                {
+                    var rectangle = cutout.Rectangle;
+                    drawPosition += new Vector2(drawWidth * rectangle.X, drawHeight * rectangle.Y);
+                    drawWidth *= rectangle.Z;
+                    drawHeight *= rectangle.W;
+                    textureSlot = cutout.Slot;
+                    cutoutCount++;
+                }
+                quadPixels += StaticCutoutBinding.VisibleArea(drawPosition, drawWidth, drawHeight, renderWidth, renderHeight);
                 var requiresAlphaBlend = sprite.RequiresAlphaBlend;
                 var isPostModel = sprite.RequiresPostModelPass;
                 SacredTextureChannelEncoding? particleEncoding = sprite.IsParticleSprite && !sprite.IsGroundDecal && !sprite.IsPortalBillboard
@@ -403,7 +420,13 @@ internal sealed class Dx12SpriteInstanceBuilder
             highlightedStaticInstance,
             highlightedStaticIsUnlit,
             staticRanges,
-            playerOcclusion) { Submissions = submissions };
+            playerOcclusion)
+        {
+            Submissions = submissions,
+            CutoutCount = cutoutCount,
+            QuadPixels = quadPixels,
+            OriginalQuadPixels = originalQuadPixels
+        };
         state.Remember(
             spriteRevision,
             _textureCache.ResidencyRevision,
@@ -439,6 +462,9 @@ internal sealed class Dx12SpriteInstanceBuilder
         VisibleStaticSpriteCount = batch.OpaqueStaticInstanceCount + batch.TransparentStaticInstanceCount;
         VisibleStaticShadowCount = batch.ShadowInstanceCount;
         LegacyShadowDrawCallCount = batch.LegacyShadowDrawCallCount;
+        CutoutCount = batch.CutoutCount;
+        QuadPixels = batch.QuadPixels;
+        OriginalQuadPixels = batch.OriginalQuadPixels;
     }
 
     private static float CalculateSceneDepth(SacredCamera camera, TerrainStaticSprite sprite)

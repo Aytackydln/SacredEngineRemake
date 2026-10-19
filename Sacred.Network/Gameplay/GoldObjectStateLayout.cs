@@ -8,7 +8,7 @@ public static class GoldObjectStateLayout
     public const int MarkerOffset = 0;
     public const int ReferenceOffset = 4;
     public const int TypeOffset = 8;
-    /// <summary>Native +0x14, including inactive/removal bit 0x10.</summary>
+    /// <summary>Native +0x14, including inactive/removal bit 0x10 and container opened/broken bit 0x4000.</summary>
     public const int FlagsOffset = 12;
     public const int SectorOffset = 16;
     public const int XOffset = 18;

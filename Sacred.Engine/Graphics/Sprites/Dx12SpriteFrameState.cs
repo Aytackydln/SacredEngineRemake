@@ -84,6 +84,9 @@ internal readonly record struct WorldSpriteBatch(
 {
     public static WorldSpriteBatch Empty => new(0, 0, 0, 0, 0, 0, Vector2.Zero, 0, null, false, null, default);
     public IReadOnlyList<StaticSpriteSubmission>? Submissions { get; init; }
+    public int CutoutCount { get; init; }
+    public double QuadPixels { get; init; }
+    public double OriginalQuadPixels { get; init; }
 }
 
 internal readonly record struct StaticSpriteSubmission(int Instance, TerrainStaticSprite Sprite);

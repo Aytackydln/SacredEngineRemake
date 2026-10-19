@@ -11,10 +11,16 @@ internal sealed partial class SacredGameRuntime
 {
     private Task<IReadOnlyList<GameServerSavedHeroChoice>>? _serverHeroChoices;
     private DateTime _nextServerUiUpdate;
+    private readonly GameServerDiscoveryController _serverDiscovery = new();
 
     private bool TrySetServerPanelOption(string option, string value, out string message)
     {
         message = string.Empty;
+        if (option.Equals("server-discovery", StringComparison.OrdinalIgnoreCase))
+        {
+            message = _serverDiscovery.SetOption(value, _gameDirectory, _debugUiControls.GameServer);
+            return true;
+        }
         if (!option.Equals("server-panel", StringComparison.OrdinalIgnoreCase)) return false;
         if (TryParseBoolean(value, out var visible))
         {
@@ -86,6 +92,7 @@ internal sealed partial class SacredGameRuntime
     private void UpdateGameServerDebugUi()
     {
         var panel = _debugUiControls.GameServer;
+        _serverDiscovery.Update(_gameDirectory, panel);
         if (_serverHeroChoices is { IsCompleted: true } choices)
         {
             _serverHeroChoices = null;

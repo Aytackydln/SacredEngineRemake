@@ -6,21 +6,18 @@ using System.Threading.Tasks;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
-using Sacred.World;
+using Sacred.GameplayHost.World;
 using Sacred.World.Geometry;
 using Sacred.World.Objects;
-using Sacred.World.Rendering;
+using Sacred.World.Particles;
 
 namespace Sacred.Engine.Scene.InGame;
 
-/// <summary>
-/// Maintains model-backed world-object families for streamed sectors and their local door state.
-/// </summary>
+/// <summary>Graphics resources and input reach for gameplay-owned world objects.</summary>
 internal sealed partial class DoorSceneController
 {
     private const int MaximumConcurrentModelLoads = 2;
-    private const float DoorClickRadiusTiles = 2.0f;
-
+    private const float DoorClickRadiusTiles = 2;
     private readonly AssetManager _assets;
     private readonly SceneState _scene;
     private readonly Func<Vector2> _playerPosition;
@@ -28,380 +25,183 @@ internal sealed partial class DoorSceneController
     private readonly HashSet<uint> _failedLoads = [];
     private readonly Dictionary<uint, SceneModel> _models = [];
     private readonly Dictionary<uint, WorldModelPlacement> _desiredModels = [];
-    private readonly Dictionary<uint, DoorState> _doorStates = [];
     private readonly Dictionary<uint, DoorMotionPlayback> _doorAnimations = [];
+    private readonly Dictionary<uint, (uint Type, long Version)> _instances = [];
+    private readonly Dictionary<uint, bool> _animationStates = [];
     private readonly List<SceneModel> _orderedModels = [];
+    public WorldDoorStateLayer States => _gameplay.DoorStates;
 
-    // WorldStreamer republishes a VisibleWorld while sector loads complete.  The
-    // wrapper instance is therefore not a useful change signal: the actual set
-    // of loaded sectors is.  Re-selecting on every publication used to keep the
-    // render thread busy enough that the first model requests never completed.
-    private readonly HashSet<SectorCoord> _visibleSectorCoordinates = [];
-    private IndoorTileGroupId? _activeIndoorGroupId;
-
-    public WorldDoorStateLayer States { get; private set; }
-
-    public DoorSceneController(AssetManager assets, SceneState scene, WorldDoorStateLayer states,
+    public DoorSceneController(AssetManager assets, SceneState scene, IGameplayObjectWorld objects,
         Func<Vector2> playerPosition)
     {
-        _assets = assets;
-        _scene = scene;
-        States = states;
-        _playerPosition = playerPosition;
+        (_assets, _scene, _playerPosition) = (assets, scene, playerPosition);
+        _offlineObjects = _gameplay = objects;
     }
 
-    public void Update(
-        VisibleWorld world,
-        Vector2 focus,
-        float deltaSeconds,
-        IndoorTileGroup? activeIndoorGroup)
+    public void Update(VisibleWorld world, Vector2 focus, float deltaSeconds, IndoorTileGroup? activeIndoorGroup)
     {
-        if (_networkWorld is not null)
+        _gameplay.Update(world, activeIndoorGroup);
+        if (_gameplayRevision != _gameplay.Revision)
         {
-            UpdateNetworkObjects(focus, deltaSeconds);
-            return;
+            _gameplayRevision = _gameplay.Revision;
+            SelectGameplayModels();
         }
-        var indoorGroupChanged = _activeIndoorGroupId != activeIndoorGroup?.Id;
-        if (VisibleSectorsChanged(world.Sectors) || indoorGroupChanged)
-        {
-            _activeIndoorGroupId = activeIndoorGroup?.Id;
-            SelectVisibleModels(world.Sectors, activeIndoorGroup);
-        }
-
-        // Wait for the selected sector group so the initial world-object request order is stable.
-        if (world.LoadingSectors == 0 && world.Sectors.Count > 0)
-            StartMissingLoads(focus);
+        if (world.LoadingSectors == 0) StartMissingLoads(focus);
         ApplyCompletedLoads();
+        foreach (var pair in _models)
+        {
+            if (!_gameplay.Objects.TryGetValue(pair.Key, out var obj)) continue;
+            var placement = obj.Placement;
+            if (obj.Drop is { } drop)
+            {
+                var heightScale = WorldModelPose.Scale * WorldModelPose.CameraProjection.M33;
+                pair.Value.SetModelProjection(DroppedItemModelPose.CameraProjection);
+                pair.Value.SetModelOrientation(drop.Orientation);
+                pair.Value.SetPose(new(drop.Position, drop.Height * heightScale), Vector3.Zero,
+                    drop.Position, drop.GroundHeight * heightScale);
+            }
+            else pair.Value.SetPose(obj.Position, new(0, 0, obj.RotationRadians), new(placement.TileWorldX, placement.TileWorldY));
+            if (!_doorAnimations.TryGetValue(pair.Key, out var playback)) continue;
+            if (!_animationStates.TryGetValue(pair.Key, out var previous)) playback.SetInitialState(obj.IsActivated);
+            else if (previous != obj.IsActivated)
+            {
+                playback.SetState(obj.IsActivated);
+                EngineLog.WriteLine($"Gameplay object animation: ref {pair.Key}, {(obj.IsActivated ? "activate" : "reset")}.");
+            }
+            _animationStates[pair.Key] = obj.IsActivated;
+        }
         UpdateDoorAnimations(deltaSeconds);
     }
 
     public bool IsDoorAt(Vector2 worldPosition) => FindInteractiveAt(worldPosition) is not null;
+    public IEnumerable<WorldObjectSparkle> DroppedItemSparkles
+    {
+        get
+        {
+            foreach (var (reference, model) in _models)
+            {
+                if (!_gameplay.Objects.TryGetValue(reference, out var obj) || obj.Drop is null ||
+                    (!obj.Definition.ModelDesc.EmitsWorldSparkles &&
+                     ((obj.Replica?.BaseState.Flags ?? 0) & 0x80000) == 0)) continue;
+                // Native 0x44B8CC centers the draw on the current world bounding box.
+                // The model center already includes the flight orientation and height.
+                var center = model.VisualCenter;
+                var ground = IsometricProjection.IsoToWorld(new(center.X, -center.Y / MathF.Sqrt(2)));
+                yield return new(reference, ground,
+                    center.Z / (WorldModelPose.Scale * WorldModelPose.CameraProjection.M33));
+            }
+        }
+    }
     public IEnumerable<(uint Id, Vector2 Position, DoorMotionPlayback Playback)> DebugDoors =>
         _doorAnimations.Where(pair => _desiredModels.ContainsKey(pair.Key)).Select(pair =>
             (pair.Key, WorldModelPose.TilePosition(_desiredModels[pair.Key].StaticObject), pair.Value));
     public IEnumerable<(uint Id, uint Trigger, Vector2 Position, bool Open, bool Locked)> DebugStates =>
         _desiredModels.Values.Where(p => p.StaticObject.DoorTriggerId.HasValue).Select(p =>
-            (p.StaticObject.StaticId, p.StaticObject.DoorTriggerId!.Value,
-                WorldModelPose.TilePosition(p.StaticObject),
+            (p.StaticObject.StaticId, p.StaticObject.DoorTriggerId!.Value, WorldModelPose.TilePosition(p.StaticObject),
                 States.IsOpen(p.StaticObject.DoorTriggerId.Value), States.IsLocked(p.StaticObject.DoorTriggerId.Value)));
+    public bool HasPendingLoads => _loads.Count != 0 || _desiredModels.Keys.Any(id => !_models.ContainsKey(id) && !_failedLoads.Contains(id));
+    public bool TryToggleAt(Vector2 worldPosition) => FindInteractiveAt(worldPosition) is { } target && TryToggle(target);
+    private bool TryToggle(WorldModelPlacement target) => TryRequestGameplayInteraction(target);
 
-    public bool HasPendingLoads
-    {
-        get
-        {
-            if (_loads.Count > 0) return true;
-            foreach (var id in _desiredModels.Keys)
-                if (!_models.ContainsKey(id) && !_failedLoads.Contains(id)) return true;
-            return false;
-        }
-    }
-
-    public bool TryToggleAt(Vector2 worldPosition)
-    {
-        var placement = FindInteractiveAt(worldPosition);
-        if (placement is not { } target)
-            return false;
-
-        return TryToggle(target);
-    }
-
-    private bool TryToggle(WorldModelPlacement target)
-    {
-
-        if (_networkWorld is not null) return TryRequestNetworkInteraction(target);
-
-        if (!target.Item.ModelDesc.IsSelectable ||
-            !_models.TryGetValue(target.StaticObject.StaticId, out var model) ||
-            !WorldObjectInteractionReach.Contains(model, _playerPosition())) return false;
-
-        if (target.Item.ModelDesc.Category == SacredItemCategory.Door &&
-            (target.StaticObject.DoorTriggerId is not { } triggerId || States.IsLocked(triggerId)))
-        {
-            EngineLog.WriteLine($"Door locked: static {target.StaticObject.StaticId}; script state does not permit interaction.");
-            return true;
-        }
-
-        if (!_doorAnimations.TryGetValue(target.StaticObject.StaticId, out var playback))
-            return true;
-
-        var wasOpen = GetDoorState(target.StaticObject) == DoorState.Open;
-        if (!wasOpen && !playback.CanActivate) return true;
-        if (wasOpen && !CanClose(target))
-            return true;
-
-        var nextState = wasOpen ? DoorState.Closed : DoorState.Open;
-        _doorStates[target.StaticObject.StaticId] = nextState;
-
-        if (target.StaticObject.DoorTriggerId is { } doorId)
-        {
-            if (wasOpen && States.WouldOverlap(doorId, _playerPosition(),
-                WorldCollisionResolver.CharacterRadius, _scene.Indoor.ActiveGroup?.SurfaceLevel ?? 0))
-                return true;
-            States.TrySetOpen(doorId, !wasOpen);
-            foreach (var linked in _desiredModels.Values.Where(p => p.StaticObject.DoorTriggerId == doorId))
-                if (_doorAnimations.TryGetValue(linked.StaticObject.StaticId, out var linkedAnimation))
-                    linkedAnimation.SetState(!wasOpen);
-        }
-
-        else if (_doorAnimations.TryGetValue(target.StaticObject.StaticId, out var animation))
-            animation.SetState(nextState == DoorState.Open);
-
-        PublishModels();
-        EngineLog.WriteLine(
-            $"World model toggled: static {target.StaticObject.StaticId}, item {target.Item.ItemIndex}, {nextState}.");
-        return true;
-    }
-
-    private bool VisibleSectorsChanged(IReadOnlyList<Sector> sectors)
-    {
-        if (_visibleSectorCoordinates.Count == sectors.Count &&
-            sectors.All(sector => _visibleSectorCoordinates.Contains(sector.Coord)))
-        {
-            return false;
-        }
-
-        _visibleSectorCoordinates.Clear();
-        foreach (var sector in sectors)
-            _visibleSectorCoordinates.Add(sector.Coord);
-        return true;
-    }
-
-    private void SelectVisibleModels(
-        IReadOnlyList<Sector> sectors,
-        IndoorTileGroup? activeIndoorGroup)
+    private void SelectGameplayModels()
     {
         _desiredModels.Clear();
-        var placementKeys = new HashSet<ModelPlacementKey>();
-        var indoorGroups = sectors.SelectMany(static sector => sector.IndoorTileGroups.Groups)
-            .DistinctBy(static group => group.Id).ToArray();
-        // Script-created interactive objects are the gameplay instances. A matching WLDX
-        // entry is their scenery representation and must not create a second model.
-        foreach (var sector in sectors)
-        foreach (var worldObject in sector.WorldObjects.Objects.OrderByDescending(obj => obj.PreciseWorldPosition.HasValue))
-            AddModelIfPresent(worldObject, placementKeys, indoorGroups, activeIndoorGroup);
-        foreach (var sector in sectors)
-        foreach (var staticObject in sector.StaticObjects.Objects)
-            AddModelIfPresent(staticObject, placementKeys, indoorGroups, activeIndoorGroup);
-
-        EngineLog.WriteLine($"World model selection: {_desiredModels.Count} interactive objects in {sectors.Count} sectors.");
-
         var removed = false;
-        foreach (var staticId in _models.Keys.Where(staticId => !_desiredModels.ContainsKey(staticId)).ToArray())
+        foreach (var obj in _gameplay.Objects.Values.Where(obj => (obj.IsModelProp || obj.Drop is not null) && (!_gameplay.IsNetwork || obj.Placement.HeightLevelId <= 1)))
         {
-            _models.Remove(staticId);
-            removed = true;
+            var identity = (obj.Placement.TypeId, obj.InstanceVersion);
+            if (_instances.TryGetValue(obj.Reference, out var before) && before != identity)
+            {
+                removed |= _models.Remove(obj.Reference);
+                _doorAnimations.Remove(obj.Reference); _animationStates.Remove(obj.Reference);
+                _loads.Remove(obj.Reference); _failedLoads.Remove(obj.Reference);
+            }
+            _instances[obj.Reference] = identity;
+            _desiredModels[obj.Reference] = new(obj.Placement, obj.Definition, obj.IsActivated ? DoorState.Open : DoorState.Closed);
         }
-        foreach (var staticId in _doorAnimations.Keys.Where(staticId => !_desiredModels.ContainsKey(staticId)).ToArray())
-            _doorAnimations.Remove(staticId);
-
-        // A failed asset may be absent from a particular installation.  Do not
-        // restart that same request every frame; retry if its sector later
-        // leaves and re-enters the visible set.
-        _failedLoads.RemoveWhere(staticId => !_desiredModels.ContainsKey(staticId));
-        // Keep requested state when the sector leaves view, so reloading restores its pose.
-
-        // A load continues after a sector leaves view. Keep tracking it until it
-        // completes so a later publication cannot enqueue duplicate work.
-
-        if (removed)
-            PublishModels();
-    }
-
-    private void AddModelIfPresent(
-        StaticWorldObject staticObject,
-        HashSet<ModelPlacementKey> placementKeys,
-        IReadOnlyList<IndoorTileGroup> indoorGroups,
-        IndoorTileGroup? activeIndoorGroup)
-    {
-        var item = _assets.GetItem(staticObject.TypeId);
-        if (item is not { } value || !IsWorldModel(value) ||
-            string.IsNullOrWhiteSpace(value.ModelName) ||
-            !WorldObjectSurfaceVisibility.IsModelVisible(
-                staticObject,
-                indoorGroups,
-                activeIndoorGroup,
-                value.ModelDesc.Category))
+        foreach (var reference in _instances.Keys.Where(id => !_desiredModels.ContainsKey(id)).ToArray())
         {
-            return;
+            _instances.Remove(reference); _loads.Remove(reference); _failedLoads.Remove(reference);
+            _doorAnimations.Remove(reference); _animationStates.Remove(reference);
+            removed |= _models.Remove(reference);
         }
-
-        var key = new ModelPlacementKey(staticObject.TypeId, staticObject.TileWorldX, staticObject.TileWorldY);
-        if (!placementKeys.Add(key))
-            return;
-
-        var state = IsInteractive(value)
-            ? GetDoorState(staticObject)
-            : DoorState.Closed;
-        _desiredModels[staticObject.StaticId] = new WorldModelPlacement(staticObject, value, state);
+        if (removed) PublishModels();
     }
 
     private void StartMissingLoads(Vector2 focus)
     {
-        var availableLoads = MaximumConcurrentModelLoads - _loads.Count;
-        if (availableLoads <= 0)
-            return;
-
-        foreach (var (staticId, placement) in _desiredModels
-                     .OrderBy(pair => Vector2.DistanceSquared(
-                         WorldModelPose.TilePosition(pair.Value.StaticObject), focus)))
+        var available = MaximumConcurrentModelLoads - _loads.Count;
+        foreach (var (id, placement) in _desiredModels.OrderBy(pair => Vector2.DistanceSquared(WorldModelPose.TilePosition(pair.Value.StaticObject), focus)))
         {
-            if (availableLoads <= 0)
-                break;
-
-            if (_models.ContainsKey(staticId) || _loads.ContainsKey(staticId) || _failedLoads.Contains(staticId))
-                continue;
-
-            EngineLog.WriteLine(
-                $"World model request: item {placement.Item.ItemIndex} ({placement.Item.ModelName}) at " +
-                $"{placement.StaticObject.TileWorldX},{placement.StaticObject.TileWorldY}.");
-            _loads.Add(staticId, LoadWorldModelAsync(placement));
-            availableLoads--;
+            if (available <= 0) break;
+            if (_models.ContainsKey(id) || _loads.ContainsKey(id) || _failedLoads.Contains(id)) continue;
+            EngineLog.WriteLine($"World model request: item {placement.Item.ItemIndex} ({placement.Item.ModelName}) at {placement.StaticObject.TileWorldX},{placement.StaticObject.TileWorldY}.");
+            _loads.Add(id, LoadWorldModelAsync(placement)); available--;
         }
     }
 
     private void ApplyCompletedLoads()
     {
         var changed = false;
-        foreach (var (staticId, load) in _loads.Where(static pair => pair.Value.IsCompleted).ToArray())
+        foreach (var (id, load) in _loads.Where(pair => pair.Value.IsCompleted).ToArray())
         {
-            _loads.Remove(staticId);
-            if (!_desiredModels.ContainsKey(staticId))
-                continue;
-
-            if (load.Status != TaskStatus.RanToCompletion)
-            {
-                _failedLoads.Add(staticId);
-                continue;
-            }
-
-            var asset = load.GetAwaiter().GetResult();
-            if (asset?.Model.Mesh is not { } mesh)
-            {
-                _failedLoads.Add(staticId);
-                continue;
-            }
-
-            var placement = _desiredModels[staticId];
+            _loads.Remove(id);
+            if (!_desiredModels.TryGetValue(id, out var placement)) continue;
+            if (load.Status != TaskStatus.RanToCompletion || load.GetAwaiter().GetResult() is not { Model.Mesh: { } mesh } asset)
+            { _failedLoads.Add(id); continue; }
             var model = WorldSceneModelFactory.Create(placement.StaticObject, placement.Item, mesh, asset.TextureAliases,
-                asset.Model.Diagnostics?.SourceOriginOffset ?? Vector3.Zero);
-            _models[staticId] = model;
+                asset.Model.Diagnostics?.SourceOriginOffset ?? Vector3.Zero, asset.Effects);
+            _models[id] = model;
             if (asset.OpenAnimation is not null || asset.CloseAnimation is not null)
             {
                 var animation = new DoorMotionPlayback(mesh, asset.Model.Skin, asset.OpenAnimation, asset.CloseAnimation);
-                _doorAnimations[staticId] = animation;
-                animation.SetInitialState(GetDoorState(placement.StaticObject) == DoorState.Open);
+                _doorAnimations[id] = animation;
+                animation.SetInitialState(NetworkObjectOpen(id));
                 model.SetMesh(animation.Mesh);
-                if (animation.AnimatedMesh is { } animatedMesh) model.SetAnimatedMesh(animatedMesh);
+                if (animation.AnimatedMesh is { } animated) model.SetAnimatedMesh(animated);
             }
-            EngineLog.WriteLine(
-                $"World model ready: item {placement.Item.ItemIndex} ({placement.Item.ModelName}) at " +
-                $"{placement.StaticObject.TileWorldX},{placement.StaticObject.TileWorldY}.");
+            EngineLog.WriteLine($"World model ready: item {placement.Item.ItemIndex} ({placement.Item.ModelName}) at {placement.StaticObject.TileWorldX},{placement.StaticObject.TileWorldY}.");
             changed = true;
         }
-
-        if (changed)
-            PublishModels();
+        if (changed) PublishModels();
     }
 
     private async Task<WorldModelAsset?> LoadWorldModelAsync(WorldModelPlacement placement)
     {
         try
         {
-            var asset = await _assets.LoadWorldModelAsync(placement.StaticObject.TypeId).ConfigureAwait(false);
-            return asset;
+            if (_gameplay.Objects.TryGetValue(placement.StaticObject.StaticId, out var obj) && obj.Drop is not null)
+                return await _assets.LoadDroppedItemModelAsync(obj).ConfigureAwait(false);
+            return await _assets.LoadWorldModelAsync(placement.StaticObject.TypeId).ConfigureAwait(false);
         }
-        catch (Exception exception)
+        catch (Exception error)
         {
-            EngineLog.WriteLine($"World model failed: static {placement.StaticObject.StaticId}, item {placement.Item.ItemIndex}: {exception.Message}");
+            EngineLog.WriteLine($"World model failed: static {placement.StaticObject.StaticId}, item {placement.Item.ItemIndex}: {error.Message}");
             return null;
         }
     }
-
     private void PublishModels()
     {
         _orderedModels.Clear();
-        foreach (var pair in _models.OrderBy(static pair => pair.Key))
-            _orderedModels.Add(pair.Value);
+        _orderedModels.AddRange(_models.OrderBy(pair => pair.Key).Select(pair => pair.Value));
         _scene.SetWorldModels(_orderedModels);
         EngineLog.WriteLine($"World models visible: {_orderedModels.Count}, loading: {_loads.Count}.");
     }
-
     private void UpdateDoorAnimations(float deltaSeconds)
     {
-        if (!float.IsFinite(deltaSeconds) || deltaSeconds <= 0.0f)
-            return;
-
-        foreach (var (staticId, animation) in _doorAnimations)
+        if (!float.IsFinite(deltaSeconds) || deltaSeconds <= 0) return;
+        foreach (var (id, animation) in _doorAnimations)
         {
             animation.Update(deltaSeconds);
-            if (animation.AnimatedMesh is { } animatedMesh)
-                _models[staticId].SetAnimatedMesh(animatedMesh);
-            else
-                _models[staticId].SetMesh(animation.Mesh);
-
+            if (animation.AnimatedMesh is { } animated) _models[id].SetAnimatedMesh(animated);
+            else _models[id].SetMesh(animation.Mesh);
         }
     }
-
-    private WorldModelPlacement? FindInteractiveAt(Vector2 worldPosition)
-    {
-        var maximumDistanceSquared = DoorClickRadiusTiles * DoorClickRadiusTiles;
-        WorldModelPlacement? closest = null;
-        foreach (var placement in _desiredModels.Values)
-        {
-            if (!IsInteractive(placement.Item))
-                continue;
-
-            var position = WorldModelPose.TilePosition(placement.StaticObject);
-            if (Vector2.DistanceSquared(position, worldPosition) > maximumDistanceSquared)
-                continue;
-
-            if (closest is null ||
-                Vector2.DistanceSquared(position, worldPosition) < Vector2.DistanceSquared(
-                    WorldModelPose.TilePosition(closest.Value.StaticObject), worldPosition))
-            {
-                closest = placement;
-            }
-        }
-
-        return closest;
-    }
-
-    private DoorState GetDoorState(StaticWorldObject placement) => _networkWorld is not null
-        ? NetworkObjectOpen(placement.StaticId) ? DoorState.Open : DoorState.Closed
-        : placement.DoorTriggerId is { } id
-            ? States.IsOpen(id) ? DoorState.Open : DoorState.Closed
-            : _doorStates.GetValueOrDefault(placement.StaticId, DoorState.Closed);
-
-    private static Vector3 ModelPosition(WorldModelPlacement placement)
-    {
-        var position = WorldModelPose.TilePosition(placement.StaticObject);
-        return new Vector3(position, 0.0f);
-    }
-
-    private static bool IsWorldModel(ItemsPakEntry item) =>
-        item.ModelDesc.GraphicType.HasFlag(SacredItemGraphicType.Model) &&
-        item.ModelDesc.Category is SacredItemCategory.WorldObject or
-            SacredItemCategory.Container or
-            SacredItemCategory.Door or
-            SacredItemCategory.Effect;
-
-    private static bool IsInteractive(ItemsPakEntry item) =>
-        item.ModelDesc.IsSelectable;
-
-    private bool CanClose(WorldModelPlacement placement) =>
-        _doorAnimations.TryGetValue(placement.StaticObject.StaticId, out var animation) && animation.CanReset;
-
-    private enum DoorState
-    {
-        Closed,
-        Open
-    }
-
-    private readonly record struct WorldModelPlacement(
-        StaticWorldObject StaticObject,
-        ItemsPakEntry Item,
-        DoorState State);
-
-    private readonly record struct ModelPlacementKey(uint TypeId, int WorldX, int WorldY);
+    private WorldModelPlacement? FindInteractiveAt(Vector2 position) => _desiredModels.Values
+        .Where(placement => placement.Item.ModelDesc.IsSelectable &&
+            Vector2.DistanceSquared(WorldModelPose.TilePosition(placement.StaticObject), position) <= DoorClickRadiusTiles * DoorClickRadiusTiles)
+        .OrderBy(placement => Vector2.DistanceSquared(WorldModelPose.TilePosition(placement.StaticObject), position))
+        .Select(placement => (WorldModelPlacement?)placement).FirstOrDefault();
+    private enum DoorState { Closed, Open }
+    private readonly record struct WorldModelPlacement(StaticWorldObject StaticObject, ItemsPakEntry Item, DoorState State);
 }
-

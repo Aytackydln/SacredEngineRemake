@@ -53,6 +53,14 @@ internal static class ImGuiSettingsPanel
             value => controls.RequestedSectorLoadMode = value, mode => $"{(int)mode} sectors");
         Checkbox("Wait for sector GPU uploads at load", controls.WaitForSectorGpuUploads,
             value => controls.RequestedWaitForSectorGpuUploads = value);
+        Checkbox("Cache tight static cutouts (uses VRAM)", controls.StaticCutoutsEnabled,
+            value => controls.RequestedStaticCutoutsEnabled = value);
+        if (controls.StaticCutoutsEnabled)
+        {
+            var budget = controls.StaticCutoutBudgetMiB;
+            if (DearImGui.SliderInt("Static cutout cache", ref budget, 0, 1024, "%d MiB"))
+                controls.RequestedStaticCutoutBudgetMiB = budget;
+        }
         Checkbox("Borderless fullscreen (F10)", controls.BorderlessFullscreen,
             value => controls.RequestedBorderlessFullscreen = value);
         EnumCombo(

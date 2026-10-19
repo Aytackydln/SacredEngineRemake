@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Numerics;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Core.World.Sector;
+using Sacred.Engine.Assets;
 using Sacred.Engine.Graphics.Frames;
 using Sacred.Engine.Graphics.Uploads;
 using Sacred.Engine.Rendering;
@@ -24,6 +26,7 @@ internal sealed class Dx12SpritePass : IDisposable
     private readonly Dx12SpriteInstanceBuilder _instances;
     private readonly Dx12SpriteBatchRecorder _batchRecorder;
     private readonly Dx12StaticSpriteShadowPass _shadowPass;
+    private readonly SpritePreparationStatistics _preparation = new();
 
     private ID3D12RootSignature? _rootSignature;
     private ID3D12PipelineState? _staticShadowPipeline;
@@ -69,6 +72,7 @@ internal sealed class Dx12SpritePass : IDisposable
             descriptorSize,
             firstTextureSrvSlot);
         _textureCache = new Dx12SpriteTextureCache(
+            device,
             uploader,
             uploads,
             commandList,
@@ -87,6 +91,13 @@ internal sealed class Dx12SpritePass : IDisposable
     public int VisibleStaticShadowCount => _instances.VisibleStaticShadowCount;
     public int StaticShadowDrawCallCount => _shadowPass.DrawCallCount;
     public int LegacyShadowDrawCallCount => _instances.LegacyShadowDrawCallCount;
+    public Dx12StaticCutoutCache Cutouts => _textureCache.Cutouts;
+    public string CutoutStatus => $"{Cutouts.Status}; {_textureCache.MemoryStatus}; " +
+        $"static instances {VisibleStaticSpriteCount}, static draw calls {_batchRecorder.DrawCallCount}; " +
+        $"cropped objects {_instances.CutoutCount}, quad pixels {_instances.QuadPixels:F0} / " +
+        $"{_instances.OriginalQuadPixels:F0} original; {_preparation.Status}; {StaticSpriteCompositionStatistics.Status}";
+    public void ResetStatistics() => _preparation.Reset();
+    public Dx12GpuAnimationTimings? GpuTimings { set { Cutouts.GpuTimings = value; _batchRecorder.GpuTimings = value; } }
 
     public void SetPipeline(Dx12CreatedPipelineGroup pipeline, bool hdrOutput)
     {
@@ -157,8 +168,12 @@ internal sealed class Dx12SpritePass : IDisposable
         IReadOnlyList<TerrainLiquidSprite> liquidSprites,
         IReadOnlyList<TerrainStaticSprite> staticSprites,
         Dx12FrameContext frame,
-        ulong spriteRevision) =>
+        ulong spriteRevision)
+    {
+        var started = Stopwatch.GetTimestamp();
         _textureCache.Prepare(liquidSprites, staticSprites, frame, spriteRevision);
+        _preparation.RecordTextures(started);
+    }
 
     public bool VisibleTexturesPrepared(ulong spriteRevision) =>
         _textureCache.IsPrepared(spriteRevision);
@@ -172,8 +187,11 @@ internal sealed class Dx12SpritePass : IDisposable
         Dx12FrameContext frame,
         int renderWidth,
         int renderHeight,
-        ulong spriteRevision) =>
-        _instances.Prepare(
+        ulong spriteRevision)
+    {
+        _batchRecorder.DrawCallCount = 0;
+        var start = Stopwatch.GetTimestamp();
+        var result = _instances.Prepare(
             camera,
             playerModel,
             liquidSprites,
@@ -183,6 +201,9 @@ internal sealed class Dx12SpritePass : IDisposable
             renderWidth,
             renderHeight,
             spriteRevision);
+        _preparation.RecordInstances(start);
+        return result;
+    }
 
     public void RecordHighlightedStatic(
         WorldSpriteBatch batch,
@@ -216,18 +237,25 @@ internal sealed class Dx12SpritePass : IDisposable
         float paperWhiteNits,
         Dx12FrameContext frame,
         int renderWidth,
-        int renderHeight) =>
-        _batchRecorder.Record(
-            range.StartInstance,
-            range.InstanceCount,
-            _liquidPipeline,
-            ambientColour,
-            paperWhiteNits,
-            paperWhiteNits,
-            default,
-            frame,
-            renderWidth,
-            renderHeight);
+        int renderHeight)
+    {
+        _batchRecorder.IsLiquid = true;
+        try
+        {
+            _batchRecorder.Record(
+                range.StartInstance,
+                range.InstanceCount,
+                _liquidPipeline,
+                ambientColour,
+                paperWhiteNits,
+                paperWhiteNits,
+                default,
+                frame,
+                renderWidth,
+                renderHeight);
+        }
+        finally { _batchRecorder.IsLiquid = false; }
+    }
 
     public void RecordOpaqueStatic(
         WorldSpriteBatch batch,

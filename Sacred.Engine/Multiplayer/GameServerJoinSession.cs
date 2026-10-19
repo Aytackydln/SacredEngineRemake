@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Sacred.Core.GameBin.Scripts;
 using Sacred.Core.Pak.Creature;
+using Sacred.Core.Pak.Items;
 using Sacred.Core.Pax.Hero;
 using Sacred.Core.World;
 using Sacred.GameplayHost;
@@ -25,8 +26,10 @@ internal sealed class GameServerJoinSession
     private (GoldFirstContact Contact, SacredSavedCharacterRecords Source, SacredSectorIndex Sectors, IReadOnlyDictionary<uint, SacredCreatureClass> Classes, IReadOnlyDictionary<uint, uint> Resources) _data;
     private Task? _ready;
     private Task? _banksRequest;
+    private readonly Task<IReadOnlyDictionary<uint, SacredItemCategory>> _categories;
     private readonly string _folder;
     private Task<WorldCampaignScripts>? _scriptLoad;
+    private Task<WorldCreatureConstructionAssets>? _constructionLoad;
     private WorldParticipantSectorExecutor? _sectorWork;
     private SacredNetworkWorldBinding? _patchWorld;
     public void SetSectorPatchWorld(SacredNetworkWorldBinding world)
@@ -47,6 +50,7 @@ internal sealed class GameServerJoinSession
         if (selection is < 1 or > 8) throw new ArgumentOutOfRangeException(nameof(selection));
         (_client, _endpoint, _selection) = (client, endpoint, selection);
         _folder = folder;
+        _categories = Task.Run<IReadOnlyDictionary<uint, SacredItemCategory>>(() => GameServerCreatureClasses.ReadObjectCategories(folder));
         _load = Task.Run(() =>
         {
             var compatibility = GoldLanCompatibility.Read(folder);
@@ -67,14 +71,17 @@ internal sealed class GameServerJoinSession
         {
             if (_scriptLoad is { IsCompleted: true } scripts && _sectorWork is null && _client.WorldReplicas.LocalPlayerSlot != 0)
             {
-                _sectorWork = new(_client.WorldReplicas, _data.Sectors, scripts.GetAwaiter().GetResult(), EngineLog.WriteLine);
+                _sectorWork = new(_client.WorldReplicas, _data.Sectors, scripts.GetAwaiter().GetResult(), EngineLog.WriteLine)
+                    { NetworkSpeedSettings = _data.Contact.ConnectionSpeed };
                 if (_patchWorld is not null) _sectorWork.ApplySectorPatches = _patchWorld.TryApplySectorPatches;
             }
+            if(_sectorWork is not null && _patchWorld is not null && _constructionLoad is {IsCompleted:true} construction)
+                _sectorWork.ConfigurePopulation(construction.GetAwaiter().GetResult(),_client.ObjectReferences,_patchWorld,_client);
             _sectorWork?.Update();
             if (_phase == 6) return;
             if (_client.WorldReplicas.SectorWork.FailedCount != 0)
                 throw new InvalidOperationException(_client.WorldReplicas.SectorWork.Work.Values.First(work => work.State == GoldSectorWorkState.Failed).Error);
-            if (_sectorWork?.PendingRegion is not null)
+            if (_sectorWork?.PendingRegion is not null || _sectorWork?.PendingPopulation is not null)
             {
                 _lastAdvance = DateTime.UtcNow;
                 Status = "waiting for native sector work: " + _sectorWork.Status;
@@ -83,12 +90,13 @@ internal sealed class GameServerJoinSession
                 throw new TimeoutException("No join progress for 90 seconds. Disconnect and check the server/world diagnostics before retrying.");
             switch (_phase)
             {
-                case 0 when _load.IsCompleted:
+                case 0 when _load.IsCompleted && _categories.IsCompleted:
                     _data = _load.GetAwaiter().GetResult();
                     _client.SetFirstContact(_data.Contact);
                     _client.TrySetOption("server",_endpoint,out var connected);
                     _client.WorldReplicas.ConfigureCreatureClasses(_data.Classes);
                     _client.WorldReplicas.ConfigureObjectResources(_data.Resources);
+                    _client.WorldReplicas.ConfigureObjectCategories(_categories.GetAwaiter().GetResult());
                     _client.WorldReplicas.MovementTriggers.ConfigureSectors(_data.Sectors);
                     Advance(1, connected + $"; saved selection {_selection}, {_data.Classes.Count} creature class definitions loaded");
                     break;
@@ -99,6 +107,7 @@ internal sealed class GameServerJoinSession
                     break;
                 case 2 when _client.IsParticipantWorldApproved && _client.WorldReplicas.LocalPlayerSlot != 0:
                     _scriptLoad = Task.Run(() => WorldCampaignScripts.Load(SacredCampaignFiles.Resolve(_folder, SectorScriptSelection)));
+                    _constructionLoad = Task.Run(() => WorldCreatureConstructionAssets.Load(_folder));
                     _banksRequest = _client.RequestWorldBanksAsync();
                     _client.RequestInitialSectors(_data.Sectors);
                     Advance(3,"waiting for native script/world banks and confirmed terrain");
@@ -137,10 +146,13 @@ internal sealed class GameServerJoinSession
         Status = "cancelled / disconnected";
         // Loading reads only native files; observe any failure even when cancellation precedes completion.
         _ = _load.ContinueWith(task => { _ = task.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
+        _ = _categories.ContinueWith(task => { _ = task.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
         if (_ready is { } ready)
             _ = ready.ContinueWith(task => { _ = task.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
         if (_scriptLoad is { } scripts)
             _ = scripts.ContinueWith(task => { _ = task.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
+        if (_constructionLoad is { } construction)
+            _ = construction.ContinueWith(task => { _ = task.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
         if (_banksRequest is { } banks)
             _ = banks.ContinueWith(task => { _ = task.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
         EngineLog.WriteLine($"Network join: {Status}.");

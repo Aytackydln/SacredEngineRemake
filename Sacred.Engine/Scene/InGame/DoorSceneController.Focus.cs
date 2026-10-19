@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using Sacred.World.Geometry;
 
 namespace Sacred.Engine.Scene.InGame;
 
@@ -10,8 +9,8 @@ internal sealed partial class DoorSceneController
         get
         {
             foreach (var (id, placement) in _desiredModels)
-                if (placement.Item.ModelDesc.IsSelectable && _models.TryGetValue(id, out var model))
-                    yield return new WorldFocusTarget(id, WorldModelPose.TilePosition(placement.StaticObject), model);
+                if (_gameplay.Objects.TryGetValue(id, out var obj) && obj.CanInteract && _models.TryGetValue(id, out var model))
+                    yield return new WorldFocusTarget(id, new(model.Position.X, model.Position.Y), model);
         }
     }
 
@@ -19,5 +18,5 @@ internal sealed partial class DoorSceneController
         TryToggle(placement);
 
     public bool HasFocusTarget(uint id) => _desiredModels.TryGetValue(id, out var placement) &&
-        placement.Item.ModelDesc.IsSelectable && _models.ContainsKey(id);
+        _gameplay.Objects.TryGetValue(id, out var obj) && obj.CanInteract && _models.ContainsKey(id);
 }

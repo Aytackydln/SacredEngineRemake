@@ -166,6 +166,21 @@ public sealed partial class Dx12Renderer : IDisposable
 
     public void SetLightHaloLayering(bool enabled) => GetWorldPass().SetLightHaloLayering(enabled);
 
+    private bool _staticCutoutsEnabled;
+    private int _staticCutoutBudgetMiB = 128;
+    public bool StaticCutoutsEnabled
+    {
+        get => _staticCutoutsEnabled;
+        set { _staticCutoutsEnabled = value; if (_worldPass is { } world) world.StaticCutoutsEnabled = value; }
+    }
+    public int StaticCutoutBudgetMiB
+    {
+        get => _staticCutoutBudgetMiB;
+        set { _staticCutoutBudgetMiB = Math.Clamp(value, 0, 4096); if (_worldPass is { } world) world.StaticCutoutBudgetMiB = _staticCutoutBudgetMiB; }
+    }
+    public string StaticCutoutStatus => _worldPass?.StaticCutoutStatus ?? "static cutouts: world not initialized";
+    public void ResetStaticSpriteStatistics() => _worldPass?.ResetStaticSpriteStatistics();
+
     public void SetRenderScalingMode(RenderScalingMode mode)
     {
         if (RenderScalingMode == mode)
@@ -195,6 +210,8 @@ public sealed partial class Dx12Renderer : IDisposable
             _gameDirectory,
             _input,
             _debugUiControls);
+        _worldPass.StaticCutoutsEnabled = _staticCutoutsEnabled;
+        _worldPass.StaticCutoutBudgetMiB = _staticCutoutBudgetMiB;
         _graphics.WaitForGpu(_releaseRetiredResources);
         CreateWorldPipeline(Dx12RendererPipelineFactory.Compile(_graphics.Shaders, _graphics.IsHdrEnabled));
     }

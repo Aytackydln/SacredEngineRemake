@@ -26,6 +26,8 @@ public readonly struct SacredEquipmentInstanceLayout
     [FieldOffset(25)] public readonly byte Level;
     [FieldOffset(26)] public readonly byte MinimumSkill;
     [FieldOffset(27)] public readonly byte MinimumSkillLevel;
+    /// <summary>Four minimum words followed by four maximum words. Gold weapon FX
+    /// sign-extends the maxima at +36/+38/+40/+42 (cItemBase +13C/+13E/+140/+142).</summary>
     [FieldOffset(28)] public readonly SacredEquipmentDamage Damage;
     [FieldOffset(44)] public readonly short Attack;
     [FieldOffset(46)] public readonly short Defense;

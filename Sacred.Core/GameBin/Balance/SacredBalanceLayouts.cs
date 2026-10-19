@@ -7,6 +7,8 @@ namespace Sacred.Core.GameBin.Balance;
 /// Gold 0x711F64/0x5F3720 copies it to 0xAD4490; movement reads 0xAD4B8C.</summary>
 public static class SacredBalanceLayout
 {
+    /// <summary>Global float at native 0xAD4B8C: scales integer path speed (0x4F75F0)
+    /// and motion playback speed (0x413610), including the authored motion multiplier.</summary>
     public const int MovementScaleOffset = 0x6FC;
     /// <summary>Gold skill 11 (Armor Lore), fifth curve at 0xAD4680: base, divisor and limit.</summary>
     public const int ArmorLoreMovementCurveOffset = 0x1F0;

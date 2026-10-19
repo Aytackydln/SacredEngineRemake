@@ -25,10 +25,13 @@ public static class SacredScriptOperandReader
                 case SacredScriptArgumentKind.ObjectReference:
                 case SacredScriptArgumentKind.ObjectTakeScript:
                 case SacredScriptArgumentKind.ObjectUseScript:
+                case SacredScriptArgumentKind.CreatureSpellSelector:
                     result.Add(new(kind, start, Text: ReadString(data, ref offset)));
                     break;
                 case SacredScriptArgumentKind.TypeId:
                 case SacredScriptArgumentKind.CreatureGroup:
+                case SacredScriptArgumentKind.ScriptResourceId:
+                case SacredScriptArgumentKind.PopulationCreatureValue:
                     result.Add(new(kind, start, Integer: ReadInt(data, ref offset)));
                     break;
                 case SacredScriptArgumentKind.CreatureLevel:
@@ -58,8 +61,21 @@ public static class SacredScriptOperandReader
                         ? new(kind, start, Text: ReadString(data, ref offset)) : new(kind, start, Integer: integer));
                     break;
                 case SacredScriptArgumentKind.TriggerScope:
+                case SacredScriptArgumentKind.SpawnEquipmentSelector:
                     if (offset == data.Length) throw new InvalidDataException($"Truncated trigger scope at +0x{start:X}.");
                     result.Add(new(kind, start, Integer: data[offset++]));
+                    break;
+                case SacredScriptArgumentKind.SpawnEquipmentFirstPool:
+                case SacredScriptArgumentKind.SpawnEquipmentSecondPool:
+                case SacredScriptArgumentKind.SpawnEquipmentThirdPool:
+                case SacredScriptArgumentKind.PopulationLevels:
+                case SacredScriptArgumentKind.PopulationSector:
+                    result.Add(new(kind, start, Integer: ReadInt(data, ref offset), SecondInteger: ReadInt(data, ref offset)));
+                    break;
+                case SacredScriptArgumentKind.PopulationDensity:
+                case SacredScriptArgumentKind.PopulationWeightedType:
+                    result.Add(new(kind, start, Integer: ReadInt(data, ref offset), SecondInteger: ReadInt(data, ref offset),
+                        ThirdInteger: ReadInt(data, ref offset)));
                     break;
                 case SacredScriptArgumentKind.TriggerStateOn:
                 case SacredScriptArgumentKind.TriggerStateOff:
@@ -71,6 +87,15 @@ public static class SacredScriptOperandReader
                 case SacredScriptArgumentKind.CreatureBehavior2:
                 case SacredScriptArgumentKind.CreatureBehavior0:
                 case SacredScriptArgumentKind.CreatureBehavior4000:
+                case SacredScriptArgumentKind.CreatureBehavior10:
+                case SacredScriptArgumentKind.CreatureBehavior40:
+                case SacredScriptArgumentKind.CreatureBehavior40Alias:
+                case SacredScriptArgumentKind.CreatureBehavior8:
+                case SacredScriptArgumentKind.CreatureBehavior20:
+                case SacredScriptArgumentKind.CreatureBehavior80:
+                case SacredScriptArgumentKind.CreatureBehavior400:
+                case SacredScriptArgumentKind.CreatureTrader:
+                case SacredScriptArgumentKind.CreatureComboMaster:
                 case SacredScriptArgumentKind.CreatureNpcBehavior:
                 case SacredScriptArgumentKind.CreatureStationary:
                     result.Add(new(kind, start));

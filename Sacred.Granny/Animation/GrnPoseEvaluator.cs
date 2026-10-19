@@ -8,7 +8,7 @@ public sealed class GrnPoseEvaluator
 {
     private readonly GrnSkinningData _data;
     private readonly int[] _animationBoneBySkinBone;
-    private readonly byte[] _worldTransformStates;
+    private readonly GrnPoseHierarchy.Step[] _hierarchy;
     private Matrix4x4[] _animationLocals = [];
     private bool _needsEvaluation = true;
     private GrnPoseBlend? _blend;
@@ -18,7 +18,7 @@ public sealed class GrnPoseEvaluator
         _data = data;
         Pose = new GrnPose(data);
         _animationBoneBySkinBone = new int[data.Bones.Length];
-        _worldTransformStates = new byte[data.Bones.Length];
+        _hierarchy = data.Hierarchy;
         SetAnimation(animation);
     }
 
@@ -54,12 +54,23 @@ public sealed class GrnPoseEvaluator
     private GrnPose EvaluateSampled(float time)
     {
         if (!_needsEvaluation && Pose.SampleTimeSeconds == time) return Pose;
-        using (AnimationPerformance.Measure(AnimationCpuStage.Sampling)) SampleAnimationLocals(time);
+        // Blending samples both clips directly in skin-bone order. Sampling the
+        // destination skeleton here as well would discard an entire pose's work.
+        if (_blend is null)
+            using (AnimationPerformance.Measure(AnimationCpuStage.Sampling)) SampleAnimationLocals(time);
         using (AnimationPerformance.Measure(AnimationCpuStage.Palettes))
         {
             Pose.SampleTimeSeconds = time;
-            Array.Clear(_worldTransformStates);
-            for (var i = 0; i < Pose.WorldTransforms.Length; i++) ComputeSkinBoneWorldTransform(i);
+            foreach (var step in _hierarchy)
+            {
+                var i = step.Bone;
+                var bone = _data.Bones[i];
+                if (step.RestWorld) { Pose.WorldTransforms[i] = bone.RestWorld; continue; }
+                var animationBone = _animationBoneBySkinBone[i];
+                var local = _blend is { } blend ? GrnPoseBlender.Local(bone, Animation, time, blend)
+                    : animationBone >= 0 ? _animationLocals[animationBone] : bone.RestLocal;
+                Pose.WorldTransforms[i] = bone.ParentIndex == i ? local : local * Pose.WorldTransforms[bone.ParentIndex];
+            }
             for (var i = 0; i < Pose.RegularTransforms.Length; i++)
             {
                 Pose.RegularTransforms[i] = _data.GetInverseBindTransform(i) * Pose.WorldTransforms[i];
@@ -88,21 +99,4 @@ public sealed class GrnPoseEvaluator
         }
     }
 
-    private bool ComputeSkinBoneWorldTransform(int boneIndex)
-    {
-        if (_worldTransformStates[boneIndex] == 2) return true;
-        if (_worldTransformStates[boneIndex] == 1) return false;
-        _worldTransformStates[boneIndex] = 1;
-        var skinBone = _data.Bones[boneIndex];
-        var animationBoneIndex = _animationBoneBySkinBone[boneIndex];
-        var local = _blend is { } blend ? GrnPoseBlender.Local(skinBone, Animation, Pose.SampleTimeSeconds, blend)
-            : animationBoneIndex >= 0 ? _animationLocals[animationBoneIndex] : skinBone.RestLocal;
-        var parentIndex = skinBone.ParentIndex;
-        if (parentIndex == boneIndex) Pose.WorldTransforms[boneIndex] = local;
-        else if ((uint)parentIndex >= (uint)Pose.WorldTransforms.Length || !ComputeSkinBoneWorldTransform(parentIndex))
-            Pose.WorldTransforms[boneIndex] = skinBone.RestWorld;
-        else Pose.WorldTransforms[boneIndex] = local * Pose.WorldTransforms[parentIndex];
-        _worldTransformStates[boneIndex] = 2;
-        return true;
-    }
 }

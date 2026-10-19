@@ -34,6 +34,29 @@ internal sealed class CharacterAnimationState
     private float _blendSourceTime, _blendSourceSpeed, _blendElapsed, _blendDuration;
     private GrnPoseTimeMode _blendSourceMode;
     private float _idleSpeed = 1;
+    private bool _deferEquipmentEffects;
+    private bool _initialEquipmentPosePending;
+
+    // The batch owns this state exclusively until its completion barrier. Effects may
+    // submit to renderer-owned sinks and therefore stay on the calling thread.
+    public void UpdatePoseOnly(float deltaSeconds, float playbackSpeed)
+    {
+        _deferEquipmentEffects = true;
+        _initialEquipmentPosePending = false;
+        try { Update(deltaSeconds, playbackSpeed); }
+        finally { _deferEquipmentEffects = false; }
+    }
+
+    public void UpdateEquipmentEffects(float deltaSeconds)
+    {
+        if (_initialEquipmentPosePending)
+        {
+            _initialEquipmentPosePending = false;
+            if (_animatedMesh is not null) _equipmentEffects?.ApplyPose(_animatedMesh);
+        }
+        if (_animatedMesh is not null && float.IsFinite(deltaSeconds) && deltaSeconds > 0)
+            _equipmentEffects?.ApplyPose(_animatedMesh, deltaSeconds);
+    }
 
     public GrnAnimationClip? NpcAnimation(SacredNpcConversationMotion motion) => motion switch
     {
@@ -46,13 +69,17 @@ internal sealed class CharacterAnimationState
         => PlayNpcAnimation(clip, new(clip.PlaybackSpeedMultiplier, .2f, 1));
 
     public void PlayNpcAnimation(GrnAnimationClip clip, SacredNpcAnimationTiming timing)
+        => PlayNpcAnimation(clip, timing, 0);
+
+    public void PlayNpcAnimation(GrnAnimationClip clip, SacredNpcAnimationTiming timing, float startTimeSeconds)
     {
         BeginBlend(timing.BlendSeconds, timing.PlaybackSpeed / clip.PlaybackSpeedMultiplier);
         _npcAnimation = clip;
         _npcTiming = timing;
-        _stateTimeSeconds = _timeSinceLastPose = 0;
+        _stateTimeSeconds = startTimeSeconds;
+        _timeSinceLastPose = 0;
         _animatedMesh?.SetAnimation(clip);
-        if (_animatedMesh is not null) SubmitCurrentPose(0);
+        if (_animatedMesh is not null) SubmitCurrentPose(startTimeSeconds);
     }
 
     public void StopNpcAnimation()
@@ -147,7 +174,7 @@ internal sealed class CharacterAnimationState
         var animationDelta = _npcAnimation is not null ? deltaSeconds * _npcTiming.PlaybackSpeed
             : CurrentState == CharacterAnimationStateId.Idle ? deltaSeconds * _idleSpeed * _animations.Idle.PlaybackSpeedMultiplier
             : (CurrentState is CharacterAnimationStateId.Walk or CharacterAnimationStateId.Run)
-            ? deltaSeconds * MathF.Max(0.0f, locomotionPlaybackSpeed)
+            ? deltaSeconds * MathF.Max(0.0f, locomotionPlaybackSpeed) * AnimationFor(CurrentState).PlaybackSpeedMultiplier
             : deltaSeconds;
         if (_blendSource is not null)
         {
@@ -167,7 +194,7 @@ internal sealed class CharacterAnimationState
             _timeSinceLastPose %= MinimumPoseIntervalSeconds;
             SubmitCurrentPose(_stateTimeSeconds);
         }
-        _equipmentEffects?.ApplyPose(_animatedMesh, deltaSeconds);
+        if (!_deferEquipmentEffects) _equipmentEffects?.ApplyPose(_animatedMesh, deltaSeconds);
     }
 
     private void SetState(CharacterAnimationStateId state, bool restart = false)
@@ -184,7 +211,8 @@ internal sealed class CharacterAnimationState
 
         _animatedMesh.SetAnimation(AnimationFor(state));
         SubmitCurrentPose(0.0f);
-        _equipmentEffects?.ApplyPose(_animatedMesh);
+        if (!_deferEquipmentEffects) _equipmentEffects?.ApplyPose(_animatedMesh);
+        else _initialEquipmentPosePending = true;
     }
 
     private GrnAnimationClip AnimationFor(CharacterAnimationStateId state) => state switch

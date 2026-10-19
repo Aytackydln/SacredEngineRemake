@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -19,6 +20,7 @@ using Sacred.Core.GameRes;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Pak.Weapon;
 using Sacred.Engine.Graphics.Sprites;
+using Sacred.GameplayHost.World;
 using Sacred.Granny.Abstractions;
 using Sacred.Granny.Assets;
 using Sacred.Inventory.Actors;
@@ -30,7 +32,7 @@ using Sacred.World.Objects;
 
 namespace Sacred.Engine.Assets;
 
-public sealed partial class AssetManager : IDisposable
+public sealed partial class AssetManager : IDisposable, IGameplayResourceCatalog
 {
     // Initial capacities reduce resizing; texture retention is bounded by the LRU limits.
     private const int MaxTextureCacheEntries = 64;
@@ -878,6 +880,7 @@ public sealed partial class AssetManager : IDisposable
         var height = Math.Max(1, maxY.Value - minY.Value);
         var rgba = new byte[width * height * 4];
 
+        var compositionStarted = Stopwatch.GetTimestamp();
         foreach (var blit in blits)
         {
             BlitTextureRegion(
@@ -894,6 +897,7 @@ public sealed partial class AssetManager : IDisposable
                 blit.DestRight - blit.DestLeft,
                 blit.DestBottom - blit.DestTop);
         }
+        StaticSpriteCompositionStatistics.Record(compositionStarted, blits.Count);
 
         return new StaticSpriteAsset(
             groupId,
@@ -1291,7 +1295,7 @@ public sealed partial class AssetManager : IDisposable
             var occurrence = occurrences.GetValueOrDefault(slot.Type);
             occurrences[slot.Type] = occurrence + 1;
             if (slot.VisualEquipment is { Item.ModelName.Length: > 0 } equipment)
-                attachments.Add(new(slot.Type, equipment) { SlotOccurrence = occurrence });
+                attachments.Add(new(slot.Type, equipment) { SlotOccurrence = occurrence, Instance = slot.Instance });
         }
         return attachments.ToArray();
     }
@@ -1346,6 +1350,7 @@ public sealed partial class AssetManager : IDisposable
                 attachmentItem.Equipment.Damage,
                 boundsSize)
             {
+                Instance = attachmentItem.Instance,
                 ItemId = attachmentItem.Item.ItemIndex,
                 BaseItemId = attachmentItem.Equipment.BaseItemId,
                 BonusTypes = attachmentItem.Equipment.BonusTypes,
@@ -1479,6 +1484,7 @@ public sealed partial class AssetManager : IDisposable
         EquipmentSlotType SlotType,
         SacredEquipment Equipment)
     {
+        public SacredItemInstance? Instance { get; init; }
         public int SlotOccurrence { get; init; }
         public ItemsPakEntry Item => Equipment.Item;
     }

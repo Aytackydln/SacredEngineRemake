@@ -11,6 +11,7 @@ public sealed class WorldScriptExecutionContext
     private readonly List<SacredBaseTriggerDefinition> _triggers = [];
     private readonly Dictionary<string, List<int>> _movementCallbacks = new(WorldScriptNameComparer.Instance);
     private readonly Dictionary<ushort, int> _coverage = [];
+    private readonly List<SacredScriptSpawnEquipment> _spawnEquipment = [];
     public WorldScriptExecutionContext(WorldScriptDefinitions definitions, IReadOnlyList<SacredScriptFunction> functions,
         ReadOnlyMemory<byte> functionCode, bool multiplayer, Func<int>? random = null, Func<int, int, bool>? positionAllowed = null)
     {
@@ -23,6 +24,7 @@ public sealed class WorldScriptExecutionContext
         PositionAllowed = positionAllowed;
         Triggers = _triggers.AsReadOnly();
         Coverage = new ReadOnlyDictionary<ushort, int>(_coverage);
+        SpawnEquipment = _spawnEquipment.AsReadOnly();
     }
     public WorldScriptDefinitions Definitions { get; }
     public WorldScriptVariables Variables { get; } = new();
@@ -39,9 +41,8 @@ public sealed class WorldScriptExecutionContext
     public Func<int, bool?>? QuestActive { get; init; }
     /// <summary>Creates/stores the native trigger and registers its name using world-trigger grants.
     /// An absent factory is required world work, not a successful declaration.</summary>
-    public Action<SacredScriptTriggerCreation>? CreateWorldTrigger { get; init; }
-    public Action<SacredScriptTriggerPatch>? PatchWorldTrigger { get; init; }
-    public WorldScriptObjectWorld? ObjectWorld { get; init; }
+    public IWorldScriptTriggerRegistry? WorldTriggers { get; init; }
+    public IWorldScriptObjectWorld? ObjectWorld { get; init; }
     /// <summary>A consumer may reject an effect whose required runtime services are unavailable,
     /// before any mutation. Rejection is reported with the same file offset/call path as handler failure.</summary>
     public Action<SacredScriptCommand>? BeforeCommand { get; init; }
@@ -51,6 +52,10 @@ public sealed class WorldScriptExecutionContext
     public bool IsExecutingStartup { get; internal set; }
     public IReadOnlyList<SacredBaseTriggerDefinition> Triggers { get; }
     public IReadOnlyDictionary<ushort, int> Coverage { get; }
+    /// <summary>Ordered opcode 115 rules, cleared at native EnterSector's callback boundary.</summary>
+    public IReadOnlyList<SacredScriptSpawnEquipment> SpawnEquipment { get; }
+    internal void ClearSpawnEquipment() => _spawnEquipment.Clear();
+    internal void AddSpawnEquipment(SacredScriptSpawnEquipment rule) => _spawnEquipment.Add(rule);
     public int ExecutedCommands => _coverage.Values.Sum();
     public bool StartupCompleted { get; internal set; }
     public bool IsInvalidated { get; internal set; }

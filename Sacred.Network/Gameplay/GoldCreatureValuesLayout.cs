@@ -10,6 +10,9 @@ public static class GoldCreatureValuesLayout
     public const int Block128Size = 24;
     public const int MaximumHitPointsOffset = SacredSavedCreatureValuesLayout.MaximumHitPointsOffset;
     public const int CurrentHitPointsOffset = SacredSavedCreatureValuesLayout.CurrentHitPointsOffset;
+    /// <summary>Native TP[4], +0x138: CalcResults initializes it from twice the
+    /// grown archive +0x0F attribute for an ordinary owned creature.</summary>
+    public const int Word138Offset = Block128Offset + 16;
     public const int CompactCount22Offset = 54;
     public const int CompactSuffixSize = 17;
     public const int CompactMinimumSize = 75;

@@ -21,6 +21,7 @@ public sealed class WorldScriptSectorEnvironment
     public SectorCoord Coordinate { get; }
     public SectorEnvironmentLayout Value => MemoryMarshal.Read<SectorEnvironmentLayout>(_bytes);
     public byte[] ToPayload() => _bytes.ToArray();
+    internal void SetPopulationTimestamp(uint milliseconds) => BinaryPrimitives.WriteUInt32LittleEndian(_bytes.AsSpan(0x9A), milliseconds);
     internal void SetMonsterParameters(int count, int minimumLevel, int maximumLevel)
     {
         BinaryPrimitives.WriteUInt16LittleEndian(_bytes.AsSpan(0xD1), unchecked((ushort)count));

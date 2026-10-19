@@ -17,6 +17,8 @@ public sealed class SacredGameActor
     private uint _objectFlags, _valueFlags, _behaviorFlags;
     private float _movementFactor = 1;
     public SacredMovementSpeeds? Movement { get; private set; }
+    public float LocomotionPlaybackSpeed => Movement is { } movement && _movement is { } calculator
+        ? calculator.AnimationPlaybackSpeed(movement.Percent, _movementFactor) : 1;
 
     /// <summary>Native CalcResults processes equipment in its 19 reference-slot order.
     /// Earlier Armor Lore bonuses affect the penalties of later records.</summary>

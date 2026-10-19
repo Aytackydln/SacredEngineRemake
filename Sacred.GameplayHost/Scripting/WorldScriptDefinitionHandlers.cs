@@ -25,9 +25,9 @@ internal static class WorldScriptDefinitionHandlers
                 {
                     if (creation.Name.Contains('$') || creation.Name.StartsWith(SacredScriptTriggerOpcodes.NamePrefix + "res:", StringComparison.OrdinalIgnoreCase))
                         throw new InvalidDataException($"Trigger '{creation.Name}' requires native name resolution.");
-                    if (context.CreateWorldTrigger is null)
+                    if (context.WorldTriggers is null)
                         throw new InvalidDataException($"World-trigger allocation/registration is required for '{creation.Name}' (scope {creation.Scope}, state 0x{creation.State:X4}); load the original trigger table and use granted 0x154 IDs.");
-                    context.CreateWorldTrigger(creation);
+                    context.WorldTriggers.Create(creation);
                 }
                 return true;
             case SacredScriptTriggerOpcodes.TriggerPatch:
@@ -35,9 +35,9 @@ internal static class WorldScriptDefinitionHandlers
                 {
                     if (patch.Name.Contains('$') || patch.Name.StartsWith(SacredScriptTriggerOpcodes.NamePrefix + "res:", StringComparison.OrdinalIgnoreCase))
                         throw new InvalidDataException($"Trigger '{patch.Name}' requires native name resolution.");
-                    if (!context.IsExecutingStartup || context.PatchWorldTrigger is null)
+                    if (!context.IsExecutingStartup || context.WorldTriggers is null)
                         throw new InvalidDataException("TriggerPatch requires world registration and the appropriate startup/live tile mutation handler.");
-                    context.PatchWorldTrigger(patch);
+                    context.WorldTriggers.Patch(patch);
                 }
                 return true;
             case SacredScriptExecutionOpcodes.SetVariable:

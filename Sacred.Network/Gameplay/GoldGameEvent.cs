@@ -51,6 +51,7 @@ public sealed record GoldObjectEvent(GoldMessage Message, uint ObjectReference, 
     public GoldPhysicalState? PhysicalState => GoldObjectStateReader.ReadPhysical(ObjectState);
     public GoldCreatureState? CreatureState => GoldObjectStateReader.ReadCreature(ObjectState);
     public GoldItemState? ItemState => GoldObjectStateReader.ReadItem(ObjectState);
+    public GoldObjectFxState? FxState => GoldObjectStateReader.ReadFx(ObjectState);
     public GoldCreatureTail? CreatureTail => CreatureState?.ReadTail(Message.Opcode);
     public GoldObjectPosition? Position => PositionWords.Length == 4
         ? new(unchecked((int)PositionWords[0]), unchecked((int)PositionWords[1]), PositionWords[2], PositionWords[3])

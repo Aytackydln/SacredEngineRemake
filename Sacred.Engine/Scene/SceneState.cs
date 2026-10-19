@@ -19,6 +19,7 @@ namespace Sacred.Engine.Scene;
 public sealed class SceneState
 {
     public NpcOverheadSceneState NpcOverheads { get; } = new();
+    public CombatTextSceneState CombatText { get; } = new();
     public BottomHudState? Hud { get; set; }
     public EquipmentUiState EquipmentUi { get; } = new();
     public ActorPortraitPanelState Portraits { get; } = new();

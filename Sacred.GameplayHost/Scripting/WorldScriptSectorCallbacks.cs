@@ -18,6 +18,9 @@ public sealed class WorldScriptSectorCallbacks(WorldScriptExecutionContext conte
         context.CurrentSector = sector;
         context.IsInitializingSector = initialize;
         context.IsEnteringSector = !initialize;
+        // Gold 0x493A7F..0x493AA3 clears the previous sector's spawn-equipment
+        // vector before lookup, including when this sector has no Enter function.
+        if (!initialize) context.ClearSpawnEquipment();
         try
         {
             var name = string.Create(CultureInfo.InvariantCulture,

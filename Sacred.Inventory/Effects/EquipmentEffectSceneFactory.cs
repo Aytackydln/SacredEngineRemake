@@ -68,7 +68,9 @@ public static class EquipmentEffectSceneFactory
         GrnSliceDiagnostics slice,
         EquipmentEffectAttachment attachment)
     {
-        var variant = SacredEquipmentMagicEffectSelector.Select(
+        var variant = attachment.Instance?.NativeValues is { } values
+            ? SacredEquipmentMagicEffectSelector.Select(values, attachment.Instance.SocketRecords)
+            : SacredEquipmentMagicEffectSelector.Select(
             attachment.BonusTypes,
             attachment.BonusGroups,
             attachment.EquipmentType);
@@ -178,7 +180,7 @@ public static class EquipmentEffectSceneFactory
     private static void AddElemental(EffectMeshBuilder builder, GrnSliceDiagnostics slice,
         EquipmentEffectAttachment attachment)
     {
-        if (ElementalWeaponEffectSelector.Select(attachment.Damage) is not { } selected) return;
+        if (ElementalWeaponEffectSelector.Select(attachment.Instance?.Damage ?? attachment.Damage) is not { } selected) return;
         var anchors = Anchors(slice, SacredEquipmentEffectAnchorKind.ElementalEmitter)
             .TakeWhile((bone, index) => SacredEquipmentEffectAnchor.TryParse(bone.Name, out var anchor) &&
                 anchor.Index == index + 1 && index < 3).ToArray();

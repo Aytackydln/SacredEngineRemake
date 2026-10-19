@@ -5,6 +5,7 @@ using ImGuiNET;
 using Sacred.Engine.Graphics.Frames;
 using Sacred.Engine.Platform;
 using Sacred.Shaders;
+using Sacred.UI.Menus;
 using Vortice.Direct3D12;
 
 namespace Sacred.Engine.Graphics.ImGui;
@@ -35,6 +36,8 @@ internal sealed unsafe partial class Dx12ImGuiRenderer : IDisposable
     private bool _frameBegun;
     private bool _backgroundRecorded;
     private nint _backgroundDrawList;
+    private ImFontPtr _escapeMenuNativeFont;
+    private ImFontPtr _escapeMenuHighResolutionFont;
 
     public bool IsFrameBegun => _frameBegun;
 
@@ -106,6 +109,8 @@ internal sealed unsafe partial class Dx12ImGuiRenderer : IDisposable
         ImGuiNET.ImGui.SetCurrentContext(_context);
         var io = ImGuiNET.ImGui.GetIO();
         io.DisplaySize = new Vector2(renderWidth, renderHeight);
+        EscapeMenuFont = EscapeMenuLayout.GetScale(io.DisplaySize) > 1
+            ? _escapeMenuHighResolutionFont : _escapeMenuNativeFont;
         io.DisplayFramebufferScale = Vector2.One;
         io.DeltaTime = Math.Max(deltaSeconds, 1.0f / 1000.0f);
         io.AddMousePosEvent(_input.MousePosition.X, _input.MousePosition.Y);
@@ -198,13 +203,29 @@ internal sealed unsafe partial class Dx12ImGuiRenderer : IDisposable
         // Gold's map selects font slot 3: Carolingia. Use the installed game's face.
         var mapFontPath = Path.Combine(gameDirectory, "font", "CAROLING.TTF");
         MapFont = AddFontOrDefault(atlas, mapFontPath, 32.0f);
-        // cUI_EscMenu selects native font slot 4, Carolingia at 20 pixels.
-        EscapeMenuFont = AddFontOrDefault(atlas, mapFontPath, 20.0f);
+        // cUI_EscMenu's layout remains 20 pixels in the 1024x768 canvas. Bake enough
+        // glyph detail for a 3x output scale; AddText still receives the actual scaled
+        // layout size. Enlarging a 20-pixel atlas made high-resolution menu text soft.
+        _escapeMenuNativeFont = AddFontOrDefault(atlas, mapFontPath, EscapeMenuLayout.FontSize);
+        _escapeMenuHighResolutionFont = AddFontOrDefault(atlas, mapFontPath, EscapeMenuLayout.FontSize * 3);
+        // Retain the native atlas at small output sizes to avoid minifying the large
+        // glyphs through a single bilinear sample. BeginFrame selects by output size.
+        EscapeMenuFont = _escapeMenuNativeFont;
         EngineLog.WriteLine($"World map font loaded: {mapFontPath}.");
     }
 
-    private static ImFontPtr AddFontOrDefault(ImFontAtlasPtr atlas, string path, float size) =>
-        File.Exists(path) ? atlas.AddFontFromFileTTF(path, size) : atlas.AddFontDefault();
+    private static ImFontPtr AddFontOrDefault(ImFontAtlasPtr atlas, string path, float size)
+    {
+        if (File.Exists(path)) return atlas.AddFontFromFileTTF(path, size);
+        // Keep the requested raster size when the installed font is unavailable.
+        var config = new ImFontConfigPtr(ImGuiNative.ImFontConfig_ImFontConfig());
+        try
+        {
+            config.SizePixels = size;
+            return atlas.AddFontDefault(config);
+        }
+        finally { config.Destroy(); }
+    }
 
     private static void ConfigureStyle()
     {

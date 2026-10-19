@@ -4,8 +4,11 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Core.Pak.Creature;
+using Sacred.Engine.Animation;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Scene;
+using Sacred.GameplayHost.World;
+using Sacred.Network.Gameplay;
 using Sacred.World.Networking;
 
 namespace Sacred.Engine.Multiplayer;
@@ -16,6 +19,8 @@ internal sealed class NetworkScenePresentation : IDisposable
     private readonly AssetManager _assets;
     private readonly SceneState _scene;
     private readonly NetworkCharacterUiBinding _characterUi;
+    private readonly NetworkCombatPresentation _combat = new();
+    private readonly CharacterAnimationBatch _animationBatch = new();
     private readonly Dictionary<uint, (string Key, Task<NetworkActorPresentation> Load)> _pending = [];
     private readonly Dictionary<uint, (string Key, NetworkActorPresentation Actor)> _actors = [];
     private readonly Dictionary<uint, string> _failed = [];
@@ -32,6 +37,7 @@ internal sealed class NetworkScenePresentation : IDisposable
         scene.NpcOverheads.DialogIcon = world.Replicas.ScriptDialogs.GetIcon;
     }
     public SacredNetworkWorldBinding World { get; }
+    public required IGameplayObjectWorld GameplayObjects { get; init; }
     public SacredNetworkNpcConversations? Conversations { get; }
     public int ModelCount => _actors.Count;
     public int AnimatedCount => _actors.Values.Count(entry => entry.Actor.Animated);
@@ -41,10 +47,12 @@ internal sealed class NetworkScenePresentation : IDisposable
     public void Update(float deltaSeconds)
     {
         if (_disposed || !World.IsCurrentSession) return;
-        World.Update();
+        GameplayObjects.Update(World.VisibleWorld, null);
+        GameplayObjects.Advance(deltaSeconds);
         Conversations?.Update(deltaSeconds);
         _characterUi.Update(World.Replicas);
-        var creatures = World.WorldObjects.Where(obj => obj.Creature is not null && obj.BaseState.Surface == 0)
+        var creatures = GameplayObjects.Objects.Values.Select(obj => obj.Replica).OfType<GoldReplicatedObject>()
+            .Where(obj => obj.Creature is not null && obj.BaseState.Surface == 0)
             .OrderBy(obj => obj.BaseState.ObjectReference == World.PlayerSlot ? 0 : 1).ToArray();
         var visible = creatures.Select(obj => obj.BaseState.ObjectReference).ToHashSet();
         var overheads = new List<NpcOverheadActor>();
@@ -83,10 +91,27 @@ internal sealed class NetworkScenePresentation : IDisposable
                     var asset = await _assets.LoadNetworkActorAsync(item, loadout, cancellation).ConfigureAwait(false);
                     var animations = await _assets.LoadNetworkAnimationsAsync(asset, template, cancellation).ConfigureAwait(false);
                     return new NetworkActorPresentation(reference, asset, animations, item, position)
-                        { IsLocal = reference == World.PlayerSlot, TerrainHeight = World.OutdoorHeightAt };
+                        { IsLocal = reference == World.PlayerSlot, TerrainHeight = World.OutdoorHeightAt,
+                            CombatMotionLoader = motion => _assets.LoadNetworkCombatMotionAsync(asset.ModelName, motion, cancellation) };
                 }, cancellation));
             }
-            entry.Actor?.Update(creature, World.OutdoorHeight(creature.BaseState), deltaSeconds);
+            if (entry.Actor is { } presentation)
+            {
+                presentation.LocomotionPlaybackSpeed = reference == World.PlayerSlot && _scene.Portraits.Player is { } player
+                    ? player.LocomotionPlaybackSpeed
+                    : creature.Values?.MovementSpeedPercent is { } percent && _assets.MovementCalculator is { } calculator
+                        ? calculator.AnimationPlaybackSpeed(percent, creature.Creature!.AnimationSpeedMultiplier)
+                        : creature.Creature!.AnimationSpeedMultiplier;
+                presentation.Update(creature, World.OutdoorHeight(creature.BaseState), deltaSeconds);
+                presentation.QueueAnimation(_animationBatch);
+            }
+        }
+        _animationBatch.Run(deltaSeconds);
+        foreach (var creature in creatures)
+        {
+            var reference = creature.BaseState.ObjectReference;
+            _actors.TryGetValue(reference, out var entry);
+            entry.Actor?.CompleteAnimation();
             var conversationFacing = false;
             if (entry.Actor is not null && Conversations is { } conversations)
             {
@@ -100,12 +125,13 @@ internal sealed class NetworkScenePresentation : IDisposable
                 var overhead = Conversations?.OverheadState(creature, World.LocalHero) ?? SacredNetworkNpcPresentation.OverheadState(creature, World.LocalHero);
                 overheads.Add(new(reference, entry.Actor.Model, overhead, overheadItem.ModelDesc.HasNpcDialogMarker,
                     template?.Class == SacredCreatureClass.Animal));
-                if (!conversationFacing && creature.Movement is null && creature.Values is { CurrentHitPoints: > 0 } &&
+                if (!conversationFacing && !entry.Actor.Moving && creature.Values is { CurrentHitPoints: > 0 } &&
                     SacredNpcClientRules.FacesLocalHero(reference, overhead, template?.Class == SacredCreatureClass.Horse))
                     entry.Actor.FaceLocalHero(World.LocalPosition);
             }
         }
         _scene.NpcOverheads.Actors = overheads.ToArray();
+        _combat.Update(World.Replicas, _scene, _actors, deltaSeconds);
         var next = _actors.Where(entry => entry.Key != World.PlayerSlot).OrderBy(entry => entry.Key).Select(entry => entry.Value.Actor.Model).ToArray();
         if (!_published.SequenceEqual(next)) { _published = next; _scene.SetReplicatedModels(next); }
         if (!_localReported && LocalModelReady)
@@ -120,6 +146,7 @@ internal sealed class NetworkScenePresentation : IDisposable
         if (_disposed) return;
         _disposed = true;
         Conversations?.Clear();
+        GameplayObjects.Dispose();
         World.Dispose();
         _stop.Cancel();
         var pending = _pending.Values.Select(entry => entry.Load).ToArray();
@@ -128,6 +155,7 @@ internal sealed class NetworkScenePresentation : IDisposable
                 TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
         _pending.Clear(); _actors.Clear(); _scene.SetReplicatedModels([]);
         _scene.NpcOverheads.Actors = [];
+        _scene.CombatText.Damage = [];
         _scene.NpcOverheads.DialogIcon = _ => null;
         _ = Task.WhenAll(pending).ContinueWith(task => { _ = task.Exception; _stop.Dispose(); }, CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);

@@ -73,6 +73,7 @@ public sealed class StaticSpriteAsset
         RetainsPixelData = retainPixelData;
         HasTranslucentPixels = ContainsFractionalAlpha(rgba);
         ChannelEncoding = SacredTextureChannelAnalyzer.Analyze(rgba);
+        Coverage = StaticSpriteCoverage.Measure(rgba, width, height, frameCount, AtlasColumns, AtlasRows);
     }
 
     public uint GroupId { get; }
@@ -97,6 +98,8 @@ public sealed class StaticSpriteAsset
     /// <summary>Whether the authored sprite contains alpha values between fully transparent and opaque.</summary>
     public bool HasTranslucentPixels { get; }
     public SacredTextureChannelEncoding ChannelEncoding { get; }
+    /// <summary>Retained after upload releases pixels; shared by all instances of this appearance.</summary>
+    public StaticSpriteCoverage Coverage { get; }
 
     public void ReleasePixelData()
     {

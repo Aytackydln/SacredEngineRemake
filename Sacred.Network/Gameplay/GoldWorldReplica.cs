@@ -1,6 +1,7 @@
 using System.Collections.Frozen;
 using System.Collections.ObjectModel;
 using Sacred.Core.Pak.Creature;
+using Sacred.Core.Pak.Items;
 using Sacred.Core.Pax.Hero.Inventory;
 using Sacred.Core.Pax.Hero.Objects;
 
@@ -12,6 +13,7 @@ public sealed class GoldWorldReplica
     private readonly Dictionary<uint, GoldReplicatedObject> _objects = [];
     private FrozenDictionary<uint, SacredCreatureClass> _creatureClasses = FrozenDictionary<uint, SacredCreatureClass>.Empty;
     private FrozenDictionary<uint, uint> _objectResources = FrozenDictionary<uint, uint>.Empty;
+    private FrozenDictionary<uint, SacredItemCategory> _objectCategories = FrozenDictionary<uint, SacredItemCategory>.Empty;
     public GoldSectorInterestState SectorInterest { get; } = new();
     public GoldSectorWorkQueue SectorWork { get; } = new();
     public GoldTriggerReferencePool TriggerReferences { get; } = new();
@@ -25,6 +27,7 @@ public sealed class GoldWorldReplica
     public GoldScriptDialogReplica ScriptDialogs { get; } = new();
     public GoldNpcIdleAnimationQueue NpcIdleAnimations { get; } = new();
     public GoldDoorInteractionReplica DoorInteractions { get; } = new();
+    public GoldContainerInteractionReplica ContainerInteractions { get; } = new();
     public GoldWorldTriggerReplica WorldTriggers { get; } = new();
     public GoldMovementTriggerReplica MovementTriggers { get; } = new();
     public GoldMovementTriggerDeletionQueue MovementTriggerDeletions { get; } = new();
@@ -44,6 +47,7 @@ public sealed class GoldWorldReplica
     public SacredSavedCreatureValues? LocalCharacterValues { get; private set; }
     public long Revision { get; private set; }
     public long SessionVersion { get; private set; }
+    public GoldCombatReplica Combat { get; } = new();
 
     /// <summary>Native interest scheduling also updates local sector receive flags before any reply arrives.</summary>
     public void BeginSectorInterest(GoldSectorInterestRequest request)
@@ -70,6 +74,29 @@ public sealed class GoldWorldReplica
     public uint? FindScriptObject(uint resource) => ScriptResources.FindObject(resource, Objects,
         type => _objectResources.TryGetValue(type, out var value) ? value : 0);
 
+    /// <summary>EnterSector's local post-publication ambient initialization at
+    /// 0x4945A8..0x4945FC. The earlier creation packet retains its original fields.</summary>
+    public void InitializeOwnedCreatureDirection(uint reference,uint addedFlags,GoldPhysicalVector direction)
+    {
+        if(LocalPlayerSlot==0 || !_objects.TryGetValue(reference,out var obj) || obj.BaseState.Owner!=LocalPlayerSlot ||
+            obj.Creature is null || obj.Physical is null) throw new InvalidOperationException("Ambient initialization requires a locally owned creature.");
+        var basis=obj.BaseState with{Flags=obj.BaseState.Flags|addedFlags};
+        var payload=obj.Creature.ToPayload();
+        var physical=obj.Physical.WithDirection(direction).ToPayload();
+        basis.ToPayload().CopyTo(physical,0);
+        physical.CopyTo(payload,0);
+        var creature=GoldCreatureState.FromPayload(payload);
+        _objects[reference]=obj with{BaseState=basis,Creature=creature,Physical=creature.PhysicalState,FacingBits=GoldPhysicalFacing.FromDirection(direction)};
+        Revision++;
+    }
+
+    public void ConfigureObjectCategories(IReadOnlyDictionary<uint, SacredItemCategory> categories)
+    {
+        ArgumentNullException.ThrowIfNull(categories);
+        if (_objects.Count != 0) throw new InvalidOperationException("Configure object categories before a world snapshot arrives.");
+        _objectCategories = categories.ToFrozenDictionary();
+    }
+
     public void SeedCharacter(GoldParticipantCharacterUpload upload)
     {
         ArgumentNullException.ThrowIfNull(upload);
@@ -82,7 +109,9 @@ public sealed class GoldWorldReplica
             {
                 if (current.BaseState.ObjectType == obj.BaseState.ObjectType)
                     _objects[obj.BaseState.ObjectReference] = current with { Creature = current.Creature ?? obj.CreatureState,
-                        Item = current.Item ?? obj.ItemState, Values = current.Values ?? obj.CreatureTail?.Values,
+                        Item = current.Item ?? obj.ItemState,
+                        ItemValuesVersion = current.Item is null && obj.ItemState is not null ? Revision + 1 : current.ItemValuesVersion,
+                        Values = current.Values ?? obj.CreatureTail?.Values,
                         MountPartnerReference = current.MountPartnerReference ?? obj.CreatureTail?.MountPartnerReference };
             }
             else Apply(entry);
@@ -98,6 +127,19 @@ public sealed class GoldWorldReplica
         ArgumentNullException.ThrowIfNull(entry);
         switch (entry)
         {
+            case GoldObjectFlightEvent flight:
+                if (GoldObjectFlightReducer.Apply(_objects, flight)) Revision++;
+                break;
+            case GoldItemPickupEvent taken when taken.Message.Opcode == GoldItemPickupCodec.TakenOpcode
+                && _objects.TryGetValue(taken.ObjectReference, out var ground):
+                _objects[taken.ObjectReference] = ground with { BaseState = ground.BaseState with
+                    { X = 0, Y = 0, Surface = 0, Sector = 0 }, Flight = null, FlightVersion = ground.FlightVersion + 1 };
+                Revision++;
+                break;
+            case GoldContainerActivationEvent container:
+                ContainerInteractions.Apply(container, _objects, WorldTriggers);
+                Revision++;
+                break;
             case GoldDoorEvent door:
                 DoorInteractions.Apply(door, _objects, WorldTriggers);
                 Revision++;
@@ -187,6 +229,9 @@ public sealed class GoldWorldReplica
                 DeathScripts.Register(script.Registration);
                 Revision++;
                 break;
+            case GoldCombatEvent combat:
+                if (GoldCombatReducer.Apply(_objects, Combat, combat)) Revision++;
+                break;
             case GoldObjectEvent obj:
                 var basis = obj.BaseState;
                 _objects.TryGetValue(basis.ObjectReference, out var previous);
@@ -195,10 +240,19 @@ public sealed class GoldWorldReplica
                 _objects[basis.ObjectReference] = new(basis, obj.CreatureState ?? previous?.Creature,
                     obj.ItemState ?? previous?.Item, obj.CreatureState is not null ? null : previous?.Movement)
                 { InstanceVersion = previous?.InstanceVersion ?? Revision + 1,
+                    ItemValuesVersion = obj.ItemState is not null ? Revision + 1 : previous?.ItemValuesVersion ?? 0,
+                    Container = obj.ItemState is not null && _objectCategories.GetValueOrDefault(basis.ObjectType) == SacredItemCategory.Container
+                        ? GoldContainerState.FromPayload(obj.ObjectState) : previous?.Container,
                     Physical = obj.PhysicalState ?? previous?.Physical,
+                    Fx = obj.FxState ?? previous?.Fx,
                     Values = obj.CreatureTail?.Values ?? previous?.Values,
+                    CurrentHitPoints = obj.CreatureTail?.Values?.CurrentHitPoints ?? previous?.CurrentHitPoints,
+                    ReportedHitPoints = obj.CreatureTail?.Values?.CurrentHitPoints ?? previous?.ReportedHitPoints,
+                    Attack = obj.CreatureState is not null ? null : previous?.Attack,
+                    AttackVersion = (previous?.AttackVersion ?? 0) + (obj.CreatureState is not null ? 1 : 0),
                     FacingBits = obj.PhysicalState is { } physicalState ? GoldPhysicalFacing.FromDirection(physicalState.Vector70) : basis.Word28,
                     PositionOpcode = obj.Message.Opcode,
+                    FlightVersion = (previous?.FlightVersion ?? 0) + 1,
                     PositionVersion = (previous?.PositionVersion ?? 0) + 1,
                     MovementVersion = (previous?.MovementVersion ?? 0) + 1,
                     MountPartnerReference = obj.CreatureTail?.MountPartnerReference ?? previous?.MountPartnerReference };
@@ -211,12 +265,20 @@ public sealed class GoldWorldReplica
                 break;
             case GoldCreatureValuesEvent values when _objects.TryGetValue(values.ObjectReference, out var valued)
                 && valued.Creature is not null && (valued.BaseState.Flags & 0x10) == 0:
-                _objects[values.ObjectReference] = valued with { Values = values.Values };
+                _objects[values.ObjectReference] = valued with { Values = values.Values, CurrentHitPoints = values.Values.CurrentHitPoints,
+                    ReportedHitPoints = values.Values.CurrentHitPoints };
                 Revision++;
                 break;
             case GoldObjectPositionEvent relocated when _objects.TryGetValue(relocated.ObjectReference, out var physical)
                 && physical.Physical is not null && (physical.BaseState.Flags & 0x10) == 0:
-                _objects[relocated.ObjectReference] = physical with { BaseState = AtPosition(physical.BaseState, relocated.Position),
+                var flightStopped = relocated.Message.Opcode == GoldObjectFlightStopCodec.Opcode;
+                var relocatedBase = AtPosition(physical.BaseState, relocated.Position);
+                _objects[relocated.ObjectReference] = physical with { BaseState = flightStopped
+                    ? relocatedBase with { Flags = relocatedBase.Flags & ~GoldObjectFlightLayout.FlyingFlag } : relocatedBase,
+                    Flight = flightStopped ? null : physical.Flight,
+                    FlightVersion = physical.FlightVersion + (flightStopped ? 1 : 0),
+                    Physical = physical.Physical.WithDirection(GoldPhysicalFacing.ToDirection(relocated.FacingBits)),
+                    Attack = null, AttackVersion = physical.AttackVersion + 1,
                     Movement = physical.Creature is not null ? null : physical.Movement, FacingBits = relocated.FacingBits,
                     PositionOpcode = relocated.Message.Opcode, PositionVersion = physical.PositionVersion + 1,
                     MovementVersion = physical.MovementVersion + 1 };
@@ -234,6 +296,7 @@ public sealed class GoldWorldReplica
                 _objects[movement.ObjectReference] = actor with { BaseState = position is { } anchor ?
                     AtPosition(actor.BaseState, anchor) : actor.BaseState, PositionOpcode = position is null ? actor.PositionOpcode : movement.Message.Opcode,
                     PositionVersion = actor.PositionVersion + (position is null ? 0 : 1), MovementVersion = actor.MovementVersion + 1,
+                    Attack = null, AttackVersion = actor.AttackVersion + 1,
                     Movement = movement with
                     { Message = movement.Message with { Payload = movement.Message.Payload.ToArray() }, ObjectState = movement.ObjectState.ToArray() } };
                 Revision++;
@@ -246,13 +309,15 @@ public sealed class GoldWorldReplica
             case GoldMovementEndEvent end when _objects.TryGetValue(end.ObjectReference, out var stopped)
                                                && stopped.Creature is not null && (stopped.BaseState.Flags & 0x10) == 0:
                 _objects[end.ObjectReference] = stopped with { BaseState = AtPosition(stopped.BaseState, end.Position),
+                    Attack = null, AttackVersion = stopped.AttackVersion + 1,
                     Movement = null, FacingBits = end.FacingBits, PositionOpcode = end.Message.Opcode,
                     PositionVersion = stopped.PositionVersion + 1, MovementVersion = stopped.MovementVersion + 1 };
                 Revision++;
                 break;
             case GoldIdleEvent idle when _objects.TryGetValue(idle.ObjectReference, out var idleActor)
                 && (idleActor.BaseState.Flags & GoldObjectLifecycleLayout.InactiveFlag) == 0:
-                _objects[idle.ObjectReference] = idleActor with { Movement = null, MovementVersion = idleActor.MovementVersion + 1 };
+                _objects[idle.ObjectReference] = idleActor with { Movement = null, MovementVersion = idleActor.MovementVersion + 1,
+                    Attack = null, AttackVersion = idleActor.AttackVersion + 1 };
                 Revision++;
                 break;
         }
@@ -273,6 +338,7 @@ public sealed class GoldWorldReplica
 
     public void Clear()
     {
+        Combat.Clear();
         _objects.Clear(); SectorInterest.Clear(); SectorWork.Clear(); DeathScripts.Clear(); Statistics.Clear(); _inventories.Clear();
         _currentInventories.Clear();
         MovementTriggerDeletions.Clear();
@@ -283,6 +349,7 @@ public sealed class GoldWorldReplica
         ScriptDialogs.Clear();
         NpcIdleAnimations.Clear();
         DoorInteractions.Clear();
+        ContainerInteractions.Clear();
         WorldTriggers.Clear();
         MovementTriggers.Clear();
         TriggerReferences.Clear();

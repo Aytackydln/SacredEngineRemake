@@ -40,7 +40,11 @@ internal sealed class Dx12BottomHudPass : IDisposable
         _portraits = new(assets, gameDirectory, graphics, uploader);
         _npcOverheads = new(assets, gameDirectory, graphics, uploader);
     }
-    public void BuildNpcOverheads(SceneState scene) => _npcOverheads.Build(scene);
+    public void BuildNpcOverheads(SceneState scene)
+    {
+        _npcOverheads.Build(scene);
+        Dx12CombatTextPass.Build(scene, _graphics.OutputWidth, _graphics.OutputHeight);
+    }
 
     public void Build(SceneState scene)
     {

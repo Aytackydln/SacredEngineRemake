@@ -58,7 +58,7 @@ internal sealed class NetworkCharacterUiBinding(AssetManager assets, SceneState 
             if (_actor.Movement is { } movement && _movement != movement)
             {
                 _movement = movement;
-                EngineLog.WriteLine($"Network movement speed calculated: {movement.Percent}%; walk {movement.Walk} native units/s ({movement.WalkTilesPerSecond:0.###} tiles/s), run {movement.Run} ({movement.RunTilesPerSecond:0.###} tiles/s); profile {_actor.Progression.MovementProfileSelector}.");
+                EngineLog.WriteLine($"Network movement speed calculated: {movement.Percent}%; walk {movement.Walk} native units/s ({movement.WalkTilesPerSecond:0.###} tiles/s), run {movement.Run} ({movement.RunTilesPerSecond:0.###} tiles/s); animation factor {_actor.LocomotionPlaybackSpeed:0.###} before motion multiplier; profile {_actor.Progression.MovementProfileSelector}.");
             }
         }
         if (_actor is not null) _quickbar.Update(world, _actor);
