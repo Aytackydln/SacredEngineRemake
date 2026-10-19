@@ -7,7 +7,8 @@ internal static class GoldCombatReducer
         if (!objects.TryGetValue(entry.ObjectReference, out var actor) || actor.Creature is null ||
             (actor.BaseState.Flags & GoldObjectLifecycleLayout.InactiveFlag) != 0) return false;
         // The original receive guards check existence, type and active state, without an ownership filter.
-        var owned = GoldCombatCodec.Decode(entry.Message);
+        var owned = entry is GoldCreatureSpecialMoveEvent ? (GoldCombatEvent)GoldSpecialMoveCodec.Decode(entry.Message)
+            : GoldCombatCodec.Decode(entry.Message);
         var current = actor.CurrentHitPoints ?? actor.Values?.CurrentHitPoints;
         combat.Add(owned, actor.InstanceVersion, owned is GoldCreatureHealthEvent
             ? actor.ReportedHitPoints ?? current : current);
@@ -26,7 +27,12 @@ internal static class GoldCombatReducer
                 FacingBits = attack.FacingBits, Physical = actor.Physical?.WithDirection(GoldPhysicalFacing.ToDirection(attack.FacingBits)),
                 Movement = null, MovementVersion = actor.MovementVersion + 1,
                 PositionOpcode = attack.Message.Opcode, PositionVersion = actor.PositionVersion + 1,
-                Attack = attack, AttackVersion = actor.AttackVersion + 1
+                Attack = attack, SpecialMove = null, AttackVersion = actor.AttackVersion + 1
+            },
+            GoldCreatureSpecialMoveEvent special => actor with
+            {
+                Movement = null, MovementVersion = actor.MovementVersion + 1,
+                Attack = null, SpecialMove = MergeSpecialMove(actor.SpecialMove, special), AttackVersion = actor.AttackVersion + 1
             },
             // Gold 0x53205A subtracts the received ushort, then 0x128 independently assigns TP[2].
             // Keep the last absolute report separate so a damage correction is not classified as a heal.
@@ -38,5 +44,14 @@ internal static class GoldCombatReducer
             _ => actor
         };
         return true;
+    }
+
+    private static GoldCreatureSpecialMoveEvent MergeSpecialMove(GoldCreatureSpecialMoveEvent? previous,
+        GoldCreatureSpecialMoveEvent incoming)
+    {
+        var bank = new byte[GoldSpecialMoveLayout.MaximumActionBytes];
+        if (previous is not null) previous.ActionState.AsSpan(0, Math.Min(bank.Length, previous.ActionState.Length)).CopyTo(bank);
+        incoming.ActionState.AsSpan(0, Math.Min(bank.Length, incoming.ActionState.Length)).CopyTo(bank);
+        return incoming with { ActionState = bank };
     }
 }

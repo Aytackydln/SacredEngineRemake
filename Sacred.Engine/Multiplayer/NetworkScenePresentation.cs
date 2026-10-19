@@ -20,6 +20,7 @@ internal sealed class NetworkScenePresentation : IDisposable
     private readonly SceneState _scene;
     private readonly NetworkCharacterUiBinding _characterUi;
     private readonly NetworkCombatPresentation _combat = new();
+    private readonly NetworkBowProjectiles _projectiles;
     private readonly CharacterAnimationBatch _animationBatch = new();
     private readonly Dictionary<uint, (string Key, Task<NetworkActorPresentation> Load)> _pending = [];
     private readonly Dictionary<uint, (string Key, NetworkActorPresentation Actor)> _actors = [];
@@ -32,6 +33,7 @@ internal sealed class NetworkScenePresentation : IDisposable
     {
         if (world.LocalHero.BaseState.Surface != 0) throw new NotSupportedException("Network indoor actor binding is pending; surface metadata is retained.");
         (World, _assets, _scene) = (world, assets, scene);
+        _projectiles = new(assets);
         _characterUi = new(assets, scene);
         if (assets.NpcConversations is { } definitions) Conversations = new(world.Replicas, definitions);
         scene.NpcOverheads.DialogIcon = world.Replicas.ScriptDialogs.GetIcon;
@@ -65,6 +67,7 @@ internal sealed class NetworkScenePresentation : IDisposable
                 var actor = pair.Value.Load.GetAwaiter().GetResult();
                 if (!visible.Contains(pair.Key) || !World.Replicas.Objects.TryGetValue(pair.Key, out var current) ||
                     NetworkActorAppearance.Key(current, World.Replicas) != pair.Value.Key) continue;
+                if (_actors.TryGetValue(pair.Key, out var previous)) actor.ContinueCombatFrom(previous.Actor);
                 _actors[pair.Key] = (pair.Value.Key, actor);
                 if (pair.Key == World.PlayerSlot) _scene.SetModel(0, actor.Model);
                 EngineLog.WriteLine($"Network actor ready: ref {pair.Key}; animated {actor.Animated}; native equipped model composed.");
@@ -92,6 +95,7 @@ internal sealed class NetworkScenePresentation : IDisposable
                     var animations = await _assets.LoadNetworkAnimationsAsync(asset, template, cancellation).ConfigureAwait(false);
                     return new NetworkActorPresentation(reference, asset, animations, item, position)
                         { IsLocal = reference == World.PlayerSlot, TerrainHeight = World.OutdoorHeightAt,
+                            GlobalAnimationScale = _assets.MovementCalculator?.GlobalAnimationScale ?? 1,
                             CombatMotionLoader = motion => _assets.LoadNetworkCombatMotionAsync(asset.ModelName, motion, cancellation) };
                 }, cancellation));
             }
@@ -132,7 +136,9 @@ internal sealed class NetworkScenePresentation : IDisposable
         }
         _scene.NpcOverheads.Actors = overheads.ToArray();
         _combat.Update(World.Replicas, _scene, _actors, deltaSeconds);
-        var next = _actors.Where(entry => entry.Key != World.PlayerSlot).OrderBy(entry => entry.Key).Select(entry => entry.Value.Actor.Model).ToArray();
+        _projectiles.Update(World, GameplayObjects.BowProjectiles, _actors, deltaSeconds);
+        var next = _actors.Where(entry => entry.Key != World.PlayerSlot).OrderBy(entry => entry.Key).Select(entry => entry.Value.Actor.Model)
+            .Concat(_projectiles.Models).ToArray();
         if (!_published.SequenceEqual(next)) { _published = next; _scene.SetReplicatedModels(next); }
         if (!_localReported && LocalModelReady)
         {

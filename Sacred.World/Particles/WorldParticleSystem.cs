@@ -80,6 +80,7 @@ public sealed class WorldParticleSystem
     public SacredParticleCatalogue Catalogue => _catalogue;
     public WorldParticleEffectPlayer Effects { get; } = new();
     public WorldObjectFxSystem ObjectEffects { get; } = new();
+    public WorldSpriteFlareEffects ProjectileEffects { get; } = new();
     public WorldObjectSparkleSystem ObjectSparkles { get; } = new();
 
     public WorldParticleSystem(
@@ -111,6 +112,7 @@ public sealed class WorldParticleSystem
         _gpuBatches.Clear();
         Effects.Clear();
         ObjectEffects.Clear();
+        ProjectileEffects.Clear();
         Revision++;
         Console.WriteLine($"World particle quality set to {_catalogue.Quality}.");
     }
@@ -155,13 +157,14 @@ public sealed class WorldParticleSystem
         if (!Enabled)
         {
             _visibleWorld = null;
-            if (_emitters.Count > 0 || _gpuEmitters.Count > 0 || _particles.Count > 0 || Effects.ActiveCount > 0 || ObjectEffects.ActiveCount > 0)
+            if (_emitters.Count > 0 || _gpuEmitters.Count > 0 || _particles.Count > 0 || Effects.ActiveCount > 0 || ObjectEffects.ActiveCount > 0 || ProjectileEffects.ActiveCount > 0)
             {
                 _emitters.Clear();
                 _gpuEmitters.Clear();
                 _particles.Clear();
                 Effects.Clear();
                 ObjectEffects.Clear();
+                ProjectileEffects.Clear();
                 Revision++;
                 LogEmitterCount();
             }
@@ -203,6 +206,7 @@ public sealed class WorldParticleSystem
         Effects.Update(step, selfPosition, selfHeight, SelectedSimulationMode, _particles);
         Effects.CollectGpuBatches(_gpuBatches);
         ObjectEffects.Update(_catalogue, step, SelectedSimulationMode, GpuBackend, _particles, _gpuBatches);
+        ProjectileEffects.Update(_catalogue, _particles);
         ObjectSparkles.Update(step, _catalogue.Quality, _catalogue.Projection, _particles);
         if (hadParticles || ActiveEmitterCount > 0 || _particles.Count > 0 || _gpuBatches.Count > 0)
             Revision++;

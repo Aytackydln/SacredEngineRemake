@@ -40,5 +40,6 @@ public sealed record GoldReplicatedObject(GoldObjectBaseState BaseState, GoldCre
     /// <summary>Last absolute HP from a values/health packet, before locally received damage.</summary>
     public int? ReportedHitPoints { get; init; }
     public GoldCreatureAttackEvent? Attack { get; init; }
+    public GoldCreatureSpecialMoveEvent? SpecialMove { get; init; }
     public long AttackVersion { get; init; }
 }

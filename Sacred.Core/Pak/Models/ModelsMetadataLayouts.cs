@@ -122,4 +122,8 @@ public readonly struct ModelsMetadataMotionLayout
     /// <summary>Gold 0x413610: applied when 0.8 &lt;= value &lt; 5; neutral 0/1 and
     /// values outside that interval leave the requested playback speed unchanged.</summary>
     [FieldOffset(0x9C)] public readonly float PlaybackSpeedMultiplier;
+
+    /// <summary>Native motion params[8]. Gold EiBow (0x4DD8E0..0x4DD90E)
+    /// releases at 1 - this fraction of the clip; a nonpositive result uses 0.5.</summary>
+    [FieldOffset(0xA0)] public readonly float BowReleaseTailFraction;
 }

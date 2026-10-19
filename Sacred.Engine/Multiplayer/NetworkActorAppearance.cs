@@ -51,15 +51,16 @@ internal static class NetworkActorAppearance
                 ? slots.ElementAtOrDefault(index - 8)
                 : type == EquipmentSlotType.Amulet && index is 6 or 7
                     ? slots.ElementAtOrDefault(index - 6) : slots.FirstOrDefault(slot => slot.Equipment is null);
-            // Received authority wins; do not run offline two-handed equip rules over native slots.
+            // Native slot authority permits offhand weapons. Shared inventory assignment
+            // still removes the opposite hand when either weapon occupies both hands.
             if (equipped.Item is { } itemState)
             {
                 if (!instances.TryGetValue(references[index], out var instance))
                     instances[references[index]] = instance = SacredItemInstance.FromNativeObjectRecords(definition, equipped.BaseState.ObjectType, itemState.ItemData, itemState.Records);
-                slot?.Equip(instance);
+                if (slot is not null) actor.Inventory.EquipReceived(actor.EquipmentSlots.IndexOf(slot), instance);
             }
         }
-        actor.SetNativeMovementEquipment(instances.Values);
+        actor.SetNativeMovementEquipment(actor.Inventory.EquippedItems);
         return actor;
     }
 }

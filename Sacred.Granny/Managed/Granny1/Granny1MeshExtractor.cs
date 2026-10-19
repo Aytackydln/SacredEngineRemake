@@ -287,6 +287,11 @@ public static partial class Granny1MeshExtractor
         return slice with
         {
             Parts = parts,
+            // Helpers on a rigid model follow the selected character bone too.
+            // They need not be present in the character's deforming skeleton.
+            RetargetedAttachments = slice.Skeleton?.Bones.Select((bone, index) => new BoneAttachment(
+                bone.RestWorld * transform, targetBoneName,
+                Vector3.TransformNormal(Vector3.UnitX, RestRotationWorld(slice.Skeleton, index) * transform))).ToArray(),
             Skeleton = slice.Skeleton is null
                 ? null
                 : TransformSkeletonWorld(slice.Skeleton, transform)

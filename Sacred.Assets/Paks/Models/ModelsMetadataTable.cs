@@ -1,5 +1,7 @@
 using System.Buffers.Binary;
+using System.Runtime.InteropServices;
 using System.Text;
+using Sacred.Core.Pak.Models;
 
 namespace Sacred.Assets.Paks.Models;
 
@@ -26,6 +28,9 @@ internal sealed class ModelsMetadataTable
     private readonly string[] _motionNames;
     private readonly Dictionary<string, ModelMotionTable> _modelMotions;
     private readonly Dictionary<uint, float> _motionSpeeds = [];
+    private readonly Dictionary<uint, float> _bowReleaseTails = [];
+    public float BowReleaseTail(string modelName, byte slot) =>
+        _modelMotions.TryGetValue(modelName, out var table) ? _bowReleaseTails.GetValueOrDefault(table.MotionIndexes[slot]) : 0;
     public float MotionPlaybackSpeed(uint index) => _motionSpeeds.GetValueOrDefault(index, 1);
     public float CharacterPlaybackSpeed(string modelName, CharacterMotionKind kind, CharacterMotionWeaponStyle style) =>
         _modelMotions.TryGetValue(modelName, out var table) ? MotionPlaybackSpeed(table.GetWithFallback(kind, style)) : 1;
@@ -82,9 +87,11 @@ internal sealed class ModelsMetadataTable
         var result = new ModelsMetadataTable(motionNames, modelMotions);
         for (var index = 0; index < motionNames.Length; index++)
         {
-            var offset = checked((int)motionTableOffset + index * MotionRecordSize + 0x9C);
-            var speed = BinaryPrimitives.ReadSingleLittleEndian(bytes.AsSpan(offset));
+            var offset = checked((int)motionTableOffset + index * MotionRecordSize);
+            var motion = MemoryMarshal.Read<ModelsMetadataMotionLayout>(bytes.AsSpan(offset, MotionRecordSize));
+            var speed = motion.PlaybackSpeedMultiplier;
             result._motionSpeeds.TryAdd((uint)index, speed is >= .8f and < 5f ? speed : 1);
+            result._bowReleaseTails.TryAdd((uint)index, motion.BowReleaseTailFraction);
         }
         return result;
     }

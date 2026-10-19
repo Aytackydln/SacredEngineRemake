@@ -28,6 +28,7 @@ public sealed class GoldCreatureState
     public byte Byte1FD => _payload[GoldCreatureStateLayout.Byte1FDOffset];
     public ushort Word1FE => Short(GoldCreatureStateLayout.Word1FEOffset);
     public uint Word200 => Word(GoldCreatureStateLayout.Word200Offset);
+    public bool UsesAlternateBowProjectile => (Word200 & GoldCreatureStateLayout.AlternateBowProjectileMask) != 0;
     /// <summary>Includes service bits: 0x1000 smith, 0x2000 trader, 0x4000 combo, 0x04000000 horse trader.</summary>
     public uint ServiceFlags => Word200;
     public uint Word245 => Word(GoldCreatureStateLayout.Word245Offset);

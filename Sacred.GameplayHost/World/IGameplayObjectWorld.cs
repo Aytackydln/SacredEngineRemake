@@ -12,6 +12,7 @@ public interface IGameplayObjectWorld : IDisposable
     bool IsCurrentSession { get; }
     long Revision { get; }
     IReadOnlyDictionary<uint, GameplayWorldObject> Objects { get; }
+    GameplayBowProjectiles? BowProjectiles => null;
     IReadOnlyDictionary<uint, GoldWorldTriggerState> Triggers { get; }
     WorldDoorStateLayer DoorStates { get; }
     string InteractionStatus { get; }

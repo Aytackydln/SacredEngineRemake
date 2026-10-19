@@ -14,6 +14,11 @@ public static class GoldGameEventDecoder
         var payload = message.Payload.AsSpan();
         switch (message.Opcode)
         {
+            case GoldSpecialMoveLayout.Opcode:
+                return GoldSpecialMoveCodec.Decode(message);
+            case GoldObjectFxSignalCodec.RemoveOpcode:
+            case GoldObjectFxSignalCodec.UsedOpcode:
+                return GoldObjectFxSignalCodec.Decode(message);
             case GoldCombatLayout.HealthOpcode:
             case GoldCombatLayout.DamageOpcode:
             case GoldCombatLayout.BowOpcode:

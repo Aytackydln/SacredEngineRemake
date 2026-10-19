@@ -9,6 +9,8 @@ public sealed record GrnAnimationClip(
     float DurationSeconds)
 {
     public float PlaybackSpeedMultiplier { get; init; } = 1;
+    /// <summary>Authored motion params[8] from Models.tmp, retained independently of clip duration.</summary>
+    public float BowReleaseTailFraction { get; init; }
 }
 
 public sealed record GrnTransformTrack(

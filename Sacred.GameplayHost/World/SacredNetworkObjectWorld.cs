@@ -23,12 +23,14 @@ public sealed class SacredNetworkObjectWorld : IGameplayObjectWorld
     {
         (_world, _resources) = (world, resources);
         _interactions = new(world, transport, log);
+        BowProjectiles = new(world.Replicas, log);
         Objects = new ReadOnlyDictionary<uint, GameplayWorldObject>(_objects);
     }
     public bool IsNetwork => true;
     public bool IsCurrentSession => _world.IsCurrentSession;
     public long Revision { get; private set; }
     public IReadOnlyDictionary<uint, GameplayWorldObject> Objects { get; }
+    public GameplayBowProjectiles BowProjectiles { get; }
     public IReadOnlyDictionary<uint, GoldWorldTriggerState> Triggers => _world.Replicas.WorldTriggers.Records;
     public WorldDoorStateLayer DoorStates => _world.DoorStates.States;
     public string InteractionStatus => _interactions.Status;
@@ -39,6 +41,7 @@ public sealed class SacredNetworkObjectWorld : IGameplayObjectWorld
         _world.Update();
         if (!IsCurrentSession)
         {
+            BowProjectiles.Clear();
             if (_objects.Count != 0) { _objects.Clear(); _drops.Clear(); Revision++; }
             return;
         }
@@ -66,5 +69,5 @@ public sealed class SacredNetworkObjectWorld : IGameplayObjectWorld
     }
     public bool RequestInteraction(uint reference, GameplayInteractionContext context) =>
         _objects.TryGetValue(reference, out var obj) && obj.CanInteract && _interactions.Request(obj, context);
-    public void Dispose() { _interactions.Dispose(); _objects.Clear(); _drops.Clear(); }
+    public void Dispose() { _interactions.Dispose(); _objects.Clear(); _drops.Clear(); BowProjectiles.Clear(); }
 }

@@ -43,6 +43,17 @@ public sealed class SacredActorInventory
         var target = EquipmentSlots[slotIndex];
         if (!EquipmentSlotRules.AcceptsItem(target.Type, item.Definition))
             throw new ArgumentException($"This item cannot occupy {target.Type}.", nameof(item));
+        EquipReceived(slotIndex, item);
+    }
+
+    /// <summary>Apply an authoritative slot, including native offhand weapon assignments.
+    /// Keep ownership and two-handed exclusion without applying local slot eligibility.</summary>
+    public void EquipReceived(int slotIndex, SacredItemInstance item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        if (item.Definition.IsAppearanceFallback)
+            throw new ArgumentException("Appearance fallbacks cannot be inventory items.", nameof(item));
+        var target = EquipmentSlots[slotIndex];
         Update(() =>
         {
             _items.TryAdd(item.InstanceId, item);

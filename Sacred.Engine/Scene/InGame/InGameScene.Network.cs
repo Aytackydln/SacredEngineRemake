@@ -123,6 +123,7 @@ internal sealed partial class InGameScene
             _offlineEquipmentPlayer = null;
             _worldLighting.SetNetworkDayFraction(null);
             _particles.ObjectEffects.Clear();
+            _particles.ProjectileEffects.Clear();
             _scene.Hud!.Visible = _offlineHudVisible;
             _scene.Hud.WeaponSets = null;
             _scene.Hud.SelectedWeaponSlot = 0;
@@ -157,6 +158,16 @@ internal sealed partial class InGameScene
         }
         _window.SetHandCursor(_networkMovement?.HasObjectHover == true);
         view.Update(deltaSeconds);
+        _particles.ProjectileEffects.Synchronize(view.GameplayObjects.BowProjectiles?.Entries.Values
+            .Where(projectile => projectile.IsBfg && !projectile.Retired && projectile.Flight is { Active: true })
+            .Select(projectile =>
+            {
+                var flight = projectile.Flight!;
+                var position = GameplayProjectileCoordinates.ToTiles(flight.Position);
+                var ground = GameplayProjectileCoordinates.FromScene(new(0, 0, view.World.OutdoorHeightAt(position))).Z;
+                return new WorldSpriteFlareEffect(projectile.Request.Reference, projectile.Request.Generation, projectile.Type,
+                    0, position, flight.Position.Z, ground, flight.Age);
+            }) ?? []);
         _particles.ObjectEffects.Synchronize(view.World.WorldObjects, reference =>
             view.GameplayObjects.Objects.TryGetValue(reference, out var wearer)
                 ? new WorldObjectFxAttachment(new(wearer.Position.X, wearer.Position.Y),

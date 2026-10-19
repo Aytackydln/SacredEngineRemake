@@ -15,6 +15,8 @@ namespace Sacred.Inventory.Stats;
 public sealed class SacredMovementCalculator(SacredMovementBalance balance,
     IReadOnlyList<SacredWeaponModifier> modifiers, IReadOnlyDictionary<uint, SacredEquipment> equipment)
 {
+    /// <summary>Balance.bin global +0x6FC, used by Gold 0x413610 for all model motion playback.</summary>
+    public float GlobalAnimationScale => balance.MovementScale;
     /// <summary>Gold 0x4F75F0/0x413610: the path factor before integer speed truncation.
     /// The selected motion's Models.tmp multiplier is applied by animation playback.</summary>
     public float AnimationPlaybackSpeed(short percent, float actorFactor = 1)

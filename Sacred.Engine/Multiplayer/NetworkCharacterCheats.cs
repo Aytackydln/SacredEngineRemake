@@ -14,7 +14,7 @@ internal static class NetworkCharacterCheats
         {
             case "server-combat":
                 var combat = world.Combat;
-                message = $"received combat: {combat.Attacks} attacks; {combat.DamageEvents} damage events; {combat.HealthUpdates} absolute HP updates, {combat.HealingUpdates} increases; history {combat.Recent.Count}; version {combat.Version}";
+                message = $"received combat: {combat.Attacks} attacks; {combat.DamageEvents} damage events; {combat.HealthUpdates} absolute HP updates, {combat.HealingUpdates} increases; history {combat.Recent.Count}; version {combat.Version}; reserved arrows {world.BowProjectiles.Entries.Count}";
                 return true;
             case "equipment" when value.Equals("status", StringComparison.OrdinalIgnoreCase):
                 if (scene.EquipmentUi.Actor is { } actor)

@@ -48,6 +48,7 @@ public sealed class GoldWorldReplica
     public long Revision { get; private set; }
     public long SessionVersion { get; private set; }
     public GoldCombatReplica Combat { get; } = new();
+    public GoldBowProjectileReplica BowProjectiles { get; } = new();
 
     /// <summary>Native interest scheduling also updates local sector receive flags before any reply arrives.</summary>
     public void BeginSectorInterest(GoldSectorInterestRequest request)
@@ -125,8 +126,13 @@ public sealed class GoldWorldReplica
     public void Apply(GoldGameEvent entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
+        if (entry is GoldObjectRemovalEvent projectileRemoval && BowProjectiles.Remove(projectileRemoval.ObjectReference)) Revision++;
+        if (entry is GoldObjectEvent replacement) BowProjectiles.Remove(replacement.ObjectReference);
         switch (entry)
         {
+            case GoldObjectFxSignalEvent signal:
+                if (BowProjectiles.Notify(signal.ObjectReference, signal.Notification)) Revision++;
+                break;
             case GoldObjectFlightEvent flight:
                 if (GoldObjectFlightReducer.Apply(_objects, flight)) Revision++;
                 break;
@@ -230,7 +236,11 @@ public sealed class GoldWorldReplica
                 Revision++;
                 break;
             case GoldCombatEvent combat:
-                if (GoldCombatReducer.Apply(_objects, Combat, combat)) Revision++;
+                if (GoldCombatReducer.Apply(_objects, Combat, combat))
+                {
+                    if (combat is GoldCreatureAttackEvent) BowProjectiles.Add(_objects[combat.ObjectReference]);
+                    Revision++;
+                }
                 break;
             case GoldObjectEvent obj:
                 var basis = obj.BaseState;
@@ -278,7 +288,7 @@ public sealed class GoldWorldReplica
                     Flight = flightStopped ? null : physical.Flight,
                     FlightVersion = physical.FlightVersion + (flightStopped ? 1 : 0),
                     Physical = physical.Physical.WithDirection(GoldPhysicalFacing.ToDirection(relocated.FacingBits)),
-                    Attack = null, AttackVersion = physical.AttackVersion + 1,
+                    Attack = null, SpecialMove = null, AttackVersion = physical.AttackVersion + 1,
                     Movement = physical.Creature is not null ? null : physical.Movement, FacingBits = relocated.FacingBits,
                     PositionOpcode = relocated.Message.Opcode, PositionVersion = physical.PositionVersion + 1,
                     MovementVersion = physical.MovementVersion + 1 };
@@ -296,7 +306,7 @@ public sealed class GoldWorldReplica
                 _objects[movement.ObjectReference] = actor with { BaseState = position is { } anchor ?
                     AtPosition(actor.BaseState, anchor) : actor.BaseState, PositionOpcode = position is null ? actor.PositionOpcode : movement.Message.Opcode,
                     PositionVersion = actor.PositionVersion + (position is null ? 0 : 1), MovementVersion = actor.MovementVersion + 1,
-                    Attack = null, AttackVersion = actor.AttackVersion + 1,
+                    Attack = null, SpecialMove = null, AttackVersion = actor.AttackVersion + 1,
                     Movement = movement with
                     { Message = movement.Message with { Payload = movement.Message.Payload.ToArray() }, ObjectState = movement.ObjectState.ToArray() } };
                 Revision++;
@@ -309,7 +319,7 @@ public sealed class GoldWorldReplica
             case GoldMovementEndEvent end when _objects.TryGetValue(end.ObjectReference, out var stopped)
                                                && stopped.Creature is not null && (stopped.BaseState.Flags & 0x10) == 0:
                 _objects[end.ObjectReference] = stopped with { BaseState = AtPosition(stopped.BaseState, end.Position),
-                    Attack = null, AttackVersion = stopped.AttackVersion + 1,
+                    Attack = null, SpecialMove = null, AttackVersion = stopped.AttackVersion + 1,
                     Movement = null, FacingBits = end.FacingBits, PositionOpcode = end.Message.Opcode,
                     PositionVersion = stopped.PositionVersion + 1, MovementVersion = stopped.MovementVersion + 1 };
                 Revision++;
@@ -317,7 +327,7 @@ public sealed class GoldWorldReplica
             case GoldIdleEvent idle when _objects.TryGetValue(idle.ObjectReference, out var idleActor)
                 && (idleActor.BaseState.Flags & GoldObjectLifecycleLayout.InactiveFlag) == 0:
                 _objects[idle.ObjectReference] = idleActor with { Movement = null, MovementVersion = idleActor.MovementVersion + 1,
-                    Attack = null, AttackVersion = idleActor.AttackVersion + 1 };
+                    Attack = null, SpecialMove = null, AttackVersion = idleActor.AttackVersion + 1 };
                 Revision++;
                 break;
         }
@@ -339,6 +349,7 @@ public sealed class GoldWorldReplica
     public void Clear()
     {
         Combat.Clear();
+        BowProjectiles.Clear();
         _objects.Clear(); SectorInterest.Clear(); SectorWork.Clear(); DeathScripts.Clear(); Statistics.Clear(); _inventories.Clear();
         _currentInventories.Clear();
         MovementTriggerDeletions.Clear();

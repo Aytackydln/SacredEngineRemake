@@ -229,7 +229,11 @@ public sealed class ModelsPakArchive : IDisposable
             animationPayload,
             motionName,
             ReadModelPayloadMetadata(metadataPrefix).Scale);
-        return clip is null ? null : clip with { PlaybackSpeedMultiplier = _metadata.ModelPlaybackSpeed(modelName, motionSlot) };
+        return clip is null ? null : clip with
+        {
+            PlaybackSpeedMultiplier = _metadata.ModelPlaybackSpeed(modelName, motionSlot),
+            BowReleaseTailFraction = _metadata.BowReleaseTail(modelName, motionSlot)
+        };
     }
 
     private async Task<GrnAsset> LoadCharacterModelAsync(

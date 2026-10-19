@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Sacred.Core.Pak.Creature;
 using Sacred.Engine.Animation;
+using Sacred.GameplayHost.World;
 using Sacred.Granny.Animation;
 using Sacred.Network.Gameplay;
 
@@ -15,41 +16,69 @@ internal sealed class NetworkCombatAnimation(CharacterAnimationState animation,
 {
     private readonly Dictionary<uint, Task<GrnAnimationClip?>> _motions = [];
     private GoldCreatureAttackEvent? _attack;
+    private GoldCreatureSpecialMoveEvent? _special;
+    private uint _motion;
     private long _version = -1;
     private float _elapsed;
     private bool _playing, _finished, _needsStart;
-    public bool Active => _attack is not null && !_finished;
+    public float GlobalPlaybackScale { get; set; } = 1;
+    public bool Active => (_attack is not null || _special is not null) && !_finished;
+    public (GoldCreatureAttackEvent Attack, GrnAnimationClip Clip, float SampleTime, float Age)? BowRelease { get; private set; }
+
+    public void ContinueFrom(NetworkCombatAnimation previous)
+    {
+        _attack = previous._attack; _special = previous._special; _motion = previous._motion;
+        _version = previous._version; _elapsed = previous._elapsed; _finished = previous._finished;
+        _needsStart = true; BowRelease = previous.BowRelease;
+        foreach (var (motion, load) in previous._motions) _motions[motion] = load;
+    }
 
     public void Update(GoldReplicatedObject actor, float seconds)
     {
-        if (_version != actor.AttackVersion || !ReferenceEquals(_attack, actor.Attack))
+        if (_version != actor.AttackVersion || !ReferenceEquals(_attack, actor.Attack) || !ReferenceEquals(_special, actor.SpecialMove))
         {
             _version = actor.AttackVersion;
-            if (actor.Attack is null && _playing) animation.StopNpcAnimation();
-            _attack = actor.Attack; _elapsed = 0; _finished = false; _needsStart = true;
-            if (_attack is null) { _playing = false; return; }
-            if (!_motions.ContainsKey(_attack.Motion)) _motions[_attack.Motion] = Load(_attack.Motion);
+            if (actor.Attack is null && actor.SpecialMove is null && _playing) animation.StopNpcAnimation();
+            _attack = actor.Attack; _special = actor.SpecialMove; _elapsed = 0; _finished = false; _needsStart = true;
+            BowRelease = null;
+            if (_attack is null && _special is null) { _playing = false; return; }
+            var motion = _attack?.Motion ?? GameplayCombatArtMotion.SpecialMove(_special!.Code, actor.BaseState.ObjectType);
+            if (motion is null)
+            {
+                Finish();
+                EngineLog.WriteLine($"Network special move pending animation rule: ref {actor.BaseState.ObjectReference}; code {_special!.Code}.");
+                return;
+            }
+            _motion = motion.Value;
+            if (!_motions.ContainsKey(_motion)) _motions[_motion] = Load(_motion);
         }
-        if (_attack is null || _finished) return;
-        var load = _motions[_attack.Motion];
+        if (_attack is null && _special is null || _finished) return;
+        var load = _motions[_motion];
         if (!load.IsCompleted) { _elapsed += MathF.Max(0, seconds); return; }
         var clip = load.GetAwaiter().GetResult();
         var actorFactor = actor.Creature!.AnimationSpeedMultiplier;
-        var rate = _attack.Speed * actorFactor;
+        var rate = (_attack?.Speed ?? 1) * actorFactor;
         if (clip is null || !float.IsFinite(actorFactor) || actorFactor <= 0 || !float.IsFinite(rate) || rate <= 0 ||
-            !float.IsFinite(clip.PlaybackSpeedMultiplier) || clip.PlaybackSpeedMultiplier <= 0)
+            !float.IsFinite(clip.PlaybackSpeedMultiplier) || clip.PlaybackSpeedMultiplier <= 0 ||
+            !float.IsFinite(GlobalPlaybackScale) || GlobalPlaybackScale <= 0)
         {
             Finish();
-            EngineLog.WriteLine($"Network attack pending unsupported motion/rate: ref {actor.BaseState.ObjectReference}; motion {_attack.Motion}; rate {rate}.");
+            EngineLog.WriteLine($"Network attack pending unsupported motion/rate: ref {actor.BaseState.ObjectReference}; motion {_motion}; rate {rate}.");
             return;
         }
-        var timing = new SacredNpcAnimationTiming(rate * clip.PlaybackSpeedMultiplier, MathF.Min(.2f, .5f / rate), actorFactor);
+        // Gold 0x413693 applies Balance.bin's global motion scale after authored speed.
+        // The blend denominator in 0x593320 excludes that global scale.
+        var timing = new SacredNpcAnimationTiming(rate * clip.PlaybackSpeedMultiplier * GlobalPlaybackScale,
+            MathF.Min(.2f, .5f / rate), actorFactor);
+        var releaseTime = clip.DurationSeconds * GameplayBowRelease.Progress(clip.BowReleaseTailFraction);
+        if (_attack is { IsBow: true } && float.IsFinite(releaseTime) && _elapsed * timing.PlaybackSpeed >= releaseTime)
+            BowRelease = (_attack, clip, releaseTime, _elapsed - releaseTime / timing.PlaybackSpeed);
         if (_elapsed >= clip.DurationSeconds / timing.PlaybackSpeed) { Finish(); return; }
         if (_needsStart)
         {
             animation.PlayNpcAnimation(clip, timing, _elapsed * timing.PlaybackSpeed);
             _playing = true; _needsStart = false;
-            EngineLog.WriteLine($"Network attack animation: ref {actor.BaseState.ObjectReference}; motion {_attack.Motion}; clip {clip.Name}; speed {timing.PlaybackSpeed:0.###}; blend {timing.BlendSeconds:0.###}s.");
+            EngineLog.WriteLine($"Network attack animation: ref {actor.BaseState.ObjectReference}; motion {_motion}; clip {clip.Name}; speed {timing.PlaybackSpeed:0.###}; blend {timing.BlendSeconds:0.###}s; special move {_special?.Code}.");
         }
         _elapsed += MathF.Max(0, seconds);
     }

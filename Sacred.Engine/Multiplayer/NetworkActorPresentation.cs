@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using System.Threading.Tasks;
 using Sacred.Core.Pak.Creature;
@@ -6,7 +8,9 @@ using Sacred.Core.Pak.Items;
 using Sacred.Engine.Animation;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Scene;
+using Sacred.GameplayHost.World;
 using Sacred.Granny.Animation;
+using Sacred.Granny.Assets;
 using Sacred.Network.Gameplay;
 using Sacred.World.Geometry;
 using Sacred.World.Networking;
@@ -29,12 +33,56 @@ internal sealed class NetworkActorPresentation
     private readonly SacredNetworkMovementPlayback _motion = new();
     private uint _locomotionAction = 2;
     private NetworkCombatAnimation? _combat;
+    private readonly IReadOnlyList<GrnBoneDiagnostics> _attachmentBones;
     public Func<uint, Task<GrnAnimationClip?>>? CombatMotionLoader { get; init; }
+    public float GlobalAnimationScale { get; init; } = 1;
+    public void ContinueCombatFrom(NetworkActorPresentation previous)
+    {
+        if (previous._combat is null || _animation is null || CombatMotionLoader is null) return;
+        _combat = new(_animation, CombatMotionLoader);
+        _combat.ContinueFrom(previous._combat);
+    }
     public bool IsLocal { get; init; }
     public Func<Vector2, float>? TerrainHeight { get; init; }
     public SceneModel Model { get; }
     public bool Animated => _animation?.AnimatedMesh is not null;
     public bool Moving { get; private set; }
+    public bool TryGetBowRelease(GoldCreatureAttackEvent attack, out Vector3 source, out float age, string boneName = "Bip01 L Hand")
+    {
+        source = default; age = 0;
+        if (_combat?.BowRelease is not { } release || !ReferenceEquals(release.Attack, attack) ||
+            _animation?.AnimatedMesh is not { } mesh) return false;
+        // Evaluate only the release pose. A delayed model load must not use a later idle hand position.
+        var pose = new GrnPoseEvaluator(mesh.Pose.Data, release.Clip).EvaluateClamped(release.SampleTime);
+        Vector3 local;
+        if (mesh.Pose.Data.TryFindBone(boneName, out var bone))
+            local = pose.Data.Projection.Project(pose.BoneWorldTransforms[bone].Translation);
+        else
+        {
+            // Rigid equipment helpers remain in their retargeted GRN slice, rather
+            // than becoming character skeleton bones. Use the same rigid palette.
+            var helper = _attachmentBones.FirstOrDefault(b => b.Name.Equals(boneName, StringComparison.OrdinalIgnoreCase));
+            if (helper?.AnimationBoneName is not { } parent ||
+                !GrnPoseQueries.TryTransformRigidPoint(pose, parent, helper.Position, out local)) return false;
+        }
+        source = GameplayProjectileCoordinates.FromScene(Vector3.Transform(local, Model.Transform));
+        age = release.Age;
+        return true;
+    }
+    public bool TryGetBowTarget(out Vector3 target)
+    {
+        target = default;
+        if (_animation?.AnimatedMesh is not { } mesh || mesh.Playback.LastRequest is not { } request) return false;
+        var data = mesh.Pose.Data;
+        // Gold 0x44CBB0 uses bone-name entry 3, then entry 0, with no random offset for bow aim.
+        if (!data.TryFindBone("Bip01 Neck", out var bone) && !data.TryFindBone("__Root", out bone)) return false;
+        var evaluator = new GrnPoseEvaluator(data, request.Animation);
+        var pose = request.Blend is { } blend ? evaluator.EvaluateBlended(request.TimeSeconds, request.TimeMode, blend)
+            : request.TimeMode == GrnPoseTimeMode.Clamp ? evaluator.EvaluateClamped(request.TimeSeconds) : evaluator.Evaluate(request.TimeSeconds);
+        target = GameplayProjectileCoordinates.FromScene(Vector3.Transform(
+            data.Projection.Project(pose.BoneWorldTransforms[bone].Translation), Model.Transform));
+        return true;
+    }
     public float LocomotionPlaybackSpeed { get; set; } = 1;
     public void QueueAnimation(CharacterAnimationBatch batch)
     {
@@ -80,6 +128,7 @@ internal sealed class NetworkActorPresentation
         ItemsPakEntry item, Vector2 position)
     {
         var mesh = asset.Model.Mesh ?? throw new InvalidOperationException("Creature model has no geometry.");
+        _attachmentBones = asset.Model.Diagnostics?.Slices.Skip(1).SelectMany(slice => slice.Bones).ToArray() ?? [];
         _lastPosition = position;
         _rotation = WorldModelPose.RotationRadians(item.ModelDesc.Angle3D);
         _groundOffset = asset.Model.Diagnostics?.WholeModelBounds is { } bounds ? -bounds.Min.Z * WorldModelPose.Scale : 0;
@@ -98,7 +147,16 @@ internal sealed class NetworkActorPresentation
     {
         if (_combat is null && _animation is not null && CombatMotionLoader is not null)
             _combat = new(_animation, CombatMotionLoader);
-        _combat?.Update(actor, deltaSeconds);
+        if (_combat is not null)
+        {
+            _combat.GlobalPlaybackScale = GlobalAnimationScale;
+            _combat.Update(actor, deltaSeconds);
+        }
+        if (actor.SpecialMove is { } special)
+        {
+            var target = new Vector2(special.TargetX, special.TargetY) / SacredNetworkPosition.NativeUnitsPerTile;
+            if (target != _lastPosition) FaceLocalHero(target);
+        }
         var reported = SacredNetworkPosition.ToTiles(actor.BaseState);
         var position = IsLocal ? reported : _motion.Update(actor, deltaSeconds);
         var moving = IsLocal ? actor.Movement is not null : _motion.Moving;
