@@ -20,7 +20,7 @@ public sealed partial class SacredCamera
     public Vector2 WorldCenter { get; private set; }
     public float SurfaceHeight { get; private set; }
     /// <summary>Render center following the actor's surface, while WorldCenter remains the movement anchor.</summary>
-    public Vector2 ViewCenter => WorldCenter - new Vector2(
+    public Vector2 ViewCenter => WorldCenter + _shakeWorldOffset - new Vector2(
         TerrainElevationProjection.ScreenHeight(SurfaceHeight) / IsometricProjection.StepHeight);
     public float Zoom { get; private set; } = 1.0f;
     public float ViewportZoom => _viewportZoom;
@@ -397,7 +397,7 @@ public sealed partial class SacredCamera
         // Original Sacred style: no map rotation; pre-rendered terrain determines the perspective.
         // Terrain renders in absolute isometric pixels. Models must use that same
         // space or every model becomes camera-relative to the player tile grid.
-        var center = IsometricProjection.WorldToModel(WorldCenter);
+        var center = IsometricProjection.WorldToModel(WorldCenter + _shakeWorldOffset);
         var target = new Vector3(center, TerrainElevationProjection.ModelVerticalWorldOffset(SurfaceHeight));
         var eye = target + new Vector3(0f, -650f, 650f);
         EyePosition = eye;

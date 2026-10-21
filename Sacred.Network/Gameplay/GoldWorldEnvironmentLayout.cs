@@ -9,5 +9,5 @@ public static class GoldWorldEnvironmentLayout
     public const int WeatherPresentOffset = 1;
     public const int CalendarOffset = 4;
     public const int WeatherOffset = 20;
-    public const int WeatherSize = 32;
+    public const int WeatherSize = GoldWeatherLayout.Size;
 }

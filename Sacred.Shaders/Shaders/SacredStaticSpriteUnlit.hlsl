@@ -39,7 +39,7 @@ particle_pixel_output render_unlit_hdr_rgb(vertex_output input, float opacity)
     Texture2D static_texture = ResourceDescriptorHeap[NonUniformResourceIndex(input.texture_index)];
     float3 texture_color = sample_static_texture(static_texture, input).rgb;
     float coverage = input.corner_alpha.a * opacity;
-    if (coverage < (1.0f / 255.0f))
+    if (coverage < (1.0f / 255.0f) && !particle_corner_rgb_source(input))
         discard;
 
     float source_scale = (input.particle_sprite & 4) != 0 ? opacity : coverage;
@@ -52,7 +52,7 @@ particle_pixel_output render_unlit_hdr_argb(vertex_output input, float opacity)
     Texture2D static_texture = ResourceDescriptorHeap[NonUniformResourceIndex(input.texture_index)];
     float4 sampled = sample_static_texture(static_texture, input);
     float coverage = sampled.a * input.corner_alpha.a * opacity;
-    if (coverage < (1.0f / 255.0f))
+    if (coverage < (1.0f / 255.0f) && !particle_corner_rgb_source(input))
         discard;
 
     float source_scale = (input.particle_sprite & 4) != 0
@@ -67,7 +67,7 @@ particle_pixel_output render_unlit_hdr_alpha_mask(vertex_output input, float opa
     Texture2D static_texture = ResourceDescriptorHeap[NonUniformResourceIndex(input.texture_index)];
     float mask = sample_static_texture(static_texture, input).a;
     float coverage = mask * input.corner_alpha.a * opacity;
-    if (coverage < (1.0f / 255.0f))
+    if (coverage < (1.0f / 255.0f) && !particle_corner_rgb_source(input))
         discard;
 
     float source_scale = (input.particle_sprite & 4) != 0

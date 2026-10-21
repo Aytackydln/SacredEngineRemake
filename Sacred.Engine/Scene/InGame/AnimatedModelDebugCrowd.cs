@@ -30,8 +30,11 @@ internal sealed class AnimatedModelDebugCrowd
                     animation.RequestPose(i * .037f);
                     var model = new SceneModel($"Debug instance {i + 1}: {player.Name}", animation.Mesh,
                         player.Position, player.Rotation, player.Scale, player.TextureAliases,
-                        groundPlaneZ: player.GroundPlaneZ, blockRadius: (uint)player.GroundShadowRadius);
+                        groundPlaneZ: player.GroundPlaneZ, sourceOriginOffset: player.SourceOriginOffset,
+                        blockRadius: (uint)player.GroundShadowRadius);
                     model.SetAnimatedMesh(animation);
+                    model.SetModelOrientation(player.ModelOrientation);
+                    model.SetSourceTransform(player.SourceTransform);
                     model.SetModelProjection(player.ModelProjection);
                     _models.Add(model);
                 }

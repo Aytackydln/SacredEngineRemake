@@ -21,6 +21,7 @@ public sealed record SacredParticleHaloDefinition(string TextureName, float Half
     public float RotationRate { get; init; }
     public float SizeGrowthRate { get; init; }
     public float SineSizeAmplitude { get; init; }
+    public SacredParticleHaloSizeCurve? SizeCurve { get; init; }
     public float? VisibleFromSeconds { get; init; }
     public float? VisibleUntilSeconds { get; init; }
     public SacredParticleHaloEnvelope? Envelope { get; init; }
@@ -33,7 +34,7 @@ public sealed record SacredParticleHaloDefinition(string TextureName, float Half
     public float FadeAlphaScale { get; init; } = 255;
     public float? PulseAngularFrequency { get; init; }
     public float PulseAmplitude { get; init; }
-    public float HalfSizeAt(float age) => PulseAngularFrequency is { } frequency
+    public float HalfSizeAt(float age) => SizeCurve is { } curve ? curve.At(age) : PulseAngularFrequency is { } frequency
         ? (float)(HalfSize + (double)(float)((Math.Sin((double)age * frequency) + 1) * 0.5) * PulseAmplitude) : (float)(HalfSize + age * (double)SizeGrowthRate + Math.Sin(age) * SineSizeAmplitude);
     public uint ColorAt(float age)
     {

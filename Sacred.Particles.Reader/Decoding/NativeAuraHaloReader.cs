@@ -18,6 +18,15 @@ internal static class NativeAuraHaloReader
             { SourceColorOnly = NativeTextureReader.ReadFlareSourceBlend(code, selector), AttachmentIndex = -1, PersistAfterEmission = true };
         return family.Constructor switch
         {
+            0x7905E0 =>
+            [
+                Flare((uint)code.At(0x790AF3).GetImmediate(0), 0,
+                    (uint)code.At(0x790AD2).GetImmediate(0), 0x790B0F) with
+                { SizeGrowthRate = Operand(0x790AED), VisibleUntilSeconds = State(0x20A4) },
+                Flare((uint)code.At(0x790ADE).GetImmediate(0), Immediate(0x790AE0),
+                    (uint)code.At(0x790AD2).GetImmediate(0), 0x790B0F) with
+                { VisibleFromSeconds = float.BitIncrement(State(0x20A4)), VisibleUntilSeconds = float.BitDecrement(State(0x20A8)) }
+            ],
             0x778760 =>
             [
                 new(Texture(0x253C), Immediate(0x7789F8), (uint)code.At(0x7789F3).GetImmediate(0), 0x7789FF)

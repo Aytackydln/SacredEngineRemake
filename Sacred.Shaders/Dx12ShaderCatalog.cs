@@ -2,6 +2,10 @@ namespace Sacred.Shaders;
 
 public static class Dx12ShaderCatalog
 {
+    public static readonly Dx12ShaderSource WeatherVertexShader =
+        Shader("SacredWeather", EmbeddedResource_Shaders.SacredWeather_hlsl, "vs_main", "vs_6_6");
+    public static readonly Dx12ShaderSource WeatherPixelShader =
+        Shader("SacredWeather", EmbeddedResource_Shaders.SacredWeather_hlsl, "ps_main", "ps_6_6");
     public static readonly Dx12ShaderSource HdrPresentationVertexShader =
         Shader("SacredHdrPresentation", EmbeddedResource_Shaders.SacredHdrPresentation_hlsl, "vs_main", "vs_6_6");
     public static readonly Dx12ShaderSource HdrPresentationPixelShader =

@@ -50,6 +50,16 @@ public sealed class WorldObjectFxSystem
                 continue;
             }
             var anchor = playback.Attachment;
+            if (anchor?.BoneAttachment is { } findBone)
+            {
+                var bone = findBone(fx.AttachBone);
+                if (bone is null)
+                {
+                    _pending[reference] = $"Waiting for received wearer bone {fx.AttachBone}.";
+                    continue;
+                }
+                anchor = bone with { Orientation = anchor.Orientation };
+            }
             var point = anchor?.Position ?? playback.Position;
             var nativeOffset = Vector3.TransformNormal(fx.WearingOffset, anchor?.Orientation ?? Matrix4x4.Identity);
             var offset = catalogue.Projection.Project(new(nativeOffset.X, nativeOffset.Y, 0));
@@ -57,6 +67,7 @@ public sealed class WorldObjectFxSystem
             var height = (anchor?.Height ?? 0) + nativeOffset.Z;
             if (!float.IsFinite(point.X) || !float.IsFinite(point.Y) || !float.IsFinite(height) || !float.IsFinite(fx.Duration))
             { _pending[reference] = "FX state contains a non-finite placement or duration."; continue; }
+            _pending.Remove(reference);
             if (!playback.Started)
             {
                 // Exact decoded script/event selectors only. Preview preset zero is not
@@ -111,4 +122,5 @@ public sealed record WorldObjectFxAttachment(Vector2 Position, float Height, uin
 {
     public Matrix4x4 Orientation { get; init; } = Matrix4x4.Identity;
     public long InstanceVersion { get; init; }
+    public Func<ushort, WorldObjectFxAttachment?>? BoneAttachment { get; init; }
 }

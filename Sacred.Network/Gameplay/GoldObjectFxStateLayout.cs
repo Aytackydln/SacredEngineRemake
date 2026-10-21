@@ -1,3 +1,5 @@
+using Sacred.Core.CombatArts;
+
 namespace Sacred.Network.Gameplay;
 
 /// <summary>Gold cObjectFX packet writer 0x5B6F80; offsets include the base cObject stream.</summary>
@@ -22,7 +24,7 @@ public static class GoldObjectFxStateLayout
     public const int VectorData2Offset = 127;
     public const int IntegerDataOffset = 139; // Native +0x9C..+0xA4, three integer operands.
     public const int EventDataOffset = 151;
-    public const int EventDataSize = 56;
+    public const int EventDataSize = SacredCombatArtEffectDataLayout.Size;
     public const int RemainingRechargeOffset = 207;
     public const int WordDcOffset = 211;
     public const int WordE0Offset = 215;

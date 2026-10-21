@@ -17,6 +17,8 @@ public sealed class SacredNetworkMovementPlayback
     private bool _hasPath;
     public bool Moving { get; private set; }
     public bool Snapped { get; private set; }
+    /// <summary>Received native path speed, before presentation corrections.</summary>
+    public int Speed => _path.Speed;
     public Vector2 Direction => _hasPath ? new(_path.Direction.X, _path.Direction.Y) : Vector2.Zero;
 
     public Vector2 Update(GoldReplicatedObject actor, float seconds)

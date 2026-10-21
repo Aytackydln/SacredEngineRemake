@@ -22,7 +22,8 @@ public sealed class SceneModel : ISceneModelBounds
     private Vector3 _modelOffset;
     private Matrix4x4 _modelProjection = Matrix4x4.Identity;
     private Matrix4x4 _modelOrientation = Matrix4x4.Identity;
-    // GRN extraction centers mesh vertices; world props retain their authored pivot here.
+    private Matrix4x4 _sourceTransform = Matrix4x4.Identity;
+    // Restore the authored GRN pivot after extraction centers/grounds the mesh.
     private readonly Vector3 _sourceOriginOffset;
 
     public SceneModel(
@@ -66,6 +67,7 @@ public sealed class SceneModel : ISceneModelBounds
     public bool IsFocused { get; internal set; }
     public Vector3 Rotation { get; private set; }
     public float Scale { get; }
+    public Vector3 SourceOriginOffset => _sourceOriginOffset;
     /// <summary>Resolved Items.pak blocking radius in authored model units, independent of the pose.</summary>
     public float GroundShadowRadius { get; }
     /// <summary>Contact-shadow half-extents in the scene camera's ground plane.</summary>
@@ -96,6 +98,15 @@ public sealed class SceneModel : ISceneModelBounds
     public Matrix4x4 Transform => _transform;
     public Matrix4x4 ModelProjection => _modelProjection;
     public Matrix4x4 ModelOrientation => _modelOrientation;
+    public Matrix4x4 SourceTransform => _sourceTransform;
+
+    /// <summary>Converts restored file coordinates into sequence space, before scene scale and facing.</summary>
+    public void SetSourceTransform(Matrix4x4 transform)
+    {
+        if (_sourceTransform == transform) return;
+        _sourceTransform = transform;
+        RebuildTransform();
+    }
 
     /// <summary>Native three-axis orientation before camera adaptation. Keep projection/shadow scale independent.</summary>
     public void SetModelOrientation(Matrix4x4 orientation)
@@ -207,6 +218,7 @@ public sealed class SceneModel : ISceneModelBounds
         var rotation = _modelOrientation * Matrix4x4.CreateFromYawPitchRoll(Rotation.X, Rotation.Y, Rotation.Z);
         var renderPosition = RenderPosition + Vector3.Transform(_modelOffset, rotation * _modelProjection);
         _transform = Matrix4x4.CreateTranslation(_sourceOriginOffset) *
+                     _sourceTransform *
                      Matrix4x4.CreateScale(Scale) *
                      rotation *
                      _modelProjection *

@@ -1,5 +1,11 @@
 # Sacred.Particles.Reader
 
+Combat visual factories are now generated alongside particle recipes. The reader
+extracts eight inspected spell factories, both vampire transition factories,
+release fractions, duration curves and bone attachments from the checked executable.
+See [status effects and attached visuals](../docs/game-server/status-effects.md#implemented-visual-path)
+for coverage, runtime integration, placeholders and reproduction commands.
+
 Latest decoding: [Ring of Poison and Kamikaze](../docs/research/particle-definitions/expanding-burst-fx.md) adds two
 complete event previews: a 150-slot particle burst, fifty expanding ring strips
 and two independently rotating ground flares. Four layouts map saved state,

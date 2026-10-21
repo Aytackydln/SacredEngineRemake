@@ -74,8 +74,8 @@ float3 compose_sdr_model_lighting(float3 base_color, float3 surface_lighting, fl
     // Screen the directional terms into the remaining SDR headroom. Add-then-saturate
     // flattens bright texture detail and turns specular highlights into clipped white.
     float3 lit_color = base_color * surface_lighting;
-    lit_color += base_color * diffuse * (1.0f - lit_color);
-    lit_color += specular * (1.0f - lit_color);
+    lit_color += base_color * diffuse * max(1.0f - lit_color, 0.0f);
+    lit_color += specular * max(1.0f - lit_color, 0.0f);
     return lit_color;
 }
 

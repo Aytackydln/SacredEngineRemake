@@ -41,5 +41,6 @@ public sealed record GoldReplicatedObject(GoldObjectBaseState BaseState, GoldCre
     public int? ReportedHitPoints { get; init; }
     public GoldCreatureAttackEvent? Attack { get; init; }
     public GoldCreatureSpecialMoveEvent? SpecialMove { get; init; }
+    public GoldCreatureCastEvent? Cast { get; init; }
     public long AttackVersion { get; init; }
 }

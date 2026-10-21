@@ -36,7 +36,7 @@ internal static class NativeAuraAndCastEventReader
                 TextureBindings = bindings, ParameterSets = parameters,
                 Draw = profile.OwnerSelector && preset != 0 ? draw with { TextureName = bindings.Single(b => b.NativeHandleOffset == 0x2550).TextureName } : draw,
                 AdditionalHalos = NativeAuraHaloReader.Read(image, code, family, preset, memory),
-                SimulationStartSeconds = family.Constructor == 0x78F640 && preset == 1015
+                SimulationStartSeconds = family.Constructor == 0x7905E0 ? StateFloat(0x20A4) : family.Constructor == 0x78F640 && preset == 1015
                     ? StateFloat(0x20A4) : family.Constructor == 0x7AFFB0 ? image.Single(0x89066C) : 0,
                 RandomBurst = family.Constructor == 0x77F5C0 ? new(image.Single(0x890C08), image.Single(0x897E80), StateFloat(0x20AC), image.Single(0x89076C), 0x77F72F) : null,
                 MaximumSimulationStep = family.Constructor == 0x77F5C0 ? image.Single(0x89066C) : null,
@@ -54,6 +54,14 @@ internal static class NativeAuraAndCastEventReader
 
     private static Profile? Find(SacredParticleDefinition entry) => entry.NativeConstructorAddress switch
     {
+        0x7905E0 => new(new("Seraphim cast", entry.FactoryAddress, 0x7905E0, 0x79065A,
+            0x790CE0, 0x20A0 + SacredSeraphimCastParticleStateLayout.SerializedSize + 8, 0x24B0, 0x24D0, 1, 0x790A7A)
+            { ColorOffset = 0x20B0, SelectorOffset = 0x3C,
+                InitialState = new Dictionary<int, uint> { [0xAC] = 0 },
+                ActorLookup = (0x790F62, 0x790F6E), OmittedCallStackBytes = 36 })
+            { Presets = [1018], TextureOffset = 0x2574, DurationOffset = 0x20A8,
+                Clock = SacredParticleEmissionClock.PreviousTimeInclusive,
+                Description = "Native BeeEffGee cast: growing finger flare, delayed spark emission and draining lifetime" },
         0x783EE0 => new(new("cParticleSystem_cloud", entry.FactoryAddress, 0x783EE0, 0x783F51,
             0x784220, 0x20A0 + SacredCloudParticleStateLayout.SerializedSize + 4, 0x20BC, 0x20DC, 1, 0x784000)
             { ColorOffset = 0x20AC, EventColor = 0xFFFFFFFF, InitialState = new Dictionary<int, uint> { [0x20A9] = 1 } })

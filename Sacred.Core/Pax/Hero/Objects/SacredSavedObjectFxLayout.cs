@@ -1,3 +1,5 @@
+using Sacred.Core.CombatArts;
+
 namespace Sacred.Core.Pax.Hero.Objects;
 
 /// <summary>Gold cObjectFX file writer 0x5B6A50. This layer follows cObject, not cObject3D.</summary>
@@ -23,7 +25,7 @@ public static class SacredSavedObjectFxLayout
     public const int VectorData2Offset = 149;
     public const int IntegerDataOffset = 161; // Three UInt32 operands.
     public const int EventDataOffset = 173; // Original 56-byte sEventFXData.
-    public const int EventDataSize = 56;
+    public const int EventDataSize = SacredCombatArtEffectDataLayout.Size;
     public const int RemainingRechargeOffset = 229;
     public const int ReferenceCountOffset = 233;
     public const int ReferencesOffset = 237; // UInt32 references, count at ReferenceCountOffset.

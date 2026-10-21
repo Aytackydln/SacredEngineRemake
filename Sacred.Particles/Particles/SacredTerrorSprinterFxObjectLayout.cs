@@ -8,7 +8,9 @@ public struct SacredTerrorSprinterFxObjectLayout
 {
     [FieldOffset(0x08)] public Vector3 Position;
     [FieldOffset(0x7C)] public uint Notification;
+    /// <summary>Mode one sets command 6: apply combat-art stat modifiers.</summary>
     [FieldOffset(0x80)] public uint PendingCode;
+    /// <summary>First command operand; zero suppresses the additional custom modifier event.</summary>
     [FieldOffset(0x84)] public uint TextureCommand;
     [FieldOffset(0x98)] public uint CreationFlags;
     [FieldOffset(0xB4)] public uint LightHandle;

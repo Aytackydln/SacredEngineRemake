@@ -31,6 +31,7 @@ namespace Sacred.Engine.Graphics;
 internal sealed class Dx12WorldPass : IDisposable
 {
     private readonly Dx12DeviceContext _graphics;
+    private readonly Dx12WeatherPass _weather;
     private readonly TerrainRenderer _terrain;
     private readonly Dx12TextureUploadWorker _textureUploads;
     private readonly Dx12SectorTextureCache _sectorTextures;
@@ -90,6 +91,7 @@ internal sealed class Dx12WorldPass : IDisposable
         DebugUiControlState debugUiControls)
     {
         _graphics = graphics;
+        _weather = new(graphics, assets, textureUploader);
         for (var slot = Dx12DescriptorLayout.FirstModelTexture + Dx12DescriptorLayout.MaximumModelTextures - 1;
              slot >= Dx12DescriptorLayout.FirstModelTexture;
              slot--)
@@ -214,6 +216,7 @@ internal sealed class Dx12WorldPass : IDisposable
         _hud = new Dx12BottomHudPass(assets, gameDirectory, graphics, textureUploader);
         _escapeMenu = new Dx12EscapeMenuPass(assets, gameDirectory, graphics, textureUploader);
         _mapUi = new Dx12WorldMapUiPass(assets, gameDirectory, graphics, textureUploader);
+        _commandRecorder.Weather = _weather;
         _worldUi = new Dx12WorldUiPass(graphics, _commandRecorder, _minimap, _debugOverlay, _imgui, _debugPanel, _hud, _escapeMenu, _mapUi, debugUiControls);
     }
 
@@ -436,6 +439,7 @@ internal sealed class Dx12WorldPass : IDisposable
 
     public void DisposePipelines()
     {
+        _weather.DisposePipeline();
         _terrainDebug.DisposePipeline();
         _models.DisposePipeline();
         _skinDraw.DisposePipelines();
@@ -474,6 +478,7 @@ internal sealed class Dx12WorldPass : IDisposable
 
     public void Dispose()
     {
+        _weather.Dispose();
         _textureUploads.Stop();
         _terrainDebug.Dispose();
         _sectorTextures.Dispose();

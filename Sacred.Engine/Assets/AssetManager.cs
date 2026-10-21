@@ -93,6 +93,8 @@ public sealed partial class AssetManager : IDisposable, IGameplayResourceCatalog
     public GameResStore Resources { get; }
     public CreaturePakArchive? CreatureTemplates { get; init; }
     public SacredMovementCalculator? MovementCalculator { get; init; }
+    public SacredCastingCalculator? CastingCalculator { get; init; }
+    public SacredAttackSpeedCalculator? AttackSpeedCalculator { get; init; }
     public SacredNpcConversationDefinitions? NpcConversations { get; init; }
 
     internal AssetManager(

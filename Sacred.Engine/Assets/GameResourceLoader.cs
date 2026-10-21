@@ -110,6 +110,8 @@ internal sealed class GameResourceLoader : IDisposable
             {
                 CreatureTemplates = _creatures,
                 MovementCalculator = LoadMovementCalculator(equipment),
+                CastingCalculator = new SacredCastingCalculator(CastingBalanceBinReader.Load(Path.Combine(_gameDirectory, "bin", "Balance.bin"))),
+                AttackSpeedCalculator = new SacredAttackSpeedCalculator(CastingBalanceBinReader.Load(Path.Combine(_gameDirectory, "bin", "Balance.bin"))),
                 NpcConversations = LoadNpcConversations()
             };
             world = worldArchive;

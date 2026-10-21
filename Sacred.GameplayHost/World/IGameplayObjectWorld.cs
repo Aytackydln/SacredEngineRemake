@@ -13,6 +13,8 @@ public interface IGameplayObjectWorld : IDisposable
     long Revision { get; }
     IReadOnlyDictionary<uint, GameplayWorldObject> Objects { get; }
     GameplayBowProjectiles? BowProjectiles => null;
+    GameplayCombatArtEffects? CombatArtEffects => null;
+    GameplayStatusEffects? StatusEffects => null;
     IReadOnlyDictionary<uint, GoldWorldTriggerState> Triggers { get; }
     WorldDoorStateLayer DoorStates { get; }
     string InteractionStatus { get; }

@@ -21,6 +21,7 @@ internal sealed partial class WorldParticleEmitter
     private int _nextDrawOrder;
     private bool _burstPending;
     private float _age;
+    public float ClockScale { get; set; } = 1;
     private float _birthSizeFactor;
     public bool NativeRetired { get; private set; }
     internal bool ControlsRetirement => _emperor is not null || _bloodFountain is not null || _mineSign is not null;
@@ -82,7 +83,7 @@ internal sealed partial class WorldParticleEmitter
         if (placement.Definition.OrbitEmission is not null) _point = new();
     }
 
-    public bool CanEmit => _parameterSets.Length > 0;
+    public bool CanEmit => _parameterSets.Length > 0 || _placement.Definition.Halo is not null || _placement.Definition.AdditionalHalos.Count > 0;
     internal WorldParticleScriptPlacement Placement => _placement;
     private ParticleSimulationMode _simulationMode = ParticleSimulationMode.CpuSimd;
     public ParticleSimulationMode SimulationMode
@@ -176,9 +177,9 @@ internal sealed partial class WorldParticleEmitter
         if (definition.MaximumSimulationStep is { } maximum && deltaSeconds > maximum)
         { AppendParticles(definition, !EmissionFinished, output); return; }
         var previousAge = _age;
-        _age += deltaSeconds;
+        _age = (float)(_age + (double)deltaSeconds * ClockScale);
         _aura.Advance(_age, deltaSeconds);
-        var simulationReady = previousAge >= definition.SimulationStartSeconds;
+        var simulationReady = (definition.SimulationStartUsesCurrentTime ? _age : previousAge) >= definition.SimulationStartSeconds;
         if (definition.BirthSizeRamp is { } ramp)
         {
             _birthSizeFactor = ramp.Advance(_birthSizeFactor, deltaSeconds);

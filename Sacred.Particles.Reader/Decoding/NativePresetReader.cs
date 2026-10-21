@@ -85,6 +85,8 @@ internal static class NativePresetReader
             // Playback supplies the real mesh. Evaluation stops before any stack epilogue
             // that would consume arguments discarded with a native lookup call.
             machine.Run(family.Initializer, lookup.Start, cancellationToken);
+            if (family.OmittedCallStackBytes != 0)
+                machine.Registers.Set(Register.ESP, machine.Registers.Get(Register.ESP) + (uint)family.OmittedCallStackBytes);
             if (family.UnitActorRadius) machine.Registers.Set(Register.EAX, 1);
             machine.Run(lookup.End, family.InitializerEnd ?? stop, cancellationToken);
         }

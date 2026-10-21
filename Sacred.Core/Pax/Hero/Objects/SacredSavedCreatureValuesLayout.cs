@@ -19,6 +19,7 @@ public static class SacredSavedCreatureValuesLayout
     public const int Count22Offset = 266;
     public const int Record22Size = 22;
     public const int Record38Size = 38;
-    public const int Record28Size = 28;
+    /// <summary>Third counted list: active status modifiers, not learned arts or equipment bonuses.</summary>
+    public const int Record28Size = SacredSavedStatusModifierLayout.Size;
     public const int MinimumSize = 272;
 }

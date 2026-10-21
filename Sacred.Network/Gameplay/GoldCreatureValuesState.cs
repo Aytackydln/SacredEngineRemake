@@ -26,6 +26,8 @@ public sealed class GoldCreatureValuesState
     public ushort Level => Word56;
     /// <summary>Native calculated +0x3C. Compact packets omit it; callers must derive it from gameplay inputs.</summary>
     public short? AttackSpeed => IsFull ? BinaryPrimitives.ReadInt16LittleEndian(FullBlock08[52..]) : null;
+    /// <summary>Calculated native +0x3E percentage used by EiMagic; absent from compact values.</summary>
+    public short? CastSpeed => IsFull ? BinaryPrimitives.ReadInt16LittleEndian(FullBlock08[54..]) : null;
     /// <summary>Calculated +0x40 percentage, shared by walk/run; absent from compact packets.</summary>
     public short? MovementSpeedPercent => IsFull ? BinaryPrimitives.ReadInt16LittleEndian(FullBlock08[56..]) : null;
     public ushort RemainingSkillPoints => Word42;

@@ -49,9 +49,17 @@ internal static class ParticleGpuProjection
             Sprite = new(rect.X,rect.Y,screen.Scale(particle.Size),screen.Scale(particle.RenderHeight),
                 Math.Clamp(.5f-(depth-WorldPainterDepth.FromWorld(camera.ViewCenter))/4096,.2f,.72f),
                 texture,(uint)particle.Sprite.FrameCount,(uint)particle.AtlasCell,0,0,
-                1u|(particle.Additive?2u:0u)|(particle.SourceColorOnly?4u:0u)|(particle.GroundAligned?128u:0u),0,0,
+                1u|(particle.Additive?2u:0u)|(particle.SourceColorOnly?4u:0u)|(particle.GroundAligned?128u:0u)|
+                (particle.CornerColors.HasValue?256u:0u),0,0,
                 ((color>>16)&255)/255f,((color>>8)&255)/255f,(color&255)/255f,particle.Opacity,
-                (uint)particle.Sprite.AtlasColumns,(uint)particle.Sprite.AtlasRows) { ParticleRotation=particle.Rotation },
+                (uint)particle.Sprite.AtlasColumns,(uint)particle.Sprite.AtlasRows)
+                {
+                    ParticleRotation=particle.Rotation,
+                    CornerColor0=particle.CornerColors?.Color0??0,
+                    CornerColor1=particle.CornerColors?.Color1??0,
+                    CornerColor2=particle.CornerColors?.Color2??0,
+                    CornerColor3=particle.CornerColors?.Color3??0
+                },
             SortDepth=depth,TileX=(int)MathF.Floor(particle.WorldX),TileY=(int)MathF.Floor(particle.WorldY),
             DrawOrder=particle.DrawOrder,Sequence=sequence,Encoding=encoding,Valid=1
         };

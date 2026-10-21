@@ -11,6 +11,9 @@ public struct SacredStonedFxObjectLayout
     [FieldOffset(0x6C)] public uint ParticlesEnd;
     [FieldOffset(0x7C)] public uint Notification;
     [FieldOffset(0x80)] public uint OwnerTextureOperation;
+    /// <summary>Command 7's modifier type (15: native BaseSpeed disable), not a bit mask.
+    /// OwnerTextureMask is retained as an alias for existing readers.</summary>
+    [FieldOffset(0x84)] public uint OwnerModifierType;
     [FieldOffset(0x84)] public uint OwnerTextureMask;
     [FieldOffset(0x88)] public uint OwnerTextureHandle;
     [FieldOffset(0xA9)] public byte UseDefaultDuration;

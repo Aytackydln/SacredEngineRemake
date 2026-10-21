@@ -523,6 +523,7 @@ internal sealed partial class SacredGameRuntime : IDisposable
         switch (command)
         {
             case HelpCheatCommand:
+                EngineLog.WriteLine("Weather: set weather <live|clear|rain|fog|snow|storm|status>; set rain <0..1>; set fog <0..1>; set snow <0..1>; set lightning once; set earthquake <0..1>; set stomp <0..1>. Screenshot captures weather without focusing the window.");
                 EngineLog.WriteLine("Lighting preview: set lighting-time <HH:mm[:ss]|live|status>; screenshot [label]. Uses the native dawn/dusk curve without changing network calendar state.");
                 EngineLog.WriteLine("Multiplayer: set server <host:port>; set server status; set server disconnect. TinCat connection and Sacred gameplay admission are reported separately.");
                 EngineLog.WriteLine("Visible LAN: set server-join <host:port> <saved selection>; set server-join status; set server-character world-status. Owned walking: set server-walk [patrol] <x,y> <native control174> <tiles/sec>; set server-walk <status|stop>.");

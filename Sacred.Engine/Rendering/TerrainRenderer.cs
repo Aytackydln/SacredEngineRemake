@@ -406,6 +406,7 @@ public readonly record struct TerrainStaticSprite(
     /// <summary>Identifies scenery authored to render after the water pass.</summary>
     public bool RendersOverWater { get; init; }
     public uint ParticleColor { get; init; } = uint.MaxValue;
+    public ParticleCornerColors? ParticleCorners { get; init; }
     public int ParticleAtlasCell { get; init; }
     public float ParticleRotation { get; init; }
     public uint ParticleBlendFlags { get; init; }

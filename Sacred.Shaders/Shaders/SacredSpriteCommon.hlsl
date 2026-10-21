@@ -17,6 +17,7 @@ struct SpriteInstance
     uint atlas_rows;
     float particle_rotation;
     float depth_span;
+    uint4 corner_colors;
 };
 
 StructuredBuffer<SpriteInstance> instances : register(t0);
@@ -50,7 +51,7 @@ struct vertex_output
     nointerpolation uint particle_sprite : TEXCOORD6;
     nointerpolation uint player_occlusion_fade : TEXCOORD7;
     nointerpolation float animation_period_seconds : TEXCOORD8;
-    nointerpolation float4 corner_alpha : TEXCOORD9;
+    float4 corner_alpha : TEXCOORD9;
     nointerpolation uint atlas_columns : TEXCOORD10;
     nointerpolation uint atlas_rows : TEXCOORD11;
     nointerpolation uint texture_index : TEXCOORD12;
@@ -123,6 +124,15 @@ vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_Instan
     output.player_occlusion_fade = instance.player_occlusion_fade;
     output.animation_period_seconds = instance.animation_period_seconds;
     output.corner_alpha = instance.corner_alpha;
+    if ((instance.particle_sprite & 256u) != 0)
+    {
+        // Same triangle strip as the CPU world rasterizer: bottom left, top left,
+        // bottom right, top right. Packed native ARGB is interpolated as RGBA.
+        uint corner = (uv.x > 0.5f ? 2u : 0u) + (uv.y < 0.5f ? 1u : 0u);
+        uint color = instance.corner_colors[corner];
+        output.corner_alpha = float4((color >> 16u) & 255u, (color >> 8u) & 255u,
+            color & 255u, color >> 24u) / 255.0f;
+    }
     output.atlas_columns = instance.atlas_columns;
     output.atlas_rows = instance.atlas_rows;
     output.texture_index = first_texture_descriptor + instance.texture_index;

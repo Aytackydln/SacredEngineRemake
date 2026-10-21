@@ -89,6 +89,10 @@ public sealed class SacredWorldArchive : IDisposable
         return _sectorIdByGrid.TryGetValue(coord, out var id) ? _entriesById[id].Environment.Region : null;
     }
 
+    /// <summary>Original KEYX weather and population data without loading geometry.</summary>
+    public SectorEnvironmentLayout? GetEnvironment(SectorCoord coord) =>
+        _sectorIdByGrid.TryGetValue(coord, out var id) ? _entriesById[id].Environment : null;
+
     private SacredWorldArchive(
         byte[] keyxData,
         FileStream wldxStream,

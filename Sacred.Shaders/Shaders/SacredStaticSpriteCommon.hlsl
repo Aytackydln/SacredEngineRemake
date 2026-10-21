@@ -118,12 +118,19 @@ float player_occluder_opacity(vertex_output input)
     return lerp(1.0f, occluder_opacity, reveal);
 }
 
+bool particle_corner_rgb_source(vertex_output input)
+{
+    // Per-corner ONE-source draws retain RGB even at zero diffuse alpha,
+    // matching the CPU world rasterizer. Coverage still controls destination blending.
+    return (input.particle_sprite & 260u) == 260u;
+}
+
 float4 sample_static_pixel(vertex_output input, float opacity)
 {
     Texture2D static_texture = ResourceDescriptorHeap[NonUniformResourceIndex(input.texture_index)];
     float4 color = sample_static_texture(static_texture, input);
 
-    if (color.a == 0)
+    if (color.a == 0 && !particle_corner_rgb_source(input))
     {
         discard;
     }
@@ -135,7 +142,8 @@ float4 sample_static_pixel(vertex_output input, float opacity)
         // Particle corner_alpha carries the native RGBA fade-table entry.
         color *= input.corner_alpha;
     }
-    if (color.a < (is_particle || is_mixed_light ? (1.0f / 255.0f) : alpha_cutoff))
+    if (color.a < (is_particle || is_mixed_light ? (1.0f / 255.0f) : alpha_cutoff) &&
+        !particle_corner_rgb_source(input))
         discard;
     color.a *= opacity;
     return color;

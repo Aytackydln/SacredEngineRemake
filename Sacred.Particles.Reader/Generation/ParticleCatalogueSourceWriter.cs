@@ -68,6 +68,7 @@ internal static class ParticleCatalogueSourceWriter
                     actorScale += $", OrbitEmission = new({Float(orbit.Radius)}, {Float(orbit.AngularSpeed)}, {Float(orbit.LimitAngle)}, {CSharpLiteral.UInt32(orbit.NativeAddress)})";
                 if (entry.BurstOnFirstUpdate) actorScale += ", BurstOnFirstUpdate = true";
                 if (entry.SimulationStartSeconds != 0) actorScale += $", SimulationStartSeconds = {Float(entry.SimulationStartSeconds)}";
+                if (entry.SimulationStartUsesCurrentTime) actorScale += ", SimulationStartUsesCurrentTime = true";
                 if (entry.MaximumSimulationStep is { } maximumStep) actorScale += $", MaximumSimulationStep = {Float(maximumStep)}";
                 if (entry.RandomBurst is { } randomBurst)
                     actorScale += $", RandomBurst = new({Float(randomBurst.DelayMinimum)}, {Float(randomBurst.DelayWidth)}, {Float(randomBurst.Radius)}, {Float(randomBurst.VerticalHalfRange)}, {CSharpLiteral.UInt32(randomBurst.NativeAddress)})";
@@ -78,6 +79,9 @@ internal static class ParticleCatalogueSourceWriter
                 if (entry.NativeConstructorAddress is { } constructor) actorScale += $", NativeConstructorAddress = {CSharpLiteral.UInt32(constructor)}";
                 if (entry.EmissionDurationSeconds is { } duration) actorScale += $", EmissionDurationSeconds = {Float(duration)}";
                 if (entry.RequiresActorContext) actorScale += ", RequiresActorContext = true";
+                if (entry.EventSelectorOffset is { } selectorOffset) actorScale += $", EventSelectorOffset = {selectorOffset}";
+                if (entry.SupportsAttachedEvent) actorScale += ", SupportsAttachedEvent = true";
+                if (entry.NativeAttachmentFlags != 0) actorScale += $", NativeAttachmentFlags = {CSharpLiteral.UInt32(entry.NativeAttachmentFlags)}";
                 if (entry.SingleBirthInitialization) actorScale += ", SingleBirthInitialization = true";
                 if (entry.SkipFirstMovement) actorScale += ", SkipFirstMovement = true";
                 if (entry.LineEmission is { } line)
@@ -131,6 +135,7 @@ internal static class ParticleCatalogueSourceWriter
         if (halo.RotationRate != 0) properties.Add($"RotationRate = {Float(halo.RotationRate)}");
         if (halo.SizeGrowthRate != 0) properties.Add($"SizeGrowthRate = {Float(halo.SizeGrowthRate)}");
         if (halo.SineSizeAmplitude != 0) properties.Add($"SineSizeAmplitude = {Float(halo.SineSizeAmplitude)}");
+        if (halo.SizeCurve is { } curve) properties.Add($"SizeCurve = new({Float(curve.Start)}, {Float(curve.End)}, {Float(curve.Amplitude)}, SacredParticleHaloSizeCurveKind.{curve.Kind})");
         if (halo.VisibleFromSeconds is { } visibleStart) properties.Add($"VisibleFromSeconds = {Float(visibleStart)}");
         if (halo.VisibleUntilSeconds is { } visibleEnd) properties.Add($"VisibleUntilSeconds = {Float(visibleEnd)}");
         if (halo.Envelope is { } envelope)

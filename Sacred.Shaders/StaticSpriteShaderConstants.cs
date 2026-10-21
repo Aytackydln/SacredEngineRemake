@@ -46,6 +46,10 @@ public readonly struct StaticSpriteInstance(
     public readonly uint AtlasRows = atlasRows;
     public float ParticleRotation { get; init; }
     public float DepthSpan { get; init; }
+    public uint CornerColor0 { get; init; }
+    public uint CornerColor1 { get; init; }
+    public uint CornerColor2 { get; init; }
+    public uint CornerColor3 { get; init; }
 }
 
 public readonly record struct StaticSpriteSceneConstants(

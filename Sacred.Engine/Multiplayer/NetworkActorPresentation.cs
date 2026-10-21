@@ -8,6 +8,7 @@ using Sacred.Core.Pak.Items;
 using Sacred.Engine.Animation;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Scene;
+using Sacred.Engine.Scene.InGame;
 using Sacred.GameplayHost.World;
 using Sacred.Granny.Animation;
 using Sacred.Granny.Assets;
@@ -21,9 +22,9 @@ namespace Sacred.Engine.Multiplayer;
 internal sealed class NetworkActorPresentation
 {
     private readonly CharacterAnimationState? _animation;
+    private readonly string _motionSource;
     private Vector2 _lastPosition;
     private float _rotation;
-    private float _groundOffset;
     private float _pendingHeight;
     private uint? _lastFacing;
     private GoldMovementEvent? _lastMovement;
@@ -35,17 +36,37 @@ internal sealed class NetworkActorPresentation
     private NetworkCombatAnimation? _combat;
     private readonly IReadOnlyList<GrnBoneDiagnostics> _attachmentBones;
     public Func<uint, Task<GrnAnimationClip?>>? CombatMotionLoader { get; init; }
+    public Func<GoldReplicatedObject, GameplayCombatArtAnimation?>? CombatArtSelector { get; init; }
+    public Action<GoldReplicatedObject, float>? CombatArtTiming { get; init; }
+    public Func<uint, Vector2?>? CombatTargetPosition { get; init; }
     public float GlobalAnimationScale { get; init; } = 1;
     public void ContinueCombatFrom(NetworkActorPresentation previous)
     {
         if (previous._combat is null || _animation is null || CombatMotionLoader is null) return;
-        _combat = new(_animation, CombatMotionLoader);
+        _combat = new(_animation, CombatMotionLoader) { MotionSource = _motionSource };
         _combat.ContinueFrom(previous._combat);
     }
     public bool IsLocal { get; init; }
     public Func<Vector2, float>? TerrainHeight { get; init; }
     public SceneModel Model { get; }
     public bool Animated => _animation?.AnimatedMesh is not null;
+    public bool TryGetFxAttachment(string boneName, out Vector3 position)
+    {
+        position = default;
+        if (_animation?.AnimatedMesh?.Pose is not { IsEvaluated: true } pose) return false;
+        Vector3 local;
+        if (pose.Data.TryFindBone(boneName, out var index))
+            local = pose.Data.Projection.Project(pose.BoneWorldTransforms[index].Translation);
+        else
+        {
+            // Equipped helpers participate in the native wrapper's bone lookup too.
+            var helper = _attachmentBones.FirstOrDefault(b => b.Name.Equals(boneName, StringComparison.OrdinalIgnoreCase));
+            if (helper?.AnimationBoneName is not { } parent ||
+                !GrnPoseQueries.TryTransformRigidPoint(pose, parent, helper.Position, out local)) return false;
+        }
+        position = GameplayProjectileCoordinates.FromScene(Vector3.Transform(local, Model.Transform));
+        return true;
+    }
     public bool Moving { get; private set; }
     public bool TryGetBowRelease(GoldCreatureAttackEvent attack, out Vector3 source, out float age, string boneName = "Bip01 L Hand")
     {
@@ -84,12 +105,13 @@ internal sealed class NetworkActorPresentation
         return true;
     }
     public float LocomotionPlaybackSpeed { get; set; } = 1;
+    public Func<GoldReplicatedObject, uint, int, float>? LocomotionSpeedResolver { get; init; }
     public void QueueAnimation(CharacterAnimationBatch batch)
     {
         if (_animation is not null) batch.Add(_animation, LocomotionPlaybackSpeed);
     }
     public void CompleteAnimation()
-        => Model.SetPose(new(_lastPosition, _pendingHeight + _groundOffset), new(0, 0, _rotation), _lastPosition, _pendingHeight);
+        => Model.SetPose(new(_lastPosition, _pendingHeight), new(0, 0, _rotation), _lastPosition, _pendingHeight);
     public float ConversationMotionFactor(SacredNetworkNpcConversationState state) => _animation?.NpcAnimation(state.Motion)?.PlaybackSpeedMultiplier ?? 1;
     public SacredNpcAnimationTiming? ConversationTiming { get; set; }
     public bool ApplyConversation(SacredNetworkNpcConversationState? state, SacredNetworkNpcConversations conversations)
@@ -127,34 +149,49 @@ internal sealed class NetworkActorPresentation
     public NetworkActorPresentation(uint reference, PlayerCharacterAsset asset, PlayerCharacterAnimations? animations,
         ItemsPakEntry item, Vector2 position)
     {
+        _motionSource = asset.ModelName;
         var mesh = asset.Model.Mesh ?? throw new InvalidOperationException("Creature model has no geometry.");
         _attachmentBones = asset.Model.Diagnostics?.Slices.Skip(1).SelectMany(slice => slice.Bones).ToArray() ?? [];
         _lastPosition = position;
         _rotation = WorldModelPose.RotationRadians(item.ModelDesc.Angle3D);
-        _groundOffset = asset.Model.Diagnostics?.WholeModelBounds is { } bounds ? -bounds.Min.Z * WorldModelPose.Scale : 0;
         Model = new($"Network ref {reference}, resource {item.ItemIndex}", mesh, new(position, 0),
             new(0, 0, _rotation), WorldModelPose.Scale, asset.TextureAliases, asset.EquipmentEffects,
+            sourceOriginOffset: asset.Model.Diagnostics?.SourceOriginOffset ?? Vector3.Zero,
             blockRadius: item.ModelDesc.BlockRadius);
-        Model.SetModelProjection(WorldModelPose.CameraProjection);
+        CreatureModelPlacement.Apply(Model, asset.Model);
         if (animations is not null)
         {
             _animation = new(asset.Model, animations, mesh, asset.EquipmentEffects);
-            if (_animation.AnimatedMesh is { } animated) Model.SetAnimatedMesh(animated);
+            if (_animation.AnimatedMesh is { } animated)
+            {
+                Model.SetAnimatedMesh(animated);
+                // Animation evaluates the root in sequence space already.
+                Model.SetSourceTransform(Matrix4x4.Identity);
+            }
         }
     }
 
     public void Update(GoldReplicatedObject actor, float height, float deltaSeconds)
     {
         if (_combat is null && _animation is not null && CombatMotionLoader is not null)
-            _combat = new(_animation, CombatMotionLoader);
+            _combat = new(_animation, CombatMotionLoader) { MotionSource = _motionSource };
         if (_combat is not null)
         {
             _combat.GlobalPlaybackScale = GlobalAnimationScale;
+            _combat.SelectArtAnimation = CombatArtSelector;
+            _combat.ArtTiming = CombatArtTiming;
             _combat.Update(actor, deltaSeconds);
         }
         if (actor.SpecialMove is { } special)
         {
-            var target = new Vector2(special.TargetX, special.TargetY) / SacredNetworkPosition.NativeUnitsPerTile;
+            var target = CombatTargetPosition?.Invoke(special.TargetReference) ??
+                new Vector2(special.TargetX, special.TargetY) / SacredNetworkPosition.NativeUnitsPerTile;
+            if (target != _lastPosition) FaceLocalHero(target);
+        }
+        if (actor.Cast is { } cast)
+        {
+            var target = CombatTargetPosition?.Invoke(cast.TargetReference) ??
+                new Vector2(cast.TargetX, cast.TargetY) / SacredNetworkPosition.NativeUnitsPerTile;
             if (target != _lastPosition) FaceLocalHero(target);
         }
         var reported = SacredNetworkPosition.ToTiles(actor.BaseState);
@@ -163,7 +200,7 @@ internal sealed class NetworkActorPresentation
         Moving = moving;
         var direction = _motion.Direction;
         if (!IsLocal && moving && direction != Vector2.Zero)
-            _rotation = -(MathF.Atan2(direction.Y, direction.X) + MathF.PI / 4);
+            _rotation = CreatureModelPose.RotationRadians(direction);
         else if ((actor.FacingBits ?? actor.BaseState.Word28) is var facing &&
                  (facing != _lastFacing || actor.PositionVersion != _lastPositionVersion))
         {
@@ -180,6 +217,8 @@ internal sealed class NetworkActorPresentation
         }
         var action = _movementBody?.Word1F8 ?? actor.Creature!.Word1F8;
         if (action is 1 or 2) _locomotionAction = action;
+        if (LocomotionSpeedResolver is { } resolveSpeed)
+            LocomotionPlaybackSpeed = resolveSpeed(actor, _locomotionAction, _motion.Speed);
         _animation?.SetLocomotionState(moving ? _locomotionAction == 1 ? CharacterAnimationStateId.Walk : CharacterAnimationStateId.Run
             : CharacterAnimationStateId.Idle);
         height = TerrainHeight?.Invoke(position) ?? height;

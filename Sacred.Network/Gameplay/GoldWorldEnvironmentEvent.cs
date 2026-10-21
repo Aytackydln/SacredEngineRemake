@@ -2,7 +2,7 @@ using Sacred.Network.Protocol;
 
 namespace Sacred.Network.Gameplay;
 
-/// <summary>Original environment bytes are retained, including currently uninterpreted weather/world blocks.</summary>
+/// <summary>Original environment bytes are retained, including uninterpreted world blocks; weather has a separate typed cache.</summary>
 public sealed record GoldWorldEnvironmentEvent(GoldMessage Message) : GoldGameEvent(Message)
 {
     public bool IsRequest => Message.Payload.Length == 0;

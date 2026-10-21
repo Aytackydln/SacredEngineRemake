@@ -9,7 +9,6 @@ using Sacred.Core.Pak.Items;
 using Sacred.Engine.Animation;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Graphics.ImGui;
-using Sacred.Granny.Assets;
 using Sacred.Granny.Meshes;
 using Sacred.Inventory.Actors;
 using Sacred.Inventory.Items;
@@ -22,7 +21,6 @@ namespace Sacred.Engine.Scene.InGame;
 internal sealed class PlayerCharacterController : IDisposable
 {
     private const uint FirstModelSlotId = 1;
-    private const float SceneScale = 2.0f;
 
     private readonly object _requestGate = new();
     private readonly AssetManager _assets;
@@ -41,7 +39,6 @@ internal sealed class PlayerCharacterController : IDisposable
     private PlayerModelRequest? _currentRequest;
     private PendingPlayerModel? _pendingModel;
     private PendingPlayerAnimation? _pendingAnimation;
-    private float _modelGroundOffset;
     private long _requestVersion;
     private bool _transitionPending;
     private bool _disposed;
@@ -94,8 +91,7 @@ internal sealed class PlayerCharacterController : IDisposable
         UpdatePosition(worldCenter, terrain);
         if (facingDirection != Vector2.Zero)
         {
-            var angleRadians = MathF.Atan2(facingDirection.Y, facingDirection.X);
-            _movementRotationZ = -(angleRadians + MathF.PI / 4);
+            _movementRotationZ = CreatureModelPose.RotationRadians(facingDirection);
         }
 
         _animation?.SetLocomotionState(isDefending
@@ -443,17 +439,18 @@ internal sealed class PlayerCharacterController : IDisposable
 
         var player = pending.Player;
         EngineLog.WriteLine($"Player character loaded: {player.DisplayName}");
-        _modelGroundOffset = CalculateModelGroundOffset(player.Model);
         var sceneModel = new SceneModel(
             $"{player.DisplayName}: item {player.ItemId}, {player.ModelName}",
             player.Model.Mesh ?? _proxyMesh,
             _position,
             BuildRotation(),
-            SceneScale,
+            WorldModelPose.Scale,
             player.TextureAliases,
             player.EquipmentEffects,
             GroundPlaneZ,
+            sourceOriginOffset: player.Model.Diagnostics?.SourceOriginOffset ?? Vector3.Zero,
             blockRadius: _assets.GetItem(player.ItemId)?.ModelDesc.BlockRadius ?? 0);
+        CreatureModelPlacement.Apply(sceneModel, player.Model);
 
         if (_scene.Models.Count == 0)
             _scene.AddModel(sceneModel);
@@ -475,14 +472,17 @@ internal sealed class PlayerCharacterController : IDisposable
         _animation = pending.Animation;
         pending.Animation.ApplyEquipmentEffectPose();
         if (pending.Animation.AnimatedMesh is { } animatedMesh)
+        {
             _scene.SetModelAnimation(0, animatedMesh);
+            _scene.Models[0].SetSourceTransform(Matrix4x4.Identity);
+        }
         else
             _scene.SetModelMesh(0, pending.Animation.Mesh);
     }
 
     private Vector3 BuildRotation() => new(0.0f, 0.0f, _movementRotationZ);
 
-    private float GroundPlaneZ => _position.Z - _modelGroundOffset;
+    private float GroundPlaneZ => _position.Z;
 
     private void UpdatePlayerLight(uint entryId)
     {
@@ -511,15 +511,7 @@ internal sealed class PlayerCharacterController : IDisposable
             worldPosition.X + TerrainElevationProjection.HorizontalWorldOffset(
                 terrain.HorizontalOffset),
             worldPosition.Y,
-            TerrainElevationProjection.ModelVerticalWorldOffset(terrain.Height) + _modelGroundOffset);
-    }
-
-    private static float CalculateModelGroundOffset(GrnAsset model)
-    {
-        if (model.Diagnostics?.WholeModelBounds is not { } bounds)
-            return 0.0f;
-
-        return -bounds.Min.Z * SceneScale;
+            TerrainElevationProjection.ModelVerticalWorldOffset(terrain.Height));
     }
 
     private sealed record PendingPlayerModel(

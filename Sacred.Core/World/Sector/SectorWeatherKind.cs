@@ -1,22 +1,14 @@
 namespace Sacred.Core.World.Sector;
 
 /// <summary>
-/// Native weather event values used by Sacred's weather system. The names and
-/// values come from <c>cEventWeather::__unnamed</c> in native metadata.
+/// Authored KEYX selectors, distinct from cEventWeather IDs. Gold updateWeather
+/// (0x625360) handles 0..2. Selector 4 is tested by the population ground-fog
+/// predicate, but ignored by Gold's weather dispatcher. Other values stay unnamed.
 /// </summary>
 public enum SectorWeatherKind : ushort
 {
-    None = 0,
-    Reset = 1,
-    Rain = 2,
-    Fog = 3,
+    Rain = 0,
+    Fog = 1,
+    Snow = 2,
     GroundFog = 4,
-    Snow = 5,
-    Reserved = 6,
-    Quake = 7,
-    Night = 8,
-    FlashOnce = 9,
-    EnterSector = 10,
-    ExitSector = 11,
-    Stomp = 12,
 }

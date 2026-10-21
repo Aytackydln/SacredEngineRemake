@@ -26,6 +26,10 @@ internal static class NativeStandardEventReader
             yield return entry with
             {
                 NativeClass = family.Name, Preset = preset, IsEventPreset = true,
+                EventSelectorOffset = profile.SelectorInstruction is not null || profile.RequiresExactSelector
+                    ? family.SelectorOffset : null,
+                SupportsAttachedEvent = family.EventArguments is null && profile.DurationStateOffset is null,
+                NativeAttachmentFlags = (uint)memory.Integer(memory.BaseAddress + 0x7C, 4),
                 DisplayName = profile.DisplayName,
                 OneTime = !profile.Continuous, BurstOnFirstUpdate = profile.Burst,
                 SkipFirstMovement = profile.SkipFirstMovement,
@@ -78,7 +82,7 @@ internal static class NativeStandardEventReader
             0x791010 => new(new("cParticleSystem_elve_sm_hit", factory, 0x791010, 0x791097,
                 0x791410, 0x20A0 + SacredElveSmHitParticleStateLayout.SerializedSize + 8, 0x24B0, 0x24D0, 1, 0x791163)
                 { ColorOffset = 0x20B0, SelectorOffset = 0x3C })
-                { Burst = true, DisplayName = "Native standard hit event (subtype zero)" },
+                { Burst = true, RequiresExactSelector = true, DisplayName = "Native standard hit event (subtype zero)" },
             0x7AAFB0 => new(new("cParticleSystem_dragon_groundfire", factory, 0x7AAFB0, 0x7AB04E,
                 0x7AB1A0, 0x20A0 + SacredDragonGroundFireParticleStateLayout.SerializedSize + 12, 0x24A8, 0x24C8, 1, 0x7AB15D)
                 { ColorOffset = 0x20A8, EmitBeforeMovement = false })
@@ -149,6 +153,7 @@ internal static class NativeStandardEventReader
 
     private sealed record Profile(NativeParticleFamily Family)
     {
+        public bool RequiresExactSelector { get; init; }
         public bool Burst { get; init; }
         public bool Continuous { get; init; }
         public bool SkipFirstMovement { get; init; }

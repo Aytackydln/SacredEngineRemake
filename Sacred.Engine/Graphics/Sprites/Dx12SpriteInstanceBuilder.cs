@@ -377,7 +377,11 @@ internal sealed class Dx12SpriteInstanceBuilder
                     sprite.Opacity,
                     (uint)sprite.Sprite.AtlasColumns,
                     (uint)sprite.Sprite.AtlasRows) { ParticleRotation = sprite.ParticleRotation,
-                        DepthSpan = sprite.UsesSpriteDepth ? -sprite.RenderHeight / (24f * 4096f) : 0f };
+                        DepthSpan = sprite.UsesSpriteDepth ? -sprite.RenderHeight / (24f * 4096f) : 0f,
+                        CornerColor0 = sprite.ParticleCorners?.Color0 ?? 0,
+                        CornerColor1 = sprite.ParticleCorners?.Color1 ?? 0,
+                        CornerColor2 = sprite.ParticleCorners?.Color2 ?? 0,
+                        CornerColor3 = sprite.ParticleCorners?.Color3 ?? 0 };
             }
 
             if (shadowVisible)

@@ -1,5 +1,11 @@
 # Particle catalogue
 
+The catalogue now also exposes executable-derived CA visual factories through
+`SacredCombatVisualCatalogue`. GameplayHost schedules their release and lifetime;
+the shared world renderer follows their creature/bone attachments. Light,
+regeneration and water-transition surfaces are connected. Vampire transitions
+retain explicit placeholders. See [status-effect implementation](../docs/game-server/status-effects.md#implemented-visual-path).
+
 Latest decoding: [War Cry Sign](../docs/research/particle-definitions/war-cry-sign-fx.md)
 adds the complete swept-fin event recipe: ground glow, eighty sector tests,
 opposite fins and repeated highlights. Three layouts map saved state, event

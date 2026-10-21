@@ -5,7 +5,7 @@
 float3 surface_lighting(float2 pixel_position)
 {
     float lighting = surface_light_map.Sample(sampler0, pixel_position / viewport_size);
-    return min(ambient_colour + lighting, 1.0f);
+    return min(ambient_colour + lighting, max(ambient_colour, 1.0f));
 }
 
 float mixed_light_emission(float3 colour)

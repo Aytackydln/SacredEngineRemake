@@ -24,6 +24,12 @@ public sealed class SacredNetworkObjectWorld : IGameplayObjectWorld
         (_world, _resources) = (world, resources);
         _interactions = new(world, transport, log);
         BowProjectiles = new(world.Replicas, log);
+        StatusEffects = new(world.Replicas, log);
+        CombatArtEffects = new(world.Replicas, log)
+        {
+            DaemonTargetEligible = target => resources.GetItem(target.BaseState.ObjectType) is { } item &&
+                GameplayDaemonTargetedArt.IsTargetCategory((byte)item.ModelDesc.Category)
+        };
         Objects = new ReadOnlyDictionary<uint, GameplayWorldObject>(_objects);
     }
     public bool IsNetwork => true;
@@ -31,6 +37,8 @@ public sealed class SacredNetworkObjectWorld : IGameplayObjectWorld
     public long Revision { get; private set; }
     public IReadOnlyDictionary<uint, GameplayWorldObject> Objects { get; }
     public GameplayBowProjectiles BowProjectiles { get; }
+    public GameplayCombatArtEffects CombatArtEffects { get; }
+    public GameplayStatusEffects StatusEffects { get; }
     public IReadOnlyDictionary<uint, GoldWorldTriggerState> Triggers => _world.Replicas.WorldTriggers.Records;
     public WorldDoorStateLayer DoorStates => _world.DoorStates.States;
     public string InteractionStatus => _interactions.Status;
@@ -42,6 +50,8 @@ public sealed class SacredNetworkObjectWorld : IGameplayObjectWorld
         if (!IsCurrentSession)
         {
             BowProjectiles.Clear();
+            CombatArtEffects.Clear();
+            StatusEffects.Clear();
             if (_objects.Count != 0) { _objects.Clear(); _drops.Clear(); Revision++; }
             return;
         }
@@ -65,9 +75,11 @@ public sealed class SacredNetworkObjectWorld : IGameplayObjectWorld
     public void Advance(float seconds)
     {
         if (!IsCurrentSession) return;
+        CombatArtEffects.Advance(seconds);
+        StatusEffects.Advance(seconds);
         _drops.Advance(_objects, NativeHeight, seconds);
     }
     public bool RequestInteraction(uint reference, GameplayInteractionContext context) =>
         _objects.TryGetValue(reference, out var obj) && obj.CanInteract && _interactions.Request(obj, context);
-    public void Dispose() { _interactions.Dispose(); _objects.Clear(); _drops.Clear(); BowProjectiles.Clear(); }
+    public void Dispose() { _interactions.Dispose(); _objects.Clear(); _drops.Clear(); BowProjectiles.Clear(); CombatArtEffects.Clear(); StatusEffects.Clear(); }
 }

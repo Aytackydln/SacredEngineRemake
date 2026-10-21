@@ -41,6 +41,7 @@ internal sealed partial class InGameScene
     {
         UpdateNetworkBinding(deltaSeconds, allowMovementInput: false);
         _scene.Hud!.DayFraction = _worldLighting.DayFraction;
+        if (_networkPresentation is not null) UpdateWeather(deltaSeconds);
     }
     internal Vector2 OfflineSavePosition => _offlineNetworkPosition ?? PlayerWorldPosition;
     internal string? NetworkBindingError => _networkBindingError;
@@ -122,8 +123,13 @@ internal sealed partial class InGameScene
             if (_offlineEquipmentPlayer is { } equipmentActor) _scene.EquipmentUi.Bind(equipmentActor);
             _offlineEquipmentPlayer = null;
             _worldLighting.SetNetworkDayFraction(null);
+            _weather.Clear(); _sectorWeather.Clear(); _weatherEffects.Clear(); _weatherPreview = false;
+            _weatherNetworkRevision = -1;
+            _camera.SetShakeOffset(Vector2.Zero);
             _particles.ObjectEffects.Clear();
             _particles.ProjectileEffects.Clear();
+            _particles.ActorEffects.Clear();
+            _particles.CreatureEffects.Clear();
             _scene.Hud!.Visible = _offlineHudVisible;
             _scene.Hud.WeaponSets = null;
             _scene.Hud.SelectedWeaponSlot = 0;
@@ -135,6 +141,7 @@ internal sealed partial class InGameScene
             EngineLog.WriteLine("Network scene detached: session ended.");
             return;
         }
+        view.LocalLocomotionScale = 1;
         if (_networkMovement is null || !view.LocalModelReady || !view.World.CanNavigateSector(view.World.LocalHero.BaseState.Sector) || NetworkConsoleWalkActive)
         {
             if (NetworkConsoleWalkActive) _networkMovement?.Stop();
@@ -155,9 +162,24 @@ internal sealed partial class InGameScene
             if (!allowMovementInput || _scene.EscapeMenu!.IsOpen) _networkMovement.Stop();
             _networkMovement.Update(_window.Input, Renderer.RenderWidth, Renderer.RenderHeight, Renderer.OutputToRender,
                 deltaSeconds, allowMovementInput && !_scene.EscapeMenu!.IsOpen && !_window.Input.UiWantsKeyboard);
+            view.LocalLocomotionScale = _camera.LocomotionAnimationSpeed;
         }
         _window.SetHandCursor(_networkMovement?.HasObjectHover == true);
         view.Update(deltaSeconds);
+        var castingEffects = view.GameplayObjects.CombatArtEffects?.Entries.Values
+            .Select(effect => view.TryGetFxAttachment(effect.Owner, effect.Bone, out var point)
+                ? new WorldAttachedParticleEffect(effect.Generation, effect.Type, effect.Preset,
+                    GameplayProjectileCoordinates.ToTiles(point), point.Z, effect.Age, effect.ClockScale) : null)
+            .OfType<WorldAttachedParticleEffect>() ?? [];
+        var statusEffects = view.GameplayObjects.StatusEffects?.Entries.Values
+            .Where(effect => effect.VisualAvailable)
+            .Select(effect => view.TryGetFxAttachment(effect.Owner, effect.Bone, out var point)
+                ? new WorldAttachedParticleEffect(effect.Generation, effect.Type, effect.Preset,
+                    GameplayProjectileCoordinates.ToTiles(point), point.Z, effect.Age)
+                    { DurationSeconds = float.IsFinite(effect.Duration) ? effect.Duration : null }
+                : null).OfType<WorldAttachedParticleEffect>() ?? [];
+        _particles.ActorEffects.Synchronize(castingEffects.Concat(statusEffects));
+        _particles.CreatureEffects.Synchronize(view.World.Replicas.AttachedFx.Entries.Values, view.ParticleAttachment);
         _particles.ProjectileEffects.Synchronize(view.GameplayObjects.BowProjectiles?.Entries.Values
             .Where(projectile => projectile.IsBfg && !projectile.Retired && projectile.Flight is { Active: true })
             .Select(projectile =>
@@ -175,7 +197,9 @@ internal sealed partial class InGameScene
                         (WorldModelPose.Scale * WorldModelPose.CameraProjection.M33),
                     wearer.Definition.ModelDesc.BlockRadius)
                     { Orientation = wearer.Drop?.Orientation ?? Matrix4x4.CreateRotationZ(wearer.RotationRadians),
-                        InstanceVersion = wearer.InstanceVersion }
+                        InstanceVersion = wearer.InstanceVersion,
+                        BoneAttachment = wearer.Replica?.Creature is not null
+                            ? bone => view.ParticleAttachment(reference, bone) : null }
                 : null);
         _worldLighting.SetNetworkDayFraction(view.World.Replicas.Calendar.DayFraction);
         var positionForZone = view.World.LocalPosition;

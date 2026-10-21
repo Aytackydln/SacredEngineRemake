@@ -17,6 +17,12 @@ public sealed class WorldParticleEffectPlayer
     public IParticleGpuBackend? GpuBackend { get; set; }
     /// <summary>Optional deterministic seed for manual burst replay; null uses a fresh runtime seed.</summary>
     public uint? ManualParticleSeed { get; set; }
+    /// <summary>Native event clock multiplier; particle integration continues to use real elapsed time.</summary>
+    public void SetClockScale(float scale)
+    {
+        if (!float.IsFinite(scale) || scale <= 0) throw new ArgumentOutOfRangeException(nameof(scale));
+        foreach (var playback in _playing) playback.Emitter.ClockScale = scale;
+    }
     internal void CollectGpuBatches(List<WorldGpuParticleBatch> output)
     {
         for (var i = _playing.Count - 1; i >= 0; i--) _playing[i].Emitter.CollectGpuBatches(output);
@@ -81,7 +87,7 @@ public sealed class WorldParticleEffectPlayer
         if (!emitter.CanEmit) return false;
         emitter.SetOrigin(point, heightOffset + (selfTarget ? selfHeight : 0));
         if (emissionLine is { } line) emitter.SetLine(line);
-        if (!definition.BurstOnFirstUpdate) emitter.EmitBurst();
+        if (!definition.BurstOnFirstUpdate && definition.SimulationStartSeconds <= 0) emitter.EmitBurst();
         if (definition.ModelBurstCount > 0) emitter.SeedModel(modelVertices!);
         _playing.Add(new Playback(typeId, emitter, looping, selfTarget, selfTarget && followSelf,
             heightOffset, definition.EmissionDurationSeconds is not null || definition.OrbitEmission is not null
@@ -100,6 +106,12 @@ public sealed class WorldParticleEffectPlayer
     }
 
     public void Clear() { _playing.Clear(); _teleports.Clear(); _plongs.Clear(); _nextId = -1; }
+
+    /// <summary>Stop owner-bound emission while allowing existing particles to drain.</summary>
+    public void StopEmission()
+    {
+        foreach (var playback in _playing) { playback.Looping = false; playback.Remaining = 0; }
+    }
 
     /// <summary>Requests a decoded native hit flag or mine-use notification.
     /// Emperor kind one selects its special notification.</summary>

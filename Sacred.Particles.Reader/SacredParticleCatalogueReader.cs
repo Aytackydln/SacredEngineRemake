@@ -43,6 +43,7 @@ public static class SacredParticleCatalogueReader
             events.AddRange(NativeStandardEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeHitAndGroundEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeAuraAndCastEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeSpellCastEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeSustainedAndBurstEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeLayeredEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeSmallFireEventReader.Read(image, code, definition, options.Quality, cancellationToken));

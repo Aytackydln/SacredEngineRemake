@@ -13,6 +13,9 @@ internal sealed class X86Machine
     public uint? EnvironmentAddress { get; init; }
     public uint? RandomValue { get; init; }
     public uint InstructionPointer { get; set; }
+    /// <summary>Explicit analysis boundaries supplied by callers. Returning true means
+    /// the boundary handled this instruction and changed InstructionPointer.</summary>
+    public Func<X86Machine, bool>? Boundary { get; init; }
 
     public X86Machine(NativeCode code, PresetMemory memory)
     {
@@ -29,6 +32,7 @@ internal sealed class X86Machine
         {
             if (InstructionPointer == stop) return;
             if ((count & 1023) == 0) cancellationToken.ThrowIfCancellationRequested();
+            if (Boundary?.Invoke(this) == true) continue;
             Step();
         }
         throw new NotSupportedException("Native initializer exceeded the instruction budget.");

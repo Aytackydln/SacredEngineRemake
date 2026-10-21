@@ -30,6 +30,12 @@ internal sealed class NetworkCombatPresentation
                 (current.BaseState.Flags & GoldObjectLifecycleLayout.InactiveFlag) != 0) continue;
             switch (entry)
             {
+                case GoldCreatureCastEvent cast:
+                    EngineLog.WriteLine($"Network combat spell: ref {cast.ObjectReference}; code {cast.Code}; target {cast.TargetReference} at {cast.TargetX}/{cast.TargetY}; reservations {cast.ReferenceData.Length} bytes.");
+                    break;
+                case GoldCreatureSpecialMoveEvent special:
+                    EngineLog.WriteLine($"Network combat special move: ref {special.ObjectReference}; code {special.Code}; target {special.TargetReference} at {special.TargetX}/{special.TargetY}.");
+                    break;
                 case GoldCreatureAttackEvent attack:
                     EngineLog.WriteLine($"Network combat attack: ref {attack.ObjectReference}; {(attack.IsBow ? "bow" : "battle")}; motion {attack.Motion}; rate {attack.Speed:0.###}.");
                     break;

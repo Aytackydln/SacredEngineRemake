@@ -8,6 +8,8 @@ internal sealed record NativeParticleFamily(string Name, uint FactoryBranch, uin
     int ParameterSlotCount, uint DrawAddress)
 {
     public (uint Start, uint End)? ActorLookup { get; init; }
+    /// <summary>Arguments consumed by an omitted external stdcall (for example audio).</summary>
+    public int OmittedCallStackBytes { get; init; }
     /// <summary>Evaluate the native radius-dependent branch at unit radius; runtime supplies Items.pak radius.</summary>
     public bool UnitActorRadius { get; init; }
     /// <summary>Native allocated slots exposed to initializers that derive their burst count from the vector.</summary>

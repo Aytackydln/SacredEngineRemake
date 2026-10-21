@@ -147,7 +147,7 @@ internal sealed partial class InGameScene : IGameScene
             _inputController.SuspendGameplayInput();
             EngineLog.WriteLine($"Inventory {(_scene.EquipmentUi.IsOpen ? "opened" : "closed")}: stats artwork and armor/accessory slots.");
         };
-        _escapeMenu = new EscapeMenuController(menu, window.Input,
+        _escapeMenu = new EscapeMenuController(menu, window.Input, gamepad,
             () => new Vector2(window.ClientWidth, window.ClientHeight), () =>
             {
                 _hudInput.Cancel();
@@ -235,10 +235,14 @@ internal sealed partial class InGameScene : IGameScene
 
     internal bool TrySetCheatOption(string option, string value, out string message)
     {
+        if (TrySetWeather(option.ToLowerInvariant(), value, out message)) return true;
+        if (CreatureModelCheats.TrySetOption(option, value, _scene.Models.FirstOrDefault(), out message)) return true;
         if (TrySetNetworkInteraction(option, value, out message)) return true;
         if (WorldLightingCheats.TryExecute(option, value, _worldLighting, _scene.Lighting, out message)) return true;
         if (_escapeMenu.TrySetCheatOption(option, value, out message)) return true;
-        if (_networkPresentation is { } network && NetworkCharacterCheats.TryExecute(option, value, _scene, network.World.Replicas, out message)) return true;
+        if (_networkPresentation is { } network &&
+            (NetworkStatusEffectCheats.TryExecute(option, value, network.GameplayObjects, out message) ||
+             NetworkCharacterCheats.TryExecute(option, value, _scene, network.World.Replicas, out message))) return true;
         if (PlayerEquipmentCheats.TryExecute(option, value, _player, out message)) return true;
         if (InventoryPanelCheats.TryExecute(option, value, _scene.EquipmentUi, out message)) return true;
         if (ActorPortraitCheats.TryExecute(option, value, _scene.Portraits, _assets, out message)) return true;
@@ -453,6 +457,7 @@ internal sealed partial class InGameScene : IGameScene
         _scene.GpuParticlesEnabled = _particles.GpuEmissionEnabled || _particles.SelectedSimulationMode is ParticleSimulationMode.Gpu or ParticleSimulationMode.GpuOnly;
         _scene.GpuWorldEmitters = _particles.GpuEmitters;
         _scene.GpuParticleBatches = _particles.GpuBatches;
+        UpdateWeather(deltaSeconds);
         UpdateRegionDisplayName();
     }
 

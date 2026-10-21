@@ -37,6 +37,7 @@ public sealed class SceneState
 
     public IReadOnlyList<SceneModel> Models => _models;
     public SceneLighting Lighting { get; } = new();
+    public SceneWeather Weather { get; } = new();
     public SceneDebugState Debug { get; } = new();
     public IndoorSceneState Indoor { get; } = new();
     public MinimapOverlayState Minimap { get; } = new();

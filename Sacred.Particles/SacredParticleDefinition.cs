@@ -71,6 +71,13 @@ public sealed record SacredParticleDefinition(
     public int ModelBurstCount { get; init; }
     /// <summary>Native owner/bone attachment requires actor context even without vertex-seeded births.</summary>
     public bool RequiresActorContext { get; init; }
+    /// <summary>Original event operand used to select decoded recipes, relative to cEventFX.
+    /// Distinct from the native FX subtype and from an Items.pak resource.</summary>
+    public int? EventSelectorOffset { get; init; }
+    /// <summary>The decoded standard initializer accepts the native attached-FX event operands.</summary>
+    public bool SupportsAttachedEvent { get; init; }
+    /// <summary>Native particle +0x7C after initialization; bit 0x200 follows wearer position/orientation.</summary>
+    public uint NativeAttachmentFlags { get; init; }
     public bool RequiresActor => RequiresActorContext || ModelBurstCount > 0;
     /// <summary>Native actor radius scales emission size/gravity and motion size change.
     /// Stored parameters are evaluated at radius one; playback requires the actor's Items.pak field.</summary>
@@ -102,6 +109,7 @@ public sealed record SacredParticleDefinition(
     public SacredParticleEmissionCycle? EmissionCycle { get; init; }
     /// <summary>Native update waits until the previous age reaches this boundary before movement/births.</summary>
     public float SimulationStartSeconds { get; init; }
+    public bool SimulationStartUsesCurrentTime { get; init; }
     /// <summary>Native update ignores steps strictly above this inclusive limit.</summary>
     public float? MaximumSimulationStep { get; init; }
     public SacredParticleRandomBurst? RandomBurst { get; init; }

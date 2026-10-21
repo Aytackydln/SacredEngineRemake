@@ -29,6 +29,8 @@ try
     var generated = new List<(string Path, string Source)>();
     generated.Add((Path.Combine(output, "EmbeddedModelEffects.g.cs"), ModelEffectSourceWriter.Write(executable)));
     generated.Add((Path.Combine(output, "EmbeddedModelFxAttachments.g.cs"), ModelFxAttachmentSourceWriter.Write(executable)));
+    generated.Add((Path.Combine(output, "EmbeddedCombatVisuals.g.cs"), CombatVisualSourceWriter.Write(executable)));
+    generated.Add((Path.Combine(output, "EmbeddedFxAttachments.g.cs"), FxAttachmentSourceWriter.Write(executable)));
     foreach (var quality in Enum.GetValues<SacredParticleQuality>())
     {
         var catalogue = SacredParticleCatalogueReader.Load(executable, new() { Quality = quality, Log = Console.WriteLine });

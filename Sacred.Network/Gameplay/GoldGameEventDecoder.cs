@@ -14,6 +14,13 @@ public static class GoldGameEventDecoder
         var payload = message.Payload.AsSpan();
         switch (message.Opcode)
         {
+            case GoldWeatherEventLayout.Opcode:
+                RequireExact(payload, GoldWeatherEventLayout.Size, message.Opcode);
+                return new GoldWeatherEvent(message with { Payload = payload.ToArray() });
+            case GoldAttachedFxLayout.Opcode:
+                return GoldAttachedFxCodec.Decode(message);
+            case GoldCastLayout.Opcode:
+                return GoldCastCodec.Decode(message);
             case GoldSpecialMoveLayout.Opcode:
                 return GoldSpecialMoveCodec.Decode(message);
             case GoldObjectFxSignalCodec.RemoveOpcode:

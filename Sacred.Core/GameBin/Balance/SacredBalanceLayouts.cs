@@ -12,6 +12,9 @@ public static class SacredBalanceLayout
     public const int MovementScaleOffset = 0x6FC;
     /// <summary>Gold skill 11 (Armor Lore), fifth curve at 0xAD4680: base, divisor and limit.</summary>
     public const int ArmorLoreMovementCurveOffset = 0x1F0;
+    /// <summary>Gold 0x565DC0 and 0x566070 read 0xAD4584..0xAD458C:
+    /// shared flat speed bonus for casting schools and applicable weapon skills.</summary>
+    public const int CastingSpeedCurveOffset = 0xF4;
     public const int VectorRecordSize = 12;
     public const int PairRecordSize = 8;
     public const int MovementProfileRecordSize = 32; // uint key followed by the payload below.
@@ -28,6 +31,7 @@ public readonly struct SacredBalanceHeaderLayout
 public readonly struct SacredBalanceGlobalsLayout
 {
     public const int MinimumSize = SacredBalanceLayout.MovementScaleOffset + sizeof(float);
+    [FieldOffset(SacredBalanceLayout.CastingSpeedCurveOffset)] public readonly SacredSkillCurveLayout CastingSpeed;
     [FieldOffset(SacredBalanceLayout.ArmorLoreMovementCurveOffset)] public readonly SacredSkillCurveLayout ArmorLoreMovement;
     [FieldOffset(SacredBalanceLayout.MovementScaleOffset)] public readonly float MovementScale;
 }

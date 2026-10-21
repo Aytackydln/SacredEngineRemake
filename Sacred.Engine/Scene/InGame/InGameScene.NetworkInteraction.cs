@@ -12,7 +12,10 @@ internal sealed partial class InGameScene
         {
             foreach (var (fxReference, reason) in _particles.ObjectEffects.Pending)
                 EngineLog.WriteLine($"Network FX pending: ref {fxReference}; {reason}");
-            message = $"{_particles.ObjectEffects.ActiveCount} active received FX; {_particles.ObjectEffects.Pending.Count} waiting for decoded inputs";
+            foreach (var (generation, reason) in _particles.CreatureEffects.Pending)
+                EngineLog.WriteLine($"Creature FX pending: generation {generation}; {reason}");
+            message = $"{_particles.ObjectEffects.ActiveCount} active received FX; {_particles.ObjectEffects.Pending.Count} waiting for decoded inputs; " +
+                $"{_particles.CreatureEffects.ActiveCount} active creature FX; {_particles.CreatureEffects.Pending.Count} pending creature FX";
             return true;
         }
         if (option.Equals("server-drops", StringComparison.OrdinalIgnoreCase))

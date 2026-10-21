@@ -26,6 +26,7 @@ namespace Sacred.Engine.Graphics;
 internal sealed class Dx12WorldCommandRecorder
 {
     public Dx12GpuParticlePass? GpuParticles { get; set; }
+    public Dx12WeatherPass? Weather { get; set; }
     private const float MinimumHighlightNits = 1000.0f;
     private readonly ID3D12GraphicsCommandList _commandList;
     private readonly GpuDescriptorHandle _srvHeapStart;
@@ -316,6 +317,8 @@ internal sealed class Dx12WorldCommandRecorder
                 renderHeight);
         }
 
+        _commandList.OMSetRenderTargets(renderTarget, null);
+        Weather?.Record(_commandList, scene.Weather, camera, sceneColor.Description.Format, renderWidth, renderHeight, frame);
         Dx12TextureUploader.Transition(
             _commandList,
             sceneColor,

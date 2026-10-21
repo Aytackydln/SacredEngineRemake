@@ -1,4 +1,5 @@
 using System.Numerics;
+using Sacred.World.Geometry;
 
 namespace Sacred.World.Networking;
 
@@ -7,15 +8,14 @@ public static class SacredNetworkFacing
 {
     public static float ToModelRadians(uint bits)
     {
-        var angle = BitConverter.UInt32BitsToSingle(bits) * (MathF.PI / 180);
-        // The native physical projection has a 2:1 XY ratio. Authored artwork
-        // angles use a different camera transform (WorldModelPose).
-        return MathF.Atan2(-2 * MathF.Sin(angle), MathF.Cos(angle));
+        return CreatureModelPose.RotationFromProjectedHeading(BitConverter.UInt32BitsToSingle(bits));
     }
     public static Vector2 ToTileDirection(uint bits)
     {
-        var angle = -ToModelRadians(bits) - MathF.PI / 4;
-        return new(MathF.Cos(angle), MathF.Sin(angle));
+        // Invert the wire projection directly; model-camera scaling is a separate step.
+        var angle = BitConverter.UInt32BitsToSingle(bits) * (MathF.PI / 180);
+        return Vector2.Normalize(new(MathF.Cos(angle) + 2 * MathF.Sin(angle),
+            2 * MathF.Sin(angle) - MathF.Cos(angle)));
     }
     public static uint FromTileDirection(Vector2 direction)
     {

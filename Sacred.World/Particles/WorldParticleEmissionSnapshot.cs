@@ -13,6 +13,7 @@ public sealed record WorldParticleEmissionSnapshot(int[] RandomState, float Elap
     /// <summary>Preserves native point bursts that have not reached their first update.</summary>
     public bool BurstPending { get; init; }
     public float Age { get; init; }
+    public float ClockScale { get; init; } = 1;
     public bool NativeRetired { get; init; }
     public bool NativeEmissionInitialized { get; init; }
     public bool MovementReady { get; init; }

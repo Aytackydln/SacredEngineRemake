@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Windows.Gaming.Input;
 using Sacred.Engine.Platform;
 using Sacred.UI.Menus;
 
@@ -10,15 +11,17 @@ internal sealed class EscapeMenuController
 {
     private readonly EscapeMenuState _menu;
     private readonly InputState _input;
+    private readonly GamepadInputSource _gamepad;
     private readonly Func<Vector2> _viewport;
     private Vector2 _lastPointer;
     private bool _changed;
 
-    public EscapeMenuController(EscapeMenuState menu, InputState input, Func<Vector2> viewport,
+    public EscapeMenuController(EscapeMenuState menu, InputState input, GamepadInputSource gamepad, Func<Vector2> viewport,
         Action suspendGameplay, Action quit)
     {
         _menu = menu;
         _input = input;
+        _gamepad = gamepad;
         _viewport = viewport;
         menu.QuitRequested += quit;
         menu.Changed += () =>
@@ -35,12 +38,15 @@ internal sealed class EscapeMenuController
     public bool Update()
     {
         var wasOpen = _menu.IsOpen;
-        if (_input.ConsumePressed(VirtualKey.Escape)) _menu.Escape();
-        if (_menu.IsOpen)
+        var escape = _input.ConsumePressed(VirtualKey.Escape);
+        var menuGesture = escape || _gamepad.WasPressed(GamepadButtons.Menu) ||
+            (wasOpen && _gamepad.WasPressed(GamepadButtons.B));
+        if (menuGesture) _menu.Escape();
+        if (_menu.IsOpen && !menuGesture)
         {
-            if (_input.ConsumePressed(VirtualKey.Up)) { _menu.MoveSelection(-1); LogInput("Up"); }
-            if (_input.ConsumePressed(VirtualKey.Down)) { _menu.MoveSelection(1); LogInput("Down"); }
-            if (_input.ConsumePressed(VirtualKey.Enter)) { LogInput("Enter"); _menu.ActivateSelected(); }
+            if (_input.ConsumePressed(VirtualKey.Up) || _gamepad.WasPressed(GamepadButtons.DPadUp)) { _menu.MoveSelection(-1); LogInput("Up"); }
+            if (_input.ConsumePressed(VirtualKey.Down) || _gamepad.WasPressed(GamepadButtons.DPadDown)) { _menu.MoveSelection(1); LogInput("Down"); }
+            if (_input.ConsumePressed(VirtualKey.Enter) || _gamepad.WasPressed(GamepadButtons.A)) { LogInput("Activate"); _menu.ActivateSelected(); }
             var viewport = _viewport();
             int? Hit(Vector2 point) => _menu.Layout is null ? null :
                 EscapeMenuLayout.HitTest(point, viewport, _menu.Entries.Count, _menu.ConfirmingQuit);

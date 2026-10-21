@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Core.Pak.Creature;
@@ -9,7 +10,9 @@ using Sacred.Engine.Assets;
 using Sacred.Engine.Scene;
 using Sacred.GameplayHost.World;
 using Sacred.Network.Gameplay;
+using Sacred.Particles;
 using Sacred.World.Networking;
+using Sacred.World.Particles;
 
 namespace Sacred.Engine.Multiplayer;
 
@@ -44,12 +47,34 @@ internal sealed class NetworkScenePresentation : IDisposable
     public int ModelCount => _actors.Count;
     public int AnimatedCount => _actors.Values.Count(entry => entry.Actor.Animated);
     public bool LocalModelReady => _actors.ContainsKey(World.PlayerSlot);
+    public float LocalLocomotionScale { get; set; } = 1;
+    public WorldObjectFxAttachment? ParticleAttachment(uint reference, ushort bone)
+    {
+        if (!World.Replicas.Objects.TryGetValue(reference, out var actor) ||
+            (actor.BaseState.Flags & GoldObjectLifecycleLayout.InactiveFlag) != 0) return null;
+        var item = _assets.GetItem(actor.BaseState.ObjectType);
+        if (item is null) return null;
+        // Sentinel requests lifetime only, allowing assets/poses to load without losing FX.
+        if (bone == ushort.MaxValue)
+            return new(new(), 0, item.Value.ModelDesc.BlockRadius) { InstanceVersion = actor.InstanceVersion };
+        var name = SacredFxAttachments.BoneName(bone);
+        if (name is null || !TryGetFxAttachment(reference, name, out var point)) return null;
+        return new(GameplayProjectileCoordinates.ToTiles(point), point.Z, item.Value.ModelDesc.BlockRadius)
+        { InstanceVersion = actor.InstanceVersion };
+    }
+    public bool TryGetFxAttachment(uint reference, string bone, out Vector3 position)
+    {
+        position = default;
+        return _actors.TryGetValue(reference, out var entry) && entry.Actor.TryGetFxAttachment(bone, out position);
+    }
     public void Update() => Update(1.0f / 60);
 
     public void Update(float deltaSeconds)
     {
         if (_disposed || !World.IsCurrentSession) return;
         GameplayObjects.Update(World.VisibleWorld, null);
+        if (GameplayObjects.CombatArtEffects is { } effects)
+            effects.CastSpeedResolver ??= (actor, code) => NetworkCastSpeed.ResolveForArt(_assets, World.Replicas, actor, code);
         GameplayObjects.Advance(deltaSeconds);
         Conversations?.Update(deltaSeconds);
         _characterUi.Update(World.Replicas);
@@ -95,17 +120,21 @@ internal sealed class NetworkScenePresentation : IDisposable
                     var animations = await _assets.LoadNetworkAnimationsAsync(asset, template, cancellation).ConfigureAwait(false);
                     return new NetworkActorPresentation(reference, asset, animations, item, position)
                         { IsLocal = reference == World.PlayerSlot, TerrainHeight = World.OutdoorHeightAt,
+                            LocomotionSpeedResolver = (current, action, pathSpeed) => reference == World.PlayerSlot && _scene.Portraits.Player is { } player
+                                ? player.LocomotionPlaybackSpeed * LocalLocomotionScale
+                                : NetworkLocomotionSpeed.Resolve(_assets.MovementCalculator, current.Values?.MovementSpeedPercent,
+                                    current.Creature!.AnimationSpeedMultiplier, template, current.Creature.BehaviorFlags, action, pathSpeed),
                             GlobalAnimationScale = _assets.MovementCalculator?.GlobalAnimationScale ?? 1,
+                            CombatArtSelector = current => NetworkCombatArtSelection.Resolve(_assets, World.Replicas, current),
+                            CombatArtTiming = (current, duration) => GameplayObjects.StatusEffects?.SetActionTiming(current, duration),
+                            CombatTargetPosition = target => World.Replicas.Objects.TryGetValue(target, out var found) &&
+                                (found.BaseState.Flags & GoldObjectLifecycleLayout.InactiveFlag) == 0
+                                    ? SacredNetworkPosition.ToTiles(found.BaseState) : null,
                             CombatMotionLoader = motion => _assets.LoadNetworkCombatMotionAsync(asset.ModelName, motion, cancellation) };
                 }, cancellation));
             }
             if (entry.Actor is { } presentation)
             {
-                presentation.LocomotionPlaybackSpeed = reference == World.PlayerSlot && _scene.Portraits.Player is { } player
-                    ? player.LocomotionPlaybackSpeed
-                    : creature.Values?.MovementSpeedPercent is { } percent && _assets.MovementCalculator is { } calculator
-                        ? calculator.AnimationPlaybackSpeed(percent, creature.Creature!.AnimationSpeedMultiplier)
-                        : creature.Creature!.AnimationSpeedMultiplier;
                 presentation.Update(creature, World.OutdoorHeight(creature.BaseState), deltaSeconds);
                 presentation.QueueAnimation(_animationBatch);
             }

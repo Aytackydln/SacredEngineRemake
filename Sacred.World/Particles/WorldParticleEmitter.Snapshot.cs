@@ -9,7 +9,7 @@ internal sealed partial class WorldParticleEmitter
         foreach (var batch in _batches) batch.RestoreCpu();
         return new(_random.Capture(), _emissionElapsed, _nextDrawOrder,
             _batches.Select(batch => Enumerable.Range(0, batch.Count).Select(i => batch[i]).ToArray()).ToArray())
-            { BurstPending = _burstPending, Age = _age, NativeRetired = NativeRetired, NativeEmissionInitialized = _nativeEmissionInitialized,
+            { BurstPending = _burstPending, Age = _age, ClockScale = ClockScale, NativeRetired = NativeRetired, NativeEmissionInitialized = _nativeEmissionInitialized,
                 MovementReady = _movementReady, NativeReleaseTime = _nativeReleaseTime, OrbitAngle = _orbitAngle,
                 ReleasedPoint = _point?.Released,
                 CycleCountdown = _cycle?.Countdown ?? 0, CycleRandomState = _cycle?.RandomState ?? 0,
@@ -23,6 +23,7 @@ internal sealed partial class WorldParticleEmitter
         _random.Restore(snapshot.RandomState); _emissionElapsed = snapshot.Elapsed;
         _burstPending = snapshot.BurstPending;
         _age = snapshot.Age;
+        ClockScale = snapshot.ClockScale;
         if (_mineSign is not null && snapshot.MineSign is { } sign)
         {
             _mineSign.RestoreState(sign);
