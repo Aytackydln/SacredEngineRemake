@@ -16,5 +16,16 @@ public sealed class GoldWorldRegionReplica
         ArgumentNullException.ThrowIfNull(update);
         Table = (Table ?? GoldWorldRegionTable.CreateInitial()).WithFlags(update.Region, update.Mask, update.Set);
     }
+    public void Apply(GoldGameEvent entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        if (entry is GoldWorldRegionFlagsEvent flags) Apply(flags);
+        else if (entry is GoldWorldRegionValueEvent)
+        {
+            var update = GoldWorldRegionValueCodec.Decode(entry.Message);
+            Table = GoldWorldRegionValueReducer.Apply(Table ?? GoldWorldRegionTable.CreateInitial(), update);
+        }
+        else throw new ArgumentException("Expected a Gold region update.", nameof(entry));
+    }
     public void Clear() => Table = null;
 }

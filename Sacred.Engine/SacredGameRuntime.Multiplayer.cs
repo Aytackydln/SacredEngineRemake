@@ -48,17 +48,36 @@ internal sealed partial class SacredGameRuntime
     private bool TrySetServerJoinOption(string option,string value,out string message)
     {
         message=string.Empty;
+        if (option.Equals("server-bandwidth", StringComparison.OrdinalIgnoreCase))
+        {
+            var panel = _debugUiControls.GameServer;
+            if (value.Equals("status", StringComparison.OrdinalIgnoreCase))
+                message = $"connection mode: {GoldConnectionModes.Label(panel.ConnectionMode)}; applies to the next join";
+            else if (_gameServer.IsConnected || _serverJoin is { IsFinished: false })
+                message = "Disconnect before changing the connection mode.";
+            else if (GoldConnectionModes.TryParse(value, out var mode))
+            {
+                panel.ConnectionMode = mode;
+                message = $"connection mode: {GoldConnectionModes.Label(mode)}";
+            }
+            else message = "Use set server-bandwidth <lan|low|status>.";
+            return true;
+        }
         if (!option.Equals("server-join",StringComparison.OrdinalIgnoreCase)) return false;
         if (value.Equals("status",StringComparison.OrdinalIgnoreCase)) { message=_serverJoin?.Status ?? "no join requested"; return true; }
         var fields=value.Split(' ',StringSplitOptions.RemoveEmptyEntries);
         try
         {
             if (_serverJoin is { IsFinished: false }) throw new InvalidOperationException("A join is already in progress. Disconnect before retrying.");
-            if(fields.Length!=2 || !int.TryParse(fields[1],out var selection)) throw new ArgumentException("Use set server-join <host:port> <saved selection 1..8>.");
+            if(fields.Length is < 2 or > 3 || !int.TryParse(fields[1],out var selection)) throw new ArgumentException("Use set server-join <host:port> <saved selection 1..8> [lan|low].");
+            var mode = _debugUiControls.GameServer.ConnectionMode;
+            if (fields.Length == 3 && !GoldConnectionModes.TryParse(fields[2], out mode))
+                throw new ArgumentException("Connection mode must be lan or low.");
             if (!Uri.TryCreate("tcp://" + fields[0], UriKind.Absolute, out var endpoint) || endpoint.Port is < 1 or > 65535 || endpoint.AbsolutePath != "/" ||
                 !string.IsNullOrEmpty(endpoint.UserInfo) || !string.IsNullOrEmpty(endpoint.Query) || !string.IsNullOrEmpty(endpoint.Fragment))
                 throw new ArgumentException("Supply a TCP endpoint in host:port form.");
-            _serverJoin=new(_gameServer,_gameDirectory,fields[0],selection) { SectorScriptSelection = _campaignSelection };
+            _serverJoin=new(_gameServer,_gameDirectory,fields[0],selection,mode) { SectorScriptSelection = _campaignSelection };
+            _debugUiControls.GameServer.ConnectionMode = mode;
             _debugUiControls.GameServer.Endpoint = fields[0];
             _debugUiControls.GameServer.Selection = selection;
             _debugUiControls.GameServer.Visible = true;
@@ -88,6 +107,8 @@ internal sealed partial class SacredGameRuntime
 
     internal void RequestServerConnection(string endpoint) => _cheats.Submit("set server " + endpoint);
     internal void RequestServerJoin(string endpoint, int selection) => _cheats.Submit($"set server-join {endpoint} {selection}");
+    internal void RequestServerJoin(string endpoint, int selection, GoldConnectionMode mode) =>
+        _cheats.Submit($"set server-join {endpoint} {selection} {GoldConnectionModes.Argument(mode)}");
 
     private bool TrySetServerDisconnectOption(string option, string value, out string message)
     {

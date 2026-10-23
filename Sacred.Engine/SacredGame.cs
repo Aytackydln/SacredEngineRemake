@@ -7,6 +7,7 @@ using Sacred.Engine.Graphics;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Platform;
 using Sacred.Engine.Scene;
+using Sacred.Network.Admission;
 
 namespace Sacred.Engine;
 
@@ -74,6 +75,8 @@ public sealed class SacredGame : IDisposable
     /// <summary>Queues a Gold gameplay TinCat connection; status is logged on the game thread.</summary>
     public void RequestServerConnection(string endpoint) => _runtime.RequestServerConnection(endpoint);
     public void RequestServerJoin(string endpoint, int selection) => _runtime.RequestServerJoin(endpoint,selection);
+    public void RequestServerJoin(string endpoint, int selection, GoldConnectionMode mode) =>
+        _runtime.RequestServerJoin(endpoint, selection, mode);
 
     /// <summary>Queues a campaign switch for the game thread. Available after world loading completes.
     /// The loading screen rebuilds scene state; completion and rejection are logged to the console.</summary>

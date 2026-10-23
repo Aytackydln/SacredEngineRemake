@@ -24,4 +24,10 @@ public sealed record GoldAdmissionStatus(GoldAdmissionPhase Phase, byte PlayerSl
     GoldPasswordStatus Password = GoldPasswordStatus.NotRequested)
 {
     public GoldWorldStartupStatus WorldStartup { get; init; } = new();
+    public bool? SessionLocked { get; init; }
+    public uint? SessionGameFlags { get; init; }
+    public uint? AnnouncedMaxPlayers { get; init; }
+    public uint? MaxPlayers { get; init; }
+    public bool? SessionPaused { get; init; }
+    public byte? PausedBy { get; init; }
 }

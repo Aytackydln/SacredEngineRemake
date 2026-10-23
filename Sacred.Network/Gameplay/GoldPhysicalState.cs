@@ -20,6 +20,8 @@ public sealed class GoldPhysicalState
     public GoldPhysicalVector VectorE4 => Vector(GoldPhysicalStateLayout.VectorE4Offset);
     public ushort Word94 => BinaryPrimitives.ReadUInt16LittleEndian(_payload.AsSpan(GoldPhysicalStateLayout.Word94Offset));
     public ushort Word96 => BinaryPrimitives.ReadUInt16LittleEndian(_payload.AsSpan(GoldPhysicalStateLayout.Word96Offset));
+    public short QuestNumber => unchecked((short)Word94);
+    public short QuestEffect => unchecked((short)Word96);
     public uint WordB0 => Word(GoldPhysicalStateLayout.WordB0Offset);
     public GoldPhysicalVector SelectedVector => Vector(GoldPhysicalStateLayout.SelectedVectorOffset);
     public bool UsesVectorCC => (BaseState.Flags & GoldPhysicalStateLayout.VectorCCFlag) != 0;

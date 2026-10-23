@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Numerics;
+using Sacred.Network.Admission;
 using Sacred.Network.Discovery;
 using Sacred.Network.Gameplay;
 
@@ -15,6 +16,7 @@ internal sealed class GameServerDebugPanelState
     public string DiscoveryStatus { get; set; } = "Open this panel to discover LAN games.";
     public IReadOnlyList<GoldLanAnnouncement> Servers { get; set; } = [];
     public int Selection { get; set; }
+    public GoldConnectionMode ConnectionMode { get; set; } = GoldConnectionMode.LanHighBandwidth;
     public string GameDirectory { get; set; } = string.Empty;
     public IReadOnlyList<GameServerSavedHeroChoice> Heroes { get; set; } = [];
     public string HeroStatus { get; set; } = "Saved characters have not been loaded.";

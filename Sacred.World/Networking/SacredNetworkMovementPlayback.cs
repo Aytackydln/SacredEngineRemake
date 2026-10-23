@@ -10,6 +10,7 @@ public sealed class SacredNetworkMovementPlayback
     private GoldMovementEvent? _movement;
     private GoldMovementPathPlayback _path = new();
     private GoldObjectBaseState? _basis;
+    private long _instanceVersion;
     private long _positionVersion;
     private long _movementVersion;
     private Vector2 _position, _correction, _anchorTarget;
@@ -24,20 +25,31 @@ public sealed class SacredNetworkMovementPlayback
     public Vector2 Update(GoldReplicatedObject actor, float seconds)
     {
         if (!float.IsFinite(seconds) || seconds < 0) throw new ArgumentOutOfRangeException(nameof(seconds));
+        var creature = actor.Creature ?? throw new ArgumentException("Creature movement requires a creature state.", nameof(actor));
         var reported = SacredNetworkPosition.ToTiles(actor.BaseState);
         var changedAnchor = _basis is null || actor.PositionVersion != _positionVersion;
         var replaced = changedAnchor && actor.PositionOpcode is 0x169 or 0x16B or 0x16C or 0x16E or 0x16F;
         var relocation = changedAnchor && actor.PositionOpcode is 0x165 or GoldCombatLayout.BowOpcode or GoldCombatLayout.BattleOpcode;
-        Snapped = _basis is null || replaced || relocation;
+        var correction = changedAnchor && actor.PositionOpcode == GoldCreaturePositionCorrectionCodec.Opcode;
+        Snapped = _basis is null || actor.InstanceVersion != _instanceVersion || replaced || relocation || correction;
         var newMovement = actor.MovementVersion != _movementVersion || !ReferenceEquals(actor.Movement, _movement);
-        if (Snapped)
+        if (Snapped && (!correction || _basis is null || actor.InstanceVersion != _instanceVersion))
         {
             _path = new();
-            _path.ReadBank(actor.Creature!.Block2ED, new(actor.BaseState.X, actor.BaseState.Y));
-            _hasPath = !relocation && actor.Creature.Word1F8 is 1 or 2 && _path.Moving;
+            _path.ReadBank(creature.Block2ED, new(actor.BaseState.X, actor.BaseState.Y));
+            // The serialized bank predates incremental stops/cancellations. Asset
+            // loading or equipment rebuilding must not resurrect that old route.
+            _hasPath = !relocation && actor.MovementVersion == actor.SnapshotMovementVersion &&
+                actor.Creature.Word1F8 is 1 or 2 && _path.Moving;
             _position = reported;
             _anchorTarget = reported;
             _correction = Vector2.Zero;
+        }
+        else if (correction)
+        {
+            _path.ApplyCorrection(new(actor.BaseState.X, actor.BaseState.Y));
+            _position = reported; _anchorTarget = reported;
+            _correction = Vector2.Zero; _correctionSeconds = 0;
         }
         if (newMovement && actor.Movement?.Body is { } body)
         {
@@ -57,6 +69,12 @@ public sealed class SacredNetworkMovementPlayback
             _anchorTarget = changedAnchor ? reported : _position;
             _correction = _position - _anchorTarget;
             _correctionSeconds = .1f;
+        }
+        if (creature.IsSleeping)
+        {
+            _hasPath = false;
+            _correction = Vector2.Zero; _correctionSeconds = 0;
+            _anchorTarget = _position;
         }
         var previous = _position;
         if (_hasPath)
@@ -79,6 +97,7 @@ public sealed class SacredNetworkMovementPlayback
         _movement = actor.Movement;
         _movementVersion = actor.MovementVersion;
         _basis = actor.BaseState;
+        _instanceVersion = actor.InstanceVersion;
         _positionVersion = actor.PositionVersion;
         return _position;
     }

@@ -7,7 +7,7 @@ using Sacred.World.Networking;
 
 namespace Sacred.Engine.Multiplayer;
 
-/// <summary>Publishes owned routes and stops, preserving the peer's animation clock on route refreshes.</summary>
+/// <summary>Publishes owned routes, stops and stationary facing, preserving the peer's animation clock on route refreshes.</summary>
 internal sealed class NetworkMovementPublisher(GameServerClientController client, SacredNetworkWorldBinding world)
 {
     private Task? _send;
@@ -20,7 +20,7 @@ internal sealed class NetworkMovementPublisher(GameServerClientController client
 
     public void Update(Vector2 position, Vector2 target, Vector2 facing, bool moving, bool walking, float deltaSeconds)
     {
-        if (Error is not null || !world.IsCurrentSession || !client.IsParticipantWorldApproved) return;
+        if (Error is not null || !world.IsCurrentSession || !client.IsParticipantWorldApproved || world.Replicas.Session.IsPaused == true) return;
         try
         {
             _elapsed += deltaSeconds;
@@ -28,6 +28,11 @@ internal sealed class NetworkMovementPublisher(GameServerClientController client
             _send?.GetAwaiter().GetResult();
             _send = null;
             var actor = world.LocalHero;
+            if (actor.Creature?.IsSleeping == true)
+            {
+                _started = false; _elapsed = 0; _lastFacing = actor.FacingBits ?? actor.BaseState.Word28;
+                return;
+            }
             if (!world.TryGetPosition(position, out var location))
                 throw new InvalidOperationException("Movement left loaded, confirmed terrain.");
             var current = new GoldMovementPoint(location.X, location.Y);
@@ -54,7 +59,7 @@ internal sealed class NetworkMovementPublisher(GameServerClientController client
             else if (_started || facingBits != _lastFacing)
             {
                 message = GoldMovementPacketCodec.CreateEnd(world.PlayerSlot, world.PlayerSlot, location, facingBits, 0);
-                EngineLog.WriteLine($"Network input: owned ref {world.PlayerSlot} stopped at {position.X:0.###}/{position.Y:0.###}.");
+                EngineLog.WriteLine($"Network input: owned ref {world.PlayerSlot} {(_started ? "stopped" : "turned in place")} at {position.X:0.###}/{position.Y:0.###}, facing {BitConverter.UInt32BitsToSingle(facingBits):0.###} degrees.");
             }
             if (message is null) return;
             _send = client.SendOwnedMovementAsync(message);

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Sacred.Engine.Graphics.ImGui;
 using Sacred.Engine.Multiplayer;
+using Sacred.Network.Admission;
 
 namespace Sacred.Engine;
 
@@ -51,7 +52,7 @@ internal sealed partial class SacredGameRuntime
         {
             panel.JoinRequested = false;
             var previousJoin = _serverJoin;
-            if (TrySetServerJoinOption("server-join", $"{panel.Endpoint.Trim()} {panel.Selection}", out var message))
+            if (TrySetServerJoinOption("server-join", $"{panel.Endpoint.Trim()} {panel.Selection} {GoldConnectionModes.Argument(panel.ConnectionMode)}", out var message))
             {
                 panel.ActionStatus = ReferenceEquals(previousJoin, _serverJoin) ? message : string.Empty;
                 EngineLog.WriteLine($"Debug input: GameServer join: {message}");

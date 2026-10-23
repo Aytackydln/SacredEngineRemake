@@ -23,6 +23,7 @@ internal sealed class NetworkScenePresentation : IDisposable
     private readonly SceneState _scene;
     private readonly NetworkCharacterUiBinding _characterUi;
     private readonly NetworkCombatPresentation _combat = new();
+    private readonly NetworkWorldTextPresentation _worldText = new();
     private readonly NetworkBowProjectiles _projectiles;
     private readonly CharacterAnimationBatch _animationBatch = new();
     private readonly Dictionary<uint, (string Key, Task<NetworkActorPresentation> Load)> _pending = [];
@@ -72,6 +73,7 @@ internal sealed class NetworkScenePresentation : IDisposable
     public void Update(float deltaSeconds)
     {
         if (_disposed || !World.IsCurrentSession) return;
+        deltaSeconds = World.Replicas.Session.SimulationSeconds(deltaSeconds);
         GameplayObjects.Update(World.VisibleWorld, null);
         if (GameplayObjects.CombatArtEffects is { } effects)
             effects.CastSpeedResolver ??= (actor, code) => NetworkCastSpeed.ResolveForArt(_assets, World.Replicas, actor, code);
@@ -165,6 +167,7 @@ internal sealed class NetworkScenePresentation : IDisposable
         }
         _scene.NpcOverheads.Actors = overheads.ToArray();
         _combat.Update(World.Replicas, _scene, _actors, deltaSeconds);
+        _worldText.Update(World.Replicas, _assets.Resources, _scene, World.OutdoorHeightAt, deltaSeconds);
         _projectiles.Update(World, GameplayObjects.BowProjectiles, _actors, deltaSeconds);
         var next = _actors.Where(entry => entry.Key != World.PlayerSlot).OrderBy(entry => entry.Key).Select(entry => entry.Value.Actor.Model)
             .Concat(_projectiles.Models).ToArray();
@@ -191,6 +194,7 @@ internal sealed class NetworkScenePresentation : IDisposable
         _pending.Clear(); _actors.Clear(); _scene.SetReplicatedModels([]);
         _scene.NpcOverheads.Actors = [];
         _scene.CombatText.Damage = [];
+        _scene.CombatText.WorldText = [];
         _scene.NpcOverheads.DialogIcon = _ => null;
         _ = Task.WhenAll(pending).ContinueWith(task => { _ = task.Exception; _stop.Dispose(); }, CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);

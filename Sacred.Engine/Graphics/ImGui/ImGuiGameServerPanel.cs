@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Numerics;
 using ImGuiNET;
+using Sacred.Network.Admission;
 using Sacred.World.Networking;
 using DearImGui = ImGuiNET.ImGui;
 
@@ -42,6 +43,14 @@ internal static class ImGuiGameServerPanel
             }
             DearImGui.EndCombo();
         }
+        if (DearImGui.BeginCombo("Connection", GoldConnectionModes.Label(panel.ConnectionMode)))
+        {
+            foreach (var mode in new[] { GoldConnectionMode.LanHighBandwidth, GoldConnectionMode.LowBandwidth })
+                if (DearImGui.Selectable(GoldConnectionModes.Label(mode), panel.ConnectionMode == mode)) panel.ConnectionMode = mode;
+            DearImGui.EndCombo();
+        }
+        DearImGui.TextDisabled(panel.ConnectionMode == GoldConnectionMode.LanHighBandwidth
+            ? "Include ambient NPCs and animals." : "Reduced ambient NPC and animal population.");
         DearImGui.BeginDisabled(selected is null || selected.Error is not null || string.IsNullOrWhiteSpace(panel.Endpoint));
         if (DearImGui.Button("Join game")) panel.JoinRequested = true;
         DearImGui.EndDisabled();
@@ -119,7 +128,15 @@ internal static class ImGuiGameServerPanel
     {
         DearImGui.TextWrapped(panel.ConnectionStatus);
         if (panel.Replicas is { } world)
+        {
+            DearImGui.TextWrapped($"Session lock: {(world.Session.IsLocked is { } locked ? locked ? "locked" : "unlocked" : "unknown")}.");
+            if (world.Session.GameFlags is { } gameFlags) DearImGui.TextWrapped($"Game flags: 0x{gameFlags:X8}.");
+            DearImGui.TextWrapped($"Player capacity: {world.Session.MaxPlayers?.ToString() ?? "unknown"}; announced: {world.Session.AnnouncedMaxPlayers?.ToString() ?? "unknown"}.");
+            var teams = world.Session.Teams;
+            DearImGui.TextWrapped($"Server pause: {world.Session.IsPaused?.ToString() ?? "unknown"}; pausing origin: {world.Session.PausedBy?.ToString() ?? "none"}.");
+            DearImGui.TextWrapped($"Team: {teams.GetTeam(teams.LocalPlayerSlot)}; leader: {teams.IsLeader(teams.LocalPlayerSlot)}; invitations out/in: {teams.OutgoingInvitations:X8}/{teams.IncomingInvitations:X8}.");
             DearImGui.TextWrapped($"Retained scripts: {world.DeathScripts.Registrations.Count} death registrations; variables: {world.ScriptVariables.Records.Count} received / {world.ScriptVariables.Count} slots; triggers: {world.MovementTriggers.Sectors.Count} sector banks, {world.MovementTriggers.RemovedRecordCount} records removed / {world.MovementTriggerDeletions.Instructions.Count} pending routing; statistics: {world.Statistics.States.Count} snapshots; world banks: {world.WorldBanks.States.Count}.");
+        }
         DearImGui.TextDisabled("Write details to the console:");
         foreach (var diagnostic in new[] { "status", "sectors", "objects", "inventories", "scripts", "statistics", "banks" })
         {

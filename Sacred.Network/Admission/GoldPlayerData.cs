@@ -11,6 +11,7 @@ public sealed class GoldPlayerData
 
     public byte CharacterType => _payload[GoldPlayerDataLayout.CharacterTypeOffset];
     public byte ProfileByte5 => _payload[GoldPlayerDataLayout.ProfileByte5Offset];
+    public uint ConnectionSpeed => BinaryPrimitives.ReadUInt32LittleEndian(_payload.AsSpan(GoldPlayerDataLayout.ConnectionSpeedOffset));
     public ushort Version => BinaryPrimitives.ReadUInt16LittleEndian(_payload.AsSpan(GoldPlayerDataLayout.VersionOffset));
     public int LobbyIdentity => BinaryPrimitives.ReadInt32LittleEndian(_payload.AsSpan(GoldPlayerDataLayout.LobbyIdentityOffset));
     public string Name => GoldFirstContact.ReadName(_payload.AsSpan(GoldPlayerDataLayout.NameOffset, GoldPlayerDataLayout.NameBytes));

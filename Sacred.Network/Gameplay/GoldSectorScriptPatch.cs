@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 
 namespace Sacred.Network.Gameplay;
 
-/// <summary>Bank 3 section 5: native 88-byte pending sector patch. Unknown callback/name
+/// <summary>Bank 3 section 5 and 0x1D0: native 88-byte mouseover sector patch. Unknown callback/name
 /// bytes remain intact. Gold 0x493440 selects unsigned tile coordinates; registration
 /// at 0x4AB160 compares the first three words and tests bytes 8..15 for front insertion.</summary>
 public sealed class GoldSectorScriptPatch

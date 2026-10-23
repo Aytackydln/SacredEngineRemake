@@ -4,7 +4,8 @@ using Sacred.Core.Binary;
 namespace Sacred.Core.GameBin.Scripts;
 
 /// <summary>First table in Vectoren.bin: UInt32 count followed by native FunkStru records.
-/// Gold's function dispatcher (0x46BA90) indexes these records with an 84-byte stride.</summary>
+/// Gold's function dispatcher (0x46BA90) indexes these records with an 84-byte stride.
+/// TRIGGER_UPDATE_FUNKS (0x1C4) copies the same complete record at client 0x8073F0 / server 0x497CC0.</summary>
 [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SerializedSize)]
 public readonly struct SacredScriptFunctionLayout
 {

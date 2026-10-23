@@ -74,7 +74,7 @@ public sealed class SacredNetworkObjectWorld : IGameplayObjectWorld
                                                     (WorldModelPose.Scale * WorldModelPose.CameraProjection.M33);
     public void Advance(float seconds)
     {
-        if (!IsCurrentSession) return;
+        if (!IsCurrentSession || _world.Replicas.Session.IsPaused == true) return;
         CombatArtEffects.Advance(seconds);
         StatusEffects.Advance(seconds);
         _drops.Advance(_objects, NativeHeight, seconds);

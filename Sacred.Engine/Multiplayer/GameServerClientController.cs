@@ -122,6 +122,7 @@ internal sealed partial class GameServerClientController : IDisposable
 
     public Task SendOwnedMovementAsync(GoldMessage message)
     {
+        if (WorldReplicas.Session.IsPaused == true) throw new InvalidOperationException("Movement waits for the server to resume.");
         if (!IsParticipantWorldApproved || message.Sender != PlayerSlot || message.Origin != PlayerSlot)
             throw new InvalidOperationException("Movement requires the current approved participant identity.");
         var decoded = GoldGameEventDecoder.Decode(message);
@@ -131,11 +132,17 @@ internal sealed partial class GameServerClientController : IDisposable
         if (!WorldReplicas.Objects.TryGetValue(reference, out var hero) || hero.BaseState.Owner != PlayerSlot ||
             (hero.BaseState.Flags & GoldObjectLifecycleLayout.InactiveFlag) != 0)
             throw new InvalidOperationException("Movement requires an active hero still owned by this participant.");
+        if (hero.Creature?.IsSleeping == true)
+            throw new InvalidOperationException("Movement waits for the native wake state.");
         return _connection!.SendAsync(message).AsTask();
     }
 
     private string StartupStatus => _connection?.Admission is { Phase: GoldAdmissionPhase.SlotAssigned } admission
-        ? $"; client host {admission.WorldStartup.AssignedClientHost}, host world available {admission.WorldStartup.HostWorldAvailable}, participant approved {admission.WorldStartup.ParticipantStartApproved}, sector entries {admission.WorldStartup.SectorEntryCount}"
+        ? $"; client host {admission.WorldStartup.AssignedClientHost}, host world available {admission.WorldStartup.HostWorldAvailable}, participant approved {admission.WorldStartup.ParticipantStartApproved}, sector entries {admission.WorldStartup.SectorEntryCount}; session lock {(admission.SessionLocked is { } locked ? locked ? "locked" : "unlocked" : "unknown")}"
+            + (admission.SessionGameFlags is { } flags ? $", game flags 0x{flags:X8}" : ", game flags unknown")
+            + $"; player capacity {admission.MaxPlayers?.ToString() ?? "unknown"}, announced {admission.AnnouncedMaxPlayers?.ToString() ?? "unknown"}"
+            + $"; team {WorldReplicas.Session.Teams.GetTeam(admission.PlayerSlot)}, leader {WorldReplicas.Session.Teams.IsLeader(admission.PlayerSlot)}"
+            + $"; server pause {admission.SessionPaused?.ToString() ?? "unknown"}, origin {admission.PausedBy?.ToString() ?? "none"}"
         : string.Empty;
 
     public void SetFirstContact(GoldFirstContact? request)
@@ -199,6 +206,24 @@ internal sealed partial class GameServerClientController : IDisposable
         }
         else if (value.Equals("banks", StringComparison.OrdinalIgnoreCase))
             message = GameServerWorldBankDiagnostics.Write(WorldReplicas.WorldBanks);
+        else if (value.Equals("markers", StringComparison.OrdinalIgnoreCase))
+            message = GameServerWorldBankDiagnostics.WriteSpatial(WorldReplicas.WorldBanks.Spatial);
+        else if (value.Equals("quests", StringComparison.OrdinalIgnoreCase))
+            message = GameServerWorldBankDiagnostics.WriteActualQuests(WorldReplicas.WorldBanks.ActualQuests);
+        else if (value.Equals("registrations", StringComparison.OrdinalIgnoreCase))
+            message = GameServerWorldBankDiagnostics.WriteRegistrations(WorldReplicas.WorldBanks.Registrations);
+        else if (value.Equals("tables", StringComparison.OrdinalIgnoreCase))
+            message = GameServerWorldBankDiagnostics.WriteScriptTables(WorldReplicas.WorldBanks.ScriptTables);
+        else if (value.Equals("functions", StringComparison.OrdinalIgnoreCase))
+            message = GameServerWorldBankDiagnostics.WriteFunctions(WorldReplicas.WorldBanks.Functions);
+        else if (value.Equals("definitions", StringComparison.OrdinalIgnoreCase))
+            message = GameServerWorldBankDiagnostics.WriteDefinitions(WorldReplicas.WorldBanks.Definitions);
+        else if (value.Equals("move-callbacks", StringComparison.OrdinalIgnoreCase))
+            message = GameServerWorldBankDiagnostics.WriteMovementCallbacks(WorldReplicas.WorldBanks.MovementCallbacks);
+        else if (value.Equals("script-regions", StringComparison.OrdinalIgnoreCase))
+            message = GameServerWorldBankDiagnostics.WriteScriptRegions(WorldReplicas.WorldBanks.ScriptRegions);
+        else if (value.Equals("trigger-patches", StringComparison.OrdinalIgnoreCase))
+            message = GameServerWorldBankDiagnostics.WriteTriggerPatches(WorldReplicas.WorldBanks.TriggerPatches);
         else if (value.Equals("regions", StringComparison.OrdinalIgnoreCase))
             message = GameServerWorldBankDiagnostics.WriteRegions(WorldReplicas.Regions);
         else if (value.Equals("resources", StringComparison.OrdinalIgnoreCase))
@@ -232,6 +257,8 @@ internal sealed partial class GameServerClientController : IDisposable
                 EngineLog.WriteLine($"Network object {entry.Key}: type {state.ObjectType}, owner {state.Owner}, sector {state.Sector}, position {state.X}/{state.Y}, surface {state.Surface}, trigger {state.TriggerReference}, flags 0x{state.Flags:X8}.");
                 if (replica?.MountPartnerReference is { } partner)
                     EngineLog.WriteLine($"  Current mount partner ref {partner}.");
+                if (replica?.DeferredPosition is { } pending)
+                    EngineLog.WriteLine($"  Deferred position correction: {pending.Position.X},{pending.Position.Y}/{pending.Position.Surface}, sector {pending.Position.Sector}, facing 0x{pending.FacingBits:X8}; native transition completion pending.");
                 if (obj.PhysicalState is { } physical)
                     EngineLog.WriteLine($"  Physical vector {physical.SelectedVector}, flags +0xB0 0x{physical.WordB0:X8}; world-coordinate interpretation pending.");
                 if ((replica?.Creature ?? obj.CreatureState) is { } creature)
@@ -247,6 +274,8 @@ internal sealed partial class GameServerClientController : IDisposable
             Disconnect();
             message = "server disconnected";
         }
+        else if (value.Equals("callbacks", StringComparison.OrdinalIgnoreCase))
+            message = GameServerCallbackDiagnostics.Write(_connection);
         else if (value.Equals("enter", StringComparison.OrdinalIgnoreCase))
         {
             try { message = StartCharacterUpload(); }
@@ -263,7 +292,7 @@ internal sealed partial class GameServerClientController : IDisposable
             _status = $"connecting to {endpoint.Host}:{endpoint.Port}";
             message = _status;
         }
-        else message = "use set server <host:port|enter|status|objects|doors|inventories|sectors|work|scripts|statistics|banks|regions|resources|disconnect>; select the gameplay TCP port";
+        else message = "use set server <host:port|enter|status|callbacks|objects|doors|inventories|sectors|work|scripts|statistics|banks|markers|quests|registrations|tables|functions|definitions|move-callbacks|script-regions|trigger-patches|regions|resources|disconnect>; select the gameplay TCP port";
         return true;
     }
 
@@ -282,6 +311,7 @@ internal sealed partial class GameServerClientController : IDisposable
             switch (entry)
             {
                 case GoldTransportConnected connected:
+                    WorldReplicas.Session.ChannelChat.SetConnectionActive(true);
                     _status = $"TinCat connected, transport ID {connected.ConnectionId}";
                     EngineLog.WriteLine($"Network: {_status}; Sacred admission has not completed.");
                     break;
@@ -301,104 +331,17 @@ internal sealed partial class GameServerClientController : IDisposable
                     _gameplay.Clear();
                     _status = $"closed: {closed.Reason}";
                     EngineLog.WriteLine($"Network: {_status}.");
+                    EngineLog.WriteLine($"Network callbacks: {GameServerCallbackDiagnostics.Write(connection)}.");
                     break;
             }
         }
         if (connection.Completion.IsCompleted && connection.Events.Completion.IsCompleted &&
             !_status.StartsWith("closed:", StringComparison.Ordinal))
-            _status = "closed: transport ended";
-        _sectorInterest?.Update();
-    }
-
-    private void Receive(GoldGameEvent gameEvent)
-    {
-        _gameplay.Apply(gameEvent);
-        var opcode = gameEvent.Message.Opcode;
-        _opcodeCounts.TryGetValue(opcode, out var count);
-        _opcodeCounts[opcode] = count + 1;
-        _eventsReceived++;
-        // Bounded diagnostics until native object admission/removal and reference mappings are implemented.
-        switch (gameEvent)
         {
-            case GoldObjectFlightEvent flight:
-                WorldReplicas.Objects.TryGetValue(flight.ObjectReference, out var flyingObject);
-                EngineLog.WriteLine($"Network item flight: ref {flight.ObjectReference}, opcode 0x{flight.Message.Opcode:X3}, sender {flight.Message.Sender}, origin {flight.Message.Origin}, owner {flyingObject?.BaseState.Owner}; applied {flyingObject?.Flight == flight}; arc {flight.IsItemArc}, height {flight.InitialHeight}.");
-                break;
-            case GoldAdmissionEvent admission:
-                _admission = $"Sacred slot {admission.PlayerSlot}, flags 0x{admission.Flags:X2}; initial character/world import pending";
-                EngineLog.WriteLine($"Network admission: {_admission}.");
-                EngineLog.WriteLine($"Network startup{StartupStatus}; hero/inventory upload pending.");
-                break;
-            case GoldRejectionEvent rejection:
-                _admission = $"rejected: reason {rejection.Reason}, data mismatch mask 0x{rejection.DataMismatchMask:X8}";
-                EngineLog.WriteLine($"Network admission: {_admission}.");
-                _connection?.Stop();
-                break;
-            case GoldPlayerDataEvent playerData:
-                EngineLog.WriteLine($"Network player information: character type {playerData.PlayerData.CharacterType}, version {playerData.PlayerData.Version}; profile import pending.");
-                break;
-            case GoldHostWorldAvailableEvent:
-                EngineLog.WriteLine($"Network host world available: origin {gameEvent.Message.Origin}; participant hero/inventory upload pending.");
-                break;
-            case GoldParticipantStartApprovedEvent:
-                _admission = $"Sacred slot {_connection?.Admission.PlayerSlot}, flags 0x{_connection?.Admission.Flags:X2}; participant approved; scene binding pending";
-                EngineLog.WriteLine("Network participant start approved by GameServer; scene binding pending.");
-                break;
-            case GoldSectorEntryEvent sectors:
-                EngineLog.WriteLine($"Network sector entry: {sectors.Entry.Count} retained slots; use set server sectors; world/script application pending.");
-                break;
-            case GoldPlayerRosterEvent roster:
-                EngineLog.WriteLine($"Network server roster: {roster.Roster.Count} retained records; server metadata at index 0, player slots 1..16; actor/world binding pending.");
-                break;
-            case GoldTimeProbeEvent:
-                EngineLog.WriteLine($"Network time probe: {(_connection?.Admission.Phase == GoldAdmissionPhase.SlotAssigned ? "native reply sent" : "retained in transport diagnostics")}.");
-                break;
-            case GoldReferenceBatchEvent references:
-                ObjectReferences.Apply(references.Batch);
-                foreach (var reference in references.Batch.References)
-                    if (_referenceSet.Add(reference)) _allocatedReferences.Add(reference);
-                EngineLog.WriteLine($"Network allocated object references: {references.Batch.Count}; hero/player references are separate; world import pending.");
-                break;
-            case GoldReferenceRangeEvent range:
-                EngineLog.WriteLine($"Network world-trigger reference range: {range.Start} + {range.Count}; {WorldReplicas.TriggerReferences.Available} IDs available; authored trigger creation pending.");
-                break;
-            case GoldPasswordResultEvent password:
-                EngineLog.WriteLine($"Network game password: {(password.Accepted ? "accepted" : "rejected")}; character/world entry pending.");
-                break;
-            case GoldMovementEvent movement when _movements.ContainsKey(movement.ObjectReference) || _movements.Count < 4096:
-                _movements[movement.ObjectReference] = [movement.Word1, movement.Word2, movement.Word3, movement.Word4, movement.Word5];
-                break;
-            case GoldMovementEndEvent end:
-                _movements.Remove(end.ObjectReference);
-                break;
-            case GoldObjectRemovalEvent:
-            case GoldObjectOwnerEvent:
-                GameServerObjectLifecycleDiagnostics.Apply(_movements, _doors, gameEvent);
-                break;
-            case GoldObjectPositionEvent position:
-                _movements.Remove(position.ObjectReference);
-                break;
-            case GoldIdleEvent idle:
-                _movements.Remove(idle.ObjectReference);
-                break;
-            case GoldDoorEvent door when _doors.ContainsKey(door.ObjectReference) || _doors.Count < 4096:
-                _doors[door.ObjectReference] = door.Open;
-                EngineLog.WriteLine($"Network door receive: object {door.ObjectReference}, requested {(door.Open ? "open" : "closed")}; " +
-                    $"{WorldReplicas.DoorInteractions.Pending.Count} pending native activations. Inspect set server doors.");
-                break;
-            case GoldContainerActivationEvent container:
-                EngineLog.WriteLine($"Network container receive: object {container.ObjectReference}; applied {WorldReplicas.ContainerInteractions.AppliedCount}, " +
-                    $"already activated {WorldReplicas.ContainerInteractions.AlreadyActivatedCount}, pending {WorldReplicas.ContainerInteractions.Pending.Count}.");
-                break;
-            case GoldInventoryEvent inventory when _inventories.ContainsKey((inventory.Message.Sender, inventory.Message.Origin, inventory.InventoryId)) || _inventories.Count < 64:
-                _inventories[(inventory.Message.Sender, inventory.Message.Origin, inventory.InventoryId)] = inventory;
-                break;
-            case GoldObjectEvent obj when _objects.ContainsKey(obj.ObjectReference) || _objects.Count < 4096:
-                _objects[obj.ObjectReference] = obj;
-                break;
+            _status = "closed: " + (connection.CloseReason ?? "transport ended");
+            EngineLog.WriteLine($"Network: {_status}.");
         }
-        if (count == 0)
-            EngineLog.WriteLine($"Network dispatch: 0x{opcode:X4}, {gameEvent.GetType().Name}, {gameEvent.Message.Payload.Length} bytes; retained for admission/reference mapping.");
+        _sectorInterest?.Update();
     }
 
     private void Disconnect()

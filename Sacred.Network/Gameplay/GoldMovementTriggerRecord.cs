@@ -25,6 +25,12 @@ public sealed class GoldMovementTriggerRecord
     }
     public string Name => Encoding.Latin1.GetString(NameBytes);
     public byte[] ToPayload() => _data.ToArray();
+    internal GoldMovementTriggerRecord WithReceivedSurface(int surface)
+    {
+        var bytes = ToPayload();
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(GoldMovementTriggerLayout.SurfaceOffset), unchecked((ushort)surface));
+        return new(bytes);
+    }
     public static GoldMovementTriggerRecord FromPayload(ReadOnlySpan<byte> payload)
     {
         if (payload.Length != GoldMovementTriggerLayout.Size) throw new InvalidDataException("Gold movement trigger requires exactly 76 bytes.");

@@ -55,6 +55,9 @@ public sealed class SacredNetworkWorldBinding : IDisposable
         _terrain?.Update();
         if (_terrain?.IsSettled == true)
             foreach (var sector in Sectors.Values) _copies.Synchronize(sector);
+        if (IsCurrentSession && _archive is { } archive && SectorPatches.ApplyReceived(Sectors,
+                id => archive.TryGetSectorCoordinate(id, out var coord) ? coord : null))
+            _terrain?.PublishTileChanges();
     }
     /// <returns>False while confirmed terrain or the native pending vectors are still loading.</returns>
     public bool TryApplySectorPatches(GoldSectorWork work)
@@ -157,7 +160,8 @@ public sealed class SacredNetworkWorldBinding : IDisposable
         binding._archive=archive;
         binding.DoorStates = new(replicas, archive.ObjectScript.Placements.Where(placement => placement.Door is not null).Select(placement => placement.Door!));
         binding._patchTerrain = new(archive, binding._copies);
-        binding.SectorPatches = new(archive.ReadStaticRecord, binding._patchTerrain);
+        binding.SectorPatches = new(archive.ReadStaticRecord, binding._patchTerrain, replicas.WorldBanks.Registrations);
+        binding.SectorPatches.BindTriggerPatches(replicas.WorldBanks.TriggerPatches);
         var copies = loaded.ToDictionary(row => row.Sector, row => binding._copies.Create(row.Data));
         foreach (var sector in copies.Values) binding._copies.Synchronize(sector);
         binding._terrain = new(binding._patchTerrain.LoadVisible,

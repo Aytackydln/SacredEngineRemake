@@ -15,8 +15,10 @@ public sealed partial class GoldGameConnection : IAsyncDisposable
     private readonly TcpClient _client = new() { NoDelay = true };
     private readonly CancellationTokenSource _stop = new();
     private readonly SemaphoreSlim _sendGate = new(1, 1);
-    private readonly Channel<GoldConnectionEvent> _events = Channel.CreateBounded<GoldConnectionEvent>(
-        new BoundedChannelOptions(16) { SingleReader = true, SingleWriter = true, FullMode = BoundedChannelFullMode.Wait });
+    // Rendering/asset loading can pause the game-thread consumer. Protocol reads
+    // and required replies must continue while preserving every ordered batch.
+    private readonly Channel<GoldConnectionEvent> _events = Channel.CreateUnbounded<GoldConnectionEvent>(
+        new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
     private Task? _run;
     private NetworkStream? _stream;
     private uint _connectionId;
@@ -27,11 +29,14 @@ public sealed partial class GoldGameConnection : IAsyncDisposable
     private readonly GoldAdmissionTracker _admission = new();
     private ushort _sendSequence;
     private readonly Stopwatch _clock = Stopwatch.StartNew();
+    private string? _transportFailure;
 
     public ChannelReader<GoldConnectionEvent> Events => _events.Reader;
     public Task Completion => _run ?? Task.CompletedTask;
     public bool IsStopping => _stop.IsCancellationRequested;
     public GoldAdmissionStatus Admission => _admission.Status;
+    public GoldConnectionDiagnostics Diagnostics { get; } = new();
+    public string? CloseReason { get; private set; }
 
     public void Start(string host, int port) => StartCore(host, port, null);
 
@@ -118,9 +123,20 @@ public sealed partial class GoldGameConnection : IAsyncDisposable
         var body = GoldEnvelopeCodec.Encode(GoldMessageCodec.Encode(message));
         var payload = TinCatCustomData.Encode(TinCatLogin.GameModule, 0, body);
         if (_firstContact is not null) _sendSequence = message.Sequence;
-        try { await WriteFrameAsync(TinCatLogin.CustomData, payload, cancellationToken).ConfigureAwait(false); }
+        try
+        {
+            await WriteFrameAsync(TinCatLogin.CustomData, payload, cancellationToken).ConfigureAwait(false);
+            Diagnostics.Record(message, true, _clock.ElapsedMilliseconds);
+        }
         catch (Exception e) when (e is IOException or SocketException or ObjectDisposedException or OperationCanceledException)
-        { Stop(); throw; }
+        { StopForTransportFailure(e); throw; }
+    }
+
+    private void StopForTransportFailure(Exception error)
+    {
+        if (error is not OperationCanceledException && !_stop.IsCancellationRequested)
+            Interlocked.CompareExchange(ref _transportFailure, error.Message, null);
+        Stop();
     }
 
     public void Stop()
@@ -135,7 +151,7 @@ public sealed partial class GoldGameConnection : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        // The engine drains Events on its own thread. Cancellation releases a blocked queue writer.
+        // The engine drains Events on its own thread; retain ordered delivery until transport completion.
         Task? run;
         lock (_lifetimeGate)
         {
@@ -162,6 +178,7 @@ public sealed partial class GoldGameConnection : IAsyncDisposable
     {
         var reason = "disconnected";
         Task? alive = null;
+        Task? callbacks = null;
         using var admissionLimit = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);
         try
         {
@@ -186,6 +203,7 @@ public sealed partial class GoldGameConnection : IAsyncDisposable
                 await _events.Writer.WriteAsync(new GoldFirstContactSent(), _stop.Token).ConfigureAwait(false);
             }
             alive = KeepAliveAsync();
+            callbacks = ReplyToTimeProbesAsync();
             while (!_stop.IsCancellationRequested)
             {
                 var frame = await TinCatStream.ReadAsync(_stream!, admissionLimit.Token).ConfigureAwait(false);
@@ -195,21 +213,31 @@ public sealed partial class GoldGameConnection : IAsyncDisposable
                 {
                     case TinCatLogin.CustomData:
                         var messages = DecodeMessages(frame.Payload);
+                        foreach (var message in messages) Diagnostics.Record(message, false, _clock.ElapsedMilliseconds);
+                        var kick = messages.Where(message => message.Opcode == GoldPlayerKickEvent.Opcode)
+                            .Select(GoldGameEventDecoder.Decode).OfType<GoldPlayerKickEvent>()
+                            .FirstOrDefault(entry => entry.DisconnectsClient);
                         if (_firstContact is not null)
                         {
                             _admission.ProcessBatch(messages);
                             if (Admission.Phase != GoldAdmissionPhase.WaitingForResponse)
                                 admissionLimit.CancelAfter(Timeout.InfiniteTimeSpan);
-                            if (Admission.Phase == GoldAdmissionPhase.SlotAssigned)
+                            if (kick is null && Admission.Phase == GoldAdmissionPhase.SlotAssigned)
                                 foreach (var message in messages)
                                     if (message.Opcode == GoldTimeProbeCodec.RequestOpcode)
                                     {
                                         var probe = (GoldTimeProbeEvent)GoldGameEventDecoder.Decode(message);
-                                        var reply = GoldTimeProbeCodec.CreateReply(probe, Admission.PlayerSlot, unchecked((uint)_clock.ElapsedMilliseconds));
-                                        await SendCoreAsync(reply, admissionLimit.Token).ConfigureAwait(false);
+                                        _timeProbes.Writer.TryWrite((probe, Admission.PlayerSlot));
                                     }
                         }
-                        await _events.Writer.WriteAsync(new GoldMessagesReceived(messages), _stop.Token).ConfigureAwait(false);
+                        // A concurrently failed write must not discard a batch already read,
+                        // particularly its native disconnect reason. This queue cannot block.
+                        _events.Writer.TryWrite(new GoldMessagesReceived(messages));
+                        if (kick is not null)
+                        {
+                            reason = $"Sacred server disconnected client: {kick.Description} (reason {kick.Reason})";
+                            return;
+                        }
                         if (Admission.Phase == GoldAdmissionPhase.Rejected)
                         {
                             reason = $"Sacred rejected connection: reason {Admission.RejectionReason}, data mismatch mask 0x{Admission.DataMismatchMask:X8}";
@@ -236,9 +264,13 @@ public sealed partial class GoldGameConnection : IAsyncDisposable
         { reason = _stop.IsCancellationRequested ? "disconnected" : e.Message; }
         finally
         {
+            _timeProbes.Writer.TryComplete();
             _stop.Cancel();
             _client.Dispose();
             if (alive is not null) await alive.ConfigureAwait(false);
+            if (callbacks is not null) await callbacks.ConfigureAwait(false);
+            if (reason == "disconnected" && Volatile.Read(ref _transportFailure) is { } failure) reason = failure;
+            CloseReason = reason;
             _events.Writer.TryWrite(new GoldConnectionClosed(reason));
             _events.Writer.TryComplete();
         }
@@ -253,10 +285,21 @@ public sealed partial class GoldGameConnection : IAsyncDisposable
         {
             using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
             while (await timer.WaitForNextTickAsync(_stop.Token).ConfigureAwait(false))
+            {
                 await WriteAsync(TinCatLogin.StayingAlive, new byte[2], _stop.Token).ConfigureAwait(false);
+                // Native gameplay activity has its own timeout counters. An authenticated
+                // empty 0x0B pulse, seen in original client captures, resets those too.
+                if (_firstContact is not null && Admission is { Phase: GoldAdmissionPhase.SlotAssigned } admission)
+                    await SendCoreAsync(GoldWorldEnvironmentCodec.CreateRequest(admission.PlayerSlot), _stop.Token).ConfigureAwait(false);
+            }
         }
         catch (Exception e) when (e is OperationCanceledException or IOException or SocketException or ObjectDisposedException)
-        { _stop.Cancel(); _client.Dispose(); }
+        { StopForTransportFailure(e); }
+        catch (InvalidOperationException) when (_stop.IsCancellationRequested || Admission.Phase != GoldAdmissionPhase.SlotAssigned)
+        {
+            // Admission may be rejected while the pulse waits behind an upload.
+            // Let the reader retain the rejection reason and publish the close event.
+        }
     }
 
     private async ValueTask WriteAsync(uint type, byte[] payload, CancellationToken cancellationToken)

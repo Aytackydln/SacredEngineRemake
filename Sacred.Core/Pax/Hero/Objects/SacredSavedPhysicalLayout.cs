@@ -30,6 +30,10 @@ public static class SacredSavedPhysicalLayout
     public const int BoundsMaximumOffset = VectorE4Offset;
     public const int Word94Offset = 151;
     public const int Word96Offset = 153;
+    /// <summary>Signed 16-bit quest index, native +0x94; constructor default -1 (Gold 0x450C50).</summary>
+    public const int QuestNumberOffset = Word94Offset;
+    /// <summary>Signed 16-bit quest script effect identity, native +0x96 (Gold 0x450E20).</summary>
+    public const int QuestEffectOffset = Word96Offset;
     public const int WordB0Offset = 155;
     public const int ReservedWordsOffset = 159;
     public const int AnimationDoublesOffset = 175;

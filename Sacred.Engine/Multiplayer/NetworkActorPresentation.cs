@@ -30,6 +30,7 @@ internal sealed class NetworkActorPresentation
     private GoldMovementEvent? _lastMovement;
     private GoldMovementBody? _movementBody;
     private long? _lastPositionVersion;
+    private long? _lastInstanceVersion;
     private long? _conversationVersion;
     private readonly SacredNetworkMovementPlayback _motion = new();
     private uint _locomotionAction = 2;
@@ -202,7 +203,7 @@ internal sealed class NetworkActorPresentation
         if (!IsLocal && moving && direction != Vector2.Zero)
             _rotation = CreatureModelPose.RotationRadians(direction);
         else if ((actor.FacingBits ?? actor.BaseState.Word28) is var facing &&
-                 (facing != _lastFacing || actor.PositionVersion != _lastPositionVersion))
+                 (facing != _lastFacing || actor.PositionVersion != _lastPositionVersion || actor.InstanceVersion != _lastInstanceVersion))
         {
             // Full snapshots derive this heading from physical +0x70; stop/position packets carry the angle word.
             var degrees = BitConverter.UInt32BitsToSingle(facing);
@@ -210,6 +211,7 @@ internal sealed class NetworkActorPresentation
         }
         _lastFacing = actor.FacingBits ?? actor.BaseState.Word28;
         _lastPositionVersion = actor.PositionVersion;
+        _lastInstanceVersion = actor.InstanceVersion;
         if (!ReferenceEquals(actor.Movement, _lastMovement))
         {
             _lastMovement = actor.Movement;

@@ -17,7 +17,8 @@ public readonly struct SacredDefPosHeaderLayout
     public readonly uint PositionCount;
 }
 
-/// <summary>Fixed-size record in the first named-position table in <c>DefPos.bin</c>.</summary>
+/// <summary>Fixed-size record in the first named-position table in <c>DefPos.bin</c>.
+/// Gold 0x1BF copies the same complete record; 0x1C0 matches its Kind/name key.</summary>
 [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SerializedSize)]
 public readonly struct SacredDefPosPositionLayout
 {

@@ -12,9 +12,18 @@ internal static class NetworkCharacterCheats
         message = string.Empty;
         switch (option.ToLowerInvariant())
         {
+            case "server-texts":
+                message = $"received creature texts {world.Combat.TextEvents}; active resolved readouts {scene.CombatText.WorldText.Count}; drawn {scene.CombatText.DrawnWorldText}";
+                return true;
+            case "server-quest":
+                if (!uint.TryParse(value, out var reference) || !world.Objects.TryGetValue(reference, out var obj) || obj.Physical is not { } physical)
+                    message = "Use set server-quest <reference> for a received 3D object.";
+                else
+                    message = $"object {reference}: quest number {physical.QuestNumber}; quest script effect {physical.QuestEffect}; owner {obj.BaseState.Owner}; active {(obj.BaseState.Flags & GoldObjectLifecycleLayout.InactiveFlag) == 0}";
+                return true;
             case "server-combat":
                 var combat = world.Combat;
-                message = $"received combat: {combat.Attacks} attacks; {combat.SpecialMoves} special moves; {combat.Casts} spells; {combat.DamageEvents} damage events; {combat.HealthUpdates} absolute HP updates, {combat.HealingUpdates} increases; history {combat.Recent.Count}; version {combat.Version}; reserved arrows {world.BowProjectiles.Entries.Count}";
+                message = $"received combat: {combat.Attacks} attacks; {combat.SpecialMoves} special moves; {combat.Casts} spells; {combat.SleepEvents} sleep events; {combat.DamageEvents} damage events; {combat.HealthUpdates} absolute HP updates, {combat.HealingUpdates} increases; history {combat.Recent.Count}; version {combat.Version}; reserved arrows {world.BowProjectiles.Entries.Count}; dialog/fight updates {world.CreatureControls.DialogUpdates}/{world.CreatureControls.FightModeUpdates}; pending creature-state replies {world.CreatureControls.PendingReplies}";
                 return true;
             case "equipment" when value.Equals("status", StringComparison.OrdinalIgnoreCase):
                 if (scene.EquipmentUi.Actor is { } actor)

@@ -17,7 +17,10 @@ public sealed class GoldAdmissionTracker
         {
             if (Status.Phase != GoldAdmissionPhase.NotRequested)
                 throw new InvalidOperationException("FIRSTCONTACT has already been requested.");
-            Volatile.Write(ref _status, new(GoldAdmissionPhase.WaitingForResponse));
+            Volatile.Write(ref _status, new(GoldAdmissionPhase.WaitingForResponse)
+            { SessionLocked = Status.SessionLocked, SessionGameFlags = Status.SessionGameFlags,
+                AnnouncedMaxPlayers = Status.AnnouncedMaxPlayers, MaxPlayers = Status.MaxPlayers,
+                SessionPaused = Status.SessionPaused, PausedBy = Status.PausedBy });
         }
     }
 
@@ -47,7 +50,14 @@ public sealed class GoldAdmissionTracker
                     RequireServerIdentity(message);
                     if (next.Phase != GoldAdmissionPhase.WaitingForResponse)
                         throw new InvalidDataException("Unexpected Gold FIRSTCONTACT response.");
-                    next = new(GoldAdmissionPhase.SlotAssigned, admission.PlayerSlot, admission.Flags, admission.HostToken);
+                    next = new(GoldAdmissionPhase.SlotAssigned, admission.PlayerSlot, admission.Flags, admission.HostToken)
+                    { SessionLocked = next.SessionLocked, SessionGameFlags = next.SessionGameFlags,
+                        AnnouncedMaxPlayers = next.AnnouncedMaxPlayers, MaxPlayers = next.MaxPlayers,
+                        SessionPaused = next.SessionPaused, PausedBy = next.PausedBy };
+                }
+                else if (entry is GoldClientHostRoleEvent)
+                {
+                    RequireServerIdentity(message);
                 }
                 else if (entry is GoldRejectionEvent rejection)
                 {
@@ -64,6 +74,31 @@ public sealed class GoldAdmissionTracker
                     if (next.Phase != GoldAdmissionPhase.SlotAssigned || next.Password != GoldPasswordStatus.WaitingForResponse)
                         throw new InvalidDataException("Unexpected Gold password response.");
                     next = next with { Password = password.Accepted ? GoldPasswordStatus.Accepted : GoldPasswordStatus.Rejected };
+                }
+                else if (entry is GoldSessionPauseEvent pause)
+                {
+                    // Server relays retain the pausing player's five-bit Origin. Zero means GameServer.
+                    if (message.Sender != 0 || message.Origin > 31)
+                        throw new InvalidDataException("Gold pause/resume requires a server message with a five-bit origin.");
+                    next = next with { SessionPaused = pause.IsPaused, PausedBy = pause.PausedBy };
+                }
+                else if (entry is GoldSessionLockEvent session)
+                {
+                    RequireServerIdentity(message);
+                    next = next with { SessionLocked = session.IsLocked,
+                        SessionGameFlags = next.SessionGameFlags is { } flags
+                            ? session.IsLocked ? flags | GoldSessionGameFlagsCodec.LockMask : flags & ~GoldSessionGameFlagsCodec.LockMask : null };
+                }
+                else if (entry is GoldSessionPlayerLimitEvent limit)
+                {
+                    RequireServerIdentity(message);
+                    next = next with { AnnouncedMaxPlayers = limit.AnnouncedMaxPlayers,
+                        MaxPlayers = GoldSessionPlayerLimitCodec.Resolve(limit.AnnouncedMaxPlayers, next.SessionGameFlags, next.MaxPlayers) };
+                }
+                else if (entry is GoldSessionGameFlagsEvent gameFlags)
+                {
+                    RequireServerIdentity(message);
+                    next = next with { SessionGameFlags = gameFlags.Flags, SessionLocked = (gameFlags.Flags & GoldSessionGameFlagsCodec.LockMask) != 0 };
                 }
                 else if (entry is GoldPlayerRosterEvent or GoldTimeProbeEvent or GoldReferenceBatchEvent or GoldReferenceRangeEvent)
                 {

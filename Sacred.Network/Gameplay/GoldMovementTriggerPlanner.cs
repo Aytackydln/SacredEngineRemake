@@ -6,6 +6,15 @@ namespace Sacred.Network.Gameplay;
 /// <summary>Gold 0x63C970 recursive sector routing. Does not execute the declaration's script or callbacks.</summary>
 public static class GoldMovementTriggerPlanner
 {
+    /// <summary>The receive path forwards the surface word directly; SetBaseTrigger's authoring clamp has already happened at the producer.</summary>
+    public static IReadOnlyList<GoldPlannedMovementTrigger> CreateReceived(GoldMovementTriggerInsertion insertion, SacredSectorGrid grid)
+    {
+        ArgumentNullException.ThrowIfNull(insertion);
+        var definition = new SacredBaseTriggerDefinition(insertion.NameBytes,
+            new(insertion.FirstX, insertion.FirstY, 0), new(insertion.LastX, insertion.LastY, 0));
+        return Create(definition, grid).Select(piece => new GoldPlannedMovementTrigger(piece.Sector,
+            piece.Record.WithReceivedSurface(insertion.Surface), piece.SourceOffset)).ToArray();
+    }
     public static IReadOnlyList<GoldPlannedMovementTrigger> Create(SacredBaseTriggerDefinition definition, SacredSectorGrid grid)
     {
         ArgumentNullException.ThrowIfNull(definition);

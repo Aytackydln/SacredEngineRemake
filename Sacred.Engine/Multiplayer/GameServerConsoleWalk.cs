@@ -37,6 +37,7 @@ internal sealed class GameServerConsoleWalk
         if(!world.IsCurrentSession || route.Length==0 || route.Any(point => !float.IsFinite(point.X) || !float.IsFinite(point.Y)) || !float.IsFinite(tilesPerSecond) || tilesPerSecond<=0)
             throw new ArgumentException("Walk requires a current world, finite route points and a positive supplied speed.");
         (_client,_world,_route,_control,_speed)=(client,world,route,control174,tilesPerSecond);
+        if (world.Replicas.Session.IsPaused == true) throw new InvalidOperationException("Console walking waits for the server to resume.");
         var hero=world.LocalHero;
         var creature=hero.Creature ?? throw new InvalidOperationException("Local hero has no creature state.");
         _position=world.LocalPosition;
@@ -54,7 +55,15 @@ internal sealed class GameServerConsoleWalk
         try
         {
             if(!_world.IsCurrentSession || !_client.IsParticipantWorldApproved) throw new InvalidOperationException("Walking session ended.");
+            if (_world.Replicas.Session.IsPaused == true) return;
             if(_send is { IsCompleted:false }) return;
+            if (_world.LocalHero.Creature?.IsSleeping == true)
+            {
+                _send?.GetAwaiter().GetResult(); _send = null; _pending = null;
+                IsComplete = true; Status = "console walk cancelled by native sleep";
+                EngineLog.WriteLine("Network input: " + Status + ".");
+                return;
+            }
             if(_send is not null)
             {
                 _send.GetAwaiter().GetResult();

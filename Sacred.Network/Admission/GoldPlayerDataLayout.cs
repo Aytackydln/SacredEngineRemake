@@ -7,6 +7,8 @@ public static class GoldPlayerDataLayout
     public const int Size = 834;
     public const int CharacterTypeOffset = 4;
     public const int ProfileByte5Offset = 5;
+    /// <summary>UInt32 setting, copied to native roster +0x60 (record base +0x54). Only 1 is low bandwidth.</summary>
+    public const int ConnectionSpeedOffset = 0x0C;
     public const int VersionOffset = 0x10;
     public const int LobbyIdentityOffset = 0x12;
     public const int NameOffset = 0x16;

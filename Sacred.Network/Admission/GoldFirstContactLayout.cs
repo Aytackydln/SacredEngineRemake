@@ -9,6 +9,7 @@ public static class GoldFirstContactLayout
     public const int VersionOffset = 4;
     public const int CharacterTypeOffset = 6;
     public const int ProfileByte7Offset = 7;
+    /// <summary>NETWORK_SPEEDSETTINGS: 1 reduces ambient NPC detail; 2 is LAN/high bandwidth.</summary>
     public const int ConnectionSpeedOffset = 8;
     public const int ProfileFlag9Offset = 9;
     public const int ExecutableSizeTokenOffset = 0x0A;

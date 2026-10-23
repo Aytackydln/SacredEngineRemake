@@ -22,6 +22,8 @@ public sealed record GoldReplicatedObject(GoldObjectBaseState BaseState, GoldCre
     /// <summary>Projected-world heading bits from position/end packets, or derived from a full physical direction vector.
     /// The base block's cached +0x28 word remains separately preserved.</summary>
     public uint? FacingBits { get; init; }
+    /// <summary>Native +0x594/+0x5A8 slot. Retain until the native transition completion is implemented.</summary>
+    public GoldDeferredPosition? DeferredPosition { get; init; }
     /// <summary>Latest creature +0x570 link: horse on a rider, rider on a horse. Snapshot tail bytes remain intact.</summary>
     public uint? MountPartnerReference { get; init; }
     /// <summary>Source of the latest reported anchor; presentation uses relocation/full state as a discontinuity.</summary>
@@ -30,6 +32,9 @@ public sealed record GoldReplicatedObject(GoldObjectBaseState BaseState, GoldCre
     public long PositionVersion { get; init; }
     /// <summary>Route/stop/cancellation generation, including cancellation without a position.</summary>
     public long MovementVersion { get; init; }
+    /// <summary>Movement generation supplied by the latest creature snapshot. A later
+    /// stop/cancellation invalidates its embedded route, including for newly loaded consumers.</summary>
+    public long SnapshotMovementVersion { get; init; }
     /// <summary>Latest native 0x166/0x167 removal form. A full replacement starts a new active instance.</summary>
     public ushort? RemovalOpcode { get; init; }
     /// <summary>Latest accepted SetupFly command; playback keeps its clock outside authoritative state.</summary>
@@ -42,5 +47,7 @@ public sealed record GoldReplicatedObject(GoldObjectBaseState BaseState, GoldCre
     public GoldCreatureAttackEvent? Attack { get; init; }
     public GoldCreatureSpecialMoveEvent? SpecialMove { get; init; }
     public GoldCreatureCastEvent? Cast { get; init; }
+    /// <summary>Retained independently of the bounded combat history; replaced by each accepted sleep receipt.</summary>
+    public GoldCreatureSleepEvent? Sleep { get; init; }
     public long AttackVersion { get; init; }
 }

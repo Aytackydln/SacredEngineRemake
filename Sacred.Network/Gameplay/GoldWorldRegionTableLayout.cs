@@ -1,3 +1,5 @@
+using Sacred.Core.World.Regions;
+
 namespace Sacred.Network.Gameplay;
 
 /// <summary>Gold bank 1's uncounted region table. Client 0x61D450 initializes it;
@@ -5,7 +7,7 @@ namespace Sacred.Network.Gameplay;
 public static class GoldWorldRegionTableLayout
 {
     public const int Count = 256;
-    public const int RecordSize = 24;
+    public const int RecordSize = SacredRegionStateLayout.SerializedSize;
     public const int Size = Count * RecordSize;
     public const int IndexOffset = 0;
     public const int Byte2Offset = 2;
@@ -14,6 +16,11 @@ public static class GoldWorldRegionTableLayout
     public const int Float12Offset = 12;
     public const int Float16Offset = 16;
     public const int Float20Offset = 20;
+    public const int StatusOffset = SacredRegionStateLayout.StatusOffset;
+    public const int RequiredStatusOffset = SacredRegionStateLayout.RequiredStatusOffset;
+    public const int RegionFactorOffset = SacredRegionStateLayout.RegionFactorOffset;
+    public const int StoryFactorOffset = SacredRegionStateLayout.StoryFactorOffset;
+    public const int DynamicFactorOffset = SacredRegionStateLayout.DynamicFactorOffset;
     /// <summary>0x492880 sets this before invoking the region initialization function.
     /// It is distinct from the interpreter's per-sector initialization map.</summary>
     public const uint InitializedFlag = 1;

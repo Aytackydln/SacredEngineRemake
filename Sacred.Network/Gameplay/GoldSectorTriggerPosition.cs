@@ -10,10 +10,15 @@ public sealed class GoldSectorTriggerPosition
     public const int Size = 16;
     private readonly byte[] _bytes;
     private GoldSectorTriggerPosition(byte[] bytes) => _bytes = bytes;
+    public ushort Sector => BinaryPrimitives.ReadUInt16LittleEndian(_bytes);
     public int X => BinaryPrimitives.ReadInt32LittleEndian(_bytes.AsSpan(4));
     public int Y => BinaryPrimitives.ReadInt32LittleEndian(_bytes.AsSpan(8));
     public byte Surface => _bytes[12];
     public byte[] ToPayload() => _bytes.ToArray();
+    internal GoldSectorTriggerPosition WithSector(ushort sector)
+    {
+        var bytes = ToPayload(); BinaryPrimitives.WriteUInt16LittleEndian(bytes, sector); return new(bytes);
+    }
     public static GoldSectorTriggerPosition FromPayload(ReadOnlySpan<byte> bytes) => bytes.Length == Size
         ? new(bytes.ToArray()) : throw new InvalidDataException("Sector trigger position requires 16 bytes.");
 }

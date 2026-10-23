@@ -1,4 +1,6 @@
 using System.Buffers.Binary;
+using System.Runtime.InteropServices;
+using Sacred.Core.World.Regions;
 
 namespace Sacred.Network.Gameplay;
 
@@ -35,6 +37,7 @@ public sealed class GoldWorldRegionTable
         return _data.AsSpan(index * GoldWorldRegionTableLayout.RecordSize, GoldWorldRegionTableLayout.RecordSize);
     }
     public uint GetFlags(int index) => BinaryPrimitives.ReadUInt32LittleEndian(GetRecord(index)[GoldWorldRegionTableLayout.FlagsOffset..]);
+    public SacredRegionStateLayout GetState(int index) => MemoryMarshal.Read<SacredRegionStateLayout>(GetRecord(index));
     public bool IsInitialized(int index) => (GetFlags(index) & GoldWorldRegionTableLayout.InitializedFlag) != 0;
     public byte[] ToPayload() => _data.ToArray();
 

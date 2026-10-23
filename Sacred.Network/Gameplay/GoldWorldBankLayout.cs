@@ -50,7 +50,7 @@ public static class GoldWorldBankLayout
         };
         if (opcode == Bank4Opcode) return index switch
         {
-            0 => 80, 1 or 5 or 8 => 1, 2 => 24, 3 or 7 => 8, 4 => 88, 6 => 188,
+            0 => 80, 1 or 5 or 8 => 1, 2 => GoldScriptSpatialLayout.Size, 3 or 7 => 8, 4 => 88, 6 => 188,
             _ => throw new ArgumentOutOfRangeException(nameof(index))
         };
         return opcode == Bank2Opcode ? index switch

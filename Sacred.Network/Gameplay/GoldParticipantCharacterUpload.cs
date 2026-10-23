@@ -1,4 +1,6 @@
 using System.Buffers.Binary;
+using System.Collections.Frozen;
+using System.Collections.ObjectModel;
 using Sacred.Core.Pax.Hero.Inventory;
 using Sacred.Core.Pax.Hero.Objects;
 using Sacred.Network.Protocol;
@@ -13,6 +15,8 @@ public sealed class GoldParticipantCharacterUpload
     private readonly GoldMessage[] _messages;
     /// <summary>Original full progression inputs omitted from the compact hero packet.</summary>
     public SacredSavedCreatureValues CharacterValues { get; }
+    public IReadOnlyDictionary<uint, SacredSavedCreatureThinkState> CreatureThinking { get; private init; }
+        = FrozenDictionary<uint, SacredSavedCreatureThinkState>.Empty;
     private GoldParticipantCharacterUpload(byte slot, int objects, GoldMessage[] messages, SacredSavedCreatureValues characterValues)
         => (PlayerSlot, ObjectCount, _messages, CharacterValues) = (slot, objects, messages, characterValues);
     public byte PlayerSlot { get; }
@@ -61,7 +65,11 @@ public sealed class GoldParticipantCharacterUpload
         messages.Add(GoldInventoryCodec.Create(plan.PlayerSlot, plan.PlayerSlot, inventory));
         messages.Add(GoldInventoryCodec.Create(plan.PlayerSlot, 17, sharedInventory));
         foreach (var message in messages) RequireSize(message.Payload, 0);
-        return new(plan.PlayerSlot, plan.ObjectCount, messages.ToArray(), plan.Source.Hero.Creature.Values);
+        var thinking = new Dictionary<uint, SacredSavedCreatureThinkState> { [plan.PlayerSlot] = plan.Source.Hero.Creature.Thinking };
+        foreach (var record in plan.Source.Objects.Records)
+            if (record.Creature is { } creature) thinking[plan.References[record.BaseState.ObjectReference]] = creature.Thinking;
+        return new(plan.PlayerSlot, plan.ObjectCount, messages.ToArray(), plan.Source.Hero.Creature.Values)
+        { CreatureThinking = new ReadOnlyDictionary<uint, SacredSavedCreatureThinkState>(thinking) };
     }
 
     /// <summary>Return isolated message payloads. Transport assigns wire sequences when sending.</summary>

@@ -43,9 +43,15 @@ internal sealed class GameServerJoinSession
     private DateTime _lastAdvance = DateTime.UtcNow;
     public bool IsFinished => _phase < 0 || _phase == 6;
     public string Status { get; private set; } = "loading original saved character and LAN compatibility";
+    public GoldConnectionMode ConnectionMode { get; }
 
     public GameServerJoinSession(GameServerClientController client, string folder, string endpoint, int selection)
+        : this(client, folder, endpoint, selection, GoldConnectionMode.LanHighBandwidth) { }
+
+    public GameServerJoinSession(GameServerClientController client, string folder, string endpoint, int selection, GoldConnectionMode connectionMode)
     {
+        _ = GoldConnectionModes.Label(connectionMode);
+        ConnectionMode = connectionMode;
         if (client.IsConnected) throw new InvalidOperationException("Disconnect before joining another character.");
         if (selection is < 1 or > 8) throw new ArgumentOutOfRangeException(nameof(selection));
         (_client, _endpoint, _selection) = (client, endpoint, selection);
@@ -56,12 +62,12 @@ internal sealed class GameServerJoinSession
             var compatibility = GoldLanCompatibility.Read(folder);
             var hero = SacredHeroPaxProfile.ReadSelected(folder, selection);
             var source = GameServerSavedCharacterReader.Read(folder, selection);
-            var contact = GoldFirstContact.Create(hero.Profile, new(hero.Name, (byte)selection, 1, 1, 1, 0), compatibility);
+            var contact = GoldFirstContact.Create(hero.Profile, new(hero.Name, (byte)selection, 1, (byte)connectionMode, 1, 0), compatibility);
             return (contact, source, SacredSectorIndex.Read(Path.Combine(folder,"World","sectors.keyx")),
                 (IReadOnlyDictionary<uint, SacredCreatureClass>)GameServerCreatureClasses.Read(folder),
                 (IReadOnlyDictionary<uint, uint>)GameServerCreatureClasses.ReadObjectResources(folder));
         });
-        EngineLog.WriteLine($"Network join: {Status}.");
+        EngineLog.WriteLine($"Network join: {Status}; {GoldConnectionModes.Label(ConnectionMode)} (native setting {(byte)ConnectionMode}).");
     }
 
     public void Update(Func<GoldWorldReplica,bool> bindScene, Func<bool> sceneReady)

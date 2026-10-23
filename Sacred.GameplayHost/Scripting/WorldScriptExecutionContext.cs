@@ -12,12 +12,14 @@ public sealed class WorldScriptExecutionContext
     private readonly Dictionary<string, List<int>> _movementCallbacks = new(WorldScriptNameComparer.Instance);
     private readonly Dictionary<ushort, int> _coverage = [];
     private readonly List<SacredScriptSpawnEquipment> _spawnEquipment = [];
+    private readonly SacredScriptFunction[] _functions;
     public WorldScriptExecutionContext(WorldScriptDefinitions definitions, IReadOnlyList<SacredScriptFunction> functions,
         ReadOnlyMemory<byte> functionCode, bool multiplayer, Func<int>? random = null, Func<int, int, bool>? positionAllowed = null)
     {
         Definitions = definitions ?? throw new ArgumentNullException(nameof(definitions));
         ArgumentNullException.ThrowIfNull(functions);
-        Functions = Array.AsReadOnly(functions.ToArray());
+        _functions = functions.ToArray();
+        Functions = Array.AsReadOnly(_functions);
         FunctionCode = functionCode.ToArray();
         Multiplayer = multiplayer;
         Random = random;
@@ -67,6 +69,13 @@ public sealed class WorldScriptExecutionContext
 
     public IReadOnlyList<int> MovementCallbacks(string name) =>
         _movementCallbacks.TryGetValue(name, out var callbacks) ? callbacks.AsReadOnly() : Array.Empty<int>();
+    /// <summary>Native received registration accepts the complete word; invocation validates the eventual function.</summary>
+    public void AppendReceivedMovementCallback(string name, uint function)
+    {
+        if (!_movementCallbacks.TryGetValue(name, out var callbacks)) _movementCallbacks.Add(name, callbacks = []);
+        callbacks.Add(unchecked((int)function));
+    }
+    public void ClearMovementCallbacks() => _movementCallbacks.Clear();
     internal void RegisterMovement(string name, int function)
     {
         RequireFunction(function);
@@ -75,6 +84,11 @@ public sealed class WorldScriptExecutionContext
     }
     internal void AddTrigger(SacredBaseTriggerDefinition trigger) => _triggers.Add(trigger);
     internal void Record(ushort opcode) => _coverage[opcode] = _coverage.GetValueOrDefault(opcode) + 1;
+    /// <summary>Replaces one existing definition. Bytecode bounds remain checked at execution time.</summary>
+    public void ReplaceFunction(uint index, SacredScriptFunction function)
+    {
+        if (index < _functions.Length) _functions[index] = function;
+    }
     public SacredScriptFunction RequireFunction(int index)
     {
         if ((uint)index >= Functions.Count) throw new InvalidDataException($"Unresolved function index {index}.");

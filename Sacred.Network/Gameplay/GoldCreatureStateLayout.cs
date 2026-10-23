@@ -20,6 +20,9 @@ public static class GoldCreatureStateLayout
     public const int Byte1FDOffset = 214;
     public const int Word1FEOffset = 215;
     public const int Word200Offset = 217;
+    public const uint SleepingFlag = SacredSavedCreatureLayout.SleepingFlag;
+    public const uint FightModeFlag = SacredSavedCreatureLayout.FightModeFlag;
+    public const uint SleepWakeSuppressedFlag = SacredSavedCreatureLayout.SleepWakeSuppressedFlag;
     /// <summary>Gold EiBow (0x4DCB80) uses separate projectile factories for native +0x200 bits
     /// 0x200000 (BFG) and 0x400000, independently of the action-bank art byte.</summary>
     public const uint AlternateBowProjectileMask = 0x00600000;

@@ -16,7 +16,7 @@ internal sealed class GameplayNetworkInteractions(SacredNetworkWorldBinding worl
     public bool Request(GameplayWorldObject target, GameplayInteractionContext context)
     {
         Update();
-        if (!world.IsCurrentSession || _send is not null || !context.InReach) return false;
+        if (!world.IsCurrentSession || world.Replicas.Session.IsPaused == true || _send is not null || !context.InReach) return false;
         try
         {
             if (transport is not { IsParticipantWorldApproved: true } || transport.PlayerSlot != world.PlayerSlot)

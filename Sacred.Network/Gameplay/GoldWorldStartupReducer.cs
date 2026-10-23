@@ -10,6 +10,7 @@ internal static class GoldWorldStartupReducer
             HostWorldAvailable: (admission.Flags & GoldWorldEntryCodec.HostWorldAvailableFlag) != 0),
         GoldHostWorldAvailableEvent available => status with { HostWorldAvailable = true, AvailableHostSlot = available.Message.Origin },
         GoldParticipantStartApprovedEvent => status with { ParticipantStartApproved = true },
+        GoldClientHostRoleEvent role => status with { AssignedClientHost = role.IsClientHost },
         GoldSectorEntryEvent sectors => status with { SectorEntryCount = status.SectorEntryCount + 1, LastSectorEntry = sectors.Entry },
         _ => status
     };

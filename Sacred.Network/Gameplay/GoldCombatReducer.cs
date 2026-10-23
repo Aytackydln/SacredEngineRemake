@@ -4,13 +4,16 @@ internal static class GoldCombatReducer
 {
     public static bool Apply(Dictionary<uint, GoldReplicatedObject> objects, GoldCombatReplica combat, GoldCombatEvent entry)
     {
+        if (entry is GoldCreatureTextEvent) entry = GoldCreatureTextCodec.Decode(entry.Message);
         if (!objects.TryGetValue(entry.ObjectReference, out var actor) || actor.Creature is null ||
             (actor.BaseState.Flags & GoldObjectLifecycleLayout.InactiveFlag) != 0) return false;
         // The original receive guards check existence, type and active state, without an ownership filter.
         GoldCombatEvent owned = entry switch
         {
+            GoldCreatureTextEvent text => text with { ReceiptPosition = new(actor.BaseState.X, actor.BaseState.Y, actor.BaseState.Surface, actor.BaseState.Sector) },
             GoldCreatureSpecialMoveEvent => GoldSpecialMoveCodec.Decode(entry.Message),
             GoldCreatureCastEvent => GoldCastCodec.Decode(entry.Message),
+            GoldCreatureSleepEvent => GoldCreatureSleepCodec.Decode(entry.Message),
             _ => GoldCombatCodec.Decode(entry.Message)
         };
         var current = actor.CurrentHitPoints ?? actor.Values?.CurrentHitPoints;
@@ -18,6 +21,13 @@ internal static class GoldCombatReducer
             ? actor.ReportedHitPoints ?? current : current);
         objects[entry.ObjectReference] = owned switch
         {
+            GoldCreatureSleepEvent sleep => actor with
+            {
+                Sleep = sleep,
+                Creature = actor.Creature.WithSleepingFlag(),
+                Movement = null, MovementVersion = actor.MovementVersion + 1,
+                Attack = null, SpecialMove = null, Cast = null, AttackVersion = actor.AttackVersion + 1
+            },
             GoldCreatureHealthEvent health => actor with
             {
                 CurrentHitPoints = health.HitPoints,

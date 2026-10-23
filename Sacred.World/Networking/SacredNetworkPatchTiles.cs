@@ -13,6 +13,13 @@ internal sealed class SacredNetworkPatchTiles(Func<uint, StaticObjectRecord?> re
         var sector = terrain.At(x, y);
         if (sector is null) return null;
         if (surface == 0) return (sector.Pathing, x % Sector.TileCount, y % Sector.TileCount);
+        return ResolveFloor(terrain, x, y, surface);
+    }
+    /// <summary>Native floor lookup accepts level zero as the indoor parent, still requiring an indoor anchor.</summary>
+    public (WorldPathingLayer Plane, int X, int Y)? ResolveFloor(SacredNetworkPatchTerrain terrain, int x, int y, ushort surface)
+    {
+        var sector = terrain.At(x, y);
+        if (sector is null) return null;
         var delta = sector.TileAnchorDeltas?[x % Sector.TileCount, y % Sector.TileCount] ?? default;
         var ax = x + delta.X; var ay = y + delta.Y;
         var anchor = terrain.At(ax, ay);
@@ -26,7 +33,7 @@ internal sealed class SacredNetworkPatchTiles(Func<uint, StaticObjectRecord?> re
             id = record.NextStaticId;
         }
         if (parent is not { } building) return null;
-        id = building.IndoorSurfaceChainHeadId;
+        id = surface == 0 ? id : building.IndoorSurfaceChainHeadId;
         for (var level = 1; level < surface; level++)
         {
             if (id == 0 || readStatic(id) is not { } child) return null;

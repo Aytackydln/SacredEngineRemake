@@ -97,6 +97,7 @@ internal sealed partial class SacredGameRuntime : IDisposable
         _gameServer.Update();
         _gameServerFiles.Update();
         UpdateServerJoin();
+        _gameServer.AdvanceGameplay(deltaSeconds);
         _serverWalk?.Update(deltaSeconds);
         if (_inGameScene is { } networkScene) networkScene.NetworkConsoleWalkActive = _serverWalk is { IsComplete: false };
         if (_window.Input.ConsumePressed(VirtualKey.F12))
@@ -526,7 +527,7 @@ internal sealed partial class SacredGameRuntime : IDisposable
                 EngineLog.WriteLine("Weather: set weather <live|clear|rain|fog|snow|storm|status>; set rain <0..1>; set fog <0..1>; set snow <0..1>; set lightning once; set earthquake <0..1>; set stomp <0..1>. Screenshot captures weather without focusing the window.");
                 EngineLog.WriteLine("Lighting preview: set lighting-time <HH:mm[:ss]|live|status>; screenshot [label]. Uses the native dawn/dusk curve without changing network calendar state.");
                 EngineLog.WriteLine("Multiplayer: set server <host:port>; set server status; set server disconnect. TinCat connection and Sacred gameplay admission are reported separately.");
-                EngineLog.WriteLine("Visible LAN: set server-join <host:port> <saved selection>; set server-join status; set server-character world-status. Owned walking: set server-walk [patrol] <x,y> <native control174> <tiles/sec>; set server-walk <status|stop>.");
+                EngineLog.WriteLine("Visible LAN: set server-join <host:port> <saved selection> [lan|low]; set server-bandwidth <lan|low|status>; set server-join status; set server-character world-status. Owned walking: set server-walk [patrol] <x,y> <native control174> <tiles/sec>; set server-walk <status|stop>.");
                 EngineLog.WriteLine("LAN compatibility: set server-files check; set server-files status. Reads the selected installation without blocking rendering.");
                 EngineLog.WriteLine("Sector streaming: set sectors <4|9>; set sector-upload-wait <on|off>. Defaults: 4 sectors; upload waiting off.");
                 EngineLog.WriteLine("Map: set map <ancaria|underworld|close|status>; set map-names <on|off>; set map-npcs <on|off>; set map-fit now.");
@@ -543,7 +544,7 @@ internal sealed partial class SacredGameRuntime : IDisposable
                 EngineLog.WriteLine("Model skinning: set skinning <auto|cpu|gpu|gpuonly> (default Auto); set gpu-skinning <on|off> aliases Gpu/Cpu. GpuOnly skips unavailable draws; set gpu-only <on|off> controls both skinning and particles. set skin-crowd <0..128> adds independent asset-driven poses; set skin-stats show reports resource bytes; set shader-reload now; set quit now.");
                 EngineLog.WriteLine("Particle cheats: set player-panel <on|off>; set particle-panel <on|off|play|toggles>; set particle-list <all|filter>; set particle-target <self|x,y>; set particle-follow <on|off>; set particle-play <FX name>; set particle-enable <FX name>; set particle-disable <FX name>; set particle-model <on|off>; set particle-stop all; set particle-crowd <0..64> creates asset-driven stress previews.");
                 EngineLog.WriteLine("Cheats: teleport <x> <y>; noclip [on|off]; screenshot [label]; inspect <x> <y> [label]; traceelevation <bellevue-a|bellevue-b|shaddar>; set overlays <on|off>; set debug-panel <on|off>; set lighting <day|night|cycle|black>; set stairs <on|off>; set blocked <on|off>; set tessellation <on|off>; set particles <on|off>; set particle-simulation <Auto|CpuSimd|CpuScalar|Gpu|GpuOnly>; set particle-stats show; set item-flags <hex>; set character next; set facing <degrees>; set path <x>,<y>; set door toggle; set door-list show; set hdr <on|off>; set hdr-brightness <nits|os>; set hdr-scene-format <packed|fp16>; set hdr-unlit-multiplier <0-4>; set hdr-particle-multiplier <0-4>; set pacing <vrr|vsync|limit|manual>; set fps <30-1000>; set latency <off|on|boost>; set resolution <percentage|auto>; set autoscale <on|off>; set scaling <none|bilinear|fsr1|fsr2|fsr1motionadaptive>; set granny <managed|native>.");
-                EngineLog.WriteLine("GameServer: set server-panel <on|off>; set server-discovery <on|off|refresh|status|UDP-port>; set server-join <host:port> <saved selection 1..8>; set server disconnect.");
+                EngineLog.WriteLine("GameServer: set server-panel <on|off>; set server-discovery <on|off|refresh|status|UDP-port>; set server-join <host:port> <saved selection 1..8> [lan|low]; set server-bandwidth <lan|low|status>; set server disconnect.");
                 EngineLog.WriteLine("Footprints: set footprints <on|off|clear|status>; set move <x,y|stop|status> moves through the normal camera/collision path without simulated input.");
                 EngineLog.WriteLine("Bottom HUD: set hud status reports the calendar and loading state; set hud map invokes the map button action.");
                 EngineLog.WriteLine("Inventory: set hud inventory toggles the panel; set inventory <open|close|toggle|status|slot-index>; set equipment <status|clear>; set equip <model-id>; set unequip <slot-index>; set equip-set <set-index>. I toggles inventory; Escape closes it.");

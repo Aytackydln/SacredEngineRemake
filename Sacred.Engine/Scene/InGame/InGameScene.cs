@@ -48,17 +48,22 @@ internal sealed partial class InGameScene : IGameScene
     private readonly SacredGameSaveState _saveState;
     internal WorldCampaignInfo? CampaignInfo { get; }
     private WorldMapAnnotations? _mapAnnotations;
+    private readonly NetworkMapAnnotations _networkMapAnnotations = new();
     private readonly SacredWorldArchive _worldArchive;
     private MinimapRegionNames? _regionNames;
     internal WorldMapAnnotations GetMapAnnotations(string gameDirectory)
     {
-        if (_mapAnnotations is not null) return _mapAnnotations;
-        _mapAnnotations = CampaignInfo is { } scripts
-            ? WorldMapAnnotations.Load(gameDirectory, scripts, _assets.Resources)
-            : WorldMapAnnotations.Empty;
-        _regionNames = new MinimapRegionNames(_worldArchive, _mapAnnotations);
-        UpdateRegionDisplayName();
-        return _mapAnnotations;
+        if (_mapAnnotations is null)
+        {
+            _mapAnnotations = CampaignInfo is { } scripts
+                ? WorldMapAnnotations.Load(gameDirectory, scripts, _assets.Resources)
+                : WorldMapAnnotations.Empty;
+            _regionNames = new MinimapRegionNames(_worldArchive, _mapAnnotations);
+            UpdateRegionDisplayName();
+        }
+        return _networkPresentation is { World.IsCurrentSession: true } view
+            ? _networkMapAnnotations.Resolve(view.World.Replicas.WorldBanks.Spatial, _mapAnnotations, _assets.Resources)
+            : _mapAnnotations;
     }
     private Task? _worldPreparationTask;
     private string _lastRegionDisplayName = string.Empty;
@@ -206,8 +211,8 @@ internal sealed partial class InGameScene : IGameScene
     internal void SetNoClipEnabled(bool enabled) =>
         SetCollisionMode(enabled ? CollisionCheatMode.NoClip : CollisionCheatMode.Walk);
 
-    internal PlayerDebugPanelState CreatePlayerDebugPanelState() => _networkPresentation is not null && _scene.EquipmentUi.Actor is { } actor
-        ? new($"Network player {_networkPresentation.World.PlayerSlot}", _networkPresentation.World.LocalHero.BaseState.ObjectType, [],
+    internal PlayerDebugPanelState CreatePlayerDebugPanelState() => _networkPresentation is { World.IsCurrentSession: true } view && _scene.EquipmentUi.Actor is { } actor
+        ? new($"Network player {view.World.PlayerSlot}", view.World.LocalHero.BaseState.ObjectType, [],
             actor.EquipmentSlots.Select((slot, index) => new PlayerEquipmentSlotState(index, slot.Type.ToString(), slot.Equipment?.Name, slot.Equipment?.IdemId)).ToArray(), [])
         : _player.CreateDebugPanelState();
     internal PlayerParticlePanelState CreatePlayerParticlePanelState() => _playerParticles.CreateState(_camera.WorldCenter);
@@ -429,6 +434,8 @@ internal sealed partial class InGameScene : IGameScene
     }
     public void Update(float deltaSeconds)
     {
+        if (_networkPresentation is { World.IsCurrentSession: true } network)
+            deltaSeconds = network.World.Replicas.Session.SimulationSeconds(deltaSeconds);
         var input = _window.Input;
         _scene.NpcOverheads.ShowStates = _scene.NpcOverheads.ShowStatesOverride ?? (!input.UiWantsKeyboard && input.IsDown(VirtualKey.Alt));
         if (!_scene.EscapeMenu!.IsOpen && !input.UiWantsKeyboard)

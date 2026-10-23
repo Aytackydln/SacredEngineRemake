@@ -14,6 +14,98 @@ public static class GoldGameEventDecoder
         var payload = message.Payload.AsSpan();
         switch (message.Opcode)
         {
+            case GoldLobbyCodec.ProfileOpcode:
+            case GoldLobbyCodec.WindowOpcode:
+            case GoldLobbyCodec.ChannelsOpcode:
+            case GoldLobbyCodec.PlayerChangeOpcode:
+                return GoldLobbyCodec.Decode(message);
+            case GoldSessionNoticeCodec.LobbyKickOpcode:
+            case GoldSessionNoticeCodec.BuddyAddedOpcode:
+            case GoldSessionNoticeCodec.ConnectionFailedOpcode:
+            case GoldSessionNoticeCodec.ConnectionAbortedOpcode:
+            case GoldSessionNoticeCodec.ServerNoticeOpcode:
+            case GoldSessionNoticeCodec.LobbyNoticeOpcode:
+                return GoldSessionNoticeCodec.Decode(message);
+            case GoldChannelChatCodec.PrivateOpcode:
+            case GoldChannelChatCodec.TeamOpcode:
+            case GoldChannelChatCodec.PublicOpcode:
+                return GoldChannelChatCodec.Decode(message);
+            case GoldClientHostRoleCodec.GrantedOpcode:
+            case GoldClientHostRoleCodec.RevokedOpcode:
+                return GoldClientHostRoleCodec.Decode(message);
+            case GoldChatCodec.Opcode:
+                return GoldChatCodec.Decode(message);
+            case GoldCheatsEnabledCodec.Opcode:
+                return GoldCheatsEnabledCodec.Decode(message);
+            case GoldScriptGroupCodec.Opcode:
+                return GoldScriptGroupCodec.Decode(message);
+            case GoldInactiveReceiveHookCodec.Hook18EOpcode:
+            case GoldInactiveReceiveHookCodec.Hook190Opcode:
+            case GoldInactiveReceiveHookCodec.Hook191Opcode:
+            case GoldInactiveReceiveHookCodec.Hook192Opcode:
+            case GoldInactiveReceiveHookCodec.Hook193Opcode:
+            case GoldInactiveReceiveHookCodec.Hook194Opcode:
+            case GoldInactiveReceiveHookCodec.Hook195Opcode:
+                return GoldInactiveReceiveHookCodec.Decode(message);
+            case GoldObjectCallbackCleanupCodec.Opcode:
+                return GoldObjectCallbackCleanupCodec.Decode(message);
+            case GoldSessionPauseCodec.ResumeOpcode:
+            case GoldSessionPauseCodec.PauseOpcode:
+                return GoldSessionPauseCodec.Decode(message);
+            case GoldTeamCodec.JoinOpcode:
+            case GoldTeamCodec.InviteOpcode:
+            case GoldTeamCodec.SnapshotOpcode:
+            case GoldTeamCodec.LeaveOpcode:
+                return GoldTeamCodec.Decode(message);
+            case GoldSessionPlayerLimitCodec.Opcode:
+                return GoldSessionPlayerLimitCodec.Decode(message);
+            case GoldSessionGameFlagsCodec.Opcode:
+                return GoldSessionGameFlagsCodec.Decode(message);
+            case GoldSessionLockCodec.UnlockOpcode:
+            case GoldSessionLockCodec.LockOpcode:
+                return GoldSessionLockCodec.Decode(message);
+            case GoldTriggerPatchCodec.Opcode:
+                return GoldTriggerPatchCodec.Decode(message);
+            case GoldScriptRegionCodec.Opcode:
+                return GoldScriptRegionCodec.Decode(message);
+            case GoldMovementTriggerInsertionCodec.Opcode:
+                return GoldMovementTriggerInsertionCodec.Decode(message);
+            case GoldMovementCallbackCodec.Opcode:
+                return GoldMovementCallbackCodec.Decode(message);
+            case GoldScriptDefinitionCodec.UpdateOpcode:
+            case GoldScriptDefinitionCodec.DeleteOpcode:
+                return GoldScriptDefinitionCodec.Decode(message);
+            case GoldScriptFunctionCodec.Opcode:
+                return GoldScriptFunctionCodec.Decode(message);
+            case GoldCreaturePositionCorrectionCodec.Opcode:
+                return GoldCreaturePositionCorrectionCodec.Decode(message);
+            case GoldScriptTableLayout.Table1D3Opcode:
+            case GoldScriptTableLayout.Table1D4Opcode:
+            case GoldScriptTableLayout.Table1D5Opcode:
+                return GoldScriptTableCodec.Decode(message);
+            case GoldScriptRegistrationLayout.SpawnRenewOpcode:
+            case GoldScriptRegistrationLayout.MouseoverOpcode:
+                return GoldScriptRegistrationCodec.Decode(message);
+            case GoldActualQuestsLayout.ResetOpcode:
+            case GoldActualQuestsLayout.FullOpcode:
+                return GoldActualQuestsCodec.Decode(message);
+            case GoldScriptSpatialLayout.MapIconOpcode:
+            case GoldScriptSpatialLayout.AttractorOpcode:
+                return GoldScriptSpatialCodec.Decode(message);
+            case GoldCreatureTextLayout.Opcode:
+                return GoldCreatureTextCodec.Decode(message);
+            case GoldWorldRegionValueLayout.SetOpcode:
+            case GoldWorldRegionValueLayout.AddOpcode:
+                return GoldWorldRegionValueCodec.Decode(message);
+            case GoldObjectQuestLayout.NumberOpcode:
+            case GoldObjectQuestLayout.EffectOpcode:
+                return GoldObjectQuestCodec.Decode(message);
+            case GoldCreatureControlLayout.FightModeOpcode:
+            case GoldCreatureControlLayout.DialogOpcode:
+                return GoldCreatureControlCodec.Decode(message);
+            case GoldPlayerKickEvent.Opcode:
+                RequireExact(payload, 4, message.Opcode);
+                return new GoldPlayerKickEvent(message, Word(payload, 0));
             case GoldWeatherEventLayout.Opcode:
                 RequireExact(payload, GoldWeatherEventLayout.Size, message.Opcode);
                 return new GoldWeatherEvent(message with { Payload = payload.ToArray() });
@@ -31,6 +123,8 @@ public static class GoldGameEventDecoder
             case GoldCombatLayout.BowOpcode:
             case GoldCombatLayout.BattleOpcode:
                 return GoldCombatCodec.Decode(message);
+            case GoldCreatureSleepLayout.Opcode:
+                return GoldCreatureSleepCodec.Decode(message);
             case GoldObjectFlightStopCodec.Opcode:
                 return GoldObjectFlightStopCodec.Decode(message);
             case GoldItemPickupCodec.RequestOpcode:

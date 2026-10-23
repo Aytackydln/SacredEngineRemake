@@ -38,6 +38,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sacred.Network", "Sacred.Ne
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sacred.GameplayHost", "Sacred.GameplayHost\Sacred.GameplayHost.csproj", "{B86EF310-7052-40AD-B44C-09A051936FCF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sacred.Network.Tests", "Sacred.Network.Tests\Sacred.Network.Tests.csproj", "{D668B33C-2464-481C-8382-8A645DDB2971}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -252,6 +254,18 @@ Global
 		{B86EF310-7052-40AD-B44C-09A051936FCF}.Release|x64.Build.0 = Release|Any CPU
 		{B86EF310-7052-40AD-B44C-09A051936FCF}.Release|x86.ActiveCfg = Release|Any CPU
 		{B86EF310-7052-40AD-B44C-09A051936FCF}.Release|x86.Build.0 = Release|Any CPU
+		{D668B33C-2464-481C-8382-8A645DDB2971}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D668B33C-2464-481C-8382-8A645DDB2971}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D668B33C-2464-481C-8382-8A645DDB2971}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D668B33C-2464-481C-8382-8A645DDB2971}.Debug|x64.Build.0 = Debug|Any CPU
+		{D668B33C-2464-481C-8382-8A645DDB2971}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D668B33C-2464-481C-8382-8A645DDB2971}.Debug|x86.Build.0 = Debug|Any CPU
+		{D668B33C-2464-481C-8382-8A645DDB2971}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D668B33C-2464-481C-8382-8A645DDB2971}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D668B33C-2464-481C-8382-8A645DDB2971}.Release|x64.ActiveCfg = Release|Any CPU
+		{D668B33C-2464-481C-8382-8A645DDB2971}.Release|x64.Build.0 = Release|Any CPU
+		{D668B33C-2464-481C-8382-8A645DDB2971}.Release|x86.ActiveCfg = Release|Any CPU
+		{D668B33C-2464-481C-8382-8A645DDB2971}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

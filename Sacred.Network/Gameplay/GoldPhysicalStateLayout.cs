@@ -24,6 +24,10 @@ public static class GoldPhysicalStateLayout
     public const int BoundsMaximumOffset = VectorE4Offset;
     public const int Word94Offset = 101;
     public const int Word96Offset = 103;
+    /// <summary>Signed 16-bit quest index, native +0x94 (Gold 0x450C50); -1 is the constructor default.</summary>
+    public const int QuestNumberOffset = Word94Offset;
+    /// <summary>Signed 16-bit quest script effect identity, native +0x96 (Gold 0x450E20).</summary>
+    public const int QuestEffectOffset = Word96Offset;
     public const int WordB0Offset = 105;
     /// <summary>With VectorCCFlag: exact model root pivot (native +0xCC), independent of
     /// the integer logical base X/Y. Gold 0x450254 writes it; 0x44B324 consumes it on render.

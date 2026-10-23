@@ -30,6 +30,9 @@ internal sealed class NetworkCombatPresentation
                 (current.BaseState.Flags & GoldObjectLifecycleLayout.InactiveFlag) != 0) continue;
             switch (entry)
             {
+                case GoldCreatureSleepEvent sleep:
+                    EngineLog.WriteLine($"Network creature sleep: ref {sleep.ObjectReference}; native clock offset {sleep.ClockOffset}; motion {GoldCreatureSleepLayout.Motion}; waiting for native wake state.");
+                    break;
                 case GoldCreatureCastEvent cast:
                     EngineLog.WriteLine($"Network combat spell: ref {cast.ObjectReference}; code {cast.Code}; target {cast.TargetReference} at {cast.TargetX}/{cast.TargetY}; reservations {cast.ReferenceData.Length} bytes.");
                     break;

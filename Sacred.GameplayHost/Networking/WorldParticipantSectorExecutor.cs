@@ -25,9 +25,9 @@ public sealed class WorldParticipantSectorExecutor
     private readonly Action<string> _log;
     private readonly long _session;
     private readonly Dictionary<ushort, WorldScriptSectorEnvironment> _environments = [];
-    private GoldWorldBankSnapshot? _definitionsBank;
     private GoldSectorWork? _executing;
     private bool _initialized;
+    private long _functionRevision = -1;
     private WorldParticipantCreatureRequest? _pendingCreature;
     private readonly SacredRegionDefinitions? _regions;
     private readonly SacredRandomSequence _random = new(unchecked((uint)Environment.TickCount));
@@ -50,6 +50,7 @@ public sealed class WorldParticipantSectorExecutor
     {
         ArgumentNullException.ThrowIfNull(replicas);
         ArgumentNullException.ThrowIfNull(index);
+        replicas.WorldBanks.TriggerPatches.ConfigureSectors(index);
         ArgumentNullException.ThrowIfNull(scripts);
         ArgumentNullException.ThrowIfNull(log);
         if (replicas.LocalPlayerSlot == 0) throw new InvalidOperationException("Sector execution requires a seeded participant session.");
@@ -57,9 +58,12 @@ public sealed class WorldParticipantSectorExecutor
         _regions = scripts.Regions;
         _populationCommand = new(scripts.PopulationDefinitions, scripts.PopulationBalance);
         _grid = index.CreateGrid();
-        // Definitions and variables are imported from the current native host state, rather
-        // than recreating startup or overwriting it with the original DefPos defaults.
+        // Received host definitions override the original DefPos baseline. A native zero-count
+        // bank preserves existing definitions; startup itself is not rerun here.
         _context = new(new(), scripts.Functions, scripts.FunctionCode, true, _random.Next) { BeforeCommand = RequireSupportedEffect };
+        replicas.WorldBanks.Functions.Configure(scripts.Vectors.Span);
+        replicas.WorldBanks.Definitions.Configure(WorldScriptDefinitions.Read(File.ReadAllBytes(scripts.Files.DefPosPath))
+            .Records.Select(row => SacredScriptDefinition.FromPayload(row.ToPayload())));
         _callbacks = new(_context, new(_context, ExecuteWorldCommand));
         _entry = new(_context, _callbacks, _regions, log);
         Environments = new ReadOnlyDictionary<ushort, WorldScriptSectorEnvironment>(_environments);
@@ -87,10 +91,18 @@ public sealed class WorldParticipantSectorExecutor
             Status = "session ended";
             return;
         }
+        var functions = _replicas.WorldBanks.Functions;
+        if (_functionRevision != functions.Revision)
+        {
+            WorldNetworkScriptFunctions.Apply(functions, _context);
+            _functionRevision = functions.Revision;
+        }
         var queue = _replicas.SectorWork;
+        WorldNetworkScriptDefinitions.ApplyPending(_replicas.WorldBanks.Definitions, _context.Definitions);
+        WorldNetworkMovementCallbacks.ApplyPending(_replicas.WorldBanks.MovementCallbacks, _context);
         if (queue.PendingCount == 0 || queue.FailedCount != 0) return;
         if (!_replicas.WorldBanks.Current.TryGetValue(GoldWorldBankLayout.Bank1Opcode, out _) ||
-            !_replicas.WorldBanks.Current.TryGetValue(GoldWorldBankLayout.Bank2Opcode, out var definitions) ||
+            !_replicas.WorldBanks.Current.TryGetValue(GoldWorldBankLayout.Bank2Opcode, out _) ||
             _replicas.Regions.Table is null)
         {
             Status = "waiting for native script-variable, definition and region banks";
@@ -106,11 +118,6 @@ public sealed class WorldParticipantSectorExecutor
             {
                 if (_replicas.ScriptVariables.UnknownSlotCount != 0)
                     throw new InvalidDataException("Native script-variable state has unknown slots; callback predicates cannot be resolved.");
-                if (!ReferenceEquals(definitions, _definitionsBank))
-                {
-                    _context.Definitions.Import(definitions.Sections[5].Records.Select(row => WorldScriptDefinition.FromPayload(row.Data)));
-                    _definitionsBank = definitions;
-                }
                 _context.Variables.Import(_replicas.ScriptVariables.Records.OrderBy(pair => pair.Key).Select(pair => pair.Value));
             }
             if (!_index.TryGetSector(work.Entry.Sector, out var source))

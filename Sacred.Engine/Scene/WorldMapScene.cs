@@ -101,6 +101,8 @@ internal sealed class WorldMapScene : IGameScene
     {
         _uiInput.Update();
         if (_closeRequested) return;
+        var annotations = _getAnnotations();
+        if (!ReferenceEquals(annotations, _annotations)) { _annotations = annotations; RebuildFrame(); }
         if (_selectedMap != _controls.SelectedMap) SelectMap(_controls.SelectedMap);
         ApplyLoadedAtlas();
         if (_atlas is null)

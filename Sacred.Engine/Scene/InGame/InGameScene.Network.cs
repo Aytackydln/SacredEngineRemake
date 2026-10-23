@@ -29,7 +29,11 @@ internal sealed partial class InGameScene
     private GameServerClientController? _networkClient;
     private NetworkMovementInput? _networkMovement;
     internal bool NetworkConsoleWalkActive { get; set; }
-    internal void ConfigureNetworkConnection(GameServerClientController client) => _networkClient = client;
+    internal void ConfigureNetworkConnection(GameServerClientController client)
+    {
+        _networkClient = client;
+        client.WorldReplicas.Session.Notices.ConfigureResources(_assets.Resources);
+    }
     internal string NetworkMovementStatus => _networkMovement?.Status ?? "movement waits for the local actor";
     internal void NavigateNetworkTo(Vector2 target)
     {

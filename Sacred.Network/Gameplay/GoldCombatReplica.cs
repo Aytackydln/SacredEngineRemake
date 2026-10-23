@@ -11,15 +11,19 @@ public sealed class GoldCombatReplica
     public long Attacks { get; private set; }
     public long Casts { get; private set; }
     public long SpecialMoves { get; private set; }
+    public long SleepEvents { get; private set; }
     public long DamageEvents { get; private set; }
     public long HealthUpdates { get; private set; }
     public long HealingUpdates { get; private set; }
+    public long TextEvents { get; private set; }
 
     internal void Add(GoldCombatEvent entry, long instanceVersion, int? previousHitPoints)
     {
+        if (entry is GoldCreatureTextEvent) TextEvents++;
         if (entry is GoldCreatureAttackEvent) Attacks++;
         if (entry is GoldCreatureCastEvent) Casts++;
         if (entry is GoldCreatureSpecialMoveEvent) SpecialMoves++;
+        if (entry is GoldCreatureSleepEvent) SleepEvents++;
         if (entry is GoldCreatureDamageEvent) DamageEvents++;
         if (entry is GoldCreatureHealthEvent health)
         {
@@ -32,7 +36,7 @@ public sealed class GoldCombatReplica
 
     public void Clear()
     {
-        _recent.Clear(); Version = Attacks = Casts = SpecialMoves = DamageEvents = HealthUpdates = HealingUpdates = 0;
+        _recent.Clear(); Version = Attacks = Casts = SpecialMoves = SleepEvents = DamageEvents = HealthUpdates = HealingUpdates = TextEvents = 0;
     }
 }
 

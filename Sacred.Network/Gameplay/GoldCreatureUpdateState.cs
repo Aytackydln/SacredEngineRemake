@@ -38,6 +38,23 @@ public sealed class GoldCreatureUpdateState
 
     public byte[] ToPayload() => _payload.ToArray();
 
+    /// <summary>The partial writer's contiguous wire fields from the latest complete creature prefix.</summary>
+    public static GoldCreatureUpdateState FromCreature(GoldCreatureState creature)
+    {
+        ArgumentNullException.ThrowIfNull(creature);
+        var bytes = new byte[GoldCreatureUpdateLayout.StateSize];
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes, GoldCreatureStateLayout.Marker);
+        creature.ToPayload().AsSpan(GoldCreatureStateLayout.Word1F0Offset, bytes.Length - 4).CopyTo(bytes.AsSpan(4));
+        return new(bytes);
+    }
+
+    public GoldCreatureUpdateState WithFlags(uint flags)
+    {
+        var bytes = ToPayload();
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(GoldCreatureUpdateLayout.Word200Offset), flags);
+        return new(bytes);
+    }
+
     /// <summary>Apply the original 0x54C93F field copies and masks. Derived-value recalculation is deferred.</summary>
     public GoldCreatureState ApplyTo(GoldCreatureState previous)
     {

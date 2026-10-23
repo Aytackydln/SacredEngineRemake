@@ -47,6 +47,8 @@ public sealed class GoldWorldBankSnapshot
         for (var index = 0; index < sections.Length; index++)
         {
             var count = BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(index * sizeof(uint)));
+            if (opcode == GoldWorldBankLayout.Bank4Opcode && index == GoldActualQuestsLayout.BankSection && count > GoldActualQuestsLayout.Size)
+                throw new InvalidDataException("Gold actual-quest table exceeds 128 bytes.");
             var kind = GoldWorldBankLayout.GetSectionKind(opcode, index);
             var elementSize = serverSnapshot ? GoldWorldBankLayout.GetServerElementSize(opcode, index) : GoldWorldBankLayout.GetElementSize(opcode, index);
             var minimumRecordSize = GoldWorldBankRecordReader.GetMinimumSize(kind, elementSize);

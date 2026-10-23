@@ -10,6 +10,7 @@ public sealed class GoldSectorMovementTriggers
         Records = _records.AsReadOnly();
     }
     public IReadOnlyList<GoldMovementTriggerRecord> Records { get; }
+    internal void Add(GoldMovementTriggerRecord record) => _records.Add(record);
     internal int Remove(GoldMovementTriggerDeletion deletion)
     {
         var removed = 0;

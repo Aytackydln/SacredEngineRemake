@@ -35,7 +35,12 @@ internal sealed class NetworkMovementInput
         _gate.BlockUntilNewInput(input);
     }
 
-    public void NavigateTo(Vector2 target) { _objects.CancelApproach(); _click.NavigateTo(_camera, _collision, target, CollisionCheatMode.Walk); }
+    public void NavigateTo(Vector2 target)
+    {
+        if (_world.Replicas.Session.IsPaused == true) throw new InvalidOperationException("Navigation waits for the server to resume.");
+        if (_world.LocalHero.Creature?.IsSleeping == true) throw new InvalidOperationException("Navigation waits for the native wake state.");
+        _objects.CancelApproach(); _click.NavigateTo(_camera, _collision, target, CollisionCheatMode.Walk);
+    }
     public void Stop() { _objects.CancelApproach(); _click.StopMoving(); _camera.StopMoving(); }
     public void Suspend() { _objects.ClearHover(); _click.StopMoving(); _camera.StopMoving(); }
     public bool HasObjectHover => _objects.HasHover;
@@ -46,7 +51,7 @@ internal sealed class NetworkMovementInput
     public void Update(InputState input, int width, int height, Func<Vector2, Vector2> outputToViewport,
         float deltaSeconds, bool allowInput = true)
     {
-        if (!_world.IsCurrentSession || _publisher.Error is not null) return;
+        if (!_world.IsCurrentSession || _publisher.Error is not null || _world.Replicas.Session.IsPaused == true) return;
         var reportedFacing = _world.LocalHero.FacingBits ?? _world.LocalHero.BaseState.Word28;
         if (reportedFacing != _lastFacingBits)
             _camera.RotateToward(SacredNetworkFacing.ToTileDirection(reportedFacing));
@@ -55,6 +60,13 @@ internal sealed class NetworkMovementInput
             var reported = _world.LocalPosition;
             _camera.CenterOnTile(reported.X, reported.Y);
             _click.StopMoving();
+        }
+        if (_world.LocalHero.Creature?.IsSleeping == true)
+        {
+            Stop(); _objects.ClearHover();
+            _publisher.Update(_camera.WorldCenter, _camera.WorldCenter, _camera.CharacterFacingUnitVector, false, false, deltaSeconds);
+            _lastReported = _world.LocalPosition; _lastFacingBits = reportedFacing;
+            return;
         }
         var start = _camera.WorldCenter;
         var availability = _gate.Update(input);

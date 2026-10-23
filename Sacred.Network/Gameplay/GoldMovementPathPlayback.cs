@@ -15,6 +15,9 @@ public sealed class GoldMovementPathPlayback
     /// <summary>Unquantized segment vector. Frame-sized integer steps are not a heading.</summary>
     public GoldMovementPoint Direction { get; private set; }
 
+    /// <summary>Set the reported position without replacing path points, index or fractional clocks.</summary>
+    public void ApplyCorrection(GoldMovementPoint position) => Position = position;
+
     public void ReadBank(ReadOnlySpan<byte> bank, GoldMovementPoint position)
     {
         if (bank.Length != GoldMovementLayout.ActionSize) throw new ArgumentException("Complete movement bank required.", nameof(bank));

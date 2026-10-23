@@ -5,7 +5,9 @@ public static class SacredSavedCreatureLayout
 {
     public const int MarkerOffset = 247;
     public const int BlockFCOffset = 251;
+    public const int KiModeOffset = BlockFCOffset;
     public const int Block150Offset = 335;
+    public const int EiModeOffset = Block150Offset;
     /// <summary>Packed native +0x174 control copied into Gold movement message prefixes.</summary>
     public const int MovementControlOffset = Block150Offset + 0x24;
     public const int EquipmentOffset = 419;
@@ -19,6 +21,18 @@ public static class SacredSavedCreatureLayout
     /// <summary>Native +0x1F8 locomotion selector: 1 walking, 2 running (Gold Shift-key producer 0x4F5193).</summary>
     public const int LocomotionActionOffset = Block1F0Offset + 8;
     public const int Word200Offset = 511;
+    /// <summary>Native +0x200 sleep flag, set by NW_CREATURE_SLEEP and cleared by the
+    /// original wake path. The same flag word is retained in the saved creature prefix.</summary>
+    public const uint SleepingFlag = 0x00040000;
+    /// <summary>Native +0x200 fight-mode bit; CREATURE_UPDATE_FIGHTMODE changes only this bit.</summary>
+    public const uint FightModeFlag = 0x00008000;
+    /// <summary>Signed native +0x245 dialog selector, updated by Gold 0x5498F0.</summary>
+    public const int DialogIndexOffset = Block1F0Offset + 0x55;
+    /// <summary>Gold 0x539531 suppresses the automatic clearing of SleepingFlag while this bit is set.</summary>
+    public const uint SleepWakeSuppressedFlag = 0x00020000;
+    /// <summary>Native +0x204/+0x208: AI tick interval and elapsed seconds (Gold 0x537F3A).</summary>
+    public const int ThinkIntervalOffset = Block1F0Offset + 0x14;
+    public const int ThinkElapsedOffset = Block1F0Offset + 0x18;
     /// <summary>Native +0x2C9 float, multiplied into action-animation speed at Gold 0x544C0B.
     /// Also multiplies movement percentage before base walk/run rates (Gold 0x4F761B).
     /// Shared file prefix is copied by GoldSavedCreatureStateImporter.</summary>

@@ -18,6 +18,14 @@ public sealed class SacredSavedCreature
     public int Count68 { get; }
     public int SerializedSize => _payload.Length;
     public uint Word200 => BinaryPrimitives.ReadUInt32LittleEndian(_payload.AsSpan(SacredSavedCreatureLayout.Word200Offset));
+    public bool IsSleeping => (Word200 & SacredSavedCreatureLayout.SleepingFlag) != 0;
+    public bool IsInFightMode => (Word200 & SacredSavedCreatureLayout.FightModeFlag) != 0;
+    public int DialogIndex => BinaryPrimitives.ReadInt32LittleEndian(_payload.AsSpan(SacredSavedCreatureLayout.DialogIndexOffset));
+    public SacredSavedCreatureThinkState Thinking => new(
+        BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32LittleEndian(_payload.AsSpan(SacredSavedCreatureLayout.ThinkIntervalOffset))),
+        BitConverter.Int32BitsToSingle(BinaryPrimitives.ReadInt32LittleEndian(_payload.AsSpan(SacredSavedCreatureLayout.ThinkElapsedOffset))),
+        BinaryPrimitives.ReadUInt16LittleEndian(_payload.AsSpan(SacredSavedCreatureLayout.KiModeOffset)),
+        BinaryPrimitives.ReadUInt16LittleEndian(_payload.AsSpan(SacredSavedCreatureLayout.EiModeOffset)));
     public uint MovementControl => BinaryPrimitives.ReadUInt32LittleEndian(_payload.AsSpan(SacredSavedCreatureLayout.MovementControlOffset));
     public uint MountPartnerReference => BinaryPrimitives.ReadUInt32LittleEndian(_payload.AsSpan(SacredSavedCreatureLayout.MountPartnerReferenceOffset));
     public ReadOnlySpan<byte> PhysicalData => _payload.AsSpan(0, SacredSavedPhysicalLayout.Size);

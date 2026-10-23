@@ -9,6 +9,7 @@ internal static class GameServerMovementTriggerDiagnostics
     {
         var triggers = world.MovementTriggers;
         var summary = $"{triggers.Sectors.Count} movement-trigger sector banks / {triggers.Sectors.Values.Sum(bank => bank.Records.Count)} records; {triggers.AppliedDeletionCount} applied deletions / {triggers.RemovedRecordCount} records removed; {world.MovementTriggerDeletions.Instructions.Count} pending routing";
+        summary += $"; {triggers.AppliedInsertionCount} insertions / {triggers.PendingInsertionCount} awaiting KEYX; {triggers.Names.Count} name registrations";
         EngineLog.WriteLine($"Network triggers: {summary}; callback execution pending.");
         var variables = world.ScriptVariables;
         EngineLog.WriteLine($"Network script variables: {variables.Count} slots / {variables.Records.Count} received records; {variables.UnknownSlotCount} unknown slots; {variables.AppliedUpdateCount} incremental updates.");
