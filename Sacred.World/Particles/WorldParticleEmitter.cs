@@ -1,6 +1,8 @@
 using System.Numerics;
+using System.Runtime.InteropServices;
 using Sacred.Particles;
 using Sacred.Particles.Diagnostics;
+using Sacred.Particles.Particles;
 
 namespace Sacred.World.Particles;
 
@@ -219,6 +221,27 @@ internal sealed partial class WorldParticleEmitter
         if (!NativeRetired) AppendParticles(definition, showHalo, output);
     }
 
+    internal void AppendCurrentParticles(List<WorldParticle> output) => AppendParticles(_placement.Definition, true, output);
+
+    internal void SetAnimatedSource(Vector3 position)
+    {
+        // Native stdCreation interpolates its shared release point before selecting
+        // each particle's parameter variant. Variant offsets are only used on first birth.
+        _point ??= new();
+        Span<SacredParticleEmissionLayout> emission = stackalloc SacredParticleEmissionLayout[1];
+        emission[0] = _parameterSets[0].Emission;
+        var bytes = MemoryMarshal.AsBytes(emission);
+        MemoryMarshal.Write(bytes[0x38..], in position);
+        _parameterSets[0] = _parameterSets[0] with { Emission = MemoryMarshal.Read<SacredParticleEmissionLayout>(bytes) };
+        _batches[0].ApplyParameters(_parameterSets[0]);
+    }
+
+    internal void SetCelestialBirthScale(SacredCelestialLightFxDefinition light, float factor)
+    {
+        _parameterSets[0] = light.BirthParameters(_placement.Definition.ParameterSets[0], factor);
+        _batches[0].ApplyParameters(_parameterSets[0]);
+    }
+
     public void SetLine(ParticleEmissionLine line) => _line?.Set(line);
 
     private void EmitPendingBurst()
@@ -260,9 +283,10 @@ internal sealed partial class WorldParticleEmitter
             _nativeEmissionInitialized = _emissionTime != 0;
             _nativeReleaseTime = _emissionTime;
             _lineBirth = 0;
-            Spawn(SelectParameters());
+            var first = SelectParameters();
+            Spawn(first);
             _line?.Initialize(_parameterSets[0].Emission.PositionOffset.Value);
-            _point?.Initialize(_parameterSets[0].Emission.PositionOffset.Value);
+            _point?.Initialize(first.Emission.PositionOffset.Value);
             return;
         }
         var interval = _parameterSets[0].Emission.EmissionInterval;

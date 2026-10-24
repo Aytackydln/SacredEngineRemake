@@ -4,9 +4,10 @@ namespace Sacred.Network.Gameplay;
 
 public sealed record GoldSessionNoticeView(GoldSessionNoticeEvent Event, string? Text, uint? DialogAction)
 {
-    public uint NativeDialogParameter => Event.Message.Opcode == GoldSessionNoticeCodec.LobbyKickOpcode ? 3u : 0u;
+    public uint NativeDialogParameter => Event.Message.Opcode == GoldSessionNoticeCodec.LobbyKickOpcode || Event.EndsSession ? 3u : 0u;
     public bool NeedsLocalization => Text is null;
-    public uint? NativeChatSelector => Event.IsModal ? null : Event.Message.Opcode == GoldSessionNoticeCodec.BuddyAddedOpcode ? 17u : 0u;
+    public uint? NativeChatSelector => Event.ReportsConnectionLoss ? 0u : Event.IsModal ? null :
+        Event.Message.Opcode == GoldSessionNoticeCodec.BuddyAddedOpcode ? 17u : 0u;
 }
 
 /// <summary>Received presentation requests for DEFAULT_BUSYDLG and system chat. Rendering is a separate consumer.</summary>
@@ -25,6 +26,8 @@ public sealed class GoldSessionNoticeReplica
     public long CloseRequestCount { get; private set; }
     public long OpenRequestCount { get; private set; }
     public long ChatRequestCount { get; private set; }
+    public long ConnectionLostChatRequestCount { get; private set; }
+    public long SessionEndRequestCount { get; private set; }
 
     /// <summary>Use original localization data; late availability resolves retained requests without replaying their state changes.</summary>
     public void ConfigureResources(GameResStore resources)
@@ -42,6 +45,8 @@ public sealed class GoldSessionNoticeReplica
     {
         var decoded = GoldSessionNoticeCodec.Decode(entry.Message); var view = Resolve(decoded);
         ReceivedCount++; LastReceipt = view; _recent.Add(view);
+        if (decoded.EndsSession) SessionEndRequestCount++;
+        if (decoded.ReportsConnectionLoss) { ConnectionLostChatRequestCount++; ChatRequestCount++; }
         if (_recent.Count > GoldChatReplica.HistoryLimit) _recent.RemoveAt(0);
         if (decoded.ClearsBusyDialog) { CurrentDialog = null; CloseRequestCount++; }
         if (decoded.UpdatesCustomText) { _customTextSource = decoded; CustomDialogText = view.Text; }
@@ -58,6 +63,8 @@ public sealed class GoldSessionNoticeReplica
             GoldSessionNoticeCodec.BuddyAddedOpcode => localized is null ? null : localized + ": " + entry.Text,
             GoldSessionNoticeCodec.LobbyKickOpcode or GoldSessionNoticeCodec.ConnectionFailedOpcode => localized is null ? null : localized + "\n\n" + entry.Text,
             GoldSessionNoticeCodec.ConnectionAbortedOpcode => localized,
+            GoldSessionNoticeCodec.ConnectionClosedOpcode or GoldSessionNoticeCodec.EndSessionOpcode or
+                GoldSessionNoticeCodec.ConnectionLostOpcode or GoldSessionNoticeCodec.ConnectionLostAlternateOpcode => localized,
             GoldSessionNoticeCodec.ServerNoticeOpcode => entry.Text,
             GoldSessionNoticeCodec.LobbyNoticeOpcode => "Lobby: " + entry.Text,
             _ => throw new InvalidDataException("Unexpected Gold session notice.")
@@ -65,7 +72,8 @@ public sealed class GoldSessionNoticeReplica
         uint? action = null;
         if (entry.IsModal)
         {
-            if (entry.Message.Opcode is GoldSessionNoticeCodec.ConnectionAbortedOpcode or GoldSessionNoticeCodec.LobbyKickOpcode) action = 1;
+            if (entry.Message.Opcode is GoldSessionNoticeCodec.ConnectionAbortedOpcode or GoldSessionNoticeCodec.LobbyKickOpcode or
+                GoldSessionNoticeCodec.ConnectionClosedOpcode || entry.EndsSession) action = 1;
             else if (body is not null) action = body.Length > 150 ? 7u : 1u;
         }
         return new(entry, body, action);
@@ -75,5 +83,6 @@ public sealed class GoldSessionNoticeReplica
     {
         _recent.Clear(); LastReceipt = CurrentDialog = null; _customTextSource = null; CustomDialogText = null;
         ReceivedCount = CloseRequestCount = OpenRequestCount = ChatRequestCount = 0;
+        ConnectionLostChatRequestCount = SessionEndRequestCount = 0;
     }
 }

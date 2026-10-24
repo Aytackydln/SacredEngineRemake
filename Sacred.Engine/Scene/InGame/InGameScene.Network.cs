@@ -97,6 +97,8 @@ internal sealed partial class InGameScene
                     _offlineParty = _scene.Portraits.Party.Members.ToArray();
                     _offlineHudVisible = _scene.Hud!.Visible;
                     _offlineNetworkPosition = PlayerWorldPosition;
+                    _combatActions.Reset();
+                    _particles.ActorEffects.Clear();
                     _scene.Portraits.ClearPlayer(); _scene.Hud.Visible = false; _scene.EquipmentUi.ClearActor();
                     _scene.Portraits.Party.Clear();
                     _inputController.SuspendGameplayInput();
@@ -169,6 +171,8 @@ internal sealed partial class InGameScene
             view.LocalLocomotionScale = _camera.LocomotionAnimationSpeed;
         }
         _window.SetHandCursor(_networkMovement?.HasObjectHover == true);
+        if (view.GameplayObjects.StatusEffects is { } statusLifecycle)
+            statusLifecycle.VisualLifetime = _particles.FxAnimations.Lifetime;
         view.Update(deltaSeconds);
         var castingEffects = view.GameplayObjects.CombatArtEffects?.Entries.Values
             .Select(effect => view.TryGetFxAttachment(effect.Owner, effect.Bone, out var point)
@@ -176,12 +180,12 @@ internal sealed partial class InGameScene
                     GameplayProjectileCoordinates.ToTiles(point), point.Z, effect.Age, effect.ClockScale) : null)
             .OfType<WorldAttachedParticleEffect>() ?? [];
         var statusEffects = view.GameplayObjects.StatusEffects?.Entries.Values
-            .Where(effect => effect.VisualAvailable)
-            .Select(effect => view.TryGetFxAttachment(effect.Owner, effect.Bone, out var point)
-                ? new WorldAttachedParticleEffect(effect.Generation, effect.Type, effect.Preset,
-                    GameplayProjectileCoordinates.ToTiles(point), point.Z, effect.Age)
-                    { DurationSeconds = float.IsFinite(effect.Duration) ? effect.Duration : null }
-                : null).OfType<WorldAttachedParticleEffect>() ?? [];
+            .Select(effect => GameplayStatusEffectParticles.Create(effect,
+                (owner, bone) => view.TryGetFxAttachment(owner, bone, out var point) &&
+                    view.ParticleAttachment(owner, ushort.MaxValue) is { } actor
+                    ? actor with { Position = GameplayProjectileCoordinates.ToTiles(point), Height = point.Z } : null,
+                ground => view.World.OutdoorHeightAt(new Vector2(ground.X, ground.Y) / SacredNetworkPosition.NativeUnitsPerTile)))
+            .OfType<WorldAttachedParticleEffect>() ?? [];
         _particles.ActorEffects.Synchronize(castingEffects.Concat(statusEffects));
         _particles.CreatureEffects.Synchronize(view.World.Replicas.AttachedFx.Entries.Values, view.ParticleAttachment);
         _particles.ProjectileEffects.Synchronize(view.GameplayObjects.BowProjectiles?.Entries.Values
@@ -204,7 +208,7 @@ internal sealed partial class InGameScene
                         InstanceVersion = wearer.InstanceVersion,
                         BoneAttachment = wearer.Replica?.Creature is not null
                             ? bone => view.ParticleAttachment(reference, bone) : null }
-                : null);
+                : null, state => view.World.OutdoorHeight(state));
         _worldLighting.SetNetworkDayFraction(view.World.Replicas.Calendar.DayFraction);
         var positionForZone = view.World.LocalPosition;
         var coord = new SectorCoord((int)MathF.Floor(positionForZone.X / Sector.TileCount), (int)MathF.Floor(positionForZone.Y / Sector.TileCount));

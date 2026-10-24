@@ -15,13 +15,16 @@ internal static class InventoryPanelCheats
             case "close" or "off": state.SetOpen(false); break;
             case "toggle": state.SetOpen(!state.IsOpen); break;
             case "status": break;
+            case "inventory": state.SetTab(InventoryTab.Inventory); state.SetOpen(true); break;
+            case "combatarts" or "combat-arts": state.SetTab(InventoryTab.CombatArts); state.SetOpen(true); break;
             default:
                 if (!int.TryParse(value, out var index) || state.Actor is not { } actor ||
                     (uint)index >= (uint)actor.EquipmentSlots.Count)
-                { message = "inventory: open, close, toggle, status or slot index"; return true; }
+                { message = "inventory: open, close, toggle, status, inventory, combatarts or equipment slot index"; return true; }
                 state.Select(index); break;
         }
         message = $"inventory {(state.IsOpen ? "open" : "closed")}; {state.Actor?.CharacterClass}; " +
+            $"tab {state.ActiveTab}; combat arts {state.CombatArts.Available.Count}; " +
             $"{state.Layout?.Slots.Count ?? 0} armor/accessory controls; stats artwork unbound; " +
             $"selected {state.SelectedSlot?.ToString() ?? "none"}";
         return true;

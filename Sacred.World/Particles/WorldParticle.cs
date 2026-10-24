@@ -21,6 +21,9 @@ public readonly record struct WorldParticle(
     public float RenderHeight { get; init; }
     /// <summary>Rotate in native world XY before applying the ground camera compression.</summary>
     public bool GroundAligned { get; init; }
+    /// <summary>Rotation carries screen dy/dx for projected vertical FX strips.</summary>
+    public bool Sheared { get; init; }
+    public bool Untextured { get; init; }
     public bool Additive { get; init; }
     public bool SourceColorOnly { get; init; }
     /// <summary>Camera-depth key relative to the emitter's authored tile, including live motion and height.</summary>

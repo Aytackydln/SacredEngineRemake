@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sacred.Network.Gameplay;
+using Sacred.Network.Tests.Infrastructure;
 
 namespace Sacred.Network.Tests.Contracts;
 
@@ -22,6 +23,33 @@ internal static class PacketCatalog
         void Add<T>(string name, ushort opcode, Func<byte[]> bytes, PayloadRule rule = PayloadRule.Exact,
             Action<GoldGameEvent>? verify = null, byte sender = 0, bool owns = false, int[]? shorter = null) where T : GoldGameEvent =>
             rows.Add(new(name, opcode, typeof(T), bytes, rule, verify, sender, owns, shorter));
+        foreach (var opcode in new ushort[] { 0x001, 0x008, 0x037, 0x039 })
+            Add<GoldSessionNoticeEvent>("connection lifecycle", opcode, () => opcode == 1 ? Words(uint.MaxValue) : [],
+                PayloadRule.RetainedSuffix, e =>
+                {
+                    var notice = (GoldSessionNoticeEvent)e;
+                    Assert.AreEqual(opcode != 1, notice.EndsSession);
+                    Assert.AreEqual(opcode is 0x037 or 0x039, notice.ReportsConnectionLoss);
+                    Assert.AreEqual(opcode == 1 ? uint.MaxValue : (uint?)null, notice.ErrorCode);
+                }, owns: true);
+        foreach (var opcode in new ushort[] { 0x01f, 0x020 })
+            Add<GoldSessionReceiveControlEvent>("native receive control", opcode, () => [], PayloadRule.RetainedSuffix,
+                e => Assert.AreEqual(opcode == 0x020, ((GoldSessionReceiveControlEvent)e).Enabled), owns: true);
+        foreach (var opcode in new ushort[] { 0x02a, 0x02c, 0x047 })
+            Add<GoldLobbyServerEvent>("lobby server record", opcode,
+                () => opcode == 0x047 ? [..Words(42, 2, 3, 4, 5, 6, 7, 8), 72, 0, 105, 0, 0, 0, ..new byte[154], ..Words(123, 7)] :
+                    opcode == 0x02c ? [..Words(42, 2, 3, 4, 5, 6, 7, 8), 72, 105, 0] :
+                    [..Words(42, 2, 3, 4, 5, 6, 7, 8), 72, 105, 0, ..new byte[157], ..Words(123, 7)],
+                PayloadRule.RetainedSuffix, e =>
+                {
+                    var server = ((GoldLobbyServerEvent)e).Server;
+                    Assert.AreEqual(42u, server.Words[0]);
+                    CollectionAssert.AreEqual(opcode == 0x047 ? new byte[] { 72, 0, 105, 0 } : new byte[] { 72, 105 }, server.NameBytes.ToArray());
+                    Assert.AreEqual(opcode == 0x02c ? 0u : 123u, server.EntryKey);
+                }, owns: true);
+        Add<GoldLobbyPlayerRefreshEvent>("lobby player refresh", 0x030, () => [..Words(42), 72, 0, 105, 0, 0, 0],
+            PayloadRule.RetainedSuffix, e => { var refresh = (GoldLobbyPlayerRefreshEvent)e;
+                Assert.AreEqual(42u, refresh.Value); Assert.AreEqual("Hi", refresh.Text); Assert.AreEqual(2u, refresh.NativeMode); }, owns: true);
         Add<GoldLobbyProfileEvent>("lobby profile", 0x027, () => [42, 0, 0, 0, 72, 0, 105, 0, 0, 0], PayloadRule.RetainedSuffix,
             e => { Assert.AreEqual(42u, ((GoldLobbyProfileEvent)e).Value); Assert.AreEqual("Hi", ((GoldLobbyProfileEvent)e).Text); }, owns: true);
         Add<GoldLobbyWindowEvent>("network window request", 0x02d, () => [42, 0, 0, 0], PayloadRule.RetainedSuffix,
@@ -171,6 +199,28 @@ internal static class PacketCatalog
                 e => Assert.AreEqual(op == 0x01a, ((GoldSessionLockEvent)e).IsLocked), owns: true);
         Add<GoldSessionGameFlagsEvent>("session game flags", 0x01e, () => Words(0x40014), PayloadRule.RetainedSuffix,
             e => Assert.AreEqual(0x40014u, ((GoldSessionGameFlagsEvent)e).Flags), owns: true);
+        foreach (var (code, target, name) in new[] { (15u, 0u, "celestial ground cast"), (17u, 501u, "rotating blades target cast"), (17u, 0u, "rotating blades caster fallback") })
+            Add<GoldCreatureCastEvent>(name, 0x183, () => SeraphimVisualPackets.CastPayload(code, target),
+                PayloadRule.RetainedSuffix, e =>
+                {
+                    var cast = (GoldCreatureCastEvent)e;
+                    Assert.AreEqual(code, cast.Code); Assert.AreEqual(target, cast.TargetReference);
+                    Assert.AreEqual(180000, cast.TargetX); Assert.AreEqual(135000, cast.TargetY);
+                    Assert.AreEqual(2581u, cast.TargetSector);
+                }, owns: true);
+        foreach (var (resource, subtype, wearer, name) in new[] { (804u, 35u, 0u, "celestial full FX"), (814u, 41u, 501u, "rotating blades full FX") })
+            Add<GoldObjectEvent>(name, 0x16F, () => SeraphimVisualPackets.FxPayload(resource, subtype, wearer), PayloadRule.Structured,
+                e =>
+                {
+                    var fx = GoldObjectFxState.FromPayload(((GoldObjectEvent)e).ObjectState);
+                    Assert.AreEqual(resource, fx.BaseState.ObjectType); Assert.AreEqual(subtype, fx.FxType);
+                    Assert.AreEqual(wearer, fx.WearerReference); Assert.IsTrue(fx.IsSystemActive);
+                }, shorter: [65, 66, 67, 68]);
+        foreach (var code in new ushort[] { 1022, 1023 })
+            Add<GoldCreatureSpecialMoveEvent>("vampire transformation " + code, 0x12D,
+                () => VampireVisualPackets.SpecialPayload(code), PayloadRule.RetainedSuffix,
+                e => Assert.AreEqual(code, ((GoldCreatureSpecialMoveEvent)e).Code), owns: true,
+                shorter: Enumerable.Range(8, 84).ToArray());
         return rows;
     }
     private static byte[] Words(params uint[] words)

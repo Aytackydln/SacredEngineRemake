@@ -166,6 +166,12 @@ internal sealed class CharacterAnimationState
 
     public void PlayAttack() => SetState(CharacterAnimationStateId.Attack, restart: true);
 
+    public void StopAction()
+    {
+        if (_npcAnimation is not null) StopNpcAnimation();
+        else if (CurrentState == CharacterAnimationStateId.Attack) SetState(_locomotionState);
+    }
+
     public void Update(float deltaSeconds, float locomotionPlaybackSpeed = 1.0f)
     {
         if (_animatedMesh is null || !float.IsFinite(deltaSeconds) || deltaSeconds <= 0.0f)

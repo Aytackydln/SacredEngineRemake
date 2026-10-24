@@ -11,10 +11,16 @@ public sealed class GoldSessionState
     public GoldSessionNoticeReplica Notices { get; } = new();
     public bool? CheatsEnabled { get; private set; }
     public long CheatNotificationCount { get; private set; }
+    public bool? NativeReceiveControlEnabled { get; private set; }
+    public long ReceiveControlNotificationCount { get; private set; }
     internal void ApplyControl(GoldGameEvent entry)
     {
         switch (entry)
         {
+            case GoldSessionReceiveControlEvent control:
+                NativeReceiveControlEnabled = GoldSessionReceiveControlCodec.Decode(control.Message).Enabled;
+                ReceiveControlNotificationCount++;
+                break;
             case GoldLobbyEvent lobby: Lobby.Apply(lobby); break;
             case GoldSessionNoticeEvent notice: Notices.Apply(notice); break;
             case GoldChannelChatEvent chat: ChannelChat.Apply(chat); break;
@@ -74,6 +80,7 @@ public sealed class GoldSessionState
     }
     internal void Clear()
     {
+        NativeReceiveControlEnabled = null; ReceiveControlNotificationCount = 0;
         Teams.Clear();
         Notices.Clear(); Lobby.Clear();
         ChannelChat.Clear(); ClientHostRole.Clear();

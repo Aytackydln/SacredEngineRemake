@@ -16,19 +16,25 @@ internal sealed partial class GameServerClientController
         // Bounded diagnostics until native object admission/removal and reference mappings are implemented.
         switch (gameEvent)
         {
+            case GoldSessionReceiveControlEvent control:
+                EngineLog.WriteLine($"Network native receive control: {control.Enabled}.");
+                break;
             case GoldLobbyEvent lobby:
                 EngineLog.WriteLine($"Network lobby 0x{lobby.Message.Opcode:X3}: " + (lobby switch
                 {
                     GoldLobbyProfileEvent profile => $"profile {profile.Value}: {profile.Text}",
                     GoldLobbyWindowEvent window => $"window value {window.Value}: {window.Text}",
                     GoldLobbyChannelsEvent channels => $"{channels.Rows.Count} channels received",
+                    GoldLobbyServerEvent server => $"server key {server.Server.EntryKey}, window {server.Server.WindowValue}; {WorldReplicas.Session.Lobby.ServerBrowser.Servers.Count} browser rows",
+                    GoldLobbyPlayerRefreshEvent refresh => $"player refresh {refresh.Value}: {refresh.Text}; requests {WorldReplicas.Session.Lobby.ServerBrowser.RefreshRequestCount}",
                     _ => "update received"
                 }));
                 break;
             case GoldSessionNoticeEvent notice:
                 var view = WorldReplicas.Session.Notices.LastReceipt!;
                 EngineLog.WriteLine($"Network notice 0x{notice.Message.Opcode:X3}: " +
-                    (view.Text ?? $"[{notice.LocalizationKey}] {notice.Text}"));
+                    (view.Text ?? $"[{notice.LocalizationKey}] {notice.Text}") +
+                    (notice.ErrorCode is { } error ? $" (native error {error})" : ""));
                 break;
             case GoldChannelChatEvent channelChat:
                 if (WorldReplicas.Session.ChannelChat.LastDelivery is { } delivery)

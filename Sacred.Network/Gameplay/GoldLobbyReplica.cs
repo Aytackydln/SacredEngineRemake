@@ -26,6 +26,7 @@ public sealed class GoldLobbyReplica
     private GoldLobbyChannelsEvent? _channels;
     private Encoding? _nameEncoding;
     public GoldLobbyProfileEvent? LastProfile { get; private set; }
+    public GoldLobbyServerReplica ServerBrowser { get; } = new();
     public GoldLobbyWindowEvent? LastWindowRequest { get; private set; }
     /// <summary>Exact word written to native controller+30 by 02D; its broader service meaning is unmapped.</summary>
     public uint? NetworkWindowValue { get; private set; }
@@ -48,6 +49,10 @@ public sealed class GoldLobbyReplica
 
     internal void Apply(GoldLobbyEvent entry)
     {
+        if (entry is GoldLobbyServerEvent or GoldLobbyPlayerRefreshEvent)
+        {
+            ServerBrowser.Apply(entry); ReceivedCount++; return;
+        }
         // Wire data wins over caller-supplied record fields, before any receive state changes.
         var decoded = GoldLobbyCodec.Decode(entry.Message);
         switch (decoded)
@@ -55,7 +60,8 @@ public sealed class GoldLobbyReplica
             case GoldLobbyProfileEvent profile: LastProfile = profile; ProfileRequestCount++; break;
             case GoldLobbyWindowEvent window:
                 LastWindowRequest = window; WindowRequestCount++;
-                if (window.Message.Opcode == GoldLobbyCodec.WindowOpcode) NetworkWindowValue = window.Value;
+                if (window.Message.Opcode == GoldLobbyCodec.WindowOpcode)
+                { NetworkWindowValue = window.Value; ServerBrowser.WindowValue = window.Value; }
                 break;
             case GoldLobbyChannelsEvent channels:
                 _channels = channels; ChannelClearRequestCount++; ResolveChannels(); break;
@@ -82,6 +88,7 @@ public sealed class GoldLobbyReplica
 
     internal void Clear()
     {
+        ServerBrowser.Clear();
         _channels = null; LastProfile = null; LastWindowRequest = null; NetworkWindowValue = null; ChannelRequests = null;
         ReceivedCount = ChannelClearRequestCount = ProfileRequestCount = WindowRequestCount = 0;
     }

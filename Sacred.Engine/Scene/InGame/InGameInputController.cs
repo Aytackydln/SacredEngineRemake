@@ -7,7 +7,7 @@ using Sacred.World;
 
 namespace Sacred.Engine.Scene.InGame;
 
-internal sealed class InGameInputController
+internal sealed partial class InGameInputController
 {
     private readonly InputState _input;
     private readonly GamepadInputSource _gamepad;
@@ -117,7 +117,16 @@ internal sealed class InGameInputController
         if (_mapInput.Update(deltaSeconds))
             return;
 
+        UpdateCombatInput(uiWantsMouse);
+
         var movementInput = _postStairsMovementInput.Update(_input);
+        if (CombatActive?.Invoke() == true)
+        {
+            movementInput = new(false, false, false);
+            _clickToMove.StopMoving();
+            _camera.StopMoving();
+            _input.DiscardPointerMovementEvents();
+        }
         UpdateFocus(movementInput);
         if (_camera.GetManualDirection(_input, movementInput) != Vector2.Zero || uiWantsMouse || _input.IsDefendDown)
             _interaction.Cancel();
@@ -176,9 +185,6 @@ internal sealed class InGameInputController
                 deltaSeconds,
                 movementInput);
         }
-
-        if ((!uiWantsMouse && _input.ConsumeRightMouseButtonPressed()) || _gamepad.WasPressed(GamepadButtons.X))
-            _player.PlayAttack();
 
         if (_scene.Portraits.Player?.Movement is { } movement)
         {

@@ -52,6 +52,8 @@ public static class SacredParticleCatalogueReader
             events.AddRange(NativeDoorSpikeEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeStonedEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativePlongEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeSeraphimLightEventReader.Read(image, code, definition, options.Quality, cancellationToken));
+            events.AddRange(NativeVampireCastEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeLayeredFlareEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeStrikeSymbolEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeShieldedEventReader.Read(image, code, definition, options.Quality, cancellationToken));

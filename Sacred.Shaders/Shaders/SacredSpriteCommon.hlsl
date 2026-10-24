@@ -73,10 +73,23 @@ static const float2 quad_uvs[6] =
     float2(1.0f, 1.0f)
 };
 
+// Native FVF triangle strip: bottom left, top left, bottom right, top right.
+// Its shared diagonal joins top left/bottom right. Diffuse colours are Gouraud
+// interpolated, so the opposite diagonal changes the interior RGB (not just geometry).
+static const float2 native_strip_uvs[6] =
+{
+    float2(0.0f, 1.0f),
+    float2(0.0f, 0.0f),
+    float2(1.0f, 1.0f),
+    float2(1.0f, 1.0f),
+    float2(0.0f, 0.0f),
+    float2(1.0f, 0.0f)
+};
+
 vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_InstanceID)
 {
     SpriteInstance instance = instances[instance_id];
-    float2 uv = quad_uvs[vertex_id];
+    float2 uv = (instance.particle_sprite & 256u) != 0 ? native_strip_uvs[vertex_id] : quad_uvs[vertex_id];
     float2 pixel = instance.rect.xy + uv * instance.rect.zw;
     if (instance.particle_sprite != 0)
     {
@@ -104,6 +117,9 @@ vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_Instan
             rotated = float2(cosine * local.x - sine * local.y, sine * local.x + cosine * local.y) * instance.rect.zw;
         }
         if ((instance.particle_sprite & 8u) != 0) rotated.y *= 0.5f;
+        if ((instance.particle_sprite & 512u) != 0)
+            rotated = float2((uv.x - 0.5f) * instance.rect.z,
+                (uv.y - 0.5f) * instance.rect.w + (uv.x - 0.5f) * instance.rect.z * instance.particle_rotation);
         pixel = instance.rect.xy + instance.rect.zw * 0.5f + rotated;
     }
     float2 clip = float2(

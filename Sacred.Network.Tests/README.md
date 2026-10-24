@@ -14,8 +14,8 @@ It prints a short summary on success and the last 80 diagnostic lines on failure
 Full logs and TRX reports go to the ignored `Sacred.Network.Tests/TestResults` directory.
 Missing evidence fails the affected test; it is not silently skipped.
 
-The suite has 84 packet examples, 40 native state-replay suites,
-and 616 discoverable MSTest tests. A test count is not an assertion count: each
+The suite has 101 packet examples, 43 native state-replay suites,
+and 734 discoverable MSTest tests. A test count is not an assertion count: each
 native replay suite contains many existing comparisons against original results.
 Only the portable checks have been promoted; this does not replace every older
 scratch, Engine/render, installation or live-native scenario.
@@ -63,3 +63,16 @@ Native-instruction emulation, rendering and live-original-server acceptance rema
 separate checks. Run them when a change affects those boundaries; the fast suite
 reuses their recorded evidence rather than reopening executables or rerunning all
 research for each packet.
+
+Seraphim visual replication adds literal `183` ground/target/fallback casts and
+`16F` HolyLight/HolyWall states to the shared contracts. Portable TCP/render-state
+checks cover timed release, native caster fallback, fixed ground placement,
+Items.pak radius propagation, simultaneous ground effects, refresh, expiry,
+cancellation and reference reuse. The native replay suite compares against
+`native-seraphim-visual-replication.json`. The Engine screenshot replay is separate;
+see [status effects](../docs/game-server/status-effects.md).
+
+Ten additional session/browser receives (`001`, `008`, `01F`, `020`, `02A`,
+`02C`, `030`, `037`, `039`, `047`) have shared wire contracts, 72 original
+instruction cases and TCP/state checks including consumer-independent teardown
+and malformed terminal batch rejection. See [session/browser](../docs/game-server/session-browser.md).

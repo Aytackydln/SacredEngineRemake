@@ -16,7 +16,7 @@ internal static class TestCharacters
     private const uint VampiressNight = 7;
     private const uint Dwarf = 8;
     private const uint Daemon = 9;
-    private const uint WoodElf = 108;
+    private const uint WoodElf = 5;
 
     // Equipment item ids. Keeping names here makes these intentional test fixtures, not engine rules.
     private const uint DaemonHelm = 1222, DarkElfBreastplate = 1251, SeraphimHelm = 1840;

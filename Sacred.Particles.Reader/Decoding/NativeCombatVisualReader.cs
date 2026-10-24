@@ -18,9 +18,9 @@ internal static class NativeCombatVisualReader
         var output = new List<SacredCombatVisualDefinition>();
         for (uint spell = 1; spell <= 72; spell++)
         {
-            // These branches share the fully inspected destination/self FX factory path.
+            // Inspected attached and targeted-ground FX factory paths.
             // Other spell stages remain explicit extension points, not inferred by names.
-            if (spell is not (2 or 4 or 7 or 20 or 21 or 22 or 31 or 32)) continue;
+            if (spell is not (2 or 4 or 7 or 15 or 17 or 20 or 21 or 22 or 31 or 32)) continue;
             var factory = image.UInt32(0x52947C + (spell - 1) * 4);
             var definition = MagicDefinition(spell);
             var releaseBranch = image.UInt32(0x521F04 + (spell - 1) * 4);
@@ -34,22 +34,25 @@ internal static class NativeCombatVisualReader
                 ip = (uint)instruction.NextIP;
             }
             if (tail is <= 0 or >= 1) throw new NotSupportedException("Unmapped spell release fraction.");
+            var missingTarget = Factory(factory, 0x5293E0, spell, false, false);
             foreach (var e in Factory(factory, 0x5293E0, spell, false))
                 output.Add(e with
                 {
+                    FallbackToCaster = !e.TargetIsCaster && missingTarget.Any(missing =>
+                        missing.Resource == e.Resource && missing.FxSubtype == e.FxSubtype && missing.TargetIsCaster),
                     ReleaseProgress = (float)(1 - tail),
                     DurationBase = definition.ParameterZero.Base,
                     DurationPerLevel = definition.ParameterZero.PerLevel,
                     DurationCap = definition.ParameterZeroCap
                 });
         }
-        // Vampiress post-animation factory: both transition arts use the same native case.
+        // Vampiress starts its transition FX immediately after the animation starter (0x513E15).
         foreach (var art in new uint[] { 1022, 1023 })
         {
             var index = image.Byte(0x514758 + art - 1022);
             var start = image.UInt32(0x514748 + index * 4u);
             foreach (var e in Factory(start, 0x5145FC, art, true))
-                output.Add(e with { Diagnostic = "Native form-transition particle family is pending; received model replacement remains authoritative." });
+                output.Add(e);
         }
         return output.AsReadOnly();
 
@@ -62,7 +65,7 @@ internal static class NativeCombatVisualReader
             throw new InvalidDataException($"Missing native magic definition {spell}.");
         }
 
-        IReadOnlyList<SacredCombatVisualDefinition> Factory(uint start, uint stop, uint art, bool special)
+        IReadOnlyList<SacredCombatVisualDefinition> Factory(uint start, uint stop, uint art, bool special, bool targetAvailable = true)
         {
             var memory = new PresetMemory(image, 0x800, SacredParticleQuality.High);
             var actor = memory.BaseAddress;
@@ -74,14 +77,16 @@ internal static class NativeCombatVisualReader
             uint resource = 0;
             var records = new List<SacredCombatVisualDefinition>();
             memory.Write(actor + 0xC, 4, 1); memory.Write(actor + 0x10, 4, special ? 6u : 1u);
-            memory.Write(action, 4, special ? art : 1u); memory.Write(action + 0x20, 4, art);
+            memory.Write(action, 4, special ? art : targetAvailable ? 2u : 0u); memory.Write(action + 0x20, 4, art);
             memory.Write(created, 4, vtable); memory.Write(vtable + 0x18, 4, callback);
             memory.Write(stack + 0x14, 4, action); memory.Write(stack + 0x84, 2, 1);
             memory.Write(stack + 0xB4, 4, 0x3F800000);
             var machine = new X86Machine(code, memory) { Boundary = Boundary };
-            machine.Registers.Set(Register.ESP, stack); machine.Registers.Set(Register.EBP, actor);
+            machine.Registers.Set(Register.ESP, art == 15 ? stack - 8 : stack); machine.Registers.Set(Register.EBP, actor);
             machine.Registers.Set(Register.ESI, action); machine.Registers.Set(Register.EBX, special ? 0u : uint.MaxValue);
-            machine.Run(start, stop, CancellationToken.None);
+            // Holy Light first projects the action tile through terrain/camera helpers.
+            // Placement is supplied by the runtime; begin after those helpers, preserving the factory stack.
+            machine.Run(art == 15 ? 0x523DEDu : start, stop, CancellationToken.None);
             return records;
 
             bool Boundary(X86Machine cpu)
@@ -92,8 +97,9 @@ internal static class NativeCombatVisualReader
                 { cpu.InstructionPointer = Word(sp); cpu.Registers.Set(Register.ESP, sp + 4 + bytes); cpu.Registers.Set(Register.EAX, result); }
                 switch (cpu.InstructionPointer)
                 {
-                    case 0x5FE000: Return(4, Word(sp + 4) == 0xFE01 ? created : actor); return true;
+                    case 0x5FE000: Return(4, Word(sp + 4) == 0 ? 0 : Word(sp + 4) == 0xFE01 ? created : actor); return true;
                     case 0x5FBA40: resource = Word(sp + 4); Return(20, 0xFE01); return true;
+                    case 0x6239C0: Return(0, actor); return true;
                     case 0x41DEE0: Return(0, actor + 0x18); return true;
                     case 0x4B3590:
                         for (uint i = 0; i < 12; i += 4) memory.Write(cpu.Registers.Get(Register.ECX) + i, 4, 0);
@@ -107,14 +113,15 @@ internal static class NativeCombatVisualReader
                 var subtype = Word(ev + 4);
                 var attachment = Attachment(subtype, ev);
                 var bone = attachment.Bone;
+                var casterTarget = attachment.Caster || Word(ev + 12) == Word(actor + 0xC);
                 records.Add(new(special ? SacredCombatArtKind.SpecialMove : SacredCombatArtKind.Spell, art, resource,
-                    subtype, bone, attachment.Caster, special ? 1 : 0, 0, 0, 0, start)
+                    subtype, bone, casterTarget, 0, 0, 0, 0, start)
                 {
                     Direction = new Vector3(BitConverter.UInt32BitsToSingle(Word(ev + 0x2C)),
                     BitConverter.UInt32BitsToSingle(Word(ev + 0x30)), BitConverter.UInt32BitsToSingle(Word(ev + 0x34)))
                 });
                 Return(4, 0);
-                // Spell branches are single attached-effect factories. Stop before unrelated stages.
+                // Inspected spell branches create one visual; subsequent owner commands are gameplay.
                 if (!special) cpu.InstructionPointer = stop;
                 return true;
             }
@@ -147,6 +154,7 @@ internal static class NativeCombatVisualReader
                 m.Run(image.UInt32(0x5A5EC4 + (subtype - 1) * 4), done, CancellationToken.None);
                 var bone = (uint)memory.Integer(state + 0x70, 2);
                 var wearer = (uint)memory.Integer(state + 0x68, 4);
+                if (subtype == 35 && wearer == 0) return (string.Empty, false);
                 if (wearer is not (0x1111 or 0x2222)) throw new NotSupportedException("Native FX has no creature wearer.");
                 return (image.String(0x8E7200 + bone * 32, 32), wearer == 0x1111);
             }

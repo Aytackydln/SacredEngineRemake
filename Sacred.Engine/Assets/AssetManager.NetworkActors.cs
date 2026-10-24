@@ -59,6 +59,7 @@ public sealed partial class AssetManager
         if (MovementCalculator is { } movement) actor.ConfigureMovement(movement);
         if (template?.Class == SacredCreatureClass.Hero)
             SacredActorAppearance.Configure(actor, _equipmentByModelId.Values);
+        actor.Progression.ConfigureCombatArts(_combatArts.Entries);
         return actor;
     }
 }

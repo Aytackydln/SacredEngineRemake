@@ -24,6 +24,7 @@ internal sealed class ImGuiDebugPanel(
     private static readonly Vector4 PropertyColour = new(0.94f, 0.55f, 0.20f, 0.95f);
     private static readonly Vector4 EntranceColour = new(1.00f, 1.00f, 1.00f, 0.95f);
     private readonly ImGuiPlayerParticlesPanel _playerParticles = new();
+    private readonly ImGuiPlayerCombatPanel _playerCombat = new();
 
     public void Build(
         SacredCamera camera,
@@ -118,6 +119,7 @@ internal sealed class ImGuiDebugPanel(
         var networkActive = controls.GameServer.Connected || controls.GameServer.Joining;
         if (networkActive) DearImGui.TextWrapped("Offline character controls are available after disconnecting from GameServer.");
         DearImGui.BeginDisabled(networkActive);
+        _playerCombat.Draw(controls, player);
         _playerParticles.Draw(controls);
         DearImGui.Separator();
         if (DearImGui.CollapsingHeader("Character presets", ImGuiTreeNodeFlags.DefaultOpen))
@@ -369,6 +371,8 @@ internal sealed class ImGuiDebugPanel(
     private static void DrawControls()
     {
         DearImGui.Text("Move             WASD / arrows / left stick");
+        DearImGui.Text("Cast combat art  Right-click (local testing)");
+        DearImGui.Text("Attack           Ctrl+left-click / gamepad X");
         DearImGui.Text("Cycle character  Mouse 4/5 / gamepad B");
         DearImGui.Text("Minimap          Hold Tab / middle mouse / Select");
         DearImGui.Text("World map        M / tap Select");

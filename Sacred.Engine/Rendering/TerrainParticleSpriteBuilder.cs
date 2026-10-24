@@ -73,7 +73,8 @@ internal sealed class TerrainParticleSpriteBuilder(AssetManager assets)
                     particle.WorldX, particle.WorldY)) + particle.Height / IsometricProjection.StepWidth,
                 ParticleBlendFlags = (particle.Additive ? 2u : 0u) | (particle.SourceColorOnly ? 4u : 0u) |
                                      (particle.GroundAligned ? 128u : 0u) |
-                                     (particle.CornerColors.HasValue ? 256u : 0u)
+                                     (particle.CornerColors.HasValue ? 256u : 0u) |
+                                     (particle.Sheared ? 512u : 0u) | (particle.Untextured ? 1024u : 0u)
             });
         }
 

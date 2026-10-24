@@ -58,6 +58,10 @@ internal static class ParticleCatalogueSourceWriter
                 if (entry.ColumnFlare is { } columnFlare) actorScale += ColumnFlareSourceWriter.Write(columnFlare);
                 if (entry.SpriteFlare is { } spriteFlare) actorScale += SpriteFlareSourceWriter.Write(spriteFlare);
                 if (entry.ControlledFlare is { } controlledFlare) actorScale += ControlledFlareSourceWriter.Write(controlledFlare);
+                if (entry.RotatingBlades is { } blades) actorScale += SeraphimLightSourceWriter.Write(blades);
+                if (entry.CelestialLight is { } celestial) actorScale += SeraphimLightSourceWriter.Write(celestial);
+                if (entry.VampireTransformation is { } vampire)
+                    actorScale += $", VampireTransformation = new({CSharpLiteral.String(vampire.Animation)}, {CSharpLiteral.String(vampire.SourceBone)}, {CSharpLiteral.String(vampire.GlowTexture)}, {Float(vampire.GlowHalfSize)}, {CSharpLiteral.UInt32(vampire.GlowColor)}, {CSharpLiteral.String(vampire.SparkTexture)}, {Float(vampire.SparkHalfSize)}, {CSharpLiteral.UInt32(vampire.SparkColor)})";
                 if (entry.LayeredFlare is { } layeredFlare) actorScale += LayeredFlareSourceWriter.Write(layeredFlare);
                 if (entry.StrikeSymbol is { } strikeSymbol) actorScale += StrikeSymbolSourceWriter.Write(strikeSymbol);
                 if (entry.RingShield is { } ringShield) actorScale += RingShieldSourceWriter.Write(ringShield);

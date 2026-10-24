@@ -1,3 +1,4 @@
+using Sacred.Network.Gameplay;
 using Sacred.Particles;
 
 namespace Sacred.GameplayHost.World;
@@ -7,6 +8,8 @@ public sealed record GameplayStatusEffect(long Generation, SacredCombatVisualDef
     uint Caster, long CasterInstance, uint Owner, long OwnerInstance, int Channel, int Rank,
     float Duration, string? PendingReason)
 {
+    /// <summary>Fixed native ground target; independent of wearer and subsequent caster movement.</summary>
+    public GoldObjectPosition? GroundTarget { get; init; }
     public float Age { get; internal set; }
     public bool VisualAvailable { get; init; }
     public uint Type => Definition.Resource;

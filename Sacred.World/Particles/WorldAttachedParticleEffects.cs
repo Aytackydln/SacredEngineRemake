@@ -9,6 +9,12 @@ public sealed class WorldAttachedParticleEffects
     private readonly Dictionary<long, Playback> _playing = [];
     private readonly HashSet<long> _visible = [];
     private readonly List<WorldParticle> _discarded = [];
+    public WorldFxAnimations Animations { get; set; } = new();
+    public static bool SupportsSurface(SacredParticleDefinition definition) =>
+        definition.Status == SacredParticleDefinitionStatus.Decoded &&
+        (definition.LayeredFlare is not null || definition.StrikeSymbol is not null ||
+         definition.RotatingBlades is not null || definition.CelestialLight is not null || definition.VampireTransformation is not null);
+
     public int ActiveCount => _playing.Values.Count(p => p.Started && (p.Surface?.Active == true || p.Player.ActiveCount > 0));
 
     public void Synchronize(IEnumerable<WorldAttachedParticleEffect> effects)
@@ -38,10 +44,9 @@ public sealed class WorldAttachedParticleEffects
             if (!playback.Started)
             {
                 if (catalogue.TryGetEventDefinition(state.Type, state.Preset, out var definition) &&
-                    definition.Status == SacredParticleDefinitionStatus.Decoded &&
-                    (definition.LayeredFlare is not null || definition.StrikeSymbol is not null))
+                    SupportsSurface(definition))
                 {
-                    playback.Surface = new(definition, state.DurationSeconds);
+                    playback.Surface = new(definition, state.DurationSeconds, state.ActorBlockRadius, catalogue.Projection, Animations);
                     playback.Started = true;
                 }
                 else
@@ -89,4 +94,6 @@ public sealed record WorldAttachedParticleEffect(long Generation, uint Type, int
     Vector2 Position, float Height, float Age, float ClockScale = 1)
 {
     public float? DurationSeconds { get; init; }
+    public uint? ActorBlockRadius { get; init; }
+    public Vector3 Direction { get; init; }
 }

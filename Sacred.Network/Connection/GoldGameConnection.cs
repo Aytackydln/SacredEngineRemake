@@ -214,6 +214,7 @@ public sealed partial class GoldGameConnection : IAsyncDisposable
                     case TinCatLogin.CustomData:
                         var messages = DecodeMessages(frame.Payload);
                         foreach (var message in messages) Diagnostics.Record(message, false, _clock.ElapsedMilliseconds);
+                        var sessionEnd = FindSessionEnd(messages);
                         var kick = messages.Where(message => message.Opcode == GoldPlayerKickEvent.Opcode)
                             .Select(GoldGameEventDecoder.Decode).OfType<GoldPlayerKickEvent>()
                             .FirstOrDefault(entry => entry.DisconnectsClient);
@@ -222,7 +223,7 @@ public sealed partial class GoldGameConnection : IAsyncDisposable
                             _admission.ProcessBatch(messages);
                             if (Admission.Phase != GoldAdmissionPhase.WaitingForResponse)
                                 admissionLimit.CancelAfter(Timeout.InfiniteTimeSpan);
-                            if (kick is null && Admission.Phase == GoldAdmissionPhase.SlotAssigned)
+                            if (kick is null && sessionEnd is null && Admission.Phase == GoldAdmissionPhase.SlotAssigned)
                                 foreach (var message in messages)
                                     if (message.Opcode == GoldTimeProbeCodec.RequestOpcode)
                                     {
@@ -233,6 +234,11 @@ public sealed partial class GoldGameConnection : IAsyncDisposable
                         // A concurrently failed write must not discard a batch already read,
                         // particularly its native disconnect reason. This queue cannot block.
                         _events.Writer.TryWrite(new GoldMessagesReceived(messages));
+                        if (sessionEnd is not null)
+                        {
+                            reason = $"Sacred ended session: {sessionEnd.LocalizationKey} (opcode 0x{sessionEnd.Message.Opcode:X3})";
+                            return;
+                        }
                         if (kick is not null)
                         {
                             reason = $"Sacred server disconnected client: {kick.Description} (reason {kick.Reason})";

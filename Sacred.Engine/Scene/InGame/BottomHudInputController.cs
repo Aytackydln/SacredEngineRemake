@@ -17,7 +17,6 @@ internal sealed class BottomHudInputController(BottomHudState hud, InputState in
 
     public void Update()
     {
-        input.HudWantsMouse = false;
         if (!hud.Visible || hud.Layout is not { } layout || input.ImGuiWantsMouse)
         {
             hud.CancelPointer();
@@ -36,7 +35,7 @@ internal sealed class BottomHudInputController(BottomHudState hud, InputState in
             hud.Release(hud.HoveredButton);
         else if (captured && !input.IsLeftMouseButtonDown)
             hud.CancelPointer();
-        input.HudWantsMouse = captured || layout.ContainsPointer(input.MousePosition, size);
+        input.HudWantsMouse |= captured || layout.ContainsPointer(input.MousePosition, size);
     }
 
     public void Cancel()

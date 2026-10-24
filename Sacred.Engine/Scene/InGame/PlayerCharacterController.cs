@@ -5,6 +5,7 @@ using System.Linq;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
+using Sacred.Core.CombatArts;
 using Sacred.Core.Pak.Items;
 using Sacred.Engine.Animation;
 using Sacred.Engine.Assets;
@@ -56,6 +57,9 @@ internal sealed class PlayerCharacterController : IDisposable
     }
 
     public string SelectedCharacterName => TestCharacters.GetDisplayName(_requestedModelEntryId);
+    internal PlayerCombatContext? CombatContext => !_transitionPending && _activeAsset is { } asset &&
+        _animation is { } animation && _scene.Models.Count > 0
+            ? new(_loadout.Actor, asset, animation, _scene.Models[0]) : null;
 
     public void Initialize(Vector2 worldCenter)
     {
@@ -271,7 +275,17 @@ internal sealed class PlayerCharacterController : IDisposable
 
     private void RequestModel(PlayerCharacterLoadout loadout)
     {
+        var changedActor = !ReferenceEquals(_scene.EquipmentUi.Actor, loadout.Actor);
         _scene.EquipmentUi.Bind(loadout.Actor);
+        if (changedActor)
+        {
+            var startingArt = SacredCombatArtStartingAllocation.ForCreature(loadout.Actor.Progression.Template)
+                .FirstOrDefault(code => _scene.EquipmentUi.CombatArts.CanAssign(code));
+            if (startingArt != 0)
+                _scene.EquipmentUi.CombatArts.Assign(startingArt, 0, 1);
+            if (_scene.Hud is { } hud) hud.SelectedCombatArtSlot = 0;
+            EngineLog.WriteLine($"Player loadout: {loadout.Definition.DisplayName}; level {loadout.Actor.Progression.Level}; default combat art {startingArt}; quickslot 1.");
+        }
         _scene.Portraits.BindPlayer(loadout.Actor);
         var entryId = loadout.EntryId;
         PlayerModelRequest? supersededRequest;

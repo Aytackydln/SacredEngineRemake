@@ -29,7 +29,7 @@ internal static class Dx12DescriptorLayout
     public const int FirstWorldMapUiTexture = EscapeMenuTexture + 1;
     public const int MaximumWorldMapUiTextures = 2;
     public const int FirstEquipmentArt = FirstWorldMapUiTexture + MaximumWorldMapUiTextures;
-    public const int MaximumEquipmentAtlases = 8;
+    public const int MaximumEquipmentAtlases = 64;
     public const int FirstEquipmentPreview = FirstEquipmentArt + MaximumEquipmentAtlases;
     public const int EquipmentDescriptorsPerFrame = 128;
     public const int FirstPortraitTexture = FirstEquipmentPreview + EquipmentDescriptorsPerFrame * Dx12DeviceContext.FrameCount;

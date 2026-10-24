@@ -91,6 +91,9 @@ internal sealed partial class InGameScene : IGameScene
         renderer.RetainUnusedSectorTextures = saveState.SectorLoadMode == SectorLoadMode.Nine;
         renderer.WaitForSectorGpuUploads = saveState.WaitForSectorGpuUploads;
         _particles = new WorldParticleSystem(resources.WorldArchive.ParticleScript, saveState.ParticleQuality);
+        _particles.FxAnimations.Load = name => _assets.LoadFxAnimationAsync(name);
+        _combatActions = new(_assets, _particles, new WorldElevationSampler(_worldStreamer)
+        { ActiveIndoorGroup = () => _scene.Indoor.ActiveGroup, VisibleWorldProvider = () => PresentedWorld });
         _particles.GpuBackend = renderer.ParticleGpuBackend;
         _particles.EmissionBackend = renderer.WorldEmissionBackend;
         _particles.SetSimulationMode(saveState.ParticleSimulation);
@@ -123,7 +126,7 @@ internal sealed partial class InGameScene : IGameScene
             });
         hud.Activated += _hudInput.Activate;
         _inventoryInput = new(_scene.EquipmentUi, window.Input,
-            () => new Vector2(window.ClientWidth, window.ClientHeight));
+            () => new Vector2(window.ClientWidth, window.ClientHeight)) { Hud = hud };
         _portraitInput = new(_scene.Portraits, window.Input,
             () => new Vector2(window.ClientWidth, window.ClientHeight));
         _scene.Debug.StairsMapVisible = saveState.StairsTilesVisible;
@@ -150,7 +153,7 @@ internal sealed partial class InGameScene : IGameScene
         {
             _hudInput.Cancel();
             _inputController.SuspendGameplayInput();
-            EngineLog.WriteLine($"Inventory {(_scene.EquipmentUi.IsOpen ? "opened" : "closed")}: stats artwork and armor/accessory slots.");
+            EngineLog.WriteLine($"Inventory {(_scene.EquipmentUi.IsOpen ? "open" : "closed")}: {_scene.EquipmentUi.ActiveTab}; {_scene.EquipmentUi.Actor?.CharacterClass}.");
         };
         _escapeMenu = new EscapeMenuController(menu, window.Input, gamepad,
             () => new Vector2(window.ClientWidth, window.ClientHeight), () =>
@@ -164,6 +167,8 @@ internal sealed partial class InGameScene : IGameScene
                 window.RequestQuit();
             });
         _inputController.SetPlayerMovementSpeedMultiplier(saveState.PlayerMovementSpeedMultiplier);
+        _inputController.CombatActionRequested = request => RequestPlayerCombat(request);
+        _inputController.CombatActive = () => _combatActions.Active;
         _inputController.Portals = new PortalTraversalController(resources.WorldArchive.Portals);
         _portalScript = resources.WorldArchive.Portals;
         Bootstrap();
@@ -211,10 +216,16 @@ internal sealed partial class InGameScene : IGameScene
     internal void SetNoClipEnabled(bool enabled) =>
         SetCollisionMode(enabled ? CollisionCheatMode.NoClip : CollisionCheatMode.Walk);
 
-    internal PlayerDebugPanelState CreatePlayerDebugPanelState() => _networkPresentation is { World.IsCurrentSession: true } view && _scene.EquipmentUi.Actor is { } actor
+    internal PlayerDebugPanelState CreatePlayerDebugPanelState() => (_networkPresentation is { World.IsCurrentSession: true } view && _scene.EquipmentUi.Actor is { } actor
         ? new($"Network player {view.World.PlayerSlot}", view.World.LocalHero.BaseState.ObjectType, [],
             actor.EquipmentSlots.Select((slot, index) => new PlayerEquipmentSlotState(index, slot.Type.ToString(), slot.Equipment?.Name, slot.Equipment?.IdemId)).ToArray(), [])
-        : _player.CreateDebugPanelState();
+        : _player.CreateDebugPanelState()) with
+        {
+            Level = _scene.EquipmentUi.Actor?.Progression.Level ?? 1,
+            LearnedCombatArts = _scene.EquipmentUi.CombatArts.Available.Count(art => _scene.EquipmentUi.CombatArts.Rank(art.Code) > 0),
+            AvailableCombatArts = _scene.EquipmentUi.CombatArts.Available.Count,
+            CombatStatus = _combatActions.Status
+        };
     internal PlayerParticlePanelState CreatePlayerParticlePanelState() => _playerParticles.CreateState(_camera.WorldCenter);
     internal bool ExecutePlayerParticleRequest(PlayerParticleRequest request) =>
         _playerParticles.Execute(request, _camera.WorldCenter);
@@ -241,6 +252,7 @@ internal sealed partial class InGameScene : IGameScene
     internal bool TrySetCheatOption(string option, string value, out string message)
     {
         if (TrySetWeather(option.ToLowerInvariant(), value, out message)) return true;
+        if (TrySetCombatOption(option, value, out message)) return true;
         if (CreatureModelCheats.TrySetOption(option, value, _scene.Models.FirstOrDefault(), out message)) return true;
         if (TrySetNetworkInteraction(option, value, out message)) return true;
         if (WorldLightingCheats.TryExecute(option, value, _worldLighting, _scene.Lighting, out message)) return true;
@@ -250,6 +262,7 @@ internal sealed partial class InGameScene : IGameScene
              NetworkCharacterCheats.TryExecute(option, value, _scene, network.World.Replicas, out message))) return true;
         if (PlayerEquipmentCheats.TryExecute(option, value, _player, out message)) return true;
         if (InventoryPanelCheats.TryExecute(option, value, _scene.EquipmentUi, out message)) return true;
+        if (CombatArtPanelCheats.TryExecute(option, value, _scene.EquipmentUi, _scene.Hud!, out message)) return true;
         if (ActorPortraitCheats.TryExecute(option, value, _scene.Portraits, _assets, out message)) return true;
         if (_playerParticles.TrySetCheatOption(option, value, _camera.WorldCenter, out message)) return true;
         if (PlayerMovementCheats.TrySetOption(option, value, _camera, _inputController, out message)) return true;
@@ -359,8 +372,8 @@ internal sealed partial class InGameScene : IGameScene
                 message = $"camera zoom set to {zoom}";
                 return true;
             case "animation" when value.Equals("attack", StringComparison.OrdinalIgnoreCase):
-                _player.PlayAttack();
-                message = "playing attack animation";
+                RequestPlayerCombat(new(false, _camera.WorldCenter + _camera.CharacterFacingUnitVector));
+                message = _combatActions.Status;
                 return true;
             case "facing" when float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture,
                 out var facingDegrees) && float.IsFinite(facingDegrees):
@@ -445,12 +458,18 @@ internal sealed partial class InGameScene : IGameScene
                 _scene.EquipmentUi.SetOpen(false);
         }
         if (_escapeMenu.Update()) { UpdatePausedNetworkMovement(deltaSeconds); return; }
-        _hudInput.Update();
+        input.HudWantsMouse = false;
         _inventoryInput.Update();
+        _hudInput.Update();
         _portraitInput.Update();
         if (_scene.EscapeMenu!.IsOpen) { UpdatePausedNetworkMovement(deltaSeconds); return; }
         UpdateNetworkBinding(deltaSeconds);
-        if (_networkPresentation is null) _inputController.Update(deltaSeconds);
+        if (_networkPresentation is null)
+        {
+            _inputController.Update(deltaSeconds);
+            _combatActions.Update(_player.CombatContext, deltaSeconds);
+        }
+        else _combatActions.Reset();
         _scene.Hud!.DayFraction = _worldLighting.DayFraction;
         _footprints.Update(deltaSeconds, _camera);
         Renderer.UpdateAutoRenderResolution(_camera.Zoom);
@@ -560,6 +579,7 @@ internal sealed partial class InGameScene : IGameScene
             return;
 
         _disposed = true;
+        _combatActions.Reset();
         DisposeNetworkBinding();
         _window.SetHandCursor(false);
         _player.Dispose();

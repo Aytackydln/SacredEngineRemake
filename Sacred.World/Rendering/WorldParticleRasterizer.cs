@@ -72,14 +72,15 @@ public sealed class WorldParticleRasterizer(
         if (width <= 0 || height <= 0) return;
         var anchor = IsometricProjection.WorldToIso(particle.WorldX, particle.WorldY) + IsometricProjection.TileAnchorOffset;
         var screen = transform.ToScreen(anchor.X, anchor.Y - particle.Height);
-        var cos = MathF.Cos(particle.Rotation);
-        var sin = MathF.Sin(particle.Rotation);
+        var cos = particle.Sheared ? 1 : MathF.Cos(particle.Rotation);
+        var sin = particle.Sheared ? 0 : MathF.Sin(particle.Rotation);
         var extentX = particle.GroundAligned
             ? (MathF.Abs(cos) + MathF.Abs(sin)) * width * .5f
             : (MathF.Abs(cos) * width + MathF.Abs(sin) * height) * .5f;
         var extentY = particle.GroundAligned
             ? (MathF.Abs(sin) + MathF.Abs(cos)) * height * .5f
             : (MathF.Abs(sin) * width + MathF.Abs(cos) * height) * .5f;
+        if (particle.Sheared) extentY += MathF.Abs(particle.Rotation) * width * .5f;
         var cellWidth = atlas.Width / columns;
         var cellHeight = atlas.Height / rows;
         var cell = Math.Clamp(particle.AtlasCell, 0, columns * rows - 1);
@@ -90,6 +91,7 @@ public sealed class WorldParticleRasterizer(
         {
             var dx = x + .5f - screen.X;
             var dy = y + .5f - screen.Y;
+            if (particle.Sheared) dy -= dx * particle.Rotation;
             var u = particle.GroundAligned
                 ? cos * dx / width - sin * dy / height + .5f
                 : (cos * dx + sin * dy) / width + .5f;
@@ -102,7 +104,7 @@ public sealed class WorldParticleRasterizer(
             var source = ((cell / columns * cellHeight + (int)(v * cellHeight)) * atlas.Width +
                           cell % columns * cellWidth + (int)(u * cellWidth)) * 4;
             var opacity = particle.CornerColors is { } corners ? corners.Channel(u, v, 24) / 255f : particle.Opacity;
-            var alpha = atlas.Rgba8[source + 3] / 255f * opacity;
+            var alpha = (particle.Untextured ? 1 : atlas.Rgba8[source + 3] / 255f) * opacity;
             // ONE-source draws retain RGB even when their authored diffuse alpha is zero.
             if (alpha < 1f / 255 && !particle.SourceColorOnly) continue;
             var sourceScale = particle.SourceColorOnly ? 1f : alpha;
@@ -112,7 +114,7 @@ public sealed class WorldParticleRasterizer(
                 var shift = 16 - channel * 8;
                 var tint = particle.CornerColors is { } tintCorners ? tintCorners.Channel(u, v, shift) : (particle.Color >> shift) & 255;
                 image.Pixels[pixel * 4 + channel] = (byte)Math.Clamp(
-                    atlas.Rgba8[source + channel] * tint / 255f * sourceScale + image.Pixels[pixel * 4 + channel] * targetScale, 0, 255);
+                    (particle.Untextured ? 255 : atlas.Rgba8[source + channel]) * tint / 255f * sourceScale + image.Pixels[pixel * 4 + channel] * targetScale, 0, 255);
             }
         }
     }

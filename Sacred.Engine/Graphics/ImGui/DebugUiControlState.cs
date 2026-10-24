@@ -73,5 +73,7 @@ internal sealed class DebugUiControlState
     public bool RequestedPlayerRemoveAllEquipment { get; set; }
     public int? RequestedPlayerItemSet { get; set; }
     public uint? RequestedPlayerCharacter { get; set; }
+    public int? RequestedPlayerLevel { get; set; }
+    public bool RequestedAllCombatArtsLevelOne { get; set; }
     public bool ScreenshotRequested { get; set; }
 }

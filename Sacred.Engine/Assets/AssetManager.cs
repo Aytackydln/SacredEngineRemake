@@ -22,6 +22,7 @@ using Sacred.Core.Pak.Weapon;
 using Sacred.Engine.Graphics.Sprites;
 using Sacred.GameplayHost.World;
 using Sacred.Granny.Abstractions;
+using Sacred.Granny.Animation;
 using Sacred.Granny.Assets;
 using Sacred.Inventory.Actors;
 using Sacred.Inventory.Effects;
@@ -51,6 +52,8 @@ public sealed partial class AssetManager : IDisposable, IGameplayResourceCatalog
     private readonly IReadOnlyList<SacredEquipment>[] _itemSetEquipment;
     private readonly MixedPakArchive _mixedPak;
     private readonly ModelsPakArchive _modelsPak;
+    public Task<GrnAnimationClip?> LoadFxAnimationAsync(string name) =>
+        _modelsPak.LoadDefaultCharacterAnimationAsync(name);
     private readonly Dictionary<string, TextureCacheEntry> _textures = new(MaxTextureCacheEntries, StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Task<TextureAsset>> _textureLoads = new(MaxTextureCacheEntries, StringComparer.OrdinalIgnoreCase);
     private readonly LinkedList<string> _textureLru = [];
@@ -148,8 +151,10 @@ public sealed partial class AssetManager : IDisposable, IGameplayResourceCatalog
     internal PlayerCharacterLoadout CreatePlayerCharacterLoadout(uint entryId)
     {
         var definition = GetPlayerCharacterDefinition(entryId);
-        var template = CreatureTemplates?.ResolveTemplate(ResolvePlayerCharacterItem(definition.BaseItemId));
+        var template = CreatureTemplates?.Entries.FirstOrDefault(candidate =>
+            candidate.PlayableClassMask == definition.CharacterClass.ToMask());
         var actor = new SacredGameActor(definition.CharacterClass, template);
+        actor.Progression.SetLevel(20);
         if (MovementCalculator is { } movement) actor.ConfigureMovement(movement);
         SacredActorAppearance.Configure(actor, _equipmentByModelId.Values);
         actor.Progression.ConfigureCombatArts(_combatArts.Entries);

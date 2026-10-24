@@ -71,6 +71,7 @@ float4 sample_portal_surface(Texture2D texture_to_sample, vertex_output input)
 
 float4 sample_static_texture(Texture2D texture_to_sample, vertex_output input)
 {
+    if ((input.particle_sprite & 1024u) != 0) return 1.0f.xxxx;
     if ((input.particle_sprite & 64u) != 0)
         return sample_portal_surface(texture_to_sample, input);
     if (input.frame_count <= 1 || (input.particle_sprite == 0 && input.animation_period_seconds <= 0.0f))

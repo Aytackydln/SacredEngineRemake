@@ -83,6 +83,7 @@ internal sealed class Dx12BottomHudPass : IDisposable
         }
         foreach (var slot in layout.QuickSlots.CombatArtSlots)
             DrawRegion(draw, slot.Region, slot.Position, viewport);
+        _inventory.DrawQuickSlotArts(scene.EquipmentUi.CombatArts, layout.QuickSlots, viewport);
         DrawDial(draw, BottomHudAssets.DayNightDisc, state.DayFraction, viewport);
         DrawDial(draw, BottomHudAssets.DayNightMask, 0, viewport);
         foreach (var decoration in layout.Decorations)

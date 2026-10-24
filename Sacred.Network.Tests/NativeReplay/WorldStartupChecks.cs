@@ -120,8 +120,11 @@ internal static class WorldStartupChecks
         Check(first is { HostWorldAvailable: true, ParticipantStartApproved: true, SectorEntryCount: 1 } &&
             session.Status.WorldStartup.SectorEntryCount == 2 && first.LastSectorEntry!.ToPayload().Length == 62,
             "native retained host origin, approval and immutable sector counts");
-        Check(GoldGameEventDecoder.Decode(new(0x20, 0, 0, 0, [])) is GoldUnknownEvent,
-            "unresolved 0x20 remains unknown rather than snapshot completion");
+        var receiveControl = GoldGameEventDecoder.Decode(new(0x20, 0, 0, 0, []));
+        Check(receiveControl is GoldSessionReceiveControlEvent { Enabled: true }, "0x20 sets the native singleton receive byte");
+        var startupBeforeControl = session.Status.WorldStartup;
+        session.ProcessBatch([receiveControl.Message]);
+        Check(session.Status.WorldStartup == startupBeforeControl, "0x20 does not change startup milestones");
         using var capture = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "docs/game-server/evidence/native-world-startup-capture.json")));
         foreach (var control in capture.RootElement.GetProperty("controls").EnumerateArray())
         {
@@ -129,7 +132,9 @@ internal static class WorldStartupChecks
             var payload = Convert.FromHexString(control.GetProperty("payload_hex").GetString()!);
             var decoded = GoldGameEventDecoder.Decode(new(opcode, control.GetProperty("Sender").GetByte(),
                 control.GetProperty("Origin").GetByte(), 0, payload));
-            Check(decoded.GetType().Name == control.GetProperty("decoded_type").GetString() &&
+            // This capture's managed type annotation predates the 01F/020 singleton mapping.
+            var expectedType = opcode is 0x1f or 0x20 ? nameof(GoldSessionReceiveControlEvent) : control.GetProperty("decoded_type").GetString();
+            Check(decoded.GetType().Name == expectedType &&
                 payload.Length == control.GetProperty("length").GetInt32(), "captured native startup shape and direction");
             if (decoded is GoldSectorEntryEvent sectors)
                 Check(sectors.Entry.ToPayload().SequenceEqual(payload), "captured native sector entry lossless");

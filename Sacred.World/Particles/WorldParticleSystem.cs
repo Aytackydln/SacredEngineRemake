@@ -82,6 +82,7 @@ public sealed class WorldParticleSystem
     public WorldObjectFxSystem ObjectEffects { get; } = new();
     public WorldSpriteFlareEffects ProjectileEffects { get; } = new();
     public WorldAttachedParticleEffects ActorEffects { get; } = new();
+    public WorldFxAnimations FxAnimations => ActorEffects.Animations;
     public WorldCreatureFxSystem CreatureEffects { get; } = new();
     public WorldObjectSparkleSystem ObjectSparkles { get; } = new();
 

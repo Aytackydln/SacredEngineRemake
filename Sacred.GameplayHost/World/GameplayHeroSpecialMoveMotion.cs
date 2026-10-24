@@ -68,7 +68,7 @@ public static class GameplayHeroSpecialMoveMotion
     private static GameplayCombatArtAnimation? Vampiress(ushort code, ushort stance) => code switch
     {
         >= 1000 and <= 1002 => Attack(stance is 2 or 3 ? 147U : 146U),
-        1022 => new(144, .7f, .25f),
+        1022 or 1023 => new(144, .7f, .25f),
         1024 => new(149, 1),
         1026 => new(147, 1),
         1076 => new(151, 1),

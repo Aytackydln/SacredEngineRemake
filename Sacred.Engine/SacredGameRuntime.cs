@@ -252,6 +252,17 @@ internal sealed partial class SacredGameRuntime : IDisposable
         while (_debugUiControls.ParticleRequests.TryDequeue(out var particleRequest))
             _inGameScene?.ExecutePlayerParticleRequest(particleRequest);
 
+        if (_debugUiControls.RequestedPlayerLevel is { } playerLevel)
+        {
+            _debugUiControls.RequestedPlayerLevel = null;
+            _inGameScene?.SetPlayerLevel(playerLevel);
+        }
+        if (_debugUiControls.RequestedAllCombatArtsLevelOne)
+        {
+            _debugUiControls.RequestedAllCombatArtsLevelOne = false;
+            _inGameScene?.SetAllCombatArtsLevelOne();
+        }
+
         if (_debugUiControls.ScreenshotRequested)
         {
             _debugUiControls.ScreenshotRequested = false;
@@ -548,6 +559,7 @@ internal sealed partial class SacredGameRuntime : IDisposable
                 EngineLog.WriteLine("Footprints: set footprints <on|off|clear|status>; set move <x,y|stop|status> moves through the normal camera/collision path without simulated input.");
                 EngineLog.WriteLine("Bottom HUD: set hud status reports the calendar and loading state; set hud map invokes the map button action.");
                 EngineLog.WriteLine("Inventory: set hud inventory toggles the panel; set inventory <open|close|toggle|status|slot-index>; set equipment <status|clear>; set equip <model-id>; set unequip <slot-index>; set equip-set <set-index>. I toggles inventory; Escape closes it.");
+                EngineLog.WriteLine("Local combat testing: right-click casts the selected combat quickslot; Ctrl+left-click attacks. Player GUI: set player-panel on. set player-level <1..65535>; set combat-arts all1; set cast <code|selected>[@self|@x,y]; set cast <status|stop>; set attack now. These preview actions do not send combat packets.");
                 EngineLog.WriteLine("Portraits: set portraits status; set health <0..100>; set party <status|clear|add:character-index|health:member-index:percent>. New runtime actors begin fully healed.");
                 EngineLog.WriteLine("Escape menu: set hud options opens the gears menu; set menu <open|close|escape|up|down|activate|status|continue|quit|cancelquit> controls it without simulated input.");
                 EngineLog.WriteLine("Portals: set portals status lists default-open script billboards, triggers and destinations.");

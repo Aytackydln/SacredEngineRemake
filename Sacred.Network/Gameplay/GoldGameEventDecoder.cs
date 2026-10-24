@@ -14,6 +14,19 @@ public static class GoldGameEventDecoder
         var payload = message.Payload.AsSpan();
         switch (message.Opcode)
         {
+            case GoldSessionReceiveControlCodec.DisableOpcode:
+            case GoldSessionReceiveControlCodec.EnableOpcode:
+                return GoldSessionReceiveControlCodec.Decode(message);
+            case GoldLobbyServerCodec.UpsertOpcode:
+            case GoldLobbyServerCodec.RemoveOpcode:
+            case GoldLobbyServerCodec.PlayerRefreshOpcode:
+            case GoldLobbyServerCodec.CurrentOpcode:
+                return GoldLobbyServerCodec.Decode(message);
+            case GoldSessionNoticeCodec.ConnectionClosedOpcode:
+            case GoldSessionNoticeCodec.EndSessionOpcode:
+            case GoldSessionNoticeCodec.ConnectionLostOpcode:
+            case GoldSessionNoticeCodec.ConnectionLostAlternateOpcode:
+                return GoldSessionNoticeCodec.Decode(message);
             case GoldLobbyCodec.ProfileOpcode:
             case GoldLobbyCodec.WindowOpcode:
             case GoldLobbyCodec.ChannelsOpcode:

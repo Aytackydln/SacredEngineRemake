@@ -5,11 +5,14 @@ using Sacred.Particles.Generated;
 namespace Sacred.Particles;
 
 /// <summary>Original CA factory output and attachment, extracted from the version-checked executable.
-/// Particle geometry and textures remain in the particle catalogue and Items.pak.</summary>
+/// An empty Bone means a fixed ground target. Particle geometry and textures remain
+/// in the particle catalogue and Items.pak.</summary>
 public sealed record SacredCombatVisualDefinition(SacredCombatArtKind Kind, uint Code, uint Resource,
     uint FxSubtype, string Bone, bool TargetIsCaster, float ReleaseProgress,
     ushort DurationBase, ushort DurationPerLevel, ushort DurationCap, uint NativeAddress)
 {
+    /// <summary>Native factory substitutes the caster when object lookup for the destination fails.</summary>
+    public bool FallbackToCaster { get; init; }
     public float? FixedDuration { get; init; }
     public string? Diagnostic { get; init; }
     public Vector3 Direction { get; init; }

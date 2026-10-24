@@ -9,6 +9,7 @@ public sealed class NativeReplayTests
 {
     private static readonly IReadOnlyDictionary<string, Func<string, int>> Suites = new Dictionary<string, Func<string, int>>
     {
+        ["SessionBrowser 0x0001 0x0008 0x001F 0x0020 0x002A 0x002C 0x0030 0x0037 0x0039 0x0047"] = SessionBrowserChecks.Run,
         ["LobbyUpdates 0x0027 0x002D 0x002E 0x002F 0x0031"] = LobbyUpdateChecks.Run,
         ["SessionNotices 0x0035 0x0038 0x003A 0x003C 0x003D"] = SessionNoticeChecks.Run,
         ["ChannelChatHostRole 0x0003 0x0004 0x0005 0x000D 0x000E"] = ChannelChatHostRoleChecks.Run,
@@ -37,6 +38,8 @@ public sealed class NativeReplayTests
         ["ObjectQuest 0x0173 0x0175"] = ObjectQuestChecks.Run,
         ["CreatureSleep 0x0126"] = CreatureSleepChecks.Run,
         ["Calendar"] = CalendarChecks.Run,
+        ["SeraphimVisuals 0x0183 0x016F"] = SeraphimVisualChecks.Run,
+        ["VampireTransformation 0x012D"] = VampireTransformationChecks.Run,
         ["PhysicalFacing"] = PhysicalFacingChecks.Run,
         ["ObjectLifecycle"] = ObjectLifecycleChecks.Run,
         ["ScriptResources"] = ScriptResourceChecks.Run,

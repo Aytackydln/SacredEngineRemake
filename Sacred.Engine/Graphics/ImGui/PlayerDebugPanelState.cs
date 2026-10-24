@@ -8,7 +8,13 @@ internal sealed record PlayerDebugPanelState(
     uint SelectedCharacterEntryId,
     IReadOnlyList<PlayerCharacterPresetState> CharacterPresets,
     IReadOnlyList<PlayerEquipmentSlotState> EquipmentSlots,
-    IReadOnlyList<PlayerItemSetState> ItemSets);
+    IReadOnlyList<PlayerItemSetState> ItemSets)
+{
+    public ushort Level { get; init; } = 1;
+    public int LearnedCombatArts { get; init; }
+    public int AvailableCombatArts { get; init; }
+    public string CombatStatus { get; init; } = string.Empty;
+}
 
 internal readonly record struct PlayerCharacterPresetState(uint EntryId, string DisplayName);
 

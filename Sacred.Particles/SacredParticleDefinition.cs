@@ -134,6 +134,9 @@ public sealed record SacredParticleDefinition(
     public SacredStonedFxDefinition? Stoned { get; init; }
     public SacredPlongFxDefinition? Plong { get; init; }
     public SacredLayeredFlareFxDefinition? LayeredFlare { get; init; }
+    public SacredRotatingBladesFxDefinition? RotatingBlades { get; init; }
+    public SacredCelestialLightFxDefinition? CelestialLight { get; init; }
+    public SacredVampireTransformationFxDefinition? VampireTransformation { get; init; }
     public SacredPulseFlareFxDefinition? PulseFlare { get; init; }
     public SacredWarCrySignFxDefinition? WarCrySign { get; init; }
     public SacredColumnFlareFxDefinition? ColumnFlare { get; init; }

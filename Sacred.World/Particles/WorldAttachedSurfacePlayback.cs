@@ -10,20 +10,28 @@ internal sealed class WorldAttachedSurfacePlayback
     private readonly SacredParticleDefinition _definition;
     private readonly SacredLayeredFlareFxPlayback? _layers;
     private readonly SacredStrikeSymbolFxPlayback? _strike;
+    private readonly WorldSeraphimLightPlayback? _seraphim;
+    private readonly WorldVampireTransformationPlayback? _vampire;
     private uint _random = 1;
     private float _age;
 
-    public WorldAttachedSurfacePlayback(SacredParticleDefinition definition, float? duration)
+    public WorldAttachedSurfacePlayback(SacredParticleDefinition definition, float? duration, uint? radius, SacredParticleProjection projection,
+        WorldFxAnimations? animations = null)
     {
         _definition = definition;
+        if (definition.VampireTransformation is not null) _vampire = new(definition, animations ?? new());
+        if (definition.RotatingBlades is not null || definition.CelestialLight is not null)
+            _seraphim = new(definition, duration, radius, projection);
         if (definition.LayeredFlare is { } layers)
             _layers = new(duration is > 0 ? layers with { InitialLifetime = duration.Value } : layers);
         if (definition.StrikeSymbol is { } strike) _strike = new(strike);
     }
-    public bool Active => _layers?.Active ?? _strike?.Active ?? false;
+    public bool Active => _vampire?.Active ?? _seraphim?.Active ?? _layers?.Active ?? _strike?.Active ?? false;
 
     public void Update(WorldAttachedParticleEffect state, SacredParticleProjection projection, List<WorldParticle> output)
     {
+        if (_vampire is not null) { _vampire.Update(state, projection, output); return; }
+        if (_seraphim is not null) { _seraphim.Update(state, projection, output); return; }
         var remaining = MathF.Max(0, state.Age - _age);
         // Retain the native one-random-change-per-update controller during delayed attachment catch-up.
         while (remaining > 1f / 60)

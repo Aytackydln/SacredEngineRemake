@@ -136,10 +136,14 @@ public sealed class GoldWorldReplica
         if (entry is GoldObjectEvent replacement) BowProjectiles.Remove(replacement.ObjectReference);
         switch (entry)
         {
+            case GoldSessionNoticeEvent notice when notice.EndsSession:
+                var sessionEnd = GoldSessionNoticeCodec.Decode(notice.Message);
+                GoldSessionEndReducer.Apply(_objects, LocalPlayerSlot != 0 ? LocalPlayerSlot : Session.Teams.LocalPlayerSlot, BowProjectiles, sessionEnd);
+                Session.ApplyControl(sessionEnd); Revision++; break;
             case GoldInactiveReceiveHookEvent ignored:
                 _ = GoldInactiveReceiveHookCodec.Decode(ignored.Message); break;
             case GoldSessionLockEvent or GoldSessionGameFlagsEvent or GoldSessionPlayerLimitEvent or GoldTeamEvent or GoldChatEvent or GoldChannelChatEvent
-                or GoldAdmissionEvent or GoldSessionPauseEvent or GoldCheatsEnabledEvent or GoldClientHostRoleEvent or GoldPlayerRosterEvent or GoldSessionNoticeEvent or GoldLobbyEvent:
+                or GoldAdmissionEvent or GoldSessionPauseEvent or GoldCheatsEnabledEvent or GoldClientHostRoleEvent or GoldPlayerRosterEvent or GoldSessionNoticeEvent or GoldLobbyEvent or GoldSessionReceiveControlEvent:
                 Session.ApplyControl(entry); Revision++; break;
             case GoldScriptWorldEvent script:
                 WorldBanks.Apply(script, SectorWork.Runtime); Revision++;
