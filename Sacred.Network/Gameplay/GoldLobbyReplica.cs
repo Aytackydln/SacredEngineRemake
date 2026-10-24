@@ -25,6 +25,9 @@ public sealed class GoldLobbyReplica
 {
     private GoldLobbyChannelsEvent? _channels;
     private Encoding? _nameEncoding;
+    public GoldLobbyControlReplica Control { get; } = new();
+    public GoldLobbyProfileTransfers Transfers { get; } = new();
+    public GoldBuddyReplica Buddies { get; } = new();
     public GoldLobbyProfileEvent? LastProfile { get; private set; }
     public GoldLobbyServerReplica ServerBrowser { get; } = new();
     public GoldLobbyWindowEvent? LastWindowRequest { get; private set; }
@@ -49,6 +52,7 @@ public sealed class GoldLobbyReplica
 
     internal void Apply(GoldLobbyEvent entry)
     {
+        if (entry is GoldBuddyEvent buddy) { Buddies.Apply(buddy); ReceivedCount++; return; }
         if (entry is GoldLobbyServerEvent or GoldLobbyPlayerRefreshEvent)
         {
             ServerBrowser.Apply(entry); ReceivedCount++; return;
@@ -88,7 +92,7 @@ public sealed class GoldLobbyReplica
 
     internal void Clear()
     {
-        ServerBrowser.Clear();
+        ServerBrowser.Clear(); Buddies.Clear(); Control.Clear(); Transfers.Clear();
         _channels = null; LastProfile = null; LastWindowRequest = null; NetworkWindowValue = null; ChannelRequests = null;
         ReceivedCount = ChannelClearRequestCount = ProfileRequestCount = WindowRequestCount = 0;
     }

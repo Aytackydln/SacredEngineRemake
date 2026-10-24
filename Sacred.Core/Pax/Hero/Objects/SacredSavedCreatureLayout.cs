@@ -12,6 +12,9 @@ public static class SacredSavedCreatureLayout
     public const int MovementControlOffset = Block150Offset + 0x24;
     public const int EquipmentOffset = 419;
     public const int EquipmentCount = 19;
+    /// <summary>Native +0x1EC (last equipment word): 8054D0 follows this creature reference for sector context when base flag 2 is set and its own sector is zero.</summary>
+    public const int SectorContextReferenceIndex = 18;
+    public const int SectorContextReferenceOffset = EquipmentOffset + SectorContextReferenceIndex * 4;
     // Gold 0x401AE0 binds native slot 12 to L Hand/Forearm and 13 to R Hand/Forearm.
     public const int LeftHandEquipmentIndex = 12;
     public const int RightHandEquipmentIndex = 13;

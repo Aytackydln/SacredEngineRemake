@@ -35,9 +35,11 @@ public sealed class GoldWorldReplica
     public GoldMovementTriggerDeletionQueue MovementTriggerDeletions => MovementTriggers.PendingDeletions;
     private readonly Dictionary<(byte Sender, byte Origin, uint Id), SacredSavedInventory> _inventories = [];
     private readonly Dictionary<uint, SacredSavedInventory> _currentInventories = [];
-    public SacredSavedInventory? FindInventory(uint id) => _currentInventories.GetValueOrDefault(id);
+    public SacredSavedInventory? FindInventory(uint id) => CreatureCommands.Interactions.InventoryRecords.Find(id, _currentInventories.GetValueOrDefault(id));
     public GoldWorldReplica()
     {
+        SpecialFx = new(_objects, () => Revision++);
+        Session.Lobby.Control.Settings.BindWorld(this);
         Objects = new ReadOnlyDictionary<uint, GoldReplicatedObject>(_objects);
         Inventories = new ReadOnlyDictionary<(byte Sender, byte Origin, uint Id), SacredSavedInventory>(_inventories);
     }
@@ -54,14 +56,17 @@ public sealed class GoldWorldReplica
     public GoldCreatureControlReplica CreatureControls { get; } = new();
     public GoldBowProjectileReplica BowProjectiles { get; } = new();
     public GoldAttachedFxReplica AttachedFx { get; } = new();
-
+    public GoldObjectPresentationReplica ObjectPresentation { get; } = new();
+    public GoldSpecialFxReplica SpecialFx { get; }
+    public GoldCreatureReceiveActions CreatureActions { get; } = new();
+    public GoldCreatureCommandsReplica CreatureCommands { get; } = new();
+    public GoldReceiveWorkReplica ReceiveWork { get; } = new();
     /// <summary>Native interest scheduling also updates local sector receive flags before any reply arrives.</summary>
     public void BeginSectorInterest(GoldSectorInterestRequest request)
     {
         SectorInterest.Begin(request);
         SectorWork.Runtime.Begin(request);
     }
-
     /// <summary>Supply original installation definitions before object arrival; never infer horse class from resource IDs.</summary>
     public void ConfigureCreatureClasses(IReadOnlyDictionary<uint, SacredCreatureClass> classes)
     {
@@ -69,17 +74,15 @@ public sealed class GoldWorldReplica
         if (_objects.Count != 0) throw new InvalidOperationException("Configure creature classes before a world snapshot arrives.");
         _creatureClasses = classes.ToFrozenDictionary();
     }
-
     public void ConfigureObjectResources(IReadOnlyDictionary<uint, uint> resources)
     {
         ArgumentNullException.ThrowIfNull(resources);
         if (_objects.Count != 0) throw new InvalidOperationException("Configure object resources before a world snapshot arrives.");
         _objectResources = resources.ToFrozenDictionary();
+        WorldBanks.Counters.Messages.ConfigureItemResources(resources);
     }
-
     public uint? FindScriptObject(uint resource) => ScriptResources.FindObject(resource, Objects,
         type => _objectResources.TryGetValue(type, out var value) ? value : 0);
-
     /// <summary>EnterSector's local post-publication ambient initialization at
     /// 0x4945A8..0x4945FC. The earlier creation packet retains its original fields.</summary>
     public void InitializeOwnedCreatureDirection(uint reference,uint addedFlags,GoldPhysicalVector direction)
@@ -95,14 +98,13 @@ public sealed class GoldWorldReplica
         _objects[reference]=obj with{BaseState=basis,Creature=creature,Physical=creature.PhysicalState,FacingBits=GoldPhysicalFacing.FromDirection(direction)};
         Revision++;
     }
-
     public void ConfigureObjectCategories(IReadOnlyDictionary<uint, SacredItemCategory> categories)
     {
         ArgumentNullException.ThrowIfNull(categories);
         if (_objects.Count != 0) throw new InvalidOperationException("Configure object categories before a world snapshot arrives.");
         _objectCategories = categories.ToFrozenDictionary();
+        WorldBanks.Counters.ConfigureCategories(categories);
     }
-
     public void SeedCharacter(GoldParticipantCharacterUpload upload)
     {
         ArgumentNullException.ThrowIfNull(upload);
@@ -136,6 +138,26 @@ public sealed class GoldWorldReplica
         if (entry is GoldObjectEvent replacement) BowProjectiles.Remove(replacement.ObjectReference);
         switch (entry)
         {
+            case GoldReceiveWorkEvent work: if (ReceiveWork.Apply(work, this, _objects)) Revision++; break;
+            case GoldCreatureCommandEvent command:
+                if (CreatureCommands.Apply(command, this, _objects)) Revision++;
+                break;
+            case GoldScriptInvokeEvent invocation: WorldBanks.Invocations.Apply(invocation, WorldBanks.Functions); Revision++; break;
+            case GoldRegionCountdownEvent countdown: Session.ApplyControl(countdown); Revision++; break;
+            case GoldCreatureReceiveActionEvent action:
+                if (CreatureActions.Apply(action, _objects, _objectCategories)) Revision++;
+                break;
+            case GoldCounterEvent counter:
+                WorldBanks.Counters.Apply(counter, WorldBanks.Functions, Objects, LocalPlayerSlot != 0 ? LocalPlayerSlot : Session.Teams.LocalPlayerSlot);
+                Revision++; break;
+            case GoldSpecialFxEvent specialFx:
+                if (SpecialFx.Apply(specialFx)) Revision++;
+                break;
+            case GoldQuestEvent questDelta:
+                WorldBanks.Quests.Apply(questDelta, this, _objects); Revision++; break;
+            case GoldObjectAnimationEvent or GoldContainerCloseEvent:
+                if (ObjectPresentation.Apply(entry, _objects)) Revision++;
+                break;
             case GoldSessionNoticeEvent notice when notice.EndsSession:
                 var sessionEnd = GoldSessionNoticeCodec.Decode(notice.Message);
                 GoldSessionEndReducer.Apply(_objects, LocalPlayerSlot != 0 ? LocalPlayerSlot : Session.Teams.LocalPlayerSlot, BowProjectiles, sessionEnd);
@@ -206,6 +228,7 @@ public sealed class GoldWorldReplica
                 ScriptVariables.Apply(bank.Snapshot);
                 ScriptResources.Apply(bank.Snapshot);
                 ScriptDialogs.Apply(bank.Snapshot);
+                CreatureCommands.Dialogs.ApplyAttachments(ScriptDialogs, _objects);
                 DeathScripts.Apply(bank.Snapshot);
                 WorldTriggers.Apply(bank.Snapshot);
                 Revision++;
@@ -278,34 +301,9 @@ public sealed class GoldWorldReplica
                 }
                 break;
             case GoldObjectEvent obj:
-                var basis = obj.BaseState;
-                _objects.TryGetValue(basis.ObjectReference, out var previous);
-                if (previous?.BaseState.ObjectType != basis.ObjectType ||
-                    previous is not null && (previous.BaseState.Flags & GoldObjectLifecycleLayout.InactiveFlag) != 0) previous = null;
-                _objects[basis.ObjectReference] = new(basis, obj.CreatureState ?? previous?.Creature,
-                    obj.ItemState ?? previous?.Item, obj.CreatureState is not null ? null : previous?.Movement)
-                { InstanceVersion = previous?.InstanceVersion ?? Revision + 1,
-                    ItemValuesVersion = obj.ItemState is not null ? Revision + 1 : previous?.ItemValuesVersion ?? 0,
-                    Container = obj.ItemState is not null && _objectCategories.GetValueOrDefault(basis.ObjectType) == SacredItemCategory.Container
-                        ? GoldContainerState.FromPayload(obj.ObjectState) : previous?.Container,
-                    Physical = obj.PhysicalState ?? previous?.Physical,
-                    Fx = obj.FxState ?? previous?.Fx,
-                    Values = obj.CreatureTail?.Values ?? previous?.Values,
-                    CurrentHitPoints = obj.CreatureTail?.Values?.CurrentHitPoints ?? previous?.CurrentHitPoints,
-                    ReportedHitPoints = obj.CreatureTail?.Values?.CurrentHitPoints ?? previous?.ReportedHitPoints,
-                    Attack = obj.CreatureState is not null ? null : previous?.Attack,
-                    SpecialMove = obj.CreatureState is not null ? null : previous?.SpecialMove,
-                    Cast = obj.CreatureState is not null ? null : previous?.Cast,
-                    Sleep = obj.CreatureState is not null ? null : previous?.Sleep,
-                    AttackVersion = (previous?.AttackVersion ?? 0) + (obj.CreatureState is not null ? 1 : 0),
-                    FacingBits = obj.PhysicalState is { } physicalState ? GoldPhysicalFacing.FromDirection(physicalState.Vector70) : basis.Word28,
-                    PositionOpcode = obj.Message.Opcode,
-                    FlightVersion = (previous?.FlightVersion ?? 0) + 1,
-                    PositionVersion = (previous?.PositionVersion ?? 0) + 1,
-                    MovementVersion = (previous?.MovementVersion ?? 0) + 1,
-                    SnapshotMovementVersion = obj.CreatureState is not null ? (previous?.MovementVersion ?? 0) + 1
-                        : previous?.SnapshotMovementVersion ?? 0,
-                    MountPartnerReference = obj.CreatureTail?.MountPartnerReference ?? previous?.MountPartnerReference };
+                _objects.TryGetValue(obj.BaseState.ObjectReference, out var previous);
+                _objects[obj.BaseState.ObjectReference] = GoldReplicatedObjectFactory.FromEvent(obj, previous,
+                    _objectCategories.GetValueOrDefault(obj.BaseState.ObjectType), Revision + 1);
                 Revision++;
                 break;
             case GoldCreatureUpdateEvent update when _objects.TryGetValue(update.ObjectReference, out var creature)
@@ -361,10 +359,8 @@ public sealed class GoldWorldReplica
         }
         if (entry is GoldObjectRemovalEvent or GoldObjectEvent) AttachedFx.Prune(_objects);
     }
-
     private static GoldObjectBaseState AtPosition(GoldObjectBaseState state, GoldObjectPosition position) =>
         state with { X = position.X, Y = position.Y, Surface = unchecked((byte)position.Surface), Sector = unchecked((ushort)position.Sector) };
-
     /// <summary>Owned client prediction between native sends. Remote actors can only change through Apply.</summary>
     public void PredictLocalPosition(GoldObjectPosition position, uint facingBits)
     {
@@ -380,6 +376,11 @@ public sealed class GoldWorldReplica
         CreatureControls.Clear();
         BowProjectiles.Clear();
         AttachedFx.Clear();
+        ObjectPresentation.Clear();
+        SpecialFx.Clear();
+        CreatureActions.Clear();
+        CreatureCommands.Clear();
+        ReceiveWork.Clear();
         _objects.Clear(); SectorInterest.Clear(); SectorWork.Clear(); DeathScripts.Clear(); Statistics.Clear(); _inventories.Clear();
         _currentInventories.Clear();
         MovementTriggerDeletions.Clear();

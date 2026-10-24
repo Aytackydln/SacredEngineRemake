@@ -8,6 +8,7 @@ public sealed class GoldSessionState
     public GoldChannelChatReplica ChannelChat { get; } = new();
     public GoldClientHostRoleReplica ClientHostRole { get; } = new();
     public GoldLobbyReplica Lobby { get; } = new();
+    public GoldRegionCountdownReplica RegionCountdowns { get; } = new();
     public GoldSessionNoticeReplica Notices { get; } = new();
     public bool? CheatsEnabled { get; private set; }
     public long CheatNotificationCount { get; private set; }
@@ -17,14 +18,20 @@ public sealed class GoldSessionState
     {
         switch (entry)
         {
+            case GoldRegionCountdownEvent countdown: RegionCountdowns.Apply(countdown); break;
             case GoldSessionReceiveControlEvent control:
                 NativeReceiveControlEnabled = GoldSessionReceiveControlCodec.Decode(control.Message).Enabled;
                 ReceiveControlNotificationCount++;
                 break;
+            case GoldLobbyControlEvent control: Lobby.Control.Apply(control, this); break;
+            case GoldLobbyTransferEvent transfer: Lobby.Transfers.Apply(transfer, Lobby.Control.Roster); break;
             case GoldLobbyEvent lobby: Lobby.Apply(lobby); break;
-            case GoldSessionNoticeEvent notice: Notices.Apply(notice); break;
+            case GoldSessionNoticeEvent notice:
+                Notices.Apply(notice);
+                if (notice.Message.Opcode == GoldSessionNoticeCodec.DisconnectOpcode) { ClientHostRole.EndSession(); ChannelChat.SetConnectionActive(false); }
+                break;
             case GoldChannelChatEvent chat: ChannelChat.Apply(chat); break;
-            case GoldPlayerRosterEvent roster: ChannelChat.ApplyRoster(roster); break;
+            case GoldPlayerRosterEvent roster: Lobby.Control.Roster.Apply(roster); ChannelChat.ApplyRoster(roster); break;
             case GoldClientHostRoleEvent role: ClientHostRole.Apply(role); break;
             case GoldChatEvent chat: Chat.Apply(chat); break;
             case GoldCheatsEnabledEvent cheats:
@@ -82,6 +89,7 @@ public sealed class GoldSessionState
     {
         NativeReceiveControlEnabled = null; ReceiveControlNotificationCount = 0;
         Teams.Clear();
+        RegionCountdowns.Clear();
         Notices.Clear(); Lobby.Clear();
         ChannelChat.Clear(); ClientHostRole.Clear();
         Chat.Clear(); CheatsEnabled = null; CheatNotificationCount = 0;

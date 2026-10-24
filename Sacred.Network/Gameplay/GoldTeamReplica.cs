@@ -44,6 +44,8 @@ public sealed class GoldTeamReplica
         NotificationCount++;
     }
 
+    internal void RemoveDepartedPlayer(byte player) { SetTeam(player, 0); ClearInvitations(player); }
+
     private void SetTeam(uint player, uint rawTeam)
     {
         var team = rawTeam & GoldTeamCodec.TeamMask;

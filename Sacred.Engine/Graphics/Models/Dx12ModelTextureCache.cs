@@ -32,6 +32,7 @@ internal sealed class Dx12ModelTextureCache : IDisposable
     private readonly List<Task> _loadTasks = [];
     private readonly ModelTextureRequests _requests = new();
     private readonly List<string> _namesToRemove;
+    private readonly int _maximumTextureCount;
 
     private ulong _preparedModelSetRevision = ulong.MaxValue;
 
@@ -52,6 +53,7 @@ internal sealed class Dx12ModelTextureCache : IDisposable
         _srvHeapStart = srvHeap.GetCPUDescriptorHandleForHeapStart();
         _descriptorSize = descriptorSize;
         _freeSrvSlots = freeSrvSlots;
+        _maximumTextureCount = maximumTextureCount;
         _namesToRemove = new List<string>(maximumTextureCount);
     }
 
@@ -135,6 +137,7 @@ internal sealed class Dx12ModelTextureCache : IDisposable
     private void ReconcileScene(IReadOnlyList<SceneModel> models, Dx12FrameContext frame)
     {
         _requests.Collect(models);
+        _requests.LimitTo(_maximumTextureCount);
 
         _namesToRemove.Clear();
         foreach (var pair in _textures)

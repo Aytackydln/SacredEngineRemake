@@ -104,6 +104,7 @@ internal sealed class GameServerJoinSession
                     _client.WorldReplicas.ConfigureObjectResources(_data.Resources);
                     _client.WorldReplicas.ConfigureObjectCategories(_categories.GetAwaiter().GetResult());
                     _client.WorldReplicas.MovementTriggers.ConfigureSectors(_data.Sectors);
+                    _client.WorldReplicas.SpecialFx.ConfigureSectors(_data.Sectors);
                     Advance(1, connected + $"; saved selection {_selection}, {_data.Classes.Count} creature class definitions loaded");
                     break;
                 case 1 when _client.PlayerSlot != 0 && _client.GrantedReferenceCount >= _data.Source.Objects.Records.ToArray().Count(record=>!record.IsEmpty):

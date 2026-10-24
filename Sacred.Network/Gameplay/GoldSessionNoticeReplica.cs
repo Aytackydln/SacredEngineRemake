@@ -63,7 +63,7 @@ public sealed class GoldSessionNoticeReplica
             GoldSessionNoticeCodec.BuddyAddedOpcode => localized is null ? null : localized + ": " + entry.Text,
             GoldSessionNoticeCodec.LobbyKickOpcode or GoldSessionNoticeCodec.ConnectionFailedOpcode => localized is null ? null : localized + "\n\n" + entry.Text,
             GoldSessionNoticeCodec.ConnectionAbortedOpcode => localized,
-            GoldSessionNoticeCodec.ConnectionClosedOpcode or GoldSessionNoticeCodec.EndSessionOpcode or
+            GoldSessionNoticeCodec.ConnectionClosedOpcode or GoldSessionNoticeCodec.DisconnectOpcode or GoldSessionNoticeCodec.EndSessionOpcode or
                 GoldSessionNoticeCodec.ConnectionLostOpcode or GoldSessionNoticeCodec.ConnectionLostAlternateOpcode => localized,
             GoldSessionNoticeCodec.ServerNoticeOpcode => entry.Text,
             GoldSessionNoticeCodec.LobbyNoticeOpcode => "Lobby: " + entry.Text,

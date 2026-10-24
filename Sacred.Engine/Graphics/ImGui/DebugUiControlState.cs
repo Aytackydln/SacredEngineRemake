@@ -48,6 +48,7 @@ internal sealed class DebugUiControlState
     public int AutoRenderResolutionStepPercentage { get; set; } = TileResolutionScaling.DefaultStepPercentage;
     public RenderScalingMode RenderScalingMode { get; set; } = RenderScalingMode.Bilinear;
     public PlayerDebugPanelState? Player { get; set; }
+    public bool GraphicsPanelVisible { get; set; }
     public bool PlayerPanelVisible { get; set; }
     public PlayerParticlePanelState? PlayerParticles { get; set; }
     public bool? RequestedParticlePanelOpen { get; set; }

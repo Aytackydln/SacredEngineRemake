@@ -23,6 +23,125 @@ internal static class PacketCatalog
         void Add<T>(string name, ushort opcode, Func<byte[]> bytes, PayloadRule rule = PayloadRule.Exact,
             Action<GoldGameEvent>? verify = null, byte sender = 0, bool owns = false, int[]? shorter = null) where T : GoldGameEvent =>
             rows.Add(new(name, opcode, typeof(T), bytes, rule, verify, sender, owns, shorter));
+        Add<GoldExperienceAwardEvent>("experience award", 0x127, () => Words(500, 0xFFFFFFFF), PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(-1, ((GoldExperienceAwardEvent)e).Award), owns: true);
+        Add<GoldStartPositionDataEvent>("compressed startup data", 0x132, RemainingReceivePackets.StartData, PayloadRule.RetainedSuffix,
+            e => CollectionAssert.AreEqual(new byte[] { 3, 2, 1, 0, 8 }, ((GoldStartPositionDataEvent)e).DecodedData.ToArray()), owns: true);
+        Add<GoldFxPartialEvent>("partial FX snapshot", 0x14B, () => RemainingReceivePackets.PartialFx(2), PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(194, ((GoldFxPartialEvent)e).State.Length), owns: true);
+        Add<GoldControlledObjectEvent>("controlled object snapshot", 0x16A, RemainingReceivePackets.Controlled, PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual((ushort)0x169, ((GoldControlledObjectEvent)e).Snapshot.Message.Opcode), owns: true);
+        Add<GoldFxBatchEvent>("multi FX batch", 0x181, () => RemainingReceivePackets.Batch(), PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(2, ((GoldFxBatchEvent)e).Entries.Count), owns: true);
+        Add<GoldReferenceReconciliationEvent>("object reconciliation request", 0x197, () => [], PayloadRule.RetainedSuffix, owns: true);
+        Add<GoldTradeEvent>("trade operation", 0x198, () => Words(0, 0x27, 42), PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(42u, ((GoldTradeEvent)e).Amount), owns: true);
+        Add<GoldCreaturePairEffectEvent>("paired creature effect", 0x199, () => Words(2, 3, 4, 5), owns: true);
+        Add<GoldCreatureEventBlock>("creature command block", 0x19B, () => new byte[128], owns: true);
+        Add<GoldInterpreterStateEvent>("interpreter memory file", 0x1AA, RemainingReceivePackets.Interpreter, PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(4, ((GoldInterpreterStateEvent)e).State.Length), owns: true);
+        Add<GoldCreatureTableEvent>("Creature.pak transfer", 0x1AB, RemainingReceivePackets.CreatureTable, PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(42u, ((GoldCreatureTableEvent)e).Records[0].ItemType), owns: true);
+        Add<GoldBannerEvent>("banner transfer", 0x1AC, () => [], PayloadRule.RetainedSuffix,
+            e => Assert.IsTrue(((GoldBannerEvent)e).ClearsBanner), owns: true);
+        Add<GoldSessionNoticeEvent>("disconnect teardown", 0x002, () => Words(uint.MaxValue), PayloadRule.RetainedSuffix,
+            e => { var n = (GoldSessionNoticeEvent)e; Assert.IsTrue(n.EndsSession); Assert.AreEqual(uint.MaxValue, n.ErrorCode); }, owns: true);
+        Add<GoldServiceErrorEvent>("service error", 0x009, () => Words(107, uint.MaxValue), PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(uint.MaxValue, ((GoldServiceErrorEvent)e).Parameter), owns: true, shorter: [4]);
+        Add<GoldGameSettingsEvent>("game settings", 0x00C, () => Words(uint.MaxValue, 1, 2, 3, 0x7fc00001, 5, 6, 7), PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(32, ((GoldGameSettingsEvent)e).Settings.Length), owns: true);
+        foreach (var op in new ushort[] { 0x01c, 0x150, 0x151 })
+            Add<GoldPlayerSessionEvent>("player session notice", op, () => op == 0x151 ? [] : Words(uint.MaxValue), PayloadRule.RetainedSuffix,
+                e => Assert.AreEqual(op == 0x151 ? null : (uint?)uint.MaxValue, ((GoldPlayerSessionEvent)e).Reason), owns: true);
+        foreach (var op in new ushort[] { 0x024, 0x026 })
+            Add<GoldLobbyResultEvent>("lobby operation result", op, () => [..Words(17, 0), ..LobbyLifecyclePackets.Text("OK")], PayloadRule.RetainedSuffix,
+                e => Assert.AreEqual("OK", ((GoldLobbyResultEvent)e).Text), owns: true);
+        Add<GoldLobbyTransferEvent>("public profile transfer", 0x029, LobbyLifecyclePackets.PublicTransfer, PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(0xD98, ((GoldLobbyTransferEvent)e).DecodedProfile!.Value.Length), owns: true);
+        Add<GoldLobbyTransferEvent>("player profile transfer", 0x02B, LobbyLifecyclePackets.PlayerTransfer, PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(556, ((GoldLobbyTransferEvent)e).PlayerProfile!.Value.Length), owns: true);
+        Add<GoldAlternatePickupEvent>("alternate item pickup", 0x143, () => Words(500, 0x7fc00001), PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(0x7fc00001u, ((GoldAlternatePickupEvent)e).FacingBits), sender: 2, owns: true);
+        Add<GoldInventoryInsertEvent>("local inventory insertion", 0x145, () => Words(123, uint.MaxValue), PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(uint.MaxValue, ((GoldInventoryInsertEvent)e).Word04), owns: true);
+        foreach (var op in new ushort[] { 0x14a, 0x14d, 0x14e })
+            Add<GoldCreatureFxSpawnEvent>("creature FX creation", op, () => op == 0x14e ? Words(500, uint.MaxValue, 0x80000000, 3) : Words(500, uint.MaxValue, 0x80000000, 3, 0x7fc00001),
+                PayloadRule.RetainedSuffix, e => Assert.AreEqual(uint.MaxValue, ((GoldCreatureFxSpawnEvent)e).Operands[0]), owns: true);
+        Add<GoldCreatureDeathCommandEvent>("creature death command", 0x17d, () => Words(500, uint.MaxValue), PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(uint.MaxValue, ((GoldCreatureDeathCommandEvent)e).PlayerWord), owns: true);
+        Add<GoldContainerOpenCommandEvent>("container open command", 0x18b, () => Words(500), PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(500u, ((GoldContainerOpenCommandEvent)e).ObjectReference), owns: true);
+        Add<GoldRegionObjectTypesEvent>("region object type record", 0x189, () => CreatureInteractionPackets.Region(),
+            verify: e => { var d = (GoldRegionObjectTypesEvent)e; Assert.AreEqual(3, d.RegionIndex); Assert.AreEqual(2, d.EntryCount); }, owns: true);
+        foreach (var op in new ushort[] { 0x33, 0x36 })
+            Add<GoldBuddyEvent>("buddy status", op, () => CreatureInteractionPackets.Buddy(), PayloadRule.RetainedSuffix,
+                e => { var b = ((GoldBuddyEvent)e).Buddy; Assert.AreEqual("User", b.Name); Assert.AreEqual("Lobby", b.ChannelName); }, owns: true);
+        Add<GoldCreatureDefinitionEvent>("creature definition", 0x114, CreatureCommandPackets.Definition, PayloadRule.RetainedSuffix,
+            e => { var d = (GoldCreatureDefinitionEvent)e; Assert.AreEqual(500u, d.ContextReference); Assert.AreEqual(348, d.Definition.Length); }, owns: true);
+        Add<GoldCreatureValueCommandEvent>("creature value command", 0x125, () => Words(500, 30, uint.MaxValue, 0x7fc00001, 1, 2, 3), PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(0x7fc00001u, ((GoldCreatureValueCommandEvent)e).NativeArguments[2]), owns: true);
+        foreach (var op in new ushort[] { 0x12e, 0x12f })
+            Add<GoldCreatureLinkEvent>("creature link", op, () => op == 0x12e ? Words(500, 501) : Words(500, 501, 0x80000000), PayloadRule.RetainedSuffix,
+                e => { var link = (GoldCreatureLinkEvent)e; Assert.AreEqual(501u, link.ChildReference); Assert.AreEqual(op == 0x12f, link.Option); }, owns: true);
+        Add<GoldPhysicalHitEvent>("physical hit notifications", 0x13c, CreatureCommandPackets.Hit, PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(72, ((GoldPhysicalHitEvent)e).Data.Length), owns: true);
+        foreach (var op in new ushort[] { 0x15e, 0x160 })
+            Add<GoldMountTransitionEvent>("mount transition", op, () => Words(500, 501), PayloadRule.RetainedSuffix,
+                e => { var mount = (GoldMountTransitionEvent)e; Assert.AreEqual(501u, mount.PartnerReference); Assert.AreEqual(op == 0x160, mount.Mounts); }, owns: true);
+        Add<GoldFxTargetEvent>("FX target inputs", 0x177, () => Words(500, 501, 0x80000000, 0x3f800000, 0x7fc00001, uint.MaxValue), PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(0x7fc00001u, ((GoldFxTargetEvent)e).Vector.Z), owns: true);
+        Add<GoldLocalHitCheckEvent>("local hit check", 0x180, () => [..Words(2), ..Enumerable.Range(0, 32).Select(i => (byte)(i * 7))], PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(32, ((GoldLocalHitCheckEvent)e).Data.Length), owns: true);
+        Add<GoldDialogRegistrationEvent>("dialog callback registration", 0x1cd, () => [..Words(900, 2, uint.MaxValue), 78, 112, 99, 0], PayloadRule.RetainedSuffix,
+            e => { var d = (GoldDialogRegistrationEvent)e; Assert.AreEqual("Npc", d.Name); Assert.AreEqual(uint.MaxValue, d.QuestWord); }, owns: true);
+        Add<GoldScriptInvokeEvent>("named script invocation", 0x110, () => [68, 111, 110, 101, 0], PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual("Done", ((GoldScriptInvokeEvent)e).FunctionName), owns: true);
+        Add<GoldCreatureMarkerEvent>("creature marker request", 0x13d, () => Words(500), PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(500u, ((GoldCreatureMarkerEvent)e).ObjectReference), owns: true);
+        Add<GoldCreatureTimedControlEvent>("creature timed control", 0x178, () => Words(500, uint.MaxValue, 0x80000000), PayloadRule.RetainedSuffix,
+            e => { var control = (GoldCreatureTimedControlEvent)e; Assert.AreEqual(uint.MaxValue, control.ControlWord);
+                Assert.AreEqual(0x80000000u, control.ClockWord); }, owns: true);
+        Add<GoldRegionCountdownEvent>("region countdown", 0x17e, () => Words(999, 0xaabbccff), PayloadRule.RetainedSuffix,
+            e => { var countdown = (GoldRegionCountdownEvent)e; Assert.AreEqual((byte)255, countdown.RegionIndex);
+                Assert.AreEqual(0xaabbccffu, countdown.SelectorWord); }, owns: true);
+        Add<GoldCreatureTypeChangeEvent>("creature type change request", 0x1d2, () => Words(500, uint.MaxValue), PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(uint.MaxValue, ((GoldCreatureTypeChangeEvent)e).ObjectType), owns: true);
+        Add<GoldCounterMessageEvent>("counter HUD message", 0x19e, () => Words(16, 3, 12345), PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(12345u, ((GoldCounterMessageEvent)e).TextResource), owns: true);
+        foreach (var opcode in new ushort[] { 0x19f, 0x1a0, 0x1a1 })
+            Add<GoldCounterTargetEvent>("counter resource", opcode, () => Words(17), PayloadRule.RetainedSuffix,
+                e => Assert.AreEqual(17u, ((GoldCounterTargetEvent)e).TargetResource), owns: true);
+        foreach (var opcode in new ushort[] { 0x1a2, 0x1a3 })
+            Add<GoldCounterCollectEvent>("collection notification", opcode, () => Words(500, 17), PayloadRule.RetainedSuffix,
+                e => { var collection = (GoldCounterCollectEvent)e; Assert.AreEqual(500u, collection.ObjectReference);
+                    Assert.AreEqual(opcode == 0x1a3, collection.UpdatesCounter); }, owns: true);
+        foreach (var opcode in new ushort[] { 0x1a4, 0x1a5 })
+            Add<GoldSpecialFxValueEvent>("special FX scalar", opcode, () => Words(500, uint.MaxValue), PayloadRule.RetainedSuffix,
+                e => Assert.AreEqual(uint.MaxValue, ((GoldSpecialFxValueEvent)e).Value), owns: true);
+        Add<GoldPingPongBallEvent>("pingpong ball state", 0x1a6,
+            () => [..Words(500, 300, 400, 0x123401ff, 0x80000000, 0x3f800000, 0x7fc00001, 0x41200000, 0x41a00000, 0x41f00000, 0x3fc00000), 2],
+            PayloadRule.RetainedSuffix, e => { var ball = (GoldPingPongBallEvent)e; Assert.AreEqual((byte)255, ball.Surface);
+                Assert.AreEqual(0x80000000u, ball.Direction.X); Assert.IsTrue(ball.SetsParticleFlag); }, owns: true);
+        Add<GoldPacmanGhostEvent>("pacman ghost state", 0x1a9,
+            () => Words(500, 300, 400, 0x123401ff, 0x80000000, 0x3f800000, 0x7fc00001, 0x3fc00000, uint.MaxValue, 0x80000000, 123),
+            PayloadRule.RetainedSuffix, e => { var ghost = (GoldPacmanGhostEvent)e; Assert.AreEqual(0x7fc00001u, ghost.VectorData.Z);
+                Assert.AreEqual(uint.MaxValue, ghost.IntegerData1); Assert.AreEqual(123u, ghost.IntegerData3); }, owns: true);
+        Add<GoldQuestProgressEvent>("quest progress", 0x1b8, () => [..Words(1), ..new byte[100], ..Words(1, uint.MaxValue)],
+            PayloadRule.RetainedSuffix, e => { var progress = (GoldQuestProgressEvent)e;
+                Assert.AreEqual(1, progress.HeaderIndex); Assert.AreEqual(1, progress.Entries.Count); }, owns: true);
+        Add<GoldQuestInsertEvent>("quest insert", 0x1b9, () => [..Words(500), ..new byte[24], ..Words(0, 0)],
+            PayloadRule.RetainedSuffix, e => Assert.AreEqual(500u, ((GoldQuestInsertEvent)e).ObjectReference), owns: true);
+        foreach (var opcode in new ushort[] { 0x1ba, 0x1bb, 0x1bc, 0x1bd, 0x1be })
+            Add<GoldQuestUpdateEvent>("quest table update", opcode, () => [..Words(3), ..(opcode == 0x1be ? Words(32) : Array.Empty<byte>()), ..new byte[opcode switch
+                { 0x1ba => 292, 0x1bb => 104, 0x1bd => 368, _ => 32 }]], PayloadRule.RetainedSuffix,
+                e => Assert.AreEqual(3u, ((GoldQuestUpdateEvent)e).Index), owns: true);
+        Add<GoldIndexedRecordEvent>("indexed field record", 0x15d, () => [..Words(3), ..new byte[188]],
+            PayloadRule.RetainedSuffix, e => Assert.AreEqual(3u, ((GoldIndexedRecordEvent)e).Index), owns: true);
+        Add<GoldObjectAnimationEvent>("object animation request", 0x170, () => Words(500, 0xaa, 0x3f800000, 0x3f000000),
+            PayloadRule.RetainedSuffix, e => { var animation = (GoldObjectAnimationEvent)e;
+                Assert.AreEqual(0xaau, animation.Animation); Assert.AreEqual(0x3f000000u, animation.SecondArgumentBits); }, owns: true);
+        Add<GoldContainerCloseEvent>("container close request", 0x18d, () => Words(500), PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(500u, ((GoldContainerCloseEvent)e).ObjectReference), owns: true);
         foreach (var opcode in new ushort[] { 0x001, 0x008, 0x037, 0x039 })
             Add<GoldSessionNoticeEvent>("connection lifecycle", opcode, () => opcode == 1 ? Words(uint.MaxValue) : [],
                 PayloadRule.RetainedSuffix, e =>

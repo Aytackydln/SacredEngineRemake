@@ -11,6 +11,7 @@ public sealed record GoldReplicatedObject(GoldObjectBaseState BaseState, GoldCre
     /// <summary>Physical state for every 3D instance, including doors and world props.</summary>
     public GoldPhysicalState? Physical { get; init; }
     public GoldObjectFxState? Fx { get; init; }
+    public GoldSpecialFxRuntime? SpecialFx { get; init; }
     /// <summary>Container extension selected by the original Items.pak category, never by payload length.</summary>
     public GoldContainerState? Container { get; init; }
     /// <summary>Locally dispatched world-object activation generation.</summary>
@@ -49,5 +50,8 @@ public sealed record GoldReplicatedObject(GoldObjectBaseState BaseState, GoldCre
     public GoldCreatureCastEvent? Cast { get; init; }
     /// <summary>Retained independently of the bounded combat history; replaced by each accepted sleep receipt.</summary>
     public GoldCreatureSleepEvent? Sleep { get; init; }
+    public GoldCreatureTimedControlEvent? TimedControl { get; init; }
+    /// <summary>Native +39C roster; null until an actual creature tail supplies its baseline.</summary>
+    public GoldCreatureLinkState? LinkedCreatures { get; init; }
     public long AttackVersion { get; init; }
 }

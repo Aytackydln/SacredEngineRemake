@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using Sacred.Network.Admission;
 using Sacred.Network.Gameplay;
 
@@ -7,6 +9,7 @@ internal sealed partial class GameServerClientController
 {
     private void Receive(GoldGameEvent gameEvent)
     {
+        var previousHudCount = WorldReplicas.WorldBanks.Counters.Messages.ReceivedCount;
         _gameplay.Apply(gameEvent);
         AdvanceCreatureControlCallbacks();
         var opcode = gameEvent.Message.Opcode;
@@ -14,14 +17,64 @@ internal sealed partial class GameServerClientController
         _opcodeCounts[opcode] = count + 1;
         _eventsReceived++;
         // Bounded diagnostics until native object admission/removal and reference mappings are implemented.
-        switch (gameEvent)
-        {
+          switch (gameEvent)
+          {
+              case GoldReceiveWorkEvent:
+                  EngineLog.WriteLine($"Network receive 0x{opcode:X3}: {WorldReplicas.ReceiveWork.CreatureWork.Count} creature requests, " +
+                      $"{WorldReplicas.ReceiveWork.FxWork.Count} FX requests, {WorldReplicas.ReceiveWork.Trade.Requests.Count} trade requests; " +
+                      $"resource revision {WorldReplicas.ReceiveWork.ResourceVersion}.");
+                  break;
+            case GoldCreatureInteractionEvent:
+                EngineLog.WriteLine($"Network interaction 0x{opcode:X3}: {WorldReplicas.CreatureCommands.Interactions.Pending.Count} requests, " +
+                    $"{WorldReplicas.CreatureCommands.Interactions.RejectedCount} rejected; {WorldReplicas.CreatureCommands.Interactions.RegionTypes.WaitingForBaseline.Count} region records waiting for a baseline.");
+                break;
+            case GoldCreatureCommandEvent:
+                EngineLog.WriteLine($"Network creature command 0x{opcode:X3}: {WorldReplicas.CreatureCommands.Requests.Count} accepted, " +
+                    $"{WorldReplicas.CreatureCommands.RejectedCount} rejected; {WorldReplicas.CreatureCommands.Dialogs.Registrations.Count} dialog registrations.");
+                break;
+            case GoldReceiveActionEvent:
+                EngineLog.WriteLine($"Network action 0x{opcode:X3}: {WorldReplicas.CreatureActions.Requests.Count} creature requests, " +
+                    $"{WorldReplicas.WorldBanks.Invocations.Requests.Count} script calls, {WorldReplicas.Session.RegionCountdowns.Regions.Count} region timers.");
+                if (gameEvent is GoldRegionCountdownEvent countdown && WorldReplicas.Session.RegionCountdowns.Regions.TryGetValue(countdown.RegionIndex, out var countdownState))
+                    EngineLog.WriteLine($"Network region {countdown.RegionIndex}: remaining {countdownState.Remaining}, selector 0x{countdownState.SelectorWord:X8}, warned {countdownState.WarningIssued}.");
+                break;
+            case GoldCounterEvent:
+                var counters = WorldReplicas.WorldBanks.Counters;
+                EngineLog.WriteLine($"Network counter 0x{opcode:X3}: {counters.Kills.Count} kill, {counters.Collected.Count} collection records; {counters.PendingCount} pending baseline updates.");
+                var newMessages = (int)Math.Min(counters.Messages.ReceivedCount - previousHudCount, counters.Messages.Recent.Count);
+                foreach (var message in counters.Messages.Recent.TakeLast(newMessages))
+                    EngineLog.WriteLine("Network HUD: " + (counters.Messages.Resolve(message) ??
+                        $"mode {message.Mode}, flags 0x{message.Flags:X8}, resource {message.TextResource}, target {message.TargetResource}"));
+                break;
+            case GoldSpecialFxEvent:
+                EngineLog.WriteLine($"Network special FX 0x{opcode:X3}: {WorldReplicas.SpecialFx.AppliedCount} applied, {WorldReplicas.SpecialFx.PendingRelocationCount} pending sector resolutions.");
+                break;
+            case GoldQuestEvent:
+                EngineLog.WriteLine($"Network quest delta 0x{opcode:X3}: {WorldReplicas.WorldBanks.Quests.Database.Count} database slots, " +
+                    $"{WorldReplicas.WorldBanks.Quests.Entries.Count} entry slots; {WorldReplicas.WorldBanks.Quests.PendingCount} pending baseline operations.");
+                break;
+            case GoldIndexedRecordEvent indexed:
+                EngineLog.WriteLine($"Network indexed record 0x15D: slot {indexed.Index}; {WorldReplicas.WorldBanks.IndexedRecords.Table.Count} slots.");
+                break;
+            case GoldObjectAnimationEvent or GoldContainerCloseEvent:
+                EngineLog.WriteLine($"Network object presentation 0x{opcode:X3}: {WorldReplicas.ObjectPresentation.Pending.Count} pending model/trigger requests.");
+                break;
             case GoldSessionReceiveControlEvent control:
                 EngineLog.WriteLine($"Network native receive control: {control.Enabled}.");
+                break;
+            case GoldLobbyControlEvent control:
+                EngineLog.WriteLine($"Network lobby control 0x{opcode:X3}: {WorldReplicas.Session.Lobby.Control.ReceivedCount} received, " +
+                    $"{WorldReplicas.Session.Lobby.Control.UiRequests.Count} UI requests, {WorldReplicas.Session.Lobby.Control.Native117RequestCount} pending native 117 requests.");
+                break;
+            case GoldLobbyTransferEvent transfer:
+                EngineLog.WriteLine($"Network profile transfer 0x{opcode:X3}, selector {transfer.Selector}: " +
+                    $"{WorldReplicas.Session.Lobby.Transfers.PublicRequests.Count} public profile requests, {WorldReplicas.Session.Lobby.Transfers.PlayerRequests.Count} player profile requests.");
                 break;
             case GoldLobbyEvent lobby:
                 EngineLog.WriteLine($"Network lobby 0x{lobby.Message.Opcode:X3}: " + (lobby switch
                 {
+                    GoldBuddyEvent buddy => $"buddy {buddy.Buddy.Id}, status {buddy.Buddy.Status}, channel {buddy.Buddy.ChannelIndex}; " +
+                        $"{WorldReplicas.Session.Lobby.Buddies.Buddies.Count} rows, {WorldReplicas.Session.Lobby.Buddies.Notices.Count} notices",
                     GoldLobbyProfileEvent profile => $"profile {profile.Value}: {profile.Text}",
                     GoldLobbyWindowEvent window => $"window value {window.Value}: {window.Text}",
                     GoldLobbyChannelsEvent channels => $"{channels.Rows.Count} channels received",

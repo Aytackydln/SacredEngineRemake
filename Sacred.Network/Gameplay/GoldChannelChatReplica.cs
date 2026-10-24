@@ -44,6 +44,7 @@ public sealed class GoldChannelChatReplica
             ?? throw new InvalidDataException("Expected a complete Gold roster for chat names.");
         for (var slot = 1; slot <= 16; slot++) _names[slot] = roster.Roster.GetEntry(slot).Name;
     }
+    internal void ClearPlayer(byte slot) { if (slot <= 16) _names[slot] = string.Empty; }
     internal void EnterSession() => _usePlayerNames = true;
     internal void Clear()
     {

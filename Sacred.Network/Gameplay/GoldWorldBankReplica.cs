@@ -27,11 +27,16 @@ public sealed class GoldWorldBankReplica
     public GoldScriptRegionReplica ScriptRegions { get; } = new();
     public GoldTriggerPatchReplica TriggerPatches { get; } = new();
     public GoldScriptGroupReplica ScriptGroups { get; } = new();
+    public GoldQuestReplica Quests { get; } = new();
+    public GoldIndexedRecordReplica IndexedRecords { get; } = new();
+    public GoldCounterReplica Counters { get; } = new();
+    public GoldScriptInvocationReplica Invocations { get; } = new();
     internal void Apply(GoldScriptWorldEvent entry) => Apply(entry, null);
     internal void Apply(GoldScriptWorldEvent entry, GoldSectorEntryRuntime? runtime)
     {
         switch (entry)
         {
+            case GoldIndexedRecordEvent indexed: IndexedRecords.Apply(indexed); break;
             case GoldScriptGroupEvent group: ScriptGroups.Apply(group); break;
             case GoldTriggerPatchEvent patch: TriggerPatches.Apply(patch); break;
             case GoldScriptRegionEvent region: ScriptRegions.Apply(region); break;
@@ -48,6 +53,9 @@ public sealed class GoldWorldBankReplica
     {
         _states[(entry.Message.Sender, entry.Message.Origin, entry.Message.Opcode)] = entry.Snapshot;
         _current[entry.Message.Opcode] = entry.Snapshot;
+        Quests.Apply(entry.Snapshot, Functions);
+        IndexedRecords.Apply(entry.Snapshot);
+        Counters.Apply(entry.Snapshot);
         Spatial.Apply(entry.Snapshot);
         ActualQuests.Apply(entry.Snapshot);
         Registrations.Apply(entry.Snapshot);
@@ -57,5 +65,5 @@ public sealed class GoldWorldBankReplica
         TriggerPatches.Apply(entry.Snapshot);
         ScriptGroups.Apply(entry.Snapshot);
     }
-    internal void Clear() { _states.Clear(); _current.Clear(); Spatial.Clear(); ActualQuests.Clear(); Registrations.Clear(); ScriptTables.Clear(); Functions.Clear(); Definitions.Clear(); MovementCallbacks.Clear(); ScriptRegions.Clear(); TriggerPatches.Clear(); ScriptGroups.Clear(); }
+    internal void Clear() { _states.Clear(); _current.Clear(); Spatial.Clear(); ActualQuests.Clear(); Registrations.Clear(); ScriptTables.Clear(); Functions.Clear(); Definitions.Clear(); MovementCallbacks.Clear(); ScriptRegions.Clear(); TriggerPatches.Clear(); ScriptGroups.Clear(); Quests.Clear(); IndexedRecords.Clear(); Counters.Clear(); Invocations.Clear(); }
 }

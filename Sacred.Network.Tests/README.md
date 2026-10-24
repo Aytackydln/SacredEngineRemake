@@ -14,8 +14,8 @@ It prints a short summary on success and the last 80 diagnostic lines on failure
 Full logs and TRX reports go to the ignored `Sacred.Network.Tests/TestResults` directory.
 Missing evidence fails the affected test; it is not silently skipped.
 
-The suite has 101 packet examples, 43 native state-replay suites,
-and 734 discoverable MSTest tests. A test count is not an assertion count: each
+The suite has 168 packet examples, 51 native state-replay suites,
+and 1,141 discoverable MSTest tests. A test count is not an assertion count: each
 native replay suite contains many existing comparisons against original results.
 Only the portable checks have been promoted; this does not replace every older
 scratch, Engine/render, installation or live-native scenario.
@@ -76,3 +76,47 @@ Ten additional session/browser receives (`001`, `008`, `01F`, `020`, `02A`,
 `02C`, `030`, `037`, `039`, `047`) have shared wire contracts, 72 original
 instruction cases and TCP/state checks including consumer-independent teardown
 and malformed terminal batch rejection. See [session/browser](../docs/game-server/session-browser.md).
+
+Ten quest/object receives (`15D`, `170`, `18D`, `1B8`–`1BE`) add 60 original
+instruction cases and 1,877 native state comparisons, plus nested-length,
+receipt-time function resolution, unknown-baseline/padding and TCP state checks.
+Model/trigger execution and full quest gameplay remain separate. See
+[quest deltas](../docs/game-server/quest-deltas.md).
+
+Ten counter/message and special FX receives (`19E`, `19F`, `1A0`–`1A6`, `1A9`)
+add 118 original-instruction cases and 1,152 native-result comparisons. Portable
+checks cover deferred state, function snapshots, message localization, FX field
+preservation, late KEYX resolution, lifecycle and TCP mutation/atomic rejection.
+Inventory/callback execution and special minigame playback remain separate. See
+[counter and special FX receives](../docs/game-server/counters-and-special-fx.md).
+
+Five script/creature/region receives (`110`, `13D`, `178`, `17E`, `1D2`) add
+162 original-instruction cases and 912 native-result comparisons. Permanent
+checks cover receipt-time functions, slot-zero quirks, native flags/route reset,
+file-category marker operands, stale object lifetimes, countdown latches and
+fragmented TCP atomic rejection. Script, marker and type replacement execution
+remain separate consumers. See [receive actions](../docs/game-server/receive-actions.md).
+
+Ten creature/link/dialog commands (`114`, `125`, `12E`, `12F`, `13C`, `15E`,
+`160`, `177`, `180`, `1CD`) add 217 original-instruction cases and 1,348 native
+comparisons. Wire/TCP checks cover command ownership/atomicity; state checks cover
+link ordering/masks, mount guard differences, hit notifications, dialog callbacks,
+late baselines, resource selection and stale lifetimes. Full command/model/
+particle and registered-script execution remain separate consumers. See
+[creature commands](../docs/game-server/creature-commands.md).
+
+Ten buddy/creature/region receives (`033`, `036`, `143`, `145`, `14A`, `14D`,
+`14E`, `17D`, `189`, `18B`) add 190 original-instruction cases and 722 native
+comparisons. Tests cover buddy names/alerts, conditional strings/localization,
+quest-pair append and snapshot/scroll preservation, FX operand conversions,
+retirement/local protection, stale instances, region generation/order/bounds and
+fragmented TCP atomicity. Full gameplay/UI/model/FX consumers remain separate.
+See [creature interactions](../docs/game-server/creature-interactions.md).
+
+Ten session/lobby/profile receives (`002`, `009`, `00C`, `01C`, `024`, `026`,
+`029`, `02B`, `150`, `151`) add 387 original-instruction cases and 1,593 native
+comparisons. Permanent checks cover teardown without a game consumer, malformed
+terminal batches, roster/team/name lifetimes, service latches/results, settings
+context and x87 conversion, inner raw/zlib/checksum bounds, legacy normalization
+and optional player-profile patches. UI, outgoing follow-ups and full profile
+merge/application remain separate. See [lobby lifecycle](../docs/game-server/lobby-lifecycle.md).

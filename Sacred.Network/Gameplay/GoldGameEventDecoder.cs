@@ -14,6 +14,85 @@ public static class GoldGameEventDecoder
         var payload = message.Payload.AsSpan();
         switch (message.Opcode)
         {
+            case GoldReceiveWorkCodec.ExperienceOpcode:
+            case GoldReceiveWorkCodec.StartPositionOpcode:
+            case GoldReceiveWorkCodec.PartialFxOpcode:
+            case GoldReceiveWorkCodec.ControlledObjectOpcode:
+            case GoldReceiveWorkCodec.ReconcileOpcode:
+            case GoldReceiveWorkCodec.PairEffectOpcode:
+            case GoldReceiveWorkCodec.CreatureEventOpcode:
+                return GoldReceiveWorkCodec.Decode(message);
+            case GoldTradeCodec.Opcode:
+                return GoldTradeCodec.Decode(message);
+            case GoldFxBatchCodec.Opcode:
+                return GoldFxBatchCodec.Decode(message);
+            case GoldInterpreterSnapshot.Opcode:
+                return GoldInterpreterSnapshot.Decode(message);
+            case GoldResourceTransferCodec.CreatureTableOpcode:
+            case GoldResourceTransferCodec.BannerOpcode:
+                return GoldResourceTransferCodec.Decode(message);
+            case GoldLobbyControlCodec.ErrorOpcode:
+            case GoldLobbyControlCodec.SettingsOpcode:
+            case GoldLobbyControlCodec.DepartureOpcode:
+            case GoldLobbyControlCodec.ResultOpcode:
+            case GoldLobbyControlCodec.LoginResultOpcode:
+            case GoldLobbyControlCodec.GameDepartureOpcode:
+            case GoldLobbyControlCodec.LoginOpcode:
+                return GoldLobbyControlCodec.Decode(message);
+            case GoldLobbyTransferCodec.QueryOpcode:
+            case GoldLobbyTransferCodec.UpdateOpcode:
+                return GoldLobbyTransferCodec.Decode(message);
+            case GoldCreatureInteractionCodec.AlternatePickupOpcode:
+            case GoldCreatureInteractionCodec.InventoryInsertOpcode:
+            case GoldCreatureInteractionCodec.PositionedFxOpcode:
+            case GoldCreatureInteractionCodec.AttachedFxOpcode:
+            case GoldCreatureInteractionCodec.RetiringFxOpcode:
+            case GoldCreatureInteractionCodec.DeathOpcode:
+            case GoldCreatureInteractionCodec.RegionTypesOpcode:
+            case GoldCreatureInteractionCodec.ContainerOpenOpcode:
+                return GoldCreatureInteractionCodec.Decode(message);
+            case GoldCreatureCommandCodec.DefinitionOpcode:
+            case GoldCreatureCommandCodec.ValueOpcode:
+            case GoldCreatureCommandCodec.RemoveLinkOpcode:
+            case GoldCreatureCommandCodec.AddLinkOpcode:
+            case GoldCreatureCommandCodec.PhysicalHitOpcode:
+            case GoldCreatureCommandCodec.DismountOpcode:
+            case GoldCreatureCommandCodec.MountOpcode:
+            case GoldCreatureCommandCodec.FxTargetOpcode:
+            case GoldCreatureCommandCodec.LocalHitCheckOpcode:
+            case GoldCreatureCommandCodec.DialogOpcode:
+                return GoldCreatureCommandCodec.Decode(message);
+            case GoldReceiveActionCodec.ScriptInvokeOpcode:
+            case GoldReceiveActionCodec.CreatureMarkerOpcode:
+            case GoldReceiveActionCodec.TimedControlOpcode:
+            case GoldReceiveActionCodec.RegionCountdownOpcode:
+            case GoldReceiveActionCodec.TypeChangeOpcode:
+                return GoldReceiveActionCodec.Decode(message);
+            case GoldCounterLayout.MessageOpcode:
+            case GoldCounterLayout.KillNoticeOpcode:
+            case GoldCounterLayout.CollectNoticeOpcode:
+            case GoldCounterLayout.KillOpcode:
+            case GoldCounterLayout.CollectOpcode:
+            case GoldCounterLayout.CollectAndCountOpcode:
+                return GoldCounterCodec.Decode(message);
+            case GoldSpecialFxCodec.BatterOpcode:
+            case GoldSpecialFxCodec.BatterAiOpcode:
+            case GoldSpecialFxCodec.BallOpcode:
+            case GoldSpecialFxCodec.GhostOpcode:
+                return GoldSpecialFxCodec.Decode(message);
+            case GoldQuestLayout.ProgressOpcode:
+            case GoldQuestLayout.InsertOpcode:
+            case GoldQuestLayout.EntryOpcode:
+            case GoldQuestLayout.HeaderOpcode:
+            case GoldQuestLayout.DatabaseOpcode:
+            case GoldQuestLayout.JournalOpcode:
+            case GoldQuestLayout.DatabaseAndEntriesOpcode:
+                return GoldQuestCodec.Decode(message);
+            case GoldIndexedRecordCodec.Opcode:
+                return GoldIndexedRecordCodec.Decode(message);
+            case GoldObjectPresentationCodec.AnimationOpcode:
+            case GoldObjectPresentationCodec.ContainerCloseOpcode:
+                return GoldObjectPresentationCodec.Decode(message);
             case GoldSessionReceiveControlCodec.DisableOpcode:
             case GoldSessionReceiveControlCodec.EnableOpcode:
                 return GoldSessionReceiveControlCodec.Decode(message);
@@ -23,10 +102,14 @@ public static class GoldGameEventDecoder
             case GoldLobbyServerCodec.CurrentOpcode:
                 return GoldLobbyServerCodec.Decode(message);
             case GoldSessionNoticeCodec.ConnectionClosedOpcode:
+            case GoldSessionNoticeCodec.DisconnectOpcode:
             case GoldSessionNoticeCodec.EndSessionOpcode:
             case GoldSessionNoticeCodec.ConnectionLostOpcode:
             case GoldSessionNoticeCodec.ConnectionLostAlternateOpcode:
                 return GoldSessionNoticeCodec.Decode(message);
+            case GoldBuddyCodec.QueryOpcode:
+            case GoldBuddyCodec.UpdateOpcode:
+                return GoldBuddyCodec.Decode(message);
             case GoldLobbyCodec.ProfileOpcode:
             case GoldLobbyCodec.WindowOpcode:
             case GoldLobbyCodec.ChannelsOpcode:

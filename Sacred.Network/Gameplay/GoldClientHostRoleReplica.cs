@@ -17,5 +17,6 @@ public sealed class GoldClientHostRoleReplica
         LastNotificationKey = decoded.IsClientHost ? "UI_ERROR_HOST_TRANSFERED" : "UI_ERROR_HOST_TRANSFERED2";
     }
     internal void Seed(GoldAdmissionEvent admission) => IsClientHost = (admission.Flags & GoldWorldEntryCodec.AssignedHostFlag) != 0;
+    internal void EndSession() => IsClientHost = false;
     internal void Clear() { IsClientHost = null; NotificationCount = ChangeCount = 0; LastNotificationKey = null; }
 }

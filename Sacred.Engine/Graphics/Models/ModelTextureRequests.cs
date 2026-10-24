@@ -5,7 +5,7 @@ using Sacred.Engine.Scene;
 
 namespace Sacred.Engine.Graphics.Models;
 
-/// <summary>Resolves scene materials once, preserving base, overlay, then equipment upload priority.</summary>
+/// <summary>Resolves scene materials and reserves capacity for equipment effects before ordinary materials.</summary>
 internal sealed class ModelTextureRequests
 {
     private readonly HashSet<string> _activeNames = new(StringComparer.OrdinalIgnoreCase);
@@ -18,6 +18,31 @@ internal sealed class ModelTextureRequests
     public IReadOnlyList<string> EffectNames => _effectNames;
 
     public bool Contains(string name) => _activeNames.Contains(name);
+
+    public void LimitTo(int maximumTextureCount)
+    {
+        _activeNames.Clear();
+        // Joined scenes can contain more materials than the descriptor heap holds.
+        // Select the working set before uploads, including effects discovered after
+        // ordinary model textures filled the cache. Reconciliation can then evict
+        // lower-priority materials instead of leaving the effect queued forever.
+        Retain(_effectNames);
+        Retain(_baseNames);
+        Retain(_overlayNames);
+        _baseNames.RemoveAll(name => !_activeNames.Contains(name));
+        _overlayNames.RemoveAll(name => !_activeNames.Contains(name));
+        _effectNames.RemoveAll(name => !_activeNames.Contains(name));
+        return;
+
+        void Retain(List<string> names)
+        {
+            foreach (var name in names)
+            {
+                if (_activeNames.Count >= maximumTextureCount) break;
+                _activeNames.Add(name);
+            }
+        }
+    }
 
     public void Collect(IReadOnlyList<SceneModel> models)
     {

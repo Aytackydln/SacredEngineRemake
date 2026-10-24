@@ -33,6 +33,9 @@ internal sealed partial class InGameScene
     {
         _networkClient = client;
         client.WorldReplicas.Session.Notices.ConfigureResources(_assets.Resources);
+        client.WorldReplicas.Session.Lobby.Buddies.ConfigureResources(_assets.Resources);
+        client.WorldReplicas.Session.Lobby.Control.ConfigureResources(_assets.Resources);
+        client.WorldReplicas.WorldBanks.Counters.Messages.ConfigureResources(_assets.Resources);
     }
     internal string NetworkMovementStatus => _networkMovement?.Status ?? "movement waits for the local actor";
     internal void NavigateNetworkTo(Vector2 target)
