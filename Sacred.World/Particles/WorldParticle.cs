@@ -24,6 +24,14 @@ public readonly record struct WorldParticle(
     /// <summary>Rotation carries screen dy/dx for projected vertical FX strips.</summary>
     public bool Sheared { get; init; }
     public bool Untextured { get; init; }
+    /// <summary>Health fan coverage, clockwise from native world +Y. Rotation carries its fraction.</summary>
+    public bool HealthArc { get; init; }
+    /// <summary>Ground UI retains authored UI brightness rather than particle amplification.</summary>
+    public bool UiBrightness { get; init; }
+    /// <summary>Interpolate physical depth across the horizontal world plane.</summary>
+    public bool GroundPlaneDepth { get; init; }
+    /// <summary>Ground artwork draws after floors and before scenery/creatures, independently of particle backend.</summary>
+    public bool GroundDecal { get; init; }
     public bool Additive { get; init; }
     public bool SourceColorOnly { get; init; }
     /// <summary>Camera-depth key relative to the emitter's authored tile, including live motion and height.</summary>

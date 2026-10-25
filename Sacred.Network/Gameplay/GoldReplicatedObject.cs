@@ -11,6 +11,8 @@ public sealed record GoldReplicatedObject(GoldObjectBaseState BaseState, GoldCre
     /// <summary>Physical state for every 3D instance, including doors and world props.</summary>
     public GoldPhysicalState? Physical { get; init; }
     public GoldObjectFxState? Fx { get; init; }
+    /// <summary>Native particle-manager reload requested by an FX stream, independent of position updates.</summary>
+    public long FxReloadVersion { get; init; }
     public GoldSpecialFxRuntime? SpecialFx { get; init; }
     /// <summary>Container extension selected by the original Items.pak category, never by payload length.</summary>
     public GoldContainerState? Container { get; init; }
@@ -45,6 +47,10 @@ public sealed record GoldReplicatedObject(GoldObjectBaseState BaseState, GoldCre
     public int? CurrentHitPoints { get; init; }
     /// <summary>Last absolute HP from a values/health packet, before locally received damage.</summary>
     public int? ReportedHitPoints { get; init; }
+    /// <summary>Accepted 17D/event 208; death does not retire the object or award loot/experience.</summary>
+    public GoldCreatureDeathCommandEvent? Death { get; init; }
+    public long DeathVersion { get; init; }
+    public bool IsDead => Creature is not null && (Death is not null || CurrentHitPoints is <= 0);
     public GoldCreatureAttackEvent? Attack { get; init; }
     public GoldCreatureSpecialMoveEvent? SpecialMove { get; init; }
     public GoldCreatureCastEvent? Cast { get; init; }

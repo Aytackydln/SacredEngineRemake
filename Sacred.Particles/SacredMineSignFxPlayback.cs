@@ -31,6 +31,8 @@ public sealed class SacredMineSignFxPlayback
         _state = Definition.InitialState; (_state.Unknown005, _state.Unknown006) = padding; _flags = 0;
     }
     public void RequestMineUsed() => _flags |= Definition.MineUsedFlag;
+    /// <summary>Replace the native particle-manager +74 word.</summary>
+    public void SetParticleFlags(ushort flags) => _flags = flags;
 
     /// <summary>The caller moves existing particles first. The callback requests one
     /// standard birth even when the particle vector is full. Audio consumes a CRT draw.</summary>

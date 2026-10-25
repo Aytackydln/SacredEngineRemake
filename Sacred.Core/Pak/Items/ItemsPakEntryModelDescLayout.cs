@@ -241,7 +241,9 @@ public readonly struct ItemsPakEntryModelDescLayout
     [FieldOffset(110)]
     public readonly byte EffectTextureIndex;
 
-    /// <summary>Gore rendering category.</summary>
+    /// <summary>Blood kind (Gold 427160/427630): 0 red, 1 green, 2 dark, 3 brown,
+    /// 4 pale. Other values use red. Kinds 3/4 suppress the bleed controller's
+    /// subsequent ground-puddle notification (76AF55).</summary>
     [FieldOffset(111)]
     public readonly byte GoreType;
 

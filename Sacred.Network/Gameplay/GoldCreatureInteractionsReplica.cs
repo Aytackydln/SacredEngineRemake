@@ -18,6 +18,7 @@ public sealed class GoldCreatureInteractionsReplica
     private readonly List<GoldCreatureInteractionWork> _pending = [];
     public GoldCreatureInteractionsReplica() => Pending = _pending.AsReadOnly();
     public IReadOnlyList<GoldCreatureInteractionWork> Pending { get; }
+    internal event Action<GoldCreatureInteractionWork>? Published;
     public GoldInventoryQuestRecordsReplica InventoryRecords { get; } = new();
     public GoldRegionObjectTypesReplica RegionTypes { get; } = new();
     public long ReceivedCount { get; private set; }
@@ -50,6 +51,7 @@ public sealed class GoldCreatureInteractionsReplica
                 InventoryRecords.Apply(local, inventory, insert.KeyWord, insert.Word04); break;
             case GoldCreatureDeathCommandEvent death:
                 subject = Find(death.ObjectReference); if (!ActiveCreature(subject)) return Reject();
+                objects[death.ObjectReference] = GoldCreatureDeathReducer.Apply(subject!, death);
                 eventId = 0x208; args = [death.PlayerWord]; break;
             case GoldCreatureFxSpawnEvent fx:
                 subject = Find(fx.ObjectReference);
@@ -71,6 +73,7 @@ public sealed class GoldCreatureInteractionsReplica
             default: throw new InvalidDataException("Unknown Gold interaction event.");
         }
         _pending.Add(new(entry, subject!, target, eventId, Array.AsReadOnly(args)) { Inventory = inventory, FxCreation = creation });
+        Published?.Invoke(_pending[^1]);
         return true;
         bool Reject() { RejectedCount++; return false; }
     }

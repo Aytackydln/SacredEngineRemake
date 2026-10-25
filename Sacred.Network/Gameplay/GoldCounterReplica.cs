@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Collections.Frozen;
 using Sacred.Core.Pak.Items;
+using Sacred.Network.Protocol;
 
 namespace Sacred.Network.Gameplay;
 
@@ -41,7 +42,7 @@ public sealed class GoldCounterReplica
     {
         var entry = GoldCounterCodec.Decode(incoming.Message); ReceivedCount++;
         if (entry is GoldCounterMessageEvent message)
-        { Messages.Add(new(message.Mode, message.Flags, message.TextResource)); return; }
+        { Messages.Add(new(message.Mode, message.Flags, message.TextResource), entry.Message); return; }
         if (entry is GoldCounterCollectEvent collect)
             _collections.Add(new(collect, objects.GetValueOrDefault(collect.ObjectReference), objects.GetValueOrDefault(slot), slot));
         var work = (entry, functions.Capture());
@@ -55,9 +56,9 @@ public sealed class GoldCounterReplica
             var collectNotice = target.Message.Opcode == GoldCounterLayout.CollectNoticeOpcode;
             if (collectNotice ? !_collectedKnown : !_killsKnown) return false;
             var records = collectNotice ? _collected : _kills;
-            if (target.Message.Opcode == GoldCounterLayout.KillOpcode) Decrement(records, target.TargetResource, GoldCounterLayout.KillCompleteText, work.Functions);
+            if (target.Message.Opcode == GoldCounterLayout.KillOpcode) Decrement(records, target.TargetResource, GoldCounterLayout.KillCompleteText, work.Functions, target.Message);
             else foreach (var row in records.Where(r => r.TargetResource == target.TargetResource))
-                Messages.Add(new(0x10, 0x80000003, null, target.TargetResource, unchecked(row.Initial - row.Remaining), row.Initial));
+                Messages.Add(new(0x10, 0x80000003, null, target.TargetResource, unchecked(row.Initial - row.Remaining), row.Initial), target.Message);
         }
         else if (work.Event is GoldCounterCollectEvent collect)
         {
@@ -74,18 +75,18 @@ public sealed class GoldCounterReplica
                 var match = _mappings.FindIndex(r => r.Source == resource);
                 if (match >= 0) _collected[i] = _collected[i].WithTarget(_mappings[match].Replacement);
             }
-            if (collect.UpdatesCounter) Decrement(_collected, collect.TargetResource, GoldCounterLayout.CollectCompleteText, work.Functions);
+            if (collect.UpdatesCounter) Decrement(_collected, collect.TargetResource, GoldCounterLayout.CollectCompleteText, work.Functions, collect.Message);
         }
         return true;
     }
-    private void Decrement(List<GoldCounterRecord> records, uint resource, uint completeText, GoldScriptFunctionSnapshot functions)
+    private void Decrement(List<GoldCounterRecord> records, uint resource, uint completeText, GoldScriptFunctionSnapshot functions, GoldMessage source)
     {
         for (var i = 0; i < records.Count; i++)
         {
             if (records[i].TargetResource != resource) continue;
             var changed = records[i].Decrement(); records[i] = changed;
             if (changed.Remaining != 0 && changed.Remaining <= GoldCounterLayout.MaximumRemaining) continue;
-            Messages.Add(new(0x10, 3, completeText)); _callbacks.Add(new(changed, functions));
+            Messages.Add(new(0x10, 3, completeText), source); _callbacks.Add(new(changed, functions));
             // Network mode retains the row and exits on the first completion; it does not swap-remove it.
             break;
         }

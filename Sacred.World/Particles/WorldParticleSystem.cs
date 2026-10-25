@@ -84,6 +84,11 @@ public sealed class WorldParticleSystem
     public WorldAttachedParticleEffects ActorEffects { get; } = new();
     public WorldFxAnimations FxAnimations => ActorEffects.Animations;
     public WorldCreatureFxSystem CreatureEffects { get; } = new();
+    public WorldReceivedFxSystem ReceivedEffects { get; } = new();
+    public WorldCombatFxSystem CombatEffects { get; } = new();
+    public WorldCombatBloodSystem BloodEffects { get; } = new();
+    public WorldCombatDeflectionSystem DeflectionEffects { get; } = new();
+    public WorldCreatureMarkerSystem CreatureMarkers { get; } = new();
     public WorldObjectSparkleSystem ObjectSparkles { get; } = new();
 
     public WorldParticleSystem(
@@ -163,7 +168,7 @@ public sealed class WorldParticleSystem
         if (!Enabled)
         {
             _visibleWorld = null;
-            if (_emitters.Count > 0 || _gpuEmitters.Count > 0 || _particles.Count > 0 || Effects.ActiveCount > 0 || ObjectEffects.ActiveCount > 0 || ProjectileEffects.ActiveCount > 0 || ActorEffects.ActiveCount > 0 || CreatureEffects.ActiveCount > 0 || CreatureEffects.Pending.Count > 0)
+            if (_emitters.Count > 0 || _gpuEmitters.Count > 0 || _particles.Count > 0 || Effects.ActiveCount > 0 || ObjectEffects.ActiveCount > 0 || ProjectileEffects.ActiveCount > 0 || ActorEffects.ActiveCount > 0 || CreatureEffects.ActiveCount > 0 || CreatureEffects.Pending.Count > 0 || ReceivedEffects.ActiveCount > 0 || ReceivedEffects.Pending.Count > 0 || CombatEffects.ActiveCount > 0 || BloodEffects.ActiveCount > 0 || DeflectionEffects.ActiveCount > 0 || CreatureMarkers.Markers.Count > 0)
             {
                 _emitters.Clear();
                 _gpuEmitters.Clear();
@@ -173,6 +178,11 @@ public sealed class WorldParticleSystem
                 ProjectileEffects.Clear();
                 ActorEffects.Clear();
                 CreatureEffects.Clear();
+                ReceivedEffects.Clear();
+                CombatEffects.Clear();
+                BloodEffects.Clear();
+                DeflectionEffects.Clear();
+                CreatureMarkers.Clear();
                 Revision++;
                 LogEmitterCount();
             }
@@ -188,6 +198,8 @@ public sealed class WorldParticleSystem
             ObjectEffects.CollectGpuBatches(_gpuBatches);
             ActorEffects.CollectGpuBatches(_gpuBatches);
             CreatureEffects.CollectGpuBatches(_gpuBatches);
+            ReceivedEffects.CollectGpuBatches(_gpuBatches);
+            BloodEffects.CollectGpuBatches(_gpuBatches);
             _gpuEmitterInputs.AddRange(_gpuEmitters.Values);
             return;
         }
@@ -219,6 +231,11 @@ public sealed class WorldParticleSystem
         ProjectileEffects.Update(_catalogue, _particles);
         ActorEffects.Update(_catalogue, SelectedSimulationMode, GpuBackend, _particles, _gpuBatches);
         CreatureEffects.Update(_catalogue, step, SelectedSimulationMode, GpuBackend, _particles, _gpuBatches);
+        ReceivedEffects.Update(_catalogue, step, SelectedSimulationMode, GpuBackend, _particles, _gpuBatches);
+        CombatEffects.Advance(_catalogue, step, _particles);
+        DeflectionEffects.Advance(_catalogue, step, _particles);
+        BloodEffects.Update(_catalogue, step, SelectedSimulationMode, GpuBackend, _particles, _gpuBatches);
+        CreatureMarkers.Advance(step, _catalogue.Projection, _particles);
         ObjectSparkles.Update(step, _catalogue.Quality, _catalogue.Projection, _particles);
         if (hadParticles || ActiveEmitterCount > 0 || _particles.Count > 0 || _gpuBatches.Count > 0)
             Revision++;

@@ -31,12 +31,14 @@ public sealed partial class AssetManager
     {
         var talk = await _modelsPak.LoadModelAnimationAsync(asset.ModelName,
             SacredNpcConversationEffect.TalkMotionSlot, cancellationToken).ConfigureAwait(false);
+        var fightingIdle = await _modelsPak.LoadCharacterAnimationAsync(asset.ModelName,
+            CharacterMotionKind.FightingIdle, asset.WeaponStyle, cancellationToken).ConfigureAwait(false);
         // The rare reaction calls native selector 4, which considers mount/model availability
         // as well as weapon style. Keep it pending until that selector is ported.
         if (template?.Class == SacredCreatureClass.Hero)
         {
             var hero = await LoadPlayerCharacterAnimationsAsync(asset, cancellationToken).ConfigureAwait(false);
-            return hero is null ? null : hero with { NpcTalk = talk };
+            return hero is null ? null : hero with { NpcTalk = talk, FightingIdle = fightingIdle };
         }
         // Non-hero model motions use the native locomotion selectors 0/1/2.
         var idle = await _modelsPak.LoadCharacterAnimationAsync(asset.ModelName, CharacterMotionKind.Idle, asset.WeaponStyle, cancellationToken).ConfigureAwait(false)
@@ -47,7 +49,7 @@ public sealed partial class AssetManager
             ?? await _modelsPak.LoadModelAnimationAsync(asset.ModelName, 1, cancellationToken).ConfigureAwait(false) ?? idle;
         var run = await _modelsPak.LoadCharacterAnimationAsync(asset.ModelName, CharacterMotionKind.Run, asset.WeaponStyle, cancellationToken).ConfigureAwait(false)
             ?? await _modelsPak.LoadModelAnimationAsync(asset.ModelName, 2, cancellationToken).ConfigureAwait(false) ?? walk;
-        return new(idle, walk, run, idle, idle) { NpcTalk = talk };
+        return new(idle, walk, run, idle, idle) { NpcTalk = talk, FightingIdle = fightingIdle };
     }
 
     internal SacredGameActor CreateNetworkActor(SacredCreatureTemplate? template)

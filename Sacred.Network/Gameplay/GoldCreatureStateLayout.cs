@@ -1,4 +1,5 @@
 using Sacred.Core.Pax.Hero.Objects;
+using Sacred.Core.Runtime;
 
 namespace Sacred.Network.Gameplay;
 
@@ -13,13 +14,25 @@ public static class GoldCreatureStateLayout
     public const int LeftHandEquipmentIndex = SacredSavedCreatureLayout.LeftHandEquipmentIndex;
     public const int RightHandEquipmentIndex = SacredSavedCreatureLayout.RightHandEquipmentIndex;
     public const int Word1F0Offset = 201;
+    /// <summary>Native +1F0: received class index for the hostility matrix (Gold 42363C).</summary>
+    public const int RelationClassOffset = Word1F0Offset;
+    /// <summary>Native +1F4 bit 18 reverses the final ordinary hostility result (Gold 4238C2).</summary>
+    public const uint HostilityInvertedFlag = SacredCreatureRelations.HostilityInvertedFlag;
     public const int Word1F4Offset = 205;
+    /// <summary>Native +1F4: renders ground-symbol kind 1 (Gold 59A058).</summary>
+    public const uint EliteGroundSymbolFlag = 0x80000;
     public const int Word1F8Offset = 209;
     public const int LocomotionActionOffset = Word1F8Offset;
     public const int Byte1FCOffset = 213;
     public const int Byte1FDOffset = 214;
     public const int Word1FEOffset = 215;
     public const int Word200Offset = 217;
+    /// <summary>Native +200 bit 0 qualifies an owned creature for multiplayer team hostility (423870).</summary>
+    public const uint PlayerControlledFlag = 1;
+    /// <summary>Native +200 bit 28 makes unlinked, unowned animals hostile (42370C).</summary>
+    public const uint UnlinkedAnimalHostilityFlag = 0x10000000;
+    /// <summary>Native +200 bit 18 skips the damage reaction control (Gold 53588F).</summary>
+    public const uint HitReactionSuppressedFlag = 0x40000;
     public const uint SleepingFlag = SacredSavedCreatureLayout.SleepingFlag;
     public const uint FightModeFlag = SacredSavedCreatureLayout.FightModeFlag;
     public const uint SleepWakeSuppressedFlag = SacredSavedCreatureLayout.SleepWakeSuppressedFlag;
@@ -30,6 +43,8 @@ public static class GoldCreatureStateLayout
     public const int Word249Offset = 225;
     public const int Word24DOffset = 229;
     public const int Word251Offset = 233;
+    /// <summary>Native +251 owner reference, followed for behavior +1F4 bit 2 by team comparison (4234EB).</summary>
+    public const int OwnerReferenceOffset = Word251Offset;
     public const int Word255Offset = 237;
     public const int Word259Offset = 241;
     public const int Word25FOffset = 245;

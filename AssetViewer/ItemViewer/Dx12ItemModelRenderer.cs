@@ -485,6 +485,7 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
         _itemGlowPipelineState = pipelines[Dx12PipelineKind.ItemGlow];
         _inventoryUiPipelineState = pipelines[Dx12PipelineKind.InventoryUi];
         _fxAlphaPipelineState = pipelines[Dx12PipelineKind.FxParticle];
+        _fxLinePipelineState = pipelines[Dx12PipelineKind.FxParticleLine];
     }
 
     private void RequestShaderReload() => Interlocked.Exchange(ref _shaderReloadPending, 1);
@@ -504,6 +505,7 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
         _itemGlowPipelineState?.Dispose();
         _itemParticlePipelineState?.Dispose();
         _fxAlphaPipelineState?.Dispose();
+        _fxLinePipelineState?.Dispose();
         _effectPipelineState?.Dispose();
         _transparentEffectPipelineState?.Dispose();
         _animatedPipelineState?.Dispose();

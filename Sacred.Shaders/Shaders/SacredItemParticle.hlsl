@@ -46,6 +46,9 @@ vs_output vs_main(vs_input input)
     vs_output output;
     float3 world_position = mul(float4(input.position, 1.0f), world).xyz;
     output.opacity = 1.0f;
+    // Untextured preview streaks use U for native per-vertex opacity instead of sampling an atlas.
+    if (texture_flags.x > 11.5f && texture_flags.x < 12.5f && ((uint)texture_flags.z & 0x400u) != 0)
+        output.opacity = input.tex_coord.x;
 
     output.tint = 1.0f;
     output.portal_color = input.normal;
@@ -139,7 +142,8 @@ float2 animated_tex_coord(float2 tex_coord)
 [earlydepthstencil]
 float4 ps_sdr(vs_output input) : SV_Target
 {
-    float4 sampled = particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord));
+    bool untextured = texture_flags.x > 11.5f && texture_flags.x < 15.5f && ((uint)texture_flags.z & 0x400u) != 0;
+    float4 sampled = untextured ? 1.0f.xxxx : particle_texture.Sample(particle_sampler, animated_tex_coord(input.tex_coord));
     if (texture_flags.x > 12.5f && texture_flags.x < 13.5f)
     {
         // Native colours are Gouraud interpolated on the original 20x34 mesh.

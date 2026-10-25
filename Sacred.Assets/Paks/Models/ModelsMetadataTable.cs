@@ -225,6 +225,7 @@ internal sealed class ModelsMetadataTable
         private uint[] MotionsFor(CharacterMotionKind kind) => kind switch
         {
             CharacterMotionKind.Idle => Idle,
+            CharacterMotionKind.FightingIdle => FightingIdle,
             CharacterMotionKind.Walk => Walk,
             CharacterMotionKind.Run => Run,
             CharacterMotionKind.Defend => Defend,

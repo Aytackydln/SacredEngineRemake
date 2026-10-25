@@ -14,7 +14,8 @@ internal enum CharacterAnimationStateId
     Walk,
     Run,
     Defend,
-    Attack
+    Attack,
+    FightingIdle
 }
 
 /// <summary>A small immediate-transition state machine for the player character.</summary>
@@ -36,6 +37,13 @@ internal sealed class CharacterAnimationState
     private float _idleSpeed = 1;
     private bool _deferEquipmentEffects;
     private bool _initialEquipmentPosePending;
+    private readonly CharacterAnimationOverlay _hitReaction = new();
+    public void ClearHitReaction() => _hitReaction.Clear();
+    public void PlayHitReaction(GrnAnimationClip clip, float speed, float weight, float time)
+    {
+        _hitReaction.Play(clip, speed, weight, time);
+        if (_animatedMesh is not null) SubmitCurrentPose(_stateTimeSeconds);
+    }
 
     // The batch owns this state exclusively until its completion barrier. Effects may
     // submit to renderer-owned sinks and therefore stay on the calling thread.
@@ -177,8 +185,11 @@ internal sealed class CharacterAnimationState
         if (_animatedMesh is null || !float.IsFinite(deltaSeconds) || deltaSeconds <= 0.0f)
             return;
 
+        _hitReaction.Advance(deltaSeconds);
+
         var animationDelta = _npcAnimation is not null ? deltaSeconds * _npcTiming.PlaybackSpeed
-            : CurrentState == CharacterAnimationStateId.Idle ? deltaSeconds * _idleSpeed * _animations.Idle.PlaybackSpeedMultiplier
+            : CurrentState is CharacterAnimationStateId.Idle or CharacterAnimationStateId.FightingIdle
+                ? deltaSeconds * _idleSpeed * AnimationFor(CurrentState).PlaybackSpeedMultiplier
             : (CurrentState is CharacterAnimationStateId.Walk or CharacterAnimationStateId.Run)
             ? deltaSeconds * MathF.Max(0.0f, locomotionPlaybackSpeed) * AnimationFor(CurrentState).PlaybackSpeedMultiplier
             : deltaSeconds;
@@ -224,6 +235,7 @@ internal sealed class CharacterAnimationState
     private GrnAnimationClip AnimationFor(CharacterAnimationStateId state) => state switch
     {
         CharacterAnimationStateId.Idle => _animations.Idle,
+        CharacterAnimationStateId.FightingIdle => _animations.FightingIdle ?? _animations.Idle,
         CharacterAnimationStateId.Walk => _animations.Walk,
         CharacterAnimationStateId.Run => _animations.Run,
         CharacterAnimationStateId.Defend => _animations.Defend,
@@ -233,7 +245,10 @@ internal sealed class CharacterAnimationState
 
     private void SubmitCurrentPose(float time)
     {
-        if (_blendSource is { } source && _blendDuration > 0)
+        if (_hitReaction.Blend is { } hit)
+            _animatedMesh!.Playback.RequestBlend(time, _npcAnimation is null ? GrnPoseTimeMode.Loop : GrnPoseTimeMode.Clamp,
+                _animatedMesh.MaterializeCpuVertices, hit);
+        else if (_blendSource is { } source && _blendDuration > 0)
             _animatedMesh!.Playback.RequestBlend(time, _npcAnimation is null ? GrnPoseTimeMode.Loop : GrnPoseTimeMode.Clamp,
                 _animatedMesh.MaterializeCpuVertices, new(source, _blendSourceTime, _blendElapsed / _blendDuration) { SourceMode = _blendSourceMode });
         else _animatedMesh!.RequestPose(time, _npcAnimation is null ? GrnPoseTimeMode.Loop : GrnPoseTimeMode.Clamp);

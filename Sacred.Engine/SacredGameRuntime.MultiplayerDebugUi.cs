@@ -94,6 +94,7 @@ internal sealed partial class SacredGameRuntime
     {
         var panel = _debugUiControls.GameServer;
         _serverDiscovery.Update(_gameDirectory, panel);
+        _serverDiscovery.SeedSession(_gameServer);
         if (_serverHeroChoices is { IsCompleted: true } choices)
         {
             _serverHeroChoices = null;

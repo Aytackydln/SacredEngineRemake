@@ -8,7 +8,7 @@ using Sacred.Core.Pax.Hero.Objects;
 namespace Sacred.Network.Gameplay;
 
 /// <summary>Main-thread replica state shared by graphical and headless world consumers. It does not calculate item values.</summary>
-public sealed class GoldWorldReplica
+    public sealed class GoldWorldReplica
 {
     private readonly Dictionary<uint, GoldReplicatedObject> _objects = [];
     private FrozenDictionary<uint, SacredCreatureClass> _creatureClasses = FrozenDictionary<uint, SacredCreatureClass>.Empty;
@@ -40,6 +40,7 @@ public sealed class GoldWorldReplica
     {
         SpecialFx = new(_objects, () => Revision++);
         Session.Lobby.Control.Settings.BindWorld(this);
+        GoldWorldServices.Connect(this);
         Objects = new ReadOnlyDictionary<uint, GoldReplicatedObject>(_objects);
         Inventories = new ReadOnlyDictionary<(byte Sender, byte Origin, uint Id), SacredSavedInventory>(_inventories);
     }
@@ -61,6 +62,15 @@ public sealed class GoldWorldReplica
     public GoldCreatureReceiveActions CreatureActions { get; } = new();
     public GoldCreatureCommandsReplica CreatureCommands { get; } = new();
     public GoldReceiveWorkReplica ReceiveWork { get; } = new();
+    public GoldConsumerDelivery Consumers { get; } = new();
+    public bool CompleteObjectAnimation(GoldObjectPresentationWork work, uint motion)
+    {
+        if (!GoldObjectPresentationReplica.Complete(work, motion, _objects)) return false;
+        var reference = work.Object.BaseState.ObjectReference;
+        if (WorldTriggers.Records.TryGetValue(work.Object.BaseState.TriggerReference, out var trigger))
+            _objects[reference] = _objects[reference] with { ActivationTriggerState = trigger.State };
+        Revision++; return true;
+    }
     /// <summary>Native interest scheduling also updates local sector receive flags before any reply arrives.</summary>
     public void BeginSectorInterest(GoldSectorInterestRequest request)
     {
@@ -74,6 +84,8 @@ public sealed class GoldWorldReplica
         if (_objects.Count != 0) throw new InvalidOperationException("Configure creature classes before a world snapshot arrives.");
         _creatureClasses = classes.ToFrozenDictionary();
     }
+    public SacredCreatureClass? CreatureClassForType(uint type) =>
+        _creatureClasses.TryGetValue(type, out var kind) ? kind : null;
     public void ConfigureObjectResources(IReadOnlyDictionary<uint, uint> resources)
     {
         ArgumentNullException.ThrowIfNull(resources);
@@ -134,6 +146,7 @@ public sealed class GoldWorldReplica
     public void Apply(GoldGameEvent entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
+        var before = Revision;
         if (entry is GoldObjectRemovalEvent projectileRemoval && BowProjectiles.Remove(projectileRemoval.ObjectReference)) Revision++;
         if (entry is GoldObjectEvent replacement) BowProjectiles.Remove(replacement.ObjectReference);
         switch (entry)
@@ -180,7 +193,9 @@ public sealed class GoldWorldReplica
                 if (AttachedFx.Add(attached, _objects)) Revision++;
                 break;
             case GoldObjectFxSignalEvent signal:
+                signal = GoldObjectFxSignalCodec.Decode(signal.Message);
                 if (BowProjectiles.Notify(signal.ObjectReference, signal.Notification)) Revision++;
+                if (GoldObjectFxSignalReducer.Apply(_objects, signal)) Revision++;
                 break;
             case GoldObjectFlightEvent flight:
                 if (GoldObjectFlightReducer.Apply(_objects, flight)) Revision++;
@@ -314,7 +329,8 @@ public sealed class GoldWorldReplica
             case GoldCreatureValuesEvent values when _objects.TryGetValue(values.ObjectReference, out var valued)
                 && valued.Creature is not null && (valued.BaseState.Flags & 0x10) == 0:
                 _objects[values.ObjectReference] = valued with { Values = values.Values, CurrentHitPoints = values.Values.CurrentHitPoints,
-                    ReportedHitPoints = values.Values.CurrentHitPoints };
+                    ReportedHitPoints = values.Values.CurrentHitPoints,
+                    Death = values.Values.CurrentHitPoints > 0 ? null : valued.Death };
                 Revision++;
                 break;
             case GoldObjectPositionEvent relocated:
@@ -358,6 +374,7 @@ public sealed class GoldWorldReplica
                 break;
         }
         if (entry is GoldObjectRemovalEvent or GoldObjectEvent) AttachedFx.Prune(_objects);
+        Consumers.Diagnostics.Observe(entry, Revision != before);
     }
     private static GoldObjectBaseState AtPosition(GoldObjectBaseState state, GoldObjectPosition position) =>
         state with { X = position.X, Y = position.Y, Surface = unchecked((byte)position.Surface), Sector = unchecked((ushort)position.Sector) };
@@ -372,33 +389,9 @@ public sealed class GoldWorldReplica
     }
     public void Clear()
     {
-        Combat.Clear();
-        CreatureControls.Clear();
-        BowProjectiles.Clear();
-        AttachedFx.Clear();
-        ObjectPresentation.Clear();
-        SpecialFx.Clear();
-        CreatureActions.Clear();
-        CreatureCommands.Clear();
-        ReceiveWork.Clear();
-        _objects.Clear(); SectorInterest.Clear(); SectorWork.Clear(); DeathScripts.Clear(); Statistics.Clear(); _inventories.Clear();
+        GoldWorldServices.Clear(this);
+        _objects.Clear(); _inventories.Clear();
         _currentInventories.Clear();
-        MovementTriggerDeletions.Clear();
-        WorldBanks.Clear();
-        Session.Clear();
-        Regions.Clear();
-        ScriptVariables.Clear();
-        ScriptResources.Clear();
-        ScriptDialogs.Clear();
-        NpcIdleAnimations.Clear();
-        DoorInteractions.Clear();
-        ContainerInteractions.Clear();
-        WorldTriggers.Clear();
-        MovementTriggers.Clear();
-        TriggerReferences.Clear();
-        Calendar.Clear();
-        Weather.Clear();
-        OwnedCreatureThinking.Clear();
         LocalPlayerSlot = 0; LocalCharacterValues = null; SessionVersion++; Revision++;
     }
 }

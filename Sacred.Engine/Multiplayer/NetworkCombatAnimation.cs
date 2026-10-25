@@ -28,6 +28,7 @@ internal sealed class NetworkCombatAnimation(CharacterAnimationState animation,
     public Func<GoldReplicatedObject, GameplayCombatArtAnimation?>? SelectArtAnimation { get; set; }
     public Action<GoldReplicatedObject, float>? ArtTiming { get; set; }
     public bool Active => (_sleeping || _attack is not null || _artAnimation is not null) && !_finished;
+    public (GoldCreatureAttackEvent Attack, float Seconds)? MeleeImpactTime { get; private set; }
     public (GoldCreatureAttackEvent Attack, GrnAnimationClip Clip, float SampleTime, float Age)? BowRelease { get; private set; }
 
     public void ContinueFrom(NetworkCombatAnimation previous)
@@ -37,6 +38,7 @@ internal sealed class NetworkCombatAnimation(CharacterAnimationState animation,
         _sleeping = previous._sleeping;
         _version = previous._version; _elapsed = previous._elapsed; _finished = previous._finished;
         _needsStart = true; BowRelease = previous.BowRelease;
+        MeleeImpactTime = previous.MeleeImpactTime;
         // Equipment/form rebuilding can change the model's motion archive. Retain
         // action time, but load clips through this presentation's own model.
         if (MotionSource == previous.MotionSource)
@@ -56,6 +58,7 @@ internal sealed class NetworkCombatAnimation(CharacterAnimationState animation,
             _sleeping = sleeping;
             _artAnimation = null; _selectionReported = false;
             BowRelease = null;
+            MeleeImpactTime = null;
             if (!_sleeping && _attack is null && _special is null && _cast is null) { _playing = false; return; }
         }
         if (!_sleeping && _attack is null && _special is null && _cast is null || _finished) return;
@@ -96,6 +99,12 @@ internal sealed class NetworkCombatAnimation(CharacterAnimationState animation,
             _sleeping ? 0 : MathF.Min(.2f, (_artAnimation?.BlendNumerator ?? .5f) / rate), actorFactor);
         if (_artAnimation is not null) ArtTiming?.Invoke(actor, clip.DurationSeconds / timing.PlaybackSpeed);
         var releaseTime = clip.DurationSeconds * GameplayBowRelease.Progress(clip.BowReleaseTailFraction);
+        // Gold 4EA1F0 uses params[8] for melee too, defaulting a nonpositive tail to .5.
+        if (_attack is { IsBow: false })
+        {
+            var tail = clip.BowReleaseTailFraction > 0 ? clip.BowReleaseTailFraction : .5f;
+            MeleeImpactTime = (_attack, MathF.Max(0, 1 - tail) * clip.DurationSeconds / timing.PlaybackSpeed);
+        }
         if (!_sleeping && _attack is { IsBow: true } && float.IsFinite(releaseTime) && _elapsed * timing.PlaybackSpeed >= releaseTime)
             BowRelease = (_attack, clip, releaseTime, _elapsed - releaseTime / timing.PlaybackSpeed);
         // Sleep has no verified packet duration. Retain its final pose until native
@@ -131,5 +140,11 @@ internal sealed class NetworkCombatAnimation(CharacterAnimationState animation,
     {
         if (_playing) animation.StopNpcAnimation();
         _playing = false; _finished = true;
+    }
+    public void Interrupt(GoldReplicatedObject actor)
+    {
+        Finish();
+        _version = actor.AttackVersion; _attack = actor.Attack; _special = actor.SpecialMove;
+        _cast = actor.Cast; _sleeping = actor.Creature?.IsSleeping == true;
     }
 }

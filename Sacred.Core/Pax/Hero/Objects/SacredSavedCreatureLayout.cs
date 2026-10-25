@@ -21,6 +21,13 @@ public static class SacredSavedCreatureLayout
     public const int LeftHandEquipmentOffset = EquipmentOffset + LeftHandEquipmentIndex * 4;
     public const int RightHandEquipmentOffset = EquipmentOffset + RightHandEquipmentIndex * 4;
     public const int Block1F0Offset = 495;
+    /// <summary>Native +1F0 class index used by the 16-by-16 hostility table (Gold 42363C).</summary>
+    public const int RelationClassOffset = Block1F0Offset;
+    /// <summary>Native +251 owner reference used by owned-creature team relationships (4234EB).</summary>
+    public const int OwnerReferenceOffset = Block1F0Offset + 0x61;
+    /// <summary>Native +20C health-display seconds. Hover raises it to one second (61258A);
+    /// creature update decrements it (537ECD). This field is absent from the network prefix.</summary>
+    public const int HealthDisplaySecondsOffset = Block1F0Offset + 0x1C;
     /// <summary>Native +0x1F8 locomotion selector: 1 walking, 2 running (Gold Shift-key producer 0x4F5193).</summary>
     public const int LocomotionActionOffset = Block1F0Offset + 8;
     public const int Word200Offset = 511;

@@ -11,6 +11,7 @@ public sealed class GoldAttachedFxReplica
     private long _generation;
     public GoldAttachedFxReplica() => Entries = new ReadOnlyDictionary<long, GoldAttachedFxRequest>(_entries);
     public IReadOnlyDictionary<long, GoldAttachedFxRequest> Entries { get; }
+    internal event Action<GoldAttachedFxRequest>? Published;
 
     internal bool Add(GoldAttachedFxEvent entry, IReadOnlyDictionary<uint, GoldReplicatedObject> objects)
     {
@@ -22,6 +23,7 @@ public sealed class GoldAttachedFxReplica
         _entries.Add(generation, new(generation, wearer.InstanceVersion, entry));
         // Bounded receive history. A renderer retains ongoing playback independently.
         if (_entries.Count > 1024) _entries.Remove(_entries.Keys.Min());
+        Published?.Invoke(_entries[generation]);
         return true;
     }
 

@@ -3,11 +3,16 @@ namespace Sacred.GameplayHost.World;
 /// <summary>Gold cDialogDamageEntry 0x41E520: per-tick integer alpha loss, independent of the source actor.</summary>
 public sealed class GameplayWorldText
 {
-    public GameplayWorldText(uint textId, int x, int y, uint colorArgb)
-        => (TextId, X, Y, ColorArgb) = (textId, x, y, colorArgb);
+    public GameplayWorldText(uint textId, int x, int y, uint colorArgb, int digit = 0, uint group = 0)
+        => (TextId, X, Y, ColorArgb, Digit, Group) = (textId, x, y, colorArgb, digit, group);
     public uint TextId { get; }
     public int X { get; }
     public int Y { get; }
+    public int Digit { get; }
+    public uint Group { get; }
+    public uint Resource => TextId == uint.MaxValue ? 0 : TextId;
+    public float VerticalOffset => -120 - (TextId == 0x3EC ? 20 : TextId == uint.MaxValue ? 80 : 0)
+        - (Group > 1 ? unchecked((short)(Group * 90)) : 0) + VerticalTravel;
     public uint ColorArgb { get; private set; }
     public float AgeSeconds { get; private set; }
     public bool Expired { get; private set; }

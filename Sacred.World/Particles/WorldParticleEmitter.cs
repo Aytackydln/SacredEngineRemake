@@ -26,6 +26,12 @@ internal sealed partial class WorldParticleEmitter
     public float ClockScale { get; set; } = 1;
     private float _birthSizeFactor;
     public bool NativeRetired { get; private set; }
+    internal bool SetParticleFlags(ushort flags)
+    {
+        if (_emperor is not null) { _emperor.SetParticleFlags(flags); return true; }
+        if (_mineSign is not null) { _mineSign.SetParticleFlags(flags); return true; }
+        return false;
+    }
     internal bool ControlsRetirement => _emperor is not null || _bloodFountain is not null || _mineSign is not null;
     private bool _nativeEmissionInitialized, _movementReady;
     private float _nativeReleaseTime;

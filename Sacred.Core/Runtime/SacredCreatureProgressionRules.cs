@@ -7,6 +7,17 @@ public static class SacredCreatureProgressionRules
 {
     public static int DifficultyIndex(uint difficulty) => difficulty switch { 1 => 0, 2 => 1, 3 => 2, 4 => 3, _ => 5 };
 
+    /// <summary>Gold 5522D0 reverses difficulty level growth for the enemy health-ring colour.</summary>
+    public static uint BaseLevelForDifficulty(uint level, uint difficulty, SacredCreatureBalance balance)
+    {
+        var index = DifficultyIndex(difficulty);
+        var addition = unchecked((uint)balance.LevelAdditions[index]);
+        if (level <= addition) return 1;
+        var value = (level - addition) / (1d + balance.LevelPercentAdditions[index] * (double).01f) + .5d;
+        // Native's lower-bound branch loads 1.1f before __ftol, producing level one.
+        return value >= 1 && double.IsFinite(value) ? unchecked((uint)(long)value) : 1;
+    }
+
     public static uint NormalizeLevel(uint level, uint difficulty, SacredCreatureBalance balance, uint extraPercent = 0)
     {
         var index = DifficultyIndex(difficulty);

@@ -14,6 +14,7 @@ public sealed class GoldChannelChatReplica
     public long ReceivedCount { get; private set; }
     public long SuppressedCount { get; private set; }
     public GoldChannelChatDelivery? LastDelivery { get; private set; }
+    internal event Action<GoldChannelChatDelivery>? Published;
 
     /// <summary>Match the native active connection query, including chat received before Sacred slot assignment.</summary>
     public void SetConnectionActive(bool active) => _usePlayerNames = active;
@@ -36,6 +37,7 @@ public sealed class GoldChannelChatReplica
         LastDelivery = new(decoded, origin == 0 || !_usePlayerNames ? null : _names[origin] ?? string.Empty, includeSpeaker);
         _messages.Add(LastDelivery);
         if (_messages.Count > GoldChatReplica.HistoryLimit) _messages.RemoveAt(0);
+        Published?.Invoke(LastDelivery);
     }
 
     internal void ApplyRoster(GoldPlayerRosterEvent entry)

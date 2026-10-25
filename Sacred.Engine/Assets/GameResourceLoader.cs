@@ -112,7 +112,9 @@ internal sealed class GameResourceLoader : IDisposable
                 MovementCalculator = LoadMovementCalculator(equipment),
                 CastingCalculator = new SacredCastingCalculator(CastingBalanceBinReader.Load(Path.Combine(_gameDirectory, "bin", "Balance.bin"))),
                 AttackSpeedCalculator = new SacredAttackSpeedCalculator(CastingBalanceBinReader.Load(Path.Combine(_gameDirectory, "bin", "Balance.bin"))),
-                NpcConversations = LoadNpcConversations()
+                NpcConversations = LoadNpcConversations(),
+                CreatureMarkerBalance = CreatureMarkerBalanceBinReader.Load(Path.Combine(_gameDirectory, "bin", "Balance.bin")),
+                CreatureBalance = CreatureBalanceBinReader.Load(Path.Combine(_gameDirectory, "bin", "Balance.bin"))
             };
             world = worldArchive;
             _ownershipTransferred = true;

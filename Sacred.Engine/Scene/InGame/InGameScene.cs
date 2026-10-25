@@ -259,6 +259,7 @@ internal sealed partial class InGameScene : IGameScene
         if (_escapeMenu.TrySetCheatOption(option, value, out message)) return true;
         if (_networkPresentation is { } network &&
             (NetworkStatusEffectCheats.TryExecute(option, value, network.GameplayObjects, out message) ||
+             NetworkGroundSymbolCheats.TryExecute(option, value, network, _assets, out message) ||
              NetworkCharacterCheats.TryExecute(option, value, _scene, network.World.Replicas, out message))) return true;
         if (PlayerEquipmentCheats.TryExecute(option, value, _player, out message)) return true;
         if (InventoryPanelCheats.TryExecute(option, value, _scene.EquipmentUi, out message)) return true;

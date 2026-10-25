@@ -21,6 +21,7 @@ public sealed class GoldCreatureState
     /// <summary>Native +0x1A4 entries, after the writer's object-manager filtering. Zero entries are retained.</summary>
     public ReadOnlySpan<uint> EquipmentReferences => _equipment;
     public uint Word1F0 => Word(GoldCreatureStateLayout.Word1F0Offset);
+    public uint RelationClass => Word1F0;
     public uint Word1F4 => Word(GoldCreatureStateLayout.Word1F4Offset);
     public uint BehaviorFlags => Word1F4;
     public uint Word1F8 => Word(GoldCreatureStateLayout.Word1F8Offset);

@@ -15,7 +15,15 @@ internal sealed class ModelParticleSeedVertices : IReadOnlyList<Vector3>
     private readonly Vector3 _origin;
     private readonly SacredParticleProjection _projection;
     public ModelParticleSeedVertices(SceneModel model, SacredParticleProjection projection)
-    { _geometry = model.Geometry; _transform = model.Transform; _origin = model.RenderPosition; _projection = projection; Count = model.Geometry.BindMesh.Vertices.Length; }
+    {
+        _geometry = model.Geometry; _transform = model.Transform; _origin = model.RenderPosition;
+        _projection = projection; Count = model.Geometry.BindMesh.Vertices.Length;
+        // A GPU pose request leaves CPU palettes untouched. Mesh bursts must seed
+        // the current corpse pose, without materializing every skinned vertex.
+        if (_geometry.Animation is { } animation && animation.Playback.LastRequest is { } request &&
+            animation.Playback.Cpu.EvaluatedSequence != request.Sequence)
+            animation.Playback.Cpu.Evaluate(request with { MaterializeCpuVertices = false });
+    }
     public int Count { get; }
     public Vector3 this[int index]
     {

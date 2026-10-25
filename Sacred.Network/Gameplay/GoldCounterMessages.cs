@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using Sacred.Core.GameRes;
+using Sacred.Network.Protocol;
 
 namespace Sacred.Network.Gameplay;
 
@@ -15,6 +16,7 @@ public sealed class GoldCounterMessages
     public GoldCounterMessages() => Recent = _recent.AsReadOnly();
     public IReadOnlyList<GoldCounterHudMessage> Recent { get; }
     public long ReceivedCount { get; private set; }
+    internal event Action<GoldCounterHudMessage, GoldMessage>? Published;
     public void ConfigureResources(GameResStore resources) => _resources = resources ?? throw new ArgumentNullException(nameof(resources));
     internal void ConfigureItemResources(IReadOnlyDictionary<uint, uint> resources) => _itemResources = resources.ToFrozenDictionary();
     public string? Resolve(GoldCounterHudMessage message)
@@ -27,10 +29,11 @@ public sealed class GoldCounterMessages
         // Native %d formatting treats the wrapping count operands as signed 32-bit values.
         return $"{name}:{unchecked((int)message.Completed!.Value)} {middle} {unchecked((int)message.Initial!.Value)}";
     }
-    internal void Add(GoldCounterHudMessage message)
+    internal void Add(GoldCounterHudMessage message, GoldMessage source)
     {
         _recent.Add(message); ReceivedCount++;
         if (_recent.Count > GoldChatReplica.HistoryLimit) _recent.RemoveAt(0);
+        Published?.Invoke(message, source);
     }
     internal void Clear() { _recent.Clear(); ReceivedCount = 0; }
 }

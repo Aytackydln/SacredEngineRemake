@@ -23,6 +23,7 @@ public sealed class GoldCreatureReceiveActions
     public IReadOnlyList<GoldCreatureReceiveWork> Requests { get; }
     public long MissingOrInactiveCount { get; private set; }
     public long TimedControlCount { get; private set; }
+    internal event Action<GoldCreatureReceiveWork>? Published;
     internal bool Apply(GoldCreatureReceiveActionEvent incoming, Dictionary<uint, GoldReplicatedObject> objects,
         IReadOnlyDictionary<uint, SacredItemCategory> categories)
     {
@@ -36,7 +37,8 @@ public sealed class GoldCreatureReceiveActions
             var type = obj.BaseState.ObjectType;
             category = type is 0 or >= 0x7E60 ? (byte)0 : categories.TryGetValue(type, out var value) ? (byte)value : null;
         }
-        _requests.Add(new(entry, obj, category));
+        var work = new GoldCreatureReceiveWork(entry, obj, category);
+        _requests.Add(work); Published?.Invoke(work);
         if (entry is GoldCreatureTimedControlEvent control)
         {
             var bytes = obj.Creature.ToPayload();

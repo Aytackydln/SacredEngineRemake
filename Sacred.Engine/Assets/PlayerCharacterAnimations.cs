@@ -14,6 +14,7 @@ public sealed record PlayerCharacterAnimations(
 {
     public GrnAnimationClip? NpcTalk { get; init; }
     public GrnAnimationClip? NpcReactionAttack { get; init; }
+    public GrnAnimationClip? FightingIdle { get; init; }
 }
 
 internal static class CharacterWeaponStyleResolver

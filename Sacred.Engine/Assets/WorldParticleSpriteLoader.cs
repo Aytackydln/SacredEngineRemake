@@ -29,6 +29,9 @@ internal sealed class WorldParticleSpriteLoader
         ParticleSpriteReference reference,
         out StaticSpriteAsset? sprite)
     {
+        // An empty binding denotes native untextured geometry. A valid descriptor is still
+        // required by the shared sprite root signature; no archive texture is sampled.
+        if (reference.TextureName.Length == 0) { sprite = Untextured; return true; }
         sprite = null;
         if (!_lock.Wait(0))
             return false;
@@ -49,6 +52,8 @@ internal sealed class WorldParticleSpriteLoader
             _lock.Release();
         }
     }
+
+    private static readonly StaticSpriteAsset Untextured = new(0, 1, 1, 0, 0, [255, 255, 255, 255], 1, 1);
 
     public void Clear()
     {

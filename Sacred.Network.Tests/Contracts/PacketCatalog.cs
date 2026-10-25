@@ -23,6 +23,37 @@ internal static class PacketCatalog
         void Add<T>(string name, ushort opcode, Func<byte[]> bytes, PayloadRule rule = PayloadRule.Exact,
             Action<GoldGameEvent>? verify = null, byte sender = 0, bool owns = false, int[]? shorter = null) where T : GoldGameEvent =>
             rows.Add(new(name, opcode, typeof(T), bytes, rule, verify, sender, owns, shorter));
+        Add<GoldCreatureHealthEvent>("absolute signed health consumer", 0x128, () => Words(500, uint.MaxValue),
+            verify: e => Assert.AreEqual(-1, ((GoldCreatureHealthEvent)e).HitPoints), owns: true);
+        Add<GoldCreatureAttackEvent>("melee swing without a damage result", 0x17C,
+            () => Words(500, 182808, 135052, 0, 2582, 104, 0x3FB33333, 1114353424),
+            verify: e => { var attack = (GoldCreatureAttackEvent)e; Assert.IsFalse(attack.IsBow);
+                Assert.AreEqual(104u, attack.Motion); Assert.AreEqual(1.4f, attack.Speed); }, owns: true);
+        Add<GoldCreatureDamageEvent>("numeric impact consumer", 0x17A, () => Words(500, 0xFFFF000C, 1, 2, 1, 0x12345678),
+            verify: e => { var hit = (GoldCreatureDamageEvent)e; Assert.AreEqual((ushort)12, hit.Damage); Assert.AreEqual(0x12345678u, hit.ImpactEffectData); }, owns: true);
+        Add<GoldCreatureDamageEvent>("fire hit flash creation", 0x17A, () => Words(500, 12, 0, 2, 1, 0xABCD0002),
+            verify: e => { var hit = (GoldCreatureDamageEvent)e; Assert.AreEqual(1u, hit.ImpactEffectEnabled);
+                  Assert.AreEqual((byte)2, unchecked((byte)hit.ImpactEffectData)); }, owns: true);
+        Add<GoldCreatureDamageEvent>("explicit zero damage streak playback", 0x17A, () => Words(500, 0, 0, 2, 0, 0),
+            verify: e => Assert.AreEqual((ushort)0, ((GoldCreatureDamageEvent)e).Damage), owns: true);
+        Add<GoldCreatureFightModeEvent>("combat stance enabled", 0x119,
+            () => Words(500, GoldCreatureStateLayout.FightModeFlag),
+            verify: e => Assert.IsTrue(((GoldCreatureFightModeEvent)e).Enabled), owns: true);
+        Add<GoldCreatureFightModeEvent>("local player leaves combat", 0x119, () => Words(2, 0),
+            verify: e => Assert.IsFalse(((GoldCreatureFightModeEvent)e).Enabled), owns: true);
+        Add<GoldAttachedFxEvent>("attached FX consumer", 0x149, () => Words(1, 44, 500, 0, 0, 0, 0),
+            verify: e => Assert.AreEqual(500u, ((GoldAttachedFxEvent)e).WearerReference), owns: true);
+        Add<GoldAttachedFxEvent>("attached deflection neck with root fallback", 0x149, () => Words(0x305, 10, 500, 0, 0, 0, 0),
+            verify: e => Assert.AreEqual(10u, ((GoldAttachedFxEvent)e).FxSubtype), owns: true);
+        Add<GoldObjectAnimationEvent>("creature explicit motion consumer", 0x170, () => Words(500, 59, 0x3F800000, 0x3F800000),
+            PayloadRule.RetainedSuffix,
+            verify: e => Assert.AreEqual(59u, ((GoldObjectAnimationEvent)e).Animation), owns: true);
+        Add<GoldObjectEvent>("serialized deflection wearer", 0x16F,
+            () => CombatReplicationConsumerTests.SerializedDeflection().Message.Payload, PayloadRule.Structured,
+            verify: e => Assert.AreEqual(0x305u, ((GoldObjectEvent)e).BaseState.ObjectType), shorter: [65, 66, 67, 68]);
+        foreach (var (opcode, notification) in new[] { ((ushort)0x182, (ushort)2), ((ushort)0x184, (ushort)8) })
+            Add<GoldObjectFxSignalEvent>("particle flag consumer", opcode, () => Words(0x800001F4),
+                verify: e => { var signal = (GoldObjectFxSignalEvent)e; Assert.AreEqual(500u, signal.ObjectReference); Assert.AreEqual(notification, signal.Notification); }, owns: true);
         Add<GoldExperienceAwardEvent>("experience award", 0x127, () => Words(500, 0xFFFFFFFF), PayloadRule.RetainedSuffix,
             e => Assert.AreEqual(-1, ((GoldExperienceAwardEvent)e).Award), owns: true);
         Add<GoldStartPositionDataEvent>("compressed startup data", 0x132, RemainingReceivePackets.StartData, PayloadRule.RetainedSuffix,
@@ -32,7 +63,15 @@ internal static class PacketCatalog
         Add<GoldControlledObjectEvent>("controlled object snapshot", 0x16A, RemainingReceivePackets.Controlled, PayloadRule.RetainedSuffix,
             e => Assert.AreEqual((ushort)0x169, ((GoldControlledObjectEvent)e).Snapshot.Message.Opcode), owns: true);
         Add<GoldFxBatchEvent>("multi FX batch", 0x181, () => RemainingReceivePackets.Batch(), PayloadRule.RetainedSuffix,
-            e => Assert.AreEqual(2, ((GoldFxBatchEvent)e).Entries.Count), owns: true);
+              e => Assert.AreEqual(2, ((GoldFxBatchEvent)e).Entries.Count), owns: true);
+        Add<GoldCreatureFxSpawnEvent>("rendered puzzle radial burst", 0x14D, () => Words(500, 300, 400, 20, 2),
+            PayloadRule.RetainedSuffix, e => Assert.AreEqual(2u, ((GoldCreatureFxSpawnEvent)e).Operands[3]), owns: true);
+        Add<GoldFxBatchEvent>("terminal freeze impact", 0x181, () =>
+        {
+            var bytes = RemainingReceivePackets.Batch(1);
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(8 + 0x74C), 1);
+            return bytes;
+        }, PayloadRule.RetainedSuffix, e => Assert.AreEqual(1u, ((GoldFxBatchEvent)e).FinalParameter), owns: true);
         Add<GoldReferenceReconciliationEvent>("object reconciliation request", 0x197, () => [], PayloadRule.RetainedSuffix, owns: true);
         Add<GoldTradeEvent>("trade operation", 0x198, () => Words(0, 0x27, 42), PayloadRule.RetainedSuffix,
             e => Assert.AreEqual(42u, ((GoldTradeEvent)e).Amount), owns: true);
@@ -69,6 +108,8 @@ internal static class PacketCatalog
                 PayloadRule.RetainedSuffix, e => Assert.AreEqual(uint.MaxValue, ((GoldCreatureFxSpawnEvent)e).Operands[0]), owns: true);
         Add<GoldCreatureDeathCommandEvent>("creature death command", 0x17d, () => Words(500, uint.MaxValue), PayloadRule.RetainedSuffix,
             e => Assert.AreEqual(uint.MaxValue, ((GoldCreatureDeathCommandEvent)e).PlayerWord), owns: true);
+        Add<GoldCreatureDeathCommandEvent>("player death command", 0x17d, () => Words(2, 1), PayloadRule.RetainedSuffix,
+            e => Assert.AreEqual(1u, ((GoldCreatureDeathCommandEvent)e).PlayerWord), owns: true);
         Add<GoldContainerOpenCommandEvent>("container open command", 0x18b, () => Words(500), PayloadRule.RetainedSuffix,
             e => Assert.AreEqual(500u, ((GoldContainerOpenCommandEvent)e).ObjectReference), owns: true);
         Add<GoldRegionObjectTypesEvent>("region object type record", 0x189, () => CreatureInteractionPackets.Region(),

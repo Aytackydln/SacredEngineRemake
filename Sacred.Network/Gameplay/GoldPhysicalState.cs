@@ -43,6 +43,13 @@ public sealed class GoldPhysicalState
         return new(bytes);
     }
 
+    internal GoldPhysicalState WithCorpseFlag()
+    {
+        var bytes = ToPayload();
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(GoldPhysicalStateLayout.WordB0Offset), WordB0 | GoldPhysicalStateLayout.CorpseFlag);
+        return new(bytes);
+    }
+
     public GoldPhysicalState WithDirection(GoldPhysicalVector direction)
     {
         var bytes = ToPayload();

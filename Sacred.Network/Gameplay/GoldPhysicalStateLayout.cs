@@ -29,6 +29,10 @@ public static class GoldPhysicalStateLayout
     /// <summary>Signed 16-bit quest script effect identity, native +0x96 (Gold 0x450E20).</summary>
     public const int QuestEffectOffset = Word96Offset;
     public const int WordB0Offset = 105;
+    /// <summary>Native event 208 marks a corpse with +B0 bit 1 (Gold 5364DD).</summary>
+    public const uint CorpseFlag = 2;
+    /// <summary>Native +B0: renders ground-symbol kind 0 (Gold 599FF0).</summary>
+    public const uint ChampionGroundSymbolFlag = 0x400;
     /// <summary>With VectorCCFlag: exact model root pivot (native +0xCC), independent of
     /// the integer logical base X/Y. Gold 0x450254 writes it; 0x44B324 consumes it on render.
     /// Without the flag this is +0x98 or a bone result, not an absolute placement.</summary>

@@ -15,6 +15,10 @@ internal static class Dx12FxPipelineDefinitions
         var alpha = new Dx12GraphicsPipelineDefinition(Dx12PipelineKind.FxParticle,
             particle.VertexShader, particle.PixelShader, particle.InputLayout,
             blend, particle.RasterizerState, particle.DepthStencilState, particle.UsesDepthBuffer);
-        return new(group.RootParameters, group.StaticSamplers, group.Pipelines.Values.Append(alpha), group.RootSignatureFlags);
+        var line = new Dx12GraphicsPipelineDefinition(Dx12PipelineKind.FxParticleLine,
+            particle.VertexShader, particle.PixelShader, particle.InputLayout,
+            blend, particle.RasterizerState, particle.DepthStencilState, particle.UsesDepthBuffer,
+            primitiveTopologyType: PrimitiveTopologyType.Line);
+        return new(group.RootParameters, group.StaticSamplers, group.Pipelines.Values.Concat([alpha, line]), group.RootSignatureFlags);
     }
 }

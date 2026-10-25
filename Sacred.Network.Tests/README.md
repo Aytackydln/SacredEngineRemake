@@ -14,13 +14,38 @@ It prints a short summary on success and the last 80 diagnostic lines on failure
 Full logs and TRX reports go to the ignored `Sacred.Network.Tests/TestResults` directory.
 Missing evidence fails the affected test; it is not silently skipped.
 
-The suite has 168 packet examples, 51 native state-replay suites,
-and 1,141 discoverable MSTest tests. A test count is not an assertion count: each
-native replay suite contains many existing comparisons against original results.
+The suite includes packet examples and native state-replay suites. A test count
+is not an assertion count: each native replay suite contains many existing
+comparisons against original results.
 Only the portable checks have been promoted; this does not replace every older
 scratch, Engine/render, installation or live-native scenario.
+
+`CreatureDeathConsumerTests` covers `17D` HP/combat transitions, active corpse
+lifetime, authoritative revival, reference reuse, copied posed-mesh disappearance
+seeds and FX expiry. `NativeReplay/CreatureDeathChecks` compares event `208`, death
+motion selection and detail-level cleanup delay against 45 original instruction
+cases. See [death delivery](../docs/game-server/consumer-creature-death.md) for the
+separate Engine TCP/render and AssetViewer checks and their acceptance boundaries.
+
+`CombatVisualConsumerTests` exercises ordinary blood, optional `17A` flash textures,
+root/neck attachment, repeated hits, expiry, HP corrections, creature ground symbols,
+fight-mode visibility, zero-damage deflection streaks, level colours and
+reference/session cleanup. `NativeReplay/CombatVisualChecks` adds 936 original
+instruction comparisons for flash clocks, relative-level colours, blood palettes
+and deflection initialization, trail ordering and position/velocity/lifetime updates.
+`CombatStartupChecks` verifies initial advertised difficulty and native suppression
+of zero-damage publication. Explicit zero-damage playback does not establish an
+ordinary native miss trigger. `SessionDiscoveryConsumerTests` covers the missing
+announcement-to-session initialization, endpoint matching and later `01E` precedence.
 Native checksum/login examples also check independent original bytes so matching
 encoder/decoder mistakes cannot hide behind a successful round trip.
+
+The [hover/health correction](../docs/game-server/consumer-health-hover.md) supersedes
+the older blanket combat visibility: `CreatureHealthVisibilityTests` exercises
+enemy hover and local combat independently. Native health/relationship replays
+cover the one-second clock, exact fade alpha, class matrix, species exceptions,
+animal links, rider and PvP/team ownership. Controlled Engine screenshots remain
+separate from original-host pointer/visual acceptance.
 
 ## Adding a packet
 
@@ -63,6 +88,15 @@ Native-instruction emulation, rendering and live-original-server acceptance rema
 separate checks. Run them when a change affects those boundaries; the fast suite
 reuses their recorded evidence rather than reopening executables or rerunning all
 research for each packet.
+
+`ConsumerDeliveryTests`, `FxConsumerTests` and `NativeReplay/ConsumerPresentationChecks`
+cover ordered independent consumers, repeats/dependencies, visible overflow faults,
+session/lifetime cleanup, shared text slots, mode-16 notices, native drag clearing,
+FX reloads and replacement particle flags. The native fixture adds 341 comparisons.
+Five wire cases promote HP/damage/attached-FX/notification consumers into the shared
+contract/TCP checks. Use `docs/game-server/tools/test-consumer-presentation.ps1`
+for retained per-opcode reports plus the full suite. Render/native user acceptance
+is separate; see [consumer delivery](../docs/game-server/consumer-presentation.md).
 
 Seraphim visual replication adds literal `183` ground/target/fallback casts and
 `16F` HolyLight/HolyWall states to the shared contracts. Portable TCP/render-state

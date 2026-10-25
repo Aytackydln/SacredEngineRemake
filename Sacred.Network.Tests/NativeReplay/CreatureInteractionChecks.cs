@@ -74,6 +74,8 @@ internal static class CreatureInteractionChecks
                 }
                 else if (work.FxCreation is { } fx)
                 {
+                    var cursor = world.Consumers.CreateCursor("native-fx-creation", entry => entry.Value is GoldCreatureInteractionWork { FxCreation: not null });
+                    Check(world.Consumers.TryPeek(cursor, out var delivered) && ReferenceEquals(delivered.Value, work), "native accepted creation reaches renderer delivery");
                     var created = Calls("create_fx").Single(); var keyx = Bytes(created, "position");
                     Check(fx.Type == created.GetProperty("type").GetUInt32(), "FX type");
                     Check(fx.Position == new GoldObjectPosition(BitConverter.ToInt32(keyx, 4), BitConverter.ToInt32(keyx, 8), keyx[12], BitConverter.ToUInt16(keyx)), "native FX creation KEYX");

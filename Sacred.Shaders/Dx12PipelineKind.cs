@@ -43,5 +43,6 @@ public enum Dx12PipelineKind
     InventoryUi,
     ImGui,
     SolidModel,
-    FxParticle
+    FxParticle,
+    FxParticleLine
 }

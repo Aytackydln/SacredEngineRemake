@@ -14,9 +14,15 @@ public sealed class WorldObjectFxSystem
     private readonly Dictionary<uint, Playback> _playing = [];
     private readonly HashSet<uint> _visible = [];
     private readonly Dictionary<uint, string> _pending = [];
+    public long ReloadCount { get; private set; }
     public int ActiveCount => _playing.Values.Count(p => p.Started && (p.Surface?.Active == true || p.Player.ActiveCount != 0));
     public bool IsActive(uint reference) => _playing.TryGetValue(reference, out var playback) && playback.Started && (playback.Surface?.Active == true || playback.Player.ActiveCount != 0);
     public IReadOnlyDictionary<uint, string> Pending => _pending;
+    public void Advance(SacredParticleCatalogue catalogue, float seconds, List<WorldParticle> particles)
+    {
+        if (!float.IsFinite(seconds) || seconds < 0) throw new ArgumentOutOfRangeException(nameof(seconds));
+        Update(catalogue, seconds, ParticleSimulationMode.CpuSimd, null, particles, []);
+    }
 
     public void Synchronize(IEnumerable<GoldReplicatedObject> objects, Func<uint, WorldObjectFxAttachment?> attachment, Func<GoldObjectBaseState, float>? groundHeight = null)
     {
@@ -27,9 +33,14 @@ public sealed class WorldObjectFxSystem
             var reference = obj.BaseState.ObjectReference;
             _visible.Add(reference);
             if (!_playing.TryGetValue(reference, out var current) || current.Instance != obj.InstanceVersion ||
-                current.Type != obj.BaseState.ObjectType || current.Fx.FxType != fx.FxType)
-                _playing[reference] = current = new(obj.InstanceVersion, obj.BaseState.ObjectType, fx);
+                current.Type != obj.BaseState.ObjectType || current.Fx.FxType != fx.FxType || current.ReloadVersion != obj.FxReloadVersion)
+            {
+                _playing[reference] = current = new(obj.InstanceVersion, obj.BaseState.ObjectType, fx)
+                { ReloadVersion = obj.FxReloadVersion, NotificationVersion = current?.Instance == obj.InstanceVersion ? current.NotificationVersion : 0 };
+                ReloadCount++;
+            }
             current.Fx = fx;
+            current.Runtime = obj.SpecialFx;
             current.Attachment = fx.WearerReference == 0 ? null : attachment(fx.WearerReference);
             if (current.Started && fx.WearerReference != 0 &&
                 (current.Attachment is null || current.Attachment.InstanceVersion != current.WearerInstance))
@@ -124,13 +135,18 @@ public sealed class WorldObjectFxSystem
                 continue;
             }
             playback.Player.SetObjectOrigin(point, height);
+            if (playback.Runtime is { ParticleFlags: { } flags } runtime && runtime.Version != playback.NotificationVersion)
+            {
+                if (playback.Player.SetParticleFlags(flags)) playback.NotificationVersion = runtime.Version;
+                else _pending[reference] = $"Particle flag {flags} requires its native controller consumer.";
+            }
             playback.Player.GpuBackend = gpu;
             playback.Player.Update(seconds, point, height, mode, particles);
             playback.Player.CollectGpuBatches(batches);
         }
     }
 
-    public void Clear() { _playing.Clear(); _pending.Clear(); _visible.Clear(); }
+    public void Clear() { _playing.Clear(); _pending.Clear(); _visible.Clear(); ReloadCount = 0; }
     internal void CollectGpuBatches(List<WorldGpuParticleBatch> batches)
     {
         foreach (var playback in _playing.Values) playback.Player.CollectGpuBatches(batches);
@@ -139,6 +155,9 @@ public sealed class WorldObjectFxSystem
     private sealed class Playback(long instance, uint type, GoldObjectFxState fx)
     {
         public long Instance { get; } = instance;
+        public long ReloadVersion { get; init; }
+        public GoldSpecialFxRuntime? Runtime { get; set; }
+        public long NotificationVersion { get; set; }
         public uint Type { get; } = type;
         public GoldObjectFxState Fx { get; set; } = fx;
         public WorldParticleEffectPlayer Player { get; } = new();

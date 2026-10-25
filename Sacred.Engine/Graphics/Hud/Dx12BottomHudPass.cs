@@ -44,6 +44,7 @@ internal sealed class Dx12BottomHudPass : IDisposable
     {
         _npcOverheads.Build(scene);
         Dx12CombatTextPass.Build(scene, _graphics.OutputWidth, _graphics.OutputHeight);
+        Dx12NetworkNoticesPass.Build(scene, _graphics.OutputWidth, _graphics.OutputHeight);
     }
 
     public void Build(SceneState scene)

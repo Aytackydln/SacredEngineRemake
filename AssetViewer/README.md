@@ -20,6 +20,18 @@ The launcher opens five independent windows:
   bursts finish their native lifetime and replay for inspection. **Restart** and **Pause/Play**
   control preview playback. Unmapped recipes show their diagnostic instead of requesting
   an FX name from the GRN archive. Other native FX families remain research work.
+  **Deflection / FX_PARADE** now renders its ten untextured, five-vertex native
+  line strips. The viewer previously counted forty proxy segments but skipped
+  every draw because the effect has no texture. It now binds the selected actor's
+  decoded neck/root attachment and preserves native vertex RGB/alpha, outward
+  motion and finite lifetime. Camera fitting covers the complete trajectory.
+  `fx 773`, `fx-time 0`, `fx-time 0.1` and `fx-time 0.22` inspect birth and travel;
+  `fx-time 0.3` shows expiry. `fx-hit` retriggers while paused, and `fx-actor`
+  chooses another playable model. Both event variants 0 and 10 are supported.
+  [Birth](../docs/game-server/evidence/deflection-viewer-birth.png),
+  [travel](../docs/game-server/evidence/deflection-viewer-after.png) and
+  [pixel checks across nine actors](../docs/game-server/evidence/deflection-viewer-checks.json)
+  were captured through AssetViewer console cheats, without desktop input.
   Both **Stargate** recipes use the native 20x34 mesh, animated vertex colours,
   five-second minimap transitions and two rotating whirls. Generic event subtype 6
   scales its actor burst using the selected character's Items.pak blocking radius.

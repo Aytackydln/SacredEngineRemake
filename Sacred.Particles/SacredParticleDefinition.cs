@@ -133,6 +133,7 @@ public sealed record SacredParticleDefinition(
     public SacredDoorSpikeFxDefinition? DoorSpike { get; init; }
     public SacredStonedFxDefinition? Stoned { get; init; }
     public SacredPlongFxDefinition? Plong { get; init; }
+    public SacredDeflectionFxDefinition? Deflection { get; init; }
     public SacredLayeredFlareFxDefinition? LayeredFlare { get; init; }
     public SacredRotatingBladesFxDefinition? RotatingBlades { get; init; }
     public SacredCelestialLightFxDefinition? CelestialLight { get; init; }
@@ -147,6 +148,7 @@ public sealed record SacredParticleDefinition(
     public SacredConfusionFxDefinition? Confusion { get; init; }
     public SacredPongBatterFxDefinition? PongBatter { get; init; }
     public SacredUnderworldGlyphFxDefinition? UnderworldGlyph { get; init; }
+    public SacredHitFlashFxDefinition? HitFlash { get; init; }
     /// <summary>Selected by the native movement routine, not by texture or item IDs.
     /// Decoded smoke/dwarf-magic use stdMovement and therefore have no ground collision.</summary>
     public ParticleGroundCollision GroundCollision { get; init; }

@@ -12,6 +12,7 @@ public sealed class WorldParticleEffectPlayer
     private readonly List<Playback> _playing = [];
     private readonly List<WorldTeleportEffectPlayback> _teleports = [];
     private readonly List<WorldPlongEffectPlayback> _plongs = [];
+    private readonly List<WorldDeflectionEffectPlayback> _deflections = [];
     private int _nextId = -1;
 
     public IParticleGpuBackend? GpuBackend { get; set; }
@@ -32,11 +33,12 @@ public sealed class WorldParticleEffectPlayer
         foreach (var playback in _playing) playback.Emitter.SimulationMode = mode;
     }
 
-    public int ActiveCount => _playing.Count + _teleports.Count + _plongs.Count;
+    public int ActiveCount => _playing.Count + _teleports.Count + _plongs.Count + _deflections.Count;
     /// <summary>A received FX object can relocate independently of its wearer.</summary>
     internal void SetObjectOrigin(Vector2 position, float height)
     {
         foreach (var playback in _playing) playback.Emitter.SetOrigin(position, height);
+        foreach (var playback in _deflections) playback.SetOrigin(position, height);
     }
     public bool IsEnabled(uint typeId, bool selfTarget, int? eventPreset = null) =>
         _playing.Any(p => p.TypeId == typeId && p.EventPreset == eventPreset && p.SelfTarget == selfTarget && p.Looping);
@@ -69,6 +71,12 @@ public sealed class WorldParticleEffectPlayer
         if (looping && IsEnabled(typeId, selfTarget, eventPreset)) return true;
         // Bound interactive requests without changing any decoded spawn parameters.
         if (ActiveCount >= 64) return false;
+        if (definition.Deflection is { } deflection)
+        {
+            _deflections.Add(new(deflection, catalogue.Projection, _nextId--, point,
+                heightOffset + (selfTarget ? selfHeight : 0), followSelf));
+            return true;
+        }
         if (definition.Plong is not null)
         {
             _plongs.Add(new(definition, catalogue.Projection, point,
@@ -105,12 +113,20 @@ public sealed class WorldParticleEffectPlayer
             }
     }
 
-    public void Clear() { _playing.Clear(); _teleports.Clear(); _plongs.Clear(); _nextId = -1; }
+    public void Clear() { _playing.Clear(); _teleports.Clear(); _plongs.Clear(); _deflections.Clear(); _nextId = -1; }
 
     /// <summary>Stop owner-bound emission while allowing existing particles to drain.</summary>
     public void StopEmission()
     {
         foreach (var playback in _playing) { playback.Looping = false; playback.Remaining = 0; }
+    }
+
+    /// <summary>Pass the manager's exact replacement flag word to decoded native controllers.</summary>
+    public bool SetParticleFlags(ushort flags)
+    {
+        var handled = false;
+        foreach (var playback in _playing) handled |= playback.Emitter.SetParticleFlags(flags);
+        return handled;
     }
 
     /// <summary>Requests a decoded native hit flag or mine-use notification.
@@ -143,6 +159,11 @@ public sealed class WorldParticleEffectPlayer
     internal void Update(float step, Vector2 selfPosition, float selfHeight,
         ParticleSimulationMode mode, List<WorldParticle> output)
     {
+        for (var i = _deflections.Count - 1; i >= 0; i--)
+        {
+            _deflections[i].Update(step, selfPosition, selfHeight, output);
+            if (!_deflections[i].Active) _deflections.RemoveAt(i);
+        }
         for (var i = _plongs.Count - 1; i >= 0; i--)
         {
             _plongs[i].Update(step, output);

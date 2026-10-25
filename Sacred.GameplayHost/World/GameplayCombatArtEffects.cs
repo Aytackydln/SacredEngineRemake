@@ -12,11 +12,12 @@ public sealed class GameplayCombatArtEffects
     private readonly Dictionary<long, GameplayCombatArtEffect> _entries = [];
     private readonly Dictionary<long, GoldCombatNotification> _pendingCasts = [];
     private readonly SacredParticleCatalogue _catalogue = SacredParticleCatalogue.LoadEmbedded(SacredParticleQuality.High);
-    private long _received;
+    private readonly GoldConsumerCursor _cursor;
     private long _generation;
     public GameplayCombatArtEffects(GoldWorldReplica world, Action<string> log)
     {
         (_world, _log) = (world, log);
+        _cursor = world.Consumers.CreateCursor("cast-hand-fx", work => work.Value is GoldCombatNotification);
         Entries = new ReadOnlyDictionary<long, GameplayCombatArtEffect>(_entries);
     }
     public IReadOnlyDictionary<long, GameplayCombatArtEffect> Entries { get; }
@@ -33,10 +34,10 @@ public sealed class GameplayCombatArtEffects
                 (owner.BaseState.Flags & GoldObjectLifecycleLayout.InactiveFlag) != 0)
                 _entries.Remove(id);
         }
-        foreach (var notification in _world.Combat.Recent)
+        while (_world.Consumers.TryPeek(_cursor, out var work))
         {
-            if (notification.Version <= _received) continue;
-            _received = notification.Version;
+            var notification = (GoldCombatNotification)work.Value;
+            _world.Consumers.Report(_cursor, work, GoldConsumerOutcome.Consumed, "cast-hand action delivery");
             if (!_world.Objects.TryGetValue(notification.Event.ObjectReference, out var owner) ||
                 owner.InstanceVersion != notification.InstanceVersion ||
                 (owner.BaseState.Flags & GoldObjectLifecycleLayout.InactiveFlag) != 0) continue;
@@ -97,7 +98,7 @@ public sealed class GameplayCombatArtEffects
         _entries[id] = new(id, owner.BaseState.ObjectReference, owner.InstanceVersion, type, preset, bone, maximumAge, clock);
         _log($"Network combat-art FX created: owner {owner.BaseState.ObjectReference}; resource {type}; preset {preset}; attachment {bone}; clock {clock:F2}.");
     }
-    public void Clear() { _entries.Clear(); _pendingCasts.Clear(); _received = _world.Combat.Version; }
+    public void Clear() { _entries.Clear(); _pendingCasts.Clear(); _world.Consumers.ResetToPresent(_cursor); }
 }
 
 public sealed record GameplayCombatArtEffect(long Generation, uint Owner, long OwnerInstance, uint Type,

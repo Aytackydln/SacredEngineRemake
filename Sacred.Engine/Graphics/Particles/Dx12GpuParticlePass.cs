@@ -128,7 +128,7 @@ internal sealed class Dx12GpuParticlePass : IParticleGpuBackend, IDisposable
         _kernels.Dispatch(commands,"clear_draws",c,needed); Dx12ParticleKernels.Barrier(commands,_output);
         var inputs=new List<ParticleGpuDraw>(cpuParticles.Count);
         for(var i=0;i<cpuParticles.Count;i++)
-            if(Texture(cpuParticles[i].Sprite,out var texture,out var encoding))
+            if(!cpuParticles[i].GroundDecal && Texture(cpuParticles[i].Sprite,out var texture,out var encoding))
                 inputs.Add(ParticleGpuProjection.Cpu(cpuParticles[i],camera,width,height,texture,encoding,(uint)i));
         if(inputs.Count>0)
         {

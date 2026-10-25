@@ -35,6 +35,8 @@ public sealed class SacredEmperorFxPlayback
         _flags = 0; _hitKind = 0; Notification = Definition.InitialNotification; RenderRadius = Definition.InitialRadius;
     }
     public void RequestHit(uint kind = 0) { _flags |= Definition.HitFlag; _hitKind = kind; }
+    /// <summary>Particle manager 7CBA10 assigns the entire +74 word; it does not OR notifications.</summary>
+    public void SetParticleFlags(ushort flags) => _flags = flags;
 
     /// <returns>The native old-time emission decision, after the caller has moved its particles.</returns>
     public bool Advance(float seconds, bool survivingParticles)

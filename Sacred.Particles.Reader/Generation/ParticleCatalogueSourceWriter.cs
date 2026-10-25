@@ -33,6 +33,7 @@ internal static class ParticleCatalogueSourceWriter
                 var particles = entry.InitialParticles.Count == 0 ? string.Empty :
                     $", InitialParticles = EmbeddedParticleParameters.ReadParticles(\"{Convert.ToHexStringLower(MemoryMarshal.AsBytes(entry.InitialParticles.ToArray().AsSpan()))}\")";
                 var actorScale = entry.UsesActorBlockRadius ? ", UsesActorBlockRadius = true" : string.Empty;
+                if (entry.Deflection is not null) actorScale += ", Deflection = SacredDeflectionFxDefinition.Original";
                 if (entry.AdditionalDraws.Count > 0)
                     actorScale += ", AdditionalDraws = " + ReadOnlyArray("SacredParticleDrawDefinition", entry.AdditionalDraws.Select(d =>
                         $"new({CSharpLiteral.String(d.TextureName)}, {CSharpLiteral.UInt32(d.RawFlags)}, {CSharpLiteral.UInt32(d.NativeAddress)}) {{ AtlasSide = {d.AtlasSide}, HalfSizeMultiplier = {Float(d.HalfSizeMultiplier)}{(d.GroundAligned ? ", GroundAligned = true" : string.Empty)} }}"));
@@ -63,6 +64,8 @@ internal static class ParticleCatalogueSourceWriter
                 if (entry.VampireTransformation is { } vampire)
                     actorScale += $", VampireTransformation = new({CSharpLiteral.String(vampire.Animation)}, {CSharpLiteral.String(vampire.SourceBone)}, {CSharpLiteral.String(vampire.GlowTexture)}, {Float(vampire.GlowHalfSize)}, {CSharpLiteral.UInt32(vampire.GlowColor)}, {CSharpLiteral.String(vampire.SparkTexture)}, {Float(vampire.SparkHalfSize)}, {CSharpLiteral.UInt32(vampire.SparkColor)})";
                 if (entry.LayeredFlare is { } layeredFlare) actorScale += LayeredFlareSourceWriter.Write(layeredFlare);
+                if (entry.HitFlash is { } hitFlash)
+                    actorScale += $", HitFlash = new({ReadOnlyArray("string", hitFlash.Textures.Select(CSharpLiteral.String))}, {Float(hitFlash.HalfSize)}, {Float(hitFlash.FadeRate)}, {Float(hitFlash.AlphaScale)}) {{ Additive = {hitFlash.Additive.ToString().ToLowerInvariant()}, SourceColorOnly = {hitFlash.SourceColorOnly.ToString().ToLowerInvariant()} }}";
                 if (entry.StrikeSymbol is { } strikeSymbol) actorScale += StrikeSymbolSourceWriter.Write(strikeSymbol);
                 if (entry.RingShield is { } ringShield) actorScale += RingShieldSourceWriter.Write(ringShield);
                 if (entry.Confusion is { } confusion) actorScale += ConfusionSourceWriter.Write(confusion);

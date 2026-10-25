@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Sacred.Engine.Scene;
 using Sacred.Network.Gameplay;
 
@@ -12,8 +13,12 @@ internal static class NetworkCharacterCheats
         message = string.Empty;
         switch (option.ToLowerInvariant())
         {
+            case "server-consumers":
+                message = NetworkConsumerCheats.Execute(value, world);
+                return true;
             case "server-texts":
-                message = $"received creature texts {world.Combat.TextEvents}; active resolved readouts {scene.CombatText.WorldText.Count}; drawn {scene.CombatText.DrawnWorldText}";
+                message = $"received creature texts {world.Combat.TextEvents}; active resolved readouts {scene.CombatText.WorldText.Count}; drawn {scene.CombatText.DrawnWorldText}; pool drops {scene.CombatText.DroppedWorldText}; " +
+                    $"HUD notices {scene.CombatText.HudNotices.Count}, drawn {scene.CombatText.DrawnHudNotices}; drag/drop clears {scene.CombatText.DragDropClears}";
                 return true;
             case "server-quest":
                 if (!uint.TryParse(value, out var reference) || !world.Objects.TryGetValue(reference, out var obj) || obj.Physical is not { } physical)
@@ -24,6 +29,7 @@ internal static class NetworkCharacterCheats
             case "server-combat":
                 var combat = world.Combat;
                 message = $"received combat: {combat.Attacks} attacks; {combat.SpecialMoves} special moves; {combat.Casts} spells; {combat.SleepEvents} sleep events; {combat.DamageEvents} damage events; {combat.HealthUpdates} absolute HP updates, {combat.HealingUpdates} increases; history {combat.Recent.Count}; version {combat.Version}; reserved arrows {world.BowProjectiles.Entries.Count}; dialog/fight updates {world.CreatureControls.DialogUpdates}/{world.CreatureControls.FightModeUpdates}; pending creature-state replies {world.CreatureControls.PendingReplies}";
+                message += $"; difficulty {world.Session.Difficulty}; game flags {world.Session.GameFlags?.ToString("X8") ?? "not received"}; local level {world.Objects.GetValueOrDefault(world.LocalPlayerSlot)?.Values?.Level}";
                 return true;
             case "equipment" when value.Equals("status", StringComparison.OrdinalIgnoreCase):
                 if (scene.EquipmentUi.Actor is { } actor)

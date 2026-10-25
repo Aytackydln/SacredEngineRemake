@@ -56,6 +56,16 @@ public sealed class GoldSessionState
     public bool? IsLocked { get; private set; }
     public long LockNotificationCount { get; private set; }
     public uint? GameFlags { get; private set; }
+    /// <summary>Native 7D3DCD seeds connection flags from the selected LAN game before 01E updates.</summary>
+    public bool SeedAdvertisedGameFlags(uint flags)
+    {
+        if (GameFlags is not null) return false;
+        if (IsLocked is { } locked) flags = locked ? flags | GoldSessionGameFlagsCodec.LockMask : flags & ~GoldSessionGameFlagsCodec.LockMask;
+        GameFlags = flags; IsLocked = (flags & GoldSessionGameFlagsCodec.LockMask) != 0;
+        NativeControlWord = GoldSessionGameFlagsCodec.NativeControlWord(flags);
+        return true;
+    }
+    public uint Difficulty => GoldSessionGameFlagsCodec.Difficulty(GameFlags ?? 0);
     public long GameFlagsNotificationCount { get; private set; }
     public ushort? NativeControlWord { get; private set; }
     public uint? AnnouncedMaxPlayers { get; private set; }

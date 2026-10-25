@@ -16,6 +16,12 @@ internal static class FxAttachmentSourceWriter
         for (uint subtype = 1; subtype <= count; subtype++)
         {
             var start = image.UInt32(0x5A5EC4 + (subtype - 1) * 4);
+            // This native branch resolves the wearer, then calls 44CB80 (neck 3, or root 0).
+            if (start == 0x5A5354)
+            {
+                source.AppendLine($"        new({subtype}u, 3, false, 0x{start:X}u) {{ FallbackBone = 0 }},");
+                continue;
+            }
             try
             {
                 var a = Evaluate(start, subtype, 0);

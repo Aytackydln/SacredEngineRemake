@@ -48,6 +48,21 @@ public readonly struct ModelsMetadataModelLayout
     [FieldOffset(0x318)] public readonly uint ActivationMotionIndex;
     /// <summary>Deactivation sequence (motion slot 0xAB).</summary>
     [FieldOffset(0x31C)] public readonly uint DeactivationMotionIndex;
+    /// <summary>Damage reaction sequence (motion slot 0xAF), blended independently by Gold 0x593770.</summary>
+    [FieldOffset(0x32C)] public readonly uint HitReactionMotionIndex;
+
+    /// <summary>Death motion AD, selected by Gold 53EF90..53F363.</summary>
+    [FieldOffset(0x324)] public readonly uint DeathMotionIndex;
+    /// <summary>Alternate death AE, falling back to AD when absent.</summary>
+    [FieldOffset(0x328)] public readonly uint AlternateDeathMotionIndex;
+    /// <summary>First special death E4; availability also changes ordinary death selection probability.</summary>
+    [FieldOffset(0x400)] public readonly uint SpecialDeathMotionIndex;
+    /// <summary>Additional special deaths E5..E9, checked individually before selection.</summary>
+    [FieldOffset(0x404)] public readonly uint SpecialDeathMotionIndex1;
+    [FieldOffset(0x408)] public readonly uint SpecialDeathMotionIndex2;
+    [FieldOffset(0x40C)] public readonly uint SpecialDeathMotionIndex3;
+    [FieldOffset(0x410)] public readonly uint SpecialDeathMotionIndex4;
+    [FieldOffset(0x414)] public readonly uint SpecialDeathMotionIndex5;
 
     /// <summary>Idle motion indexes for the first thirteen weapon styles.</summary>
     [FieldOffset(116)] public readonly ModelMotionIndexArray13 IdleMotionIndexes;
@@ -124,6 +139,11 @@ public readonly struct ModelsMetadataMotionLayout
     [FieldOffset(0x9C)] public readonly float PlaybackSpeedMultiplier;
 
     /// <summary>Native motion params[8]. Gold EiBow (0x4DD8E0..0x4DD90E)
-    /// releases at 1 - this fraction of the clip; a nonpositive result uses 0.5.</summary>
+    /// releases at 1 - this fraction of the clip; a nonpositive result uses 0.5.
+    /// Gold melee contact (0x4EA1F0) also uses this tail, substituting 0.5 for a nonpositive tail.</summary>
     [FieldOffset(0xA0)] public readonly float BowReleaseTailFraction;
+
+    /// <summary>Motion params[9]: optional second melee contact's remaining-clip fraction.
+    /// Gold 0x4EA304..0x4EA3BF sets action flag 2 for a positive value, then flag 4 on crossing it.</summary>
+    [FieldOffset(0xA4)] public readonly float MeleeSecondHitTailFraction;
 }

@@ -274,7 +274,7 @@ internal sealed class EffectsWindow : Window, IAssetViewerWindow
         text.AppendLine("Native event parameters come from the recovered effect catalog; the descriptor is shown below.");
         text.AppendLine(ModelsWindow.Describe(row.Item));
         _details.Text = text.ToString();
-        _randomActor.IsEnabled = definition?.RequiresActor == true;
+        _randomActor.IsEnabled = definition?.RequiresActor == true || definition?.Deflection is not null;
         _actorLabel.Text = string.Empty;
         if (row.Portal is { } portal)
         {
@@ -371,7 +371,7 @@ internal sealed class EffectsWindow : Window, IAssetViewerWindow
             _selection = LoadWeaponAsync(row, definition, attachment, strength, parameters, _selectionCancellation.Token);
             return;
         }
-        if (definition.RequiresActor)
+        if (definition.RequiresActor || definition.Deflection is not null)
         {
             if (_actors.Length == 0) { _preview.ShowStatus("This effect needs an actor; no playable Creature.pak template is available."); return; }
             _actor ??= _actors[Random.Shared.Next(_actors.Length)];

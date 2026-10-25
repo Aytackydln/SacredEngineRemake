@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Assets;
@@ -290,7 +291,8 @@ internal sealed class Dx12WorldPass : IDisposable
         var prepared = new Dx12PreparedWorldFrame(
             _terrain.PrepareVisibleWorld(world, scene.Indoor.ActiveGroup),
             _terrain.PrepareVisibleLiquidSprites(),
-            _terrain.PrepareVisibleStaticSprites(scene.GpuParticlesEnabled ? Array.Empty<WorldParticle>() : particles, particleRevision),
+            _terrain.PrepareVisibleStaticSprites(scene.GpuParticlesEnabled
+                ? scene.CpuParticleInputs.Where(p => p.GroundDecal).ToArray() : particles, particleRevision),
             _terrain.VisibleWorldLights);
         _terrain.PreparePreloadedWorld(world);
         _sectorTextures.PrepareFrame(

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net;
 using System.Net.Sockets;
 using System.Threading.Channels;
 using Sacred.Network.Admission;
@@ -35,6 +36,7 @@ public sealed partial class GoldGameConnection : IAsyncDisposable
     public Task Completion => _run ?? Task.CompletedTask;
     public bool IsStopping => _stop.IsCancellationRequested;
     public GoldAdmissionStatus Admission => _admission.Status;
+    public IPEndPoint? RemoteEndpoint { get; private set; }
     public GoldConnectionDiagnostics Diagnostics { get; } = new();
     public string? CloseReason { get; private set; }
 
@@ -186,6 +188,7 @@ public sealed partial class GoldGameConnection : IAsyncDisposable
             {
                 handshake.CancelAfter(TimeSpan.FromSeconds(10));
                 await _client.ConnectAsync(host, port, handshake.Token).ConfigureAwait(false);
+                RemoteEndpoint = (IPEndPoint?)_client.Client.RemoteEndPoint;
                 _stream = _client.GetStream();
                 await TinCatStream.WriteAsync(_stream, TinCatLogin.CreateRequest("user"), handshake.Token).ConfigureAwait(false);
                 // TinCat may send time alignment (type 1) before LOGONACCEPTED.

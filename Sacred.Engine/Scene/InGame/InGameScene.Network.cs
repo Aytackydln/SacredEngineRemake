@@ -3,6 +3,7 @@ using System.Linq;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
+using Sacred.Core.Pak.Items;
 using Sacred.Core.World.Sector;
 using Sacred.Engine.Multiplayer;
 using Sacred.GameplayHost.World;
@@ -93,7 +94,8 @@ internal sealed partial class InGameScene
                 if (world.IsCurrentSession)
                 {
                     _networkPresentation = new(world,_assets,_scene)
-                    { GameplayObjects = new SacredNetworkObjectWorld(world, _assets, _networkClient, EngineLog.WriteLine) };
+                    { GameplayObjects = new SacredNetworkObjectWorld(world, _assets, _networkClient, EngineLog.WriteLine),
+                        DeathEffects = _particles.ReceivedEffects };
                     _offlinePlayerModel = _scene.Models[0];
                     _offlinePortraitPlayer = _scene.Portraits.Player;
                     _offlineEquipmentPlayer = _scene.EquipmentUi.Actor;
@@ -116,6 +118,7 @@ internal sealed partial class InGameScene
             catch (Exception error) { _networkBindingError = "Network scene binding failed: " + error.Message; EngineLog.WriteLine(_networkBindingError); }
         }
         if (_networkPresentation is not { } view) return;
+        view.ParticleQuality = _particles.Quality;
         if (!view.World.IsCurrentSession)
         {
             _doors.BindGameplayWorld(null);
@@ -139,6 +142,11 @@ internal sealed partial class InGameScene
             _particles.ProjectileEffects.Clear();
             _particles.ActorEffects.Clear();
             _particles.CreatureEffects.Clear();
+            _particles.ReceivedEffects.Clear();
+            _particles.CombatEffects.Clear();
+            _particles.BloodEffects.Clear();
+            _particles.DeflectionEffects.Clear();
+            _particles.CreatureMarkers.Clear();
             _scene.Hud!.Visible = _offlineHudVisible;
             _scene.Hud.WeaponSets = null;
             _scene.Hud.SelectedWeaponSlot = 0;
@@ -174,9 +182,31 @@ internal sealed partial class InGameScene
             view.LocalLocomotionScale = _camera.LocomotionAnimationSpeed;
         }
         _window.SetHandCursor(_networkMovement?.HasObjectHover == true);
+        view.UpdateCreatureHover(_camera, Renderer.OutputToRender(_window.Input.MousePosition),
+            Renderer.RenderWidth, Renderer.RenderHeight,
+            allowMovementInput && !_window.Input.UiWantsMouse && !_scene.EscapeMenu!.IsOpen);
         if (view.GameplayObjects.StatusEffects is { } statusLifecycle)
             statusLifecycle.VisualLifetime = _particles.FxAnimations.Lifetime;
+        _particles.ReceivedEffects.Synchronize(view.World.Replicas, view.FxActor,
+            point => view.World.OutdoorHeightAt(new Vector2(point.X, point.Y) / SacredNetworkPosition.NativeUnitsPerTile) /
+                (WorldModelPose.Scale * WorldModelPose.CameraProjection.M33));
+        uint? BloodColor(GoldReplicatedObject subject) => view.World.CanNavigateSector(subject.BaseState.Sector) &&
+            _assets.GetItem(subject.BaseState.ObjectType) is { } item
+            ? SacredCreatureBlood.Color(item.ModelDesc) : null;
+        _particles.CombatEffects.Synchronize(view.World.Replicas, view.FxActor);
+        _particles.DeflectionEffects.Synchronize(view.World.Replicas, view.FxActor, subject => view.World.CanNavigateSector(subject.BaseState.Sector));
+        _particles.BloodEffects.Synchronize(view.World.Replicas, view.FxActor, BloodColor);
         view.Update(deltaSeconds);
+        view.UpdateMeleeDeflections(deltaSeconds, _particles.DeflectionEffects);
+        _particles.CombatEffects.Synchronize(view.World.Replicas, view.FxActor);
+        _particles.DeflectionEffects.Synchronize(view.World.Replicas, view.FxActor, subject => view.World.CanNavigateSector(subject.BaseState.Sector));
+        _particles.BloodEffects.Synchronize(view.World.Replicas, view.FxActor, BloodColor);
+        _particles.CreatureMarkers.Markers = view.GroundMarkers;
+        // The first pass retains retiring sources; this pass samples today's evaluated wearer pose.
+        _particles.ReceivedEffects.Synchronize(view.World.Replicas, view.FxActor,
+            point => view.World.OutdoorHeightAt(new Vector2(point.X, point.Y) / SacredNetworkPosition.NativeUnitsPerTile) /
+                (WorldModelPose.Scale * WorldModelPose.CameraProjection.M33));
+        _doors.ConsumeNetworkAnimations(view.World.Replicas);
         var castingEffects = view.GameplayObjects.CombatArtEffects?.Entries.Values
             .Select(effect => view.TryGetFxAttachment(effect.Owner, effect.Bone, out var point)
                 ? new WorldAttachedParticleEffect(effect.Generation, effect.Type, effect.Preset,
@@ -190,7 +220,7 @@ internal sealed partial class InGameScene
                 ground => view.World.OutdoorHeightAt(new Vector2(ground.X, ground.Y) / SacredNetworkPosition.NativeUnitsPerTile)))
             .OfType<WorldAttachedParticleEffect>() ?? [];
         _particles.ActorEffects.Synchronize(castingEffects.Concat(statusEffects));
-        _particles.CreatureEffects.Synchronize(view.World.Replicas.AttachedFx.Entries.Values, view.ParticleAttachment);
+        _particles.CreatureEffects.Synchronize(view.World.Replicas, view.ParticleAttachment);
         _particles.ProjectileEffects.Synchronize(view.GameplayObjects.BowProjectiles?.Entries.Values
             .Where(projectile => projectile.IsBfg && !projectile.Retired && projectile.Flight is { Active: true })
             .Select(projectile =>
@@ -202,16 +232,19 @@ internal sealed partial class InGameScene
                     0, position, flight.Position.Z, ground, flight.Age);
             }) ?? []);
         _particles.ObjectEffects.Synchronize(view.World.WorldObjects, reference =>
-            view.GameplayObjects.Objects.TryGetValue(reference, out var wearer)
+            view.World.Replicas.Objects.TryGetValue(reference, out var creature) && creature.Creature is not null
+                ? view.FxActor(creature)
+                : view.GameplayObjects.Objects.TryGetValue(reference, out var wearer)
                 ? new WorldObjectFxAttachment(new(wearer.Position.X, wearer.Position.Y),
                     wearer.Drop?.Height ?? view.World.OutdoorHeight(wearer.Replica!.BaseState) /
                         (WorldModelPose.Scale * WorldModelPose.CameraProjection.M33),
                     wearer.Definition.ModelDesc.BlockRadius)
                     { Orientation = wearer.Drop?.Orientation ?? Matrix4x4.CreateRotationZ(wearer.RotationRadians),
                         InstanceVersion = wearer.InstanceVersion,
+                        ModelVertices = wearer.Replica is { } replica ? view.FxActor(replica)?.ModelVertices : null,
                         BoneAttachment = wearer.Replica?.Creature is not null
                             ? bone => view.ParticleAttachment(reference, bone) : null }
-                : null, state => view.World.OutdoorHeight(state));
+                : null, state => view.World.OutdoorHeight(state) / (WorldModelPose.Scale * WorldModelPose.CameraProjection.M33));
         _worldLighting.SetNetworkDayFraction(view.World.Replicas.Calendar.DayFraction);
         var positionForZone = view.World.LocalPosition;
         var coord = new SectorCoord((int)MathF.Floor(positionForZone.X / Sector.TileCount), (int)MathF.Floor(positionForZone.Y / Sector.TileCount));

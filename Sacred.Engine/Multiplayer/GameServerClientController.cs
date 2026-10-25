@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 using Sacred.Core.Pax.Hero;
 using Sacred.Core.World;
@@ -16,6 +17,7 @@ namespace Sacred.Engine.Multiplayer;
 /// <summary>Main-thread owner of the transport and verified gameplay dispatch.</summary>
 internal sealed partial class GameServerClientController : IDisposable
 {
+    public GameServerClientController() => WorldReplicas.Consumers.Diagnostics.Log = EngineLog.WriteLine;
     private GoldGameConnection? _connection;
     private GoldFirstContact? _firstContact;
     private readonly Dictionary<ushort, int> _opcodeCounts = [];
@@ -34,6 +36,7 @@ internal sealed partial class GameServerClientController : IDisposable
     public IReadOnlyDictionary<ushort, int> OpcodeCounts => _opcodeCounts;
     public byte PlayerSlot => _connection?.Admission.PlayerSlot ?? 0;
     public bool IsConnected => _connection is { Completion.IsCompleted: false };
+    public IPEndPoint? RemoteEndpoint => IsConnected ? _connection?.RemoteEndpoint : null;
     public bool IsParticipantWorldApproved => _connection is { Completion.IsCompleted: false } connection && connection.Admission.WorldStartup.ParticipantStartApproved;
     private GoldSavedCharacterReferencePlan? _referencePlan;
     private GoldSavedCharacterImportPreparation? _importPreparation;
@@ -161,6 +164,8 @@ internal sealed partial class GameServerClientController : IDisposable
     public bool TrySetOption(string option, string value, out string message)
     {
         message = string.Empty;
+        if (option.Equals("server-consumers", StringComparison.OrdinalIgnoreCase))
+        { message = NetworkConsumerCheats.Execute(value, WorldReplicas); return true; }
         if (!option.Equals("server", StringComparison.OrdinalIgnoreCase)) return false;
         if (value.Equals("status", StringComparison.OrdinalIgnoreCase))
         {

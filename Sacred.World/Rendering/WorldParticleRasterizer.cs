@@ -52,7 +52,7 @@ public sealed class WorldParticleRasterizer(
         {
             if (!atlases.TryGetValue(particle.Sprite.TextureName, out var atlas))
             {
-                try { atlas = await textures.LoadTextureAsync(particle.Sprite.TextureName); }
+                try { atlas = particle.Untextured ? new(string.Empty, 1, 1, [255, 255, 255, 255]) : await textures.LoadTextureAsync(particle.Sprite.TextureName); }
                 catch (FileNotFoundException) { atlas = null; }
                 atlases.Add(particle.Sprite.TextureName, atlas);
             }
@@ -72,8 +72,8 @@ public sealed class WorldParticleRasterizer(
         if (width <= 0 || height <= 0) return;
         var anchor = IsometricProjection.WorldToIso(particle.WorldX, particle.WorldY) + IsometricProjection.TileAnchorOffset;
         var screen = transform.ToScreen(anchor.X, anchor.Y - particle.Height);
-        var cos = particle.Sheared ? 1 : MathF.Cos(particle.Rotation);
-        var sin = particle.Sheared ? 0 : MathF.Sin(particle.Rotation);
+        var cos = particle.Sheared || particle.HealthArc ? 1 : MathF.Cos(particle.Rotation);
+        var sin = particle.Sheared || particle.HealthArc ? 0 : MathF.Sin(particle.Rotation);
         var extentX = particle.GroundAligned
             ? (MathF.Abs(cos) + MathF.Abs(sin)) * width * .5f
             : (MathF.Abs(cos) * width + MathF.Abs(sin) * height) * .5f;
@@ -99,8 +99,15 @@ public sealed class WorldParticleRasterizer(
                 ? .5f - sin * dx / width - cos * dy / height
                 : (-sin * dx + cos * dy) / height + .5f;
             if (u < 0 || u >= 1 || v < 0 || v >= 1) continue;
+            if (particle.HealthArc)
+            {
+                var angle = MathF.Atan2(u - .5f, .5f - v);
+                if (angle < 0) angle += MathF.Tau;
+                if (particle.Rotation <= 0 || angle > particle.Rotation * MathF.Tau) continue;
+            }
             var pixel = y * image.Width + x;
-            if (occlusion is not null && (occlusion.PainterOrder[pixel] > order || occlusion.SurfaceDepths[pixel] > depth)) continue;
+            var pixelDepth = particle.GroundPlaneDepth ? depth + dy / (24 * transform.Zoom) : depth;
+            if (occlusion is not null && (occlusion.PainterOrder[pixel] > order || occlusion.SurfaceDepths[pixel] > pixelDepth)) continue;
             var source = ((cell / columns * cellHeight + (int)(v * cellHeight)) * atlas.Width +
                           cell % columns * cellWidth + (int)(u * cellWidth)) * 4;
             var opacity = particle.CornerColors is { } corners ? corners.Channel(u, v, 24) / 255f : particle.Opacity;

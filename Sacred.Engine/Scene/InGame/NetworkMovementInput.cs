@@ -38,6 +38,7 @@ internal sealed class NetworkMovementInput
     public void NavigateTo(Vector2 target)
     {
         if (_world.Replicas.Session.IsPaused == true) throw new InvalidOperationException("Navigation waits for the server to resume.");
+        if (_world.LocalHero.IsDead) throw new InvalidOperationException("Navigation waits for the server to revive the player.");
         if (_world.LocalHero.Creature?.IsSleeping == true) throw new InvalidOperationException("Navigation waits for the native wake state.");
         _objects.CancelApproach(); _click.NavigateTo(_camera, _collision, target, CollisionCheatMode.Walk);
     }
@@ -46,7 +47,7 @@ internal sealed class NetworkMovementInput
     public bool HasObjectHover => _objects.HasHover;
     public Func<bool>? ControllerInteractionPressed { get; init; }
     public string InteractionStatus => _objects.Status;
-    public bool Interact(uint reference) => _objects.Request(reference);
+    public bool Interact(uint reference) => !_world.LocalHero.IsDead && _objects.Request(reference);
 
     public void Update(InputState input, int width, int height, Func<Vector2, Vector2> outputToViewport,
         float deltaSeconds, bool allowInput = true)
@@ -60,6 +61,12 @@ internal sealed class NetworkMovementInput
             var reported = _world.LocalPosition;
             _camera.CenterOnTile(reported.X, reported.Y);
             _click.StopMoving();
+        }
+        if (_world.LocalHero.IsDead)
+        {
+            Stop(); _objects.ClearHover();
+            _lastReported = _world.LocalPosition; _lastFacingBits = reportedFacing;
+            return;
         }
         if (_world.LocalHero.Creature?.IsSleeping == true)
         {

@@ -35,8 +35,34 @@ internal sealed class NetworkActorPresentation
     private readonly SacredNetworkMovementPlayback _motion = new();
     private uint _locomotionAction = 2;
     private NetworkCombatAnimation? _combat;
+    private NetworkCreatureObjectAnimation? _objectAnimation;
+    private NetworkHitReaction? _hitReaction;
+    private NetworkDeathAnimation? _death;
+    public bool DeathPoseReady => _death?.PoseReady == true;
+    public void ReceiveDeath(GoldReplicatedObject actor, float age, bool corpse)
+    {
+        if (_animation is null || CombatMotionLoader is null) return;
+        _combat?.Interrupt(actor); _combat = null; _objectAnimation = null; _hitReaction = null;
+        _animation.ClearHitReaction(); _conversationVersion = null;
+        _death = new(_animation, actor, age, corpse, CombatMotionLoader, CombatMotionAvailable ?? (_ => false));
+    }
+    public void ReceiveHitReaction(GoldReplicatedObject actor, SacredCreatureClass creatureClass, float age)
+    {
+        if (actor.IsDead || _animation is null || CombatMotionLoader is null) return;
+        _hitReaction ??= new(_animation, CombatMotionLoader);
+        _hitReaction.Receive(actor, creatureClass, age);
+    }
+    public void ReceiveObjectAnimation(GoldObjectAnimationEvent request, GoldReplicatedObject actor, float age, Func<bool> complete)
+    {
+        if (actor.IsDead || _animation is null || CombatMotionLoader is null) return;
+        _combat ??= new(_animation, CombatMotionLoader) { MotionSource = _motionSource };
+        _combat.Interrupt(actor);
+        _objectAnimation ??= new(_animation, CombatMotionLoader);
+        _objectAnimation.Receive(request, actor, age, complete);
+    }
     private readonly IReadOnlyList<GrnBoneDiagnostics> _attachmentBones;
     public Func<uint, Task<GrnAnimationClip?>>? CombatMotionLoader { get; init; }
+    public Func<uint, bool>? CombatMotionAvailable { get; init; }
     public Func<GoldReplicatedObject, GameplayCombatArtAnimation?>? CombatArtSelector { get; init; }
     public Action<GoldReplicatedObject, float>? CombatArtTiming { get; init; }
     public Func<uint, Vector2?>? CombatTargetPosition { get; init; }
@@ -50,6 +76,7 @@ internal sealed class NetworkActorPresentation
     public bool IsLocal { get; init; }
     public Func<Vector2, float>? TerrainHeight { get; init; }
     public SceneModel Model { get; }
+    public long? InstanceVersion => _lastInstanceVersion;
     public bool Animated => _animation?.AnimatedMesh is not null;
     public bool TryGetFxAttachment(string boneName, out Vector3 position)
     {
@@ -69,6 +96,8 @@ internal sealed class NetworkActorPresentation
         return true;
     }
     public bool Moving { get; private set; }
+    public float? MeleeImpactTime(GoldCreatureAttackEvent attack) =>
+        _combat?.MeleeImpactTime is { } timing && ReferenceEquals(timing.Attack, attack) ? timing.Seconds : null;
     public bool TryGetBowRelease(GoldCreatureAttackEvent attack, out Vector3 source, out float age, string boneName = "Bip01 L Hand")
     {
         source = default; age = 0;
@@ -117,7 +146,7 @@ internal sealed class NetworkActorPresentation
     public SacredNpcAnimationTiming? ConversationTiming { get; set; }
     public bool ApplyConversation(SacredNetworkNpcConversationState? state, SacredNetworkNpcConversations conversations)
     {
-        if (_combat?.Active == true) { _conversationVersion = null; return true; }
+        if (_death is not null || _combat?.Active == true || _objectAnimation?.Active == true) { _conversationVersion = null; return true; }
         if (state?.ActionStage is 101 or 102)
         {
             var replacing = _conversationVersion is not null && state.Version != _conversationVersion;
@@ -174,6 +203,24 @@ internal sealed class NetworkActorPresentation
 
     public void Update(GoldReplicatedObject actor, float height, float deltaSeconds)
     {
+        if (actor.IsDead)
+        {
+            if (_lastInstanceVersion != actor.InstanceVersion)
+            {
+                var facing = actor.FacingBits ?? actor.BaseState.Word28;
+                if (float.IsFinite(BitConverter.UInt32BitsToSingle(facing)))
+                    _rotation = SacredNetworkFacing.ToModelRadians(facing);
+            }
+            _death?.Update(deltaSeconds, GlobalAnimationScale);
+            Moving = false;
+            _lastPosition = SacredNetworkPosition.ToTiles(actor.BaseState);
+            _pendingHeight = TerrainHeight?.Invoke(_lastPosition) ?? height;
+            _lastInstanceVersion = actor.InstanceVersion;
+            return;
+        }
+        if (_death is not null) { _death = null; _animation?.StopNpcAnimation(); }
+        _hitReaction?.Update(deltaSeconds, GlobalAnimationScale);
+        _objectAnimation?.Update(actor, deltaSeconds, GlobalAnimationScale);
         if (_combat is null && _animation is not null && CombatMotionLoader is not null)
             _combat = new(_animation, CombatMotionLoader) { MotionSource = _motionSource };
         if (_combat is not null)
@@ -222,7 +269,7 @@ internal sealed class NetworkActorPresentation
         if (LocomotionSpeedResolver is { } resolveSpeed)
             LocomotionPlaybackSpeed = resolveSpeed(actor, _locomotionAction, _motion.Speed);
         _animation?.SetLocomotionState(moving ? _locomotionAction == 1 ? CharacterAnimationStateId.Walk : CharacterAnimationStateId.Run
-            : CharacterAnimationStateId.Idle);
+            : actor.Creature!.IsInFightMode ? CharacterAnimationStateId.FightingIdle : CharacterAnimationStateId.Idle);
         height = TerrainHeight?.Invoke(position) ?? height;
         _pendingHeight = height;
         _lastPosition = position;

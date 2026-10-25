@@ -10,8 +10,28 @@ public sealed class WorldCreatureFxSystem
     private readonly Dictionary<long, Playback> _playing = [];
     private readonly Dictionary<long, string> _pending = [];
     private long _received;
+    private GoldConsumerCursor? _cursor;
     public int ActiveCount => _playing.Values.Count(p => p.Player.ActiveCount > 0);
+    public int TrackedCount => _playing.Count;
     public IReadOnlyDictionary<long, string> Pending => _pending;
+    public void Advance(SacredParticleCatalogue catalogue, float seconds, List<WorldParticle> particles)
+    {
+        if (!float.IsFinite(seconds) || seconds < 0) throw new ArgumentOutOfRangeException(nameof(seconds));
+        Update(catalogue, seconds, ParticleSimulationMode.CpuSimd, null, particles, []);
+    }
+
+    public void Synchronize(GoldWorldReplica world, Func<uint, ushort, WorldObjectFxAttachment?> attachment)
+    {
+        _cursor ??= world.Consumers.CreateCursor("attached-fx", work => work.Value is GoldAttachedFxRequest);
+        if (_cursor.Session != world.Consumers.Session) { _playing.Clear(); _pending.Clear(); _received = 0; }
+        var requests = new List<GoldAttachedFxRequest>();
+        while (world.Consumers.TryPeek(_cursor, out var work))
+        {
+            requests.Add((GoldAttachedFxRequest)work.Value);
+            world.Consumers.Report(_cursor, work, GoldConsumerOutcome.Consumed, "registered independent particle playback; inspect server-fx for asset dependencies");
+        }
+        Synchronize(requests, attachment);
+    }
 
     public void Synchronize(IEnumerable<GoldAttachedFxRequest> requests,
         Func<uint, ushort, WorldObjectFxAttachment?> attachment)
@@ -39,6 +59,8 @@ public sealed class WorldCreatureFxSystem
             }
             if (playback.Retiring) continue;
             var anchor = playback.Bone is { } bone ? attachment(playback.Request.Event.WearerReference, bone) : null;
+            if (anchor is null && SacredFxAttachments.Find(playback.Request.Event.FxSubtype)?.FallbackBone is { } fallback)
+                anchor = attachment(playback.Request.Event.WearerReference, fallback);
             if (anchor is not null || !playback.Started) playback.Anchor = anchor;
             playback.Neck = attachment(playback.Request.Event.WearerReference, 3) is not null;
         }
@@ -62,8 +84,9 @@ public sealed class WorldCreatureFxSystem
                 if (playback.Anchor is null) { _pending[id] = $"Waiting for wearer bone {playback.Bone}."; continue; }
                 if (!TryDefinition(catalogue, playback, out var definition))
                 { _pending[id] = $"Native event selector {request.Selector} for resource {request.Resource} is pending."; continue; }
-                // Nonzero vector operands require a decoded directional/position branch, not preview defaults.
-                if (request.Vector != Vector3.Zero)
+                // Native bone initialization (0x40) or following (0x200) replaces the initial vector.
+                // Other branches still need their explicit directional/position consumer.
+                if (request.Vector != Vector3.Zero && (definition.NativeAttachmentFlags & 0x240) == 0)
                 { _pending[id] = "Native attached-FX vector operands are pending."; continue; }
                 var anchor = playback.Anchor;
                 if (!playback.Player.Start(catalogue, request.Resource, !definition.OneTime,
@@ -97,7 +120,7 @@ public sealed class WorldCreatureFxSystem
     {
         foreach (var playback in _playing.Values) playback.Player.CollectGpuBatches(batches);
     }
-    public void Clear() { _playing.Clear(); _pending.Clear(); _received = 0; }
+    public void Clear() { _playing.Clear(); _pending.Clear(); _received = 0; _cursor = null; }
 
     private sealed class Playback(GoldAttachedFxRequest request, ushort? bone)
     {

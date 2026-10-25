@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using Sacred.Engine.Graphics.ImGui;
 using Sacred.Network.Discovery;
@@ -14,11 +17,21 @@ internal sealed class GameServerDiscoveryController : IDisposable
     private bool _initialized;
     private bool _enabled;
     private bool _attempted;
+    private readonly HashSet<IPAddress> _localAddresses = NetworkInterface.GetAllNetworkInterfaces()
+        .SelectMany(adapter => adapter.GetIPProperties().UnicastAddresses).Select(address => address.Address).ToHashSet();
+
+    public void SeedSession(GameServerClientController client)
+    {
+        if (client.RemoteEndpoint is not { } remote || client.WorldReplicas.Session.GameFlags is not null) return;
+        var server = GoldLanSessionMatch.Find(remote, _listener?.Servers ?? [], _localAddresses);
+        if (server is null || !client.WorldReplicas.Session.SeedAdvertisedGameFlags(server.Flags)) return;
+        EngineLog.WriteLine($"Network session initialized from LAN announcement: {server.Endpoint}; flags 0x{server.Flags:X8}; difficulty {client.WorldReplicas.Session.Difficulty}.");
+    }
 
     public void Update(string gameDirectory, GameServerDebugPanelState panel)
     {
         Initialize(gameDirectory, panel);
-        if (panel.Visible && !_attempted) _enabled = true;
+        if ((panel.Visible || panel.Joining) && !_attempted) _enabled = true;
         if (panel.RefreshDiscoveryRequested)
         {
             panel.RefreshDiscoveryRequested = false;

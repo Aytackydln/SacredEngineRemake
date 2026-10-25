@@ -6,6 +6,7 @@ public sealed class GoldCombatReplica
 {
     private const int HistoryLimit = 256;
     private readonly Queue<GoldCombatNotification> _recent = [];
+    internal event Action<GoldCombatNotification>? Published;
     public IReadOnlyCollection<GoldCombatNotification> Recent => _recent;
     public long Version { get; private set; }
     public long Attacks { get; private set; }
@@ -17,7 +18,7 @@ public sealed class GoldCombatReplica
     public long HealingUpdates { get; private set; }
     public long TextEvents { get; private set; }
 
-    internal void Add(GoldCombatEvent entry, long instanceVersion, int? previousHitPoints)
+    internal void Add(GoldCombatEvent entry, long instanceVersion, int? previousHitPoints, GoldReplicatedObject actor)
     {
         if (entry is GoldCreatureTextEvent) TextEvents++;
         if (entry is GoldCreatureAttackEvent) Attacks++;
@@ -30,8 +31,11 @@ public sealed class GoldCombatReplica
             HealthUpdates++;
             if (previousHitPoints is { } before && health.HitPoints > before) HealingUpdates++;
         }
-        _recent.Enqueue(new(++Version, instanceVersion, entry, previousHitPoints));
+        var notification = new GoldCombatNotification(++Version, instanceVersion, entry, previousHitPoints)
+        { Subject = actor };
+        _recent.Enqueue(notification);
         if (_recent.Count > HistoryLimit) _recent.Dequeue();
+        Published?.Invoke(notification);
     }
 
     public void Clear()
@@ -40,4 +44,7 @@ public sealed class GoldCombatReplica
     }
 }
 
-public sealed record GoldCombatNotification(long Version, long InstanceVersion, GoldCombatEvent Event, int? PreviousHitPoints);
+public sealed record GoldCombatNotification(long Version, long InstanceVersion, GoldCombatEvent Event, int? PreviousHitPoints)
+{
+    public GoldReplicatedObject? Subject { get; init; }
+}

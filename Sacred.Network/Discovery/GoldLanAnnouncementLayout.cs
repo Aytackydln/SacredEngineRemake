@@ -10,6 +10,7 @@ public static class GoldLanAnnouncementLayout
     public const int TcpPortOffset = 2;
     public const int AddressOffset = 4; // UInt32 in host order, unlike sockaddr's network-order address.
     public const int FlagsOffset = 8;
+    // Seeds selected connection +40424 (Gold 7D3DCD); includes difficulty bits 100/200/400/800.
     public const int PlayersOffset = 12;
     public const int MaximumPlayersOffset = 13;
     public const int NameOffset = 14;

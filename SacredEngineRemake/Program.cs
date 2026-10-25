@@ -21,6 +21,13 @@ try
         .WriteTo.Console(outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff} {Level:u3}] {Message:lj}{NewLine}{Exception}")
         .CreateLogger();
 
+    Log.Information("Runtime executable: {Executable}; application directory: {Directory}",
+        Environment.ProcessPath, AppContext.BaseDirectory);
+    var engineAssemblyPath = Path.Combine(AppContext.BaseDirectory, "Sacred.Engine.dll");
+    if (File.Exists(engineAssemblyPath))
+        Log.Information("Engine assembly: {Path}; modified UTC: {Modified:O}",
+            engineAssemblyPath, File.GetLastWriteTimeUtc(engineAssemblyPath));
+
     if (args.Any(argument => string.Equals(argument, "-test-error", StringComparison.OrdinalIgnoreCase)))
     {
         throw new InvalidOperationException("Error reporting test: SacredEngineRemake.error.log should contain this exception and its stack trace.");

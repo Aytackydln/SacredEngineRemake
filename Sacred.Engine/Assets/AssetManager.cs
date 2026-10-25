@@ -15,6 +15,7 @@ using Sacred.Assets.Paks.Mixed;
 using Sacred.Assets.Paks.Models;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Assets.Paks.Tiles;
+using Sacred.Core.GameBin.Balance;
 using Sacred.Core.GameBin.Sets;
 using Sacred.Core.GameRes;
 using Sacred.Core.Pak.Items;
@@ -99,6 +100,8 @@ public sealed partial class AssetManager : IDisposable, IGameplayResourceCatalog
     public SacredCastingCalculator? CastingCalculator { get; init; }
     public SacredAttackSpeedCalculator? AttackSpeedCalculator { get; init; }
     public SacredNpcConversationDefinitions? NpcConversations { get; init; }
+    public SacredCreatureMarkerBalance? CreatureMarkerBalance { get; init; }
+    public SacredCreatureBalance? CreatureBalance { get; init; }
 
     internal AssetManager(
         TexturePakArchive texturePak,

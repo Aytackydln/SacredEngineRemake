@@ -55,6 +55,7 @@ struct vertex_output
     nointerpolation uint atlas_columns : TEXCOORD10;
     nointerpolation uint atlas_rows : TEXCOORD11;
     nointerpolation uint texture_index : TEXCOORD12;
+    nointerpolation float health_fraction : TEXCOORD14;
 
 };
 
@@ -96,6 +97,7 @@ vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_Instan
         float sine;
         float cosine;
         float angle = instance.particle_rotation;
+        if ((instance.particle_sprite & 2048u) != 0) angle = 0;
         bool portal_whirl = (instance.particle_sprite & 48u) != 0;
         if (portal_whirl)
             angle = animation_time * ((instance.particle_sprite & 16u) != 0 ? 0.3f : 0.4f);
@@ -129,6 +131,9 @@ vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_Instan
 
     vertex_output output;
     float depth = instance.depth + uv.y * instance.depth_span;
+    if ((instance.particle_sprite & 8192u) != 0)
+        depth = instance.depth + (pixel.y - instance.rect.y - instance.rect.w * 0.5f) /
+            max(instance.rect.w, 0.0001f) * instance.depth_span;
     output.position = float4(clip, depth, 1.0f);
     output.tex_coord = uv;
     output.depth = depth;
@@ -152,6 +157,7 @@ vertex_output vs_main(uint vertex_id : SV_VertexID, uint instance_id : SV_Instan
     output.atlas_columns = instance.atlas_columns;
     output.atlas_rows = instance.atlas_rows;
     output.texture_index = first_texture_descriptor + instance.texture_index;
+    output.health_fraction = instance.particle_rotation;
 
     return output;
 }

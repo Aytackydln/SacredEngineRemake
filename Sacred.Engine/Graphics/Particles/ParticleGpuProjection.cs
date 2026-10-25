@@ -50,11 +50,13 @@ internal static class ParticleGpuProjection
                 Math.Clamp(.5f-(depth-WorldPainterDepth.FromWorld(camera.ViewCenter))/4096,.2f,.72f),
                 texture,(uint)particle.Sprite.FrameCount,(uint)particle.AtlasCell,0,0,
                 1u|(particle.Additive?2u:0u)|(particle.SourceColorOnly?4u:0u)|(particle.GroundAligned?128u:0u)|
-                (particle.CornerColors.HasValue?256u:0u)|(particle.Sheared?512u:0u)|(particle.Untextured?1024u:0u),0,0,
+                (particle.CornerColors.HasValue?256u:0u)|(particle.Sheared?512u:0u)|(particle.Untextured?1024u:0u)|
+                (particle.HealthArc?2048u:0u)|(particle.UiBrightness?4096u:0u)|(particle.GroundPlaneDepth?8192u:0u),0,0,
                 ((color>>16)&255)/255f,((color>>8)&255)/255f,(color&255)/255f,particle.Opacity,
                 (uint)particle.Sprite.AtlasColumns,(uint)particle.Sprite.AtlasRows)
                 {
                     ParticleRotation=particle.Rotation,
+                    DepthSpan=particle.GroundPlaneDepth ? -particle.RenderHeight / (24f * 4096f) : 0,
                     CornerColor0=particle.CornerColors?.Color0??0,
                     CornerColor1=particle.CornerColors?.Color1??0,
                     CornerColor2=particle.CornerColors?.Color2??0,

@@ -32,6 +32,8 @@ public static class SacredParticleCatalogueReader
             if (!name.StartsWith("TYPE_FX_", StringComparison.Ordinal)) continue;
             var definition = reader.Read(typeId, name, address, cancellationToken);
             definitions.Add(definition);
+            events.AddRange(NativeHitFlashEventReader.Read(image, code, definition));
+            events.AddRange(NativeDeflectionEventReader.Read(definition));
             events.AddRange(NativeMineSignEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeBloodFountainEventReader.Read(image, code, definition, options.Quality, cancellationToken));
             events.AddRange(NativeEmperorEventReader.Read(image, code, definition, options.Quality, cancellationToken));

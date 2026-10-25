@@ -6,7 +6,8 @@ public enum CharacterMotionKind
     Walk,
     Run,
     Defend,
-    Attack
+    Attack,
+    FightingIdle
 }
 
 /// <summary>

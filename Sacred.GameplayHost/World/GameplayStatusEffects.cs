@@ -16,11 +16,13 @@ public sealed class GameplayStatusEffects
     private readonly Dictionary<long, GameplayStatusEffect> _effects = [];
     private readonly Dictionary<uint, PendingAction> _actions = [];
     private readonly SacredParticleCatalogue _particles = SacredParticleCatalogue.LoadEmbedded();
-    private long _received, _generation;
+    private long _generation;
+    private readonly GoldConsumerCursor _cursor;
 
     public GameplayStatusEffects(GoldWorldReplica world, Action<string> log)
     {
         (_world, _log) = (world, log);
+        _cursor = world.Consumers.CreateCursor("status-fx", work => work.Value is GoldCombatNotification);
         Entries = new ReadOnlyDictionary<long, GameplayStatusEffect>(_effects);
     }
     public IReadOnlyDictionary<long, GameplayStatusEffect> Entries { get; }
@@ -45,10 +47,10 @@ public sealed class GameplayStatusEffects
                 _log($"Status FX retired: owner {effect.Owner}; art {effect.Definition.Code}; generation {id}.");
             }
         }
-        foreach (var notification in _world.Combat.Recent)
+        while (_world.Consumers.TryPeek(_cursor, out var work))
         {
-            if (notification.Version <= _received) continue;
-            _received = notification.Version;
+            var notification = (GoldCombatNotification)work.Value;
+            _world.Consumers.Report(_cursor, work, GoldConsumerOutcome.Consumed, "status action delivery");
             var (kind, code, target) = notification.Event switch
             {
                 GoldCreatureCastEvent cast => (SacredCombatArtKind.Spell, cast.Code, cast.TargetReference),
@@ -167,7 +169,7 @@ public sealed class GameplayStatusEffects
     {
         _effects.Clear();
         _actions.Clear();
-        _received = _world.Combat.Version;
+        _world.Consumers.ResetToPresent(_cursor);
     }
     private sealed class PendingAction(GoldCombatNotification notification, SacredCombatArtKind kind, uint code, uint target, long? targetInstance)
     {

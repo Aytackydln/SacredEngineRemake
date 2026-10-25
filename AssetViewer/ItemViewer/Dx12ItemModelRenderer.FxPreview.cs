@@ -14,6 +14,7 @@ internal sealed partial class Dx12ItemModelRenderer
     private FxPreviewPlayback? _fxPreview;
     private ModelGpuMesh? _fxMesh;
     private ID3D12PipelineState _fxAlphaPipelineState = null!;
+    private ID3D12PipelineState _fxLinePipelineState = null!;
     private long _lastFxTimestamp;
 
     public void SetFxPreview(FxPreviewPlayback? preview)
@@ -68,18 +69,21 @@ internal sealed partial class Dx12ItemModelRenderer
         foreach (var draw in _fxPreview.Draws)
         {
             var texture = ResolveTexture(draw.TextureName);
-            if (texture is null) continue;
-            _commandList.SetPipelineState(draw.UsesModelLighting ? _transparentModelPipelineState : draw.Additive ? _itemParticlePipelineState : _fxAlphaPipelineState);
+            if (texture is null && !draw.Untextured) continue;
+            _commandList.IASetPrimitiveTopology(draw.LineStrip ? PrimitiveTopology.LineStrip : PrimitiveTopology.TriangleList);
+            _commandList.SetPipelineState(draw.LineStrip ? _fxLinePipelineState : draw.UsesModelLighting ? _transparentModelPipelineState : draw.Additive ? _itemParticlePipelineState : _fxAlphaPipelineState);
             // The ordinary model shader consumes WVP; particle shaders apply world themselves.
             _modelShaderConstants.WriteModelBase(constants, draw.UsesModelLighting ? world * projection : projection, world, draw.Color);
             var flags = constants + ModelShaderLayout.TextureFlagsOffset;
             flags[0] = (float)draw.Mode;
             flags[1] = ModelShaderLayout.PreserveProjectedDepth;
-            flags[2] = (draw.SourceColorOnly ? 0x10 : 0) | (draw.UsesCornerTint ? 0x200 : 0);
+            flags[2] = (draw.SourceColorOnly ? 0x10 : 0) | (draw.UsesCornerTint ? 0x200 : 0) |
+                (draw.Untextured ? 0x400 : 0);
             flags[3] = (float)_fxPreview.Encoding(draw.TextureName);
             _commandList.SetGraphicsRoot32BitConstants(ModelShaderLayout.ModelConstantsRootParameter,
                 ModelShaderLayout.ModelConstantsCount, constants, 0);
-            _commandList.SetGraphicsRootDescriptorTable(ModelShaderLayout.ModelTextureRootParameter, SrvGpuHandle(texture.SrvSlot));
+            _commandList.SetGraphicsRootDescriptorTable(ModelShaderLayout.ModelTextureRootParameter,
+                SrvGpuHandle(texture?.SrvSlot ?? FallbackTextureSlot));
             var overlay = ResolveTexture(draw.OverlayTextureName);
             _commandList.SetGraphicsRootDescriptorTable(ModelShaderLayout.ModelOverlayTextureRootParameter,
                 SrvGpuHandle(overlay?.SrvSlot ?? FallbackTextureSlot));

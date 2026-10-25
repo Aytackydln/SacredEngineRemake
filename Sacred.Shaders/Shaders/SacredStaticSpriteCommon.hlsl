@@ -71,6 +71,13 @@ float4 sample_portal_surface(Texture2D texture_to_sample, vertex_output input)
 
 float4 sample_static_texture(Texture2D texture_to_sample, vertex_output input)
 {
+    // All SDR/HDR texture encodings must apply the same health-fan coverage.
+    if ((input.particle_sprite & 2048u) != 0)
+    {
+        float angle = atan2(input.tex_coord.x - 0.5f, 0.5f - input.tex_coord.y);
+        if (angle < 0) angle += 6.28318530718f;
+        if (input.health_fraction <= 0 || angle > input.health_fraction * 6.28318530718f) discard;
+    }
     if ((input.particle_sprite & 1024u) != 0) return 1.0f.xxxx;
     if ((input.particle_sprite & 64u) != 0)
         return sample_portal_surface(texture_to_sample, input);

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Sacred.Network.Protocol;
 
 namespace Sacred.Network.Gameplay;
 
@@ -22,6 +23,7 @@ public sealed class GoldRegionCountdownReplica
     public IReadOnlyDictionary<byte, GoldRegionCountdown> Regions { get; }
     public IReadOnlyList<GoldRegionCountdownWarning> Warnings { get; }
     public long ReceivedCount { get; private set; }
+    internal event Action<GoldRegionCountdownWarning, GoldMessage>? Published;
     internal void Apply(GoldRegionCountdownEvent incoming)
     {
         var entry = (GoldRegionCountdownEvent)GoldReceiveActionCodec.Decode(incoming.Message);
@@ -32,7 +34,8 @@ public sealed class GoldRegionCountdownReplica
         {
             // The current latch is set before Gold scans records 1..9 for the resource selection.
             var all = Enumerable.Range(1, 9).All(i => _regions.GetValueOrDefault((byte)i)?.WarningIssued == true);
-            _warnings.Add(new(entry.RegionIndex, all ? "UI_REGION_ANCARIA" : "UI_REGION_FINALBATTLE"));
+            var warning = new GoldRegionCountdownWarning(entry.RegionIndex, all ? "UI_REGION_ANCARIA" : "UI_REGION_FINALBATTLE");
+            _warnings.Add(warning); Published?.Invoke(warning, entry.Message);
         }
         ReceivedCount++;
     }

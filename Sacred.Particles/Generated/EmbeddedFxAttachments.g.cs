@@ -6,6 +6,7 @@ internal static class EmbeddedFxAttachments
     internal static readonly IReadOnlyList<SacredFxAttachmentDefinition> Definitions = Array.AsReadOnly<SacredFxAttachmentDefinition>([
         new(1u, 0, true, 0x5A49D3u),
         new(2u, 0, false, 0x5A49B1u),
+        new(10u, 3, false, 0x5A5354u) { FallbackBone = 0 },
         new(17u, 0, false, 0x5A5436u),
         new(19u, 15, false, 0x5A4F75u),
         new(20u, 2, false, 0x5A556Eu),

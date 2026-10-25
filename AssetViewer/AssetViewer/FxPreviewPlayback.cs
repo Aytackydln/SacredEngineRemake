@@ -44,6 +44,7 @@ internal sealed class FxPreviewPlayback
     private readonly FxStrikeSymbolPreview? _strikeSymbol;
     private readonly FxRingShieldPreview? _ringShield;
     private readonly FxConfusionPreview? _confusion;
+    private readonly FxDeflectionPreview? _deflection;
     private readonly FxUnderworldGlyphPreview? _glyph;
     private readonly FxPreviewDraw[] _drawSlots = [];
     private readonly List<FxPreviewDraw> _draws = [];
@@ -79,33 +80,22 @@ internal sealed class FxPreviewPlayback
         _eventStrength = eventStrength;
         _hasActor = actor?.Mesh is not null;
         _attachmentPoint = attachments?.Line is null ? attachments?.Point ?? Vector3.Zero : Vector3.Zero;
+        if (definition.Deflection is { } deflection && actor is not null)
+        {
+            _attachmentPoint = FxPreviewDeflectionInputs.Resolve(actor, deflection, catalogue.Projection);
+            _deflection = new(deflection, catalogue.Projection, _attachmentPoint, _manualParticleSeed);
+            Mesh = _deflection.Mesh;
+            return;
+        }
         if (definition.LineEmission is not null && actor is not null)
             _line = parameters.ResolveLine(attachments?.Line ?? FxPreviewLineInputs.Create(actor, catalogue.Projection));
         if (definition.ModelBurstCount > 0 && actor?.Mesh is { } actorMesh)
-        {
-            var projection = catalogue.Projection;
-            _seeds = actorMesh.Vertices.Select(vertex => new Vector3(
-                vertex.Position.X / projection.HorizontalScale,
-                -vertex.Position.Y / (MathF.Sqrt(2) * projection.GroundDepthFactor * projection.VerticalScale),
-                vertex.Position.Z / (MathF.Sqrt(2) * projection.HeightFactor * projection.VerticalScale))).ToArray();
-        }
+            _seeds = FxPreviewParticleMesh.NativeSeeds(actorMesh, catalogue.Projection);
         // Empty paths have no draws, but Direct3D buffers still require nonzero storage.
         var capacity = Math.Max(1, checked(_origins.Count * (definition.Capacity * (1 + definition.AdditionalDraws.Count) +
             (definition.Halo is null ? 0 : 1) + definition.AdditionalHalos.Count + (definition.Emperor is null ? 0 : 1))));
         capacity += _expandingBurst?.Capacity ?? 0;
-        if (capacity > ushort.MaxValue / 4) throw new NotSupportedException("FX exceeds the preview index capacity.");
-        var indices = new ushort[capacity * 6];
-        for (var index = 0; index < capacity; index++)
-        {
-            var vertex = index * 4;
-            var start = index * 6;
-            indices[start] = (ushort)vertex; indices[start + 1] = (ushort)(vertex + 1);
-            indices[start + 2] = (ushort)(vertex + 2); indices[start + 3] = (ushort)(vertex + 2);
-            indices[start + 4] = (ushort)(vertex + 1); indices[start + 5] = (ushort)(vertex + 3);
-        }
-        Mesh = new(new VertexPositionNormalTexture[capacity * 4], indices);
-        _drawSlots = Enumerable.Range(0, capacity).Select(index => new FxPreviewDraw
-            { IndexStart = index * 6, IndexCount = 6 }).ToArray();
+        (Mesh, _drawSlots) = FxPreviewParticleMesh.Create(capacity);
         Start();
         // Cast trails open after the actor bursts have scattered into sparks.
         // Other finite bursts are captured near birth; continuous emitters fill before fitting.
@@ -225,6 +215,7 @@ internal sealed class FxPreviewPlayback
     }
     public void RequestHit()
     {
+        if (_deflection is not null) { _deflection.Restart(); return; }
         if ((_definition?.Emperor is not null || _definition?.MineSign is not null) &&
             _player.RequestHit(_definition.TypeId, _definition.Preset!.Value)) return;
         if (_pulseFlare is not null) { _pulseFlare.RequestHit(); return; }
@@ -284,44 +275,35 @@ internal sealed class FxPreviewPlayback
                 yield return ToModel(path.Start);
                 yield return ToModel(path.End);
             }
-            if (_definition?.Teleport is not { } teleport) yield break;
-            var projection = _catalogue.Projection;
-            var extent = teleport.OrbitEnergy * Math.Max(projection.HorizontalScale, projection.VerticalScale);
-            foreach (var x in new[] { -teleport.OrbitRadius, teleport.OrbitRadius })
-            foreach (var y in new[] { -teleport.OrbitRadius, teleport.OrbitRadius })
-            foreach (var z in new[] { 0f, 2 * teleport.BaseHeight })
-            {
-                var ground = IsometricProjection.IsoToWorld(projection.Project(new(x, y, 0)));
-                var center = new Vector3(IsometricProjection.WorldToModel(ground.X, ground.Y),
-                    z * projection.HeightFactor * projection.VerticalScale * MathF.Sqrt(2));
-                yield return center - new Vector3(extent);
-                yield return center + new Vector3(extent);
-            }
+            foreach (var point in FxPreviewBurstBounds.Points(_definition, _catalogue.Projection, _attachmentPoint, _manualParticleSeed))
+                yield return point;
         }
     }
     public bool Playing { get; set; } = true;
     public IReadOnlyList<WorldParticle> Particles => _particles;
-    public IReadOnlyList<FxPreviewDraw> Draws => _stoned is { } stoned ? stoned.Draws : _doorSpike is { } doorSpike ? doorSpike.Draws : _ringSurface is { } ringSurface ? ringSurface.Draws : _warCrySign is { } sign ? sign.Draws : _pulseFlare is { } pulse ? pulse.Draws : _columnFlare is { } column ? column.Draws : _spriteFlare is { } sprite ? sprite.Draws : _controlledFlare is { } controlled ? controlled.Draws : _portal is { } portal ? portal.Draws : _elementStone is { } stone ? stone.Draws : _forgeElement is { } forge ? forge.Draws : _glyph is { } glyph ? glyph.Draws : _pong is { } pong ? pong.Draws : _anducar is { } anducar ? anducar.Draws : _layeredFlare is { } layered ? layered.Draws : _strikeSymbol is { } strike ? strike.Draws : _ringShield is { } ring ? ring.Draws : _confusion is { } confusion ? confusion.Draws : _draws;
+    public IReadOnlyList<FxPreviewDraw> Draws => _deflection is { } deflect ? deflect.Draws : _stoned is { } stoned ? stoned.Draws : _doorSpike is { } doorSpike ? doorSpike.Draws : _ringSurface is { } ringSurface ? ringSurface.Draws : _warCrySign is { } sign ? sign.Draws : _pulseFlare is { } pulse ? pulse.Draws : _columnFlare is { } column ? column.Draws : _spriteFlare is { } sprite ? sprite.Draws : _controlledFlare is { } controlled ? controlled.Draws : _portal is { } portal ? portal.Draws : _elementStone is { } stone ? stone.Draws : _forgeElement is { } forge ? forge.Draws : _glyph is { } glyph ? glyph.Draws : _pong is { } pong ? pong.Draws : _anducar is { } anducar ? anducar.Draws : _layeredFlare is { } layered ? layered.Draws : _strikeSymbol is { } strike ? strike.Draws : _ringShield is { } ring ? ring.Draws : _confusion is { } confusion ? confusion.Draws : _draws;
     public bool IsPortal => _portal is not null;
     public bool HasSurfaceGeometry => _stoned is not null || _doorSpike is not null || _expandingBurst is not null || _ringSurface is not null || _warCrySign is not null || _pulseFlare is not null || _columnFlare is not null || _spriteFlare is not null || _controlledFlare is not null || _portal is not null || _elementStone is not null || _forgeElement is not null || _glyph is not null || _pong is not null || _anducar is not null || _layeredFlare is not null || _strikeSymbol is not null || _ringShield is not null || _confusion is not null;
-    public Vector3 VertexExtent(int index) => _stoned is not null || _doorSpike is not null || _expandingBurst is not null && index >= (_drawSlots.Length - _expandingBurst.Capacity) * 4 || _ringSurface is not null || _warCrySign is not null || _pulseFlare?.IsBillboardVertex(index) == false || _columnFlare is not null || _spriteFlare?.IsBillboardVertex(index) == false || _controlledFlare is not null || IsPortal || _confusion is not null || _ringShield is not null || _layeredFlare is not null || _anducar is not null || _forgeElement is not null || _strikeSymbol?.IsBillboardVertex(index) == false || _elementStone?.IsBillboardVertex(index) == false || _glyph?.IsBillboardVertex(index) == false || _pong?.IsBillboardVertex(index) == false
+    public Vector3 VertexExtent(int index) => _deflection is not null || _stoned is not null || _doorSpike is not null || _expandingBurst is not null && index >= (_drawSlots.Length - _expandingBurst.Capacity) * 4 || _ringSurface is not null || _warCrySign is not null || _pulseFlare?.IsBillboardVertex(index) == false || _columnFlare is not null || _spriteFlare?.IsBillboardVertex(index) == false || _controlledFlare is not null || IsPortal || _confusion is not null || _ringShield is not null || _layeredFlare is not null || _anducar is not null || _forgeElement is not null || _strikeSymbol?.IsBillboardVertex(index) == false || _elementStone?.IsBillboardVertex(index) == false || _glyph?.IsBillboardVertex(index) == false || _pong?.IsBillboardVertex(index) == false
         ? Vector3.Zero : new Vector3(new Vector2(Mesh.Vertices[index].Normal.X, Mesh.Vertices[index].Normal.Y).Length());
     public ParticleEmissionLine? EmissionLine => _line ?? _castPath;
     public float? CastDistance { get; }
     public IReadOnlyList<Vector3> SampleOrigins => _origins;
-    public string PrimitiveDescription => _stoned is not null ? $"Stoned: {_stoned.Draws.Count} models, age={_stoned.ElapsedTime:R}, active={_stoned.Active}" : _doorSpike is not null ? $"Door Spike: {_doorSpike.Draws.Count} models, phase={_doorSpike.Phase}, active={_doorSpike.Active}" : _ringSurface is not null ? $"Native ring surfaces: {_ringSurface.Draws.Count} passes, phase={_ringSurface.Phase}, active={_ringSurface.Active}" : _warCrySign is not null ? $"War Cry Sign: {_warCrySign.Draws.Count} passes, phase={_warCrySign.Phase}, active={_warCrySign.Active}" : _pulseFlare is not null ? $"Native flare passes: {_pulseFlare.Draws.Count}, active={_pulseFlare.Active}" : _columnFlare is not null ? $"Column flares: {_columnFlare.Draws.Count}, phase={_columnFlare.Phase}, active={_columnFlare.Active}" : _spriteFlare is not null ? $"Sprite flares: {_spriteFlare.Draws.Count}, active={_spriteFlare.Active}" : _controlledFlare is not null ? $"Controlled ground flares: {_controlledFlare.Draws.Count}, active={_controlledFlare.Active}" : _confusion is not null ? $"2 ground planes, 2 helical ribbons, active={_confusion.Active}" : IsPortal ? "3 portal layers" : _elementStone is not null ? "model, 3 beams, flicker plane, 2 flares"
+    public string PrimitiveDescription => _deflection is not null ? $"Deflection: {_deflection.Draws.Count} line strips ({_deflection.Mesh.Vertices.Length} vertices), active={_deflection.Active}" : _stoned is not null ? $"Stoned: {_stoned.Draws.Count} models, age={_stoned.ElapsedTime:R}, active={_stoned.Active}" : _doorSpike is not null ? $"Door Spike: {_doorSpike.Draws.Count} models, phase={_doorSpike.Phase}, active={_doorSpike.Active}" : _ringSurface is not null ? $"Native ring surfaces: {_ringSurface.Draws.Count} passes, phase={_ringSurface.Phase}, active={_ringSurface.Active}" : _warCrySign is not null ? $"War Cry Sign: {_warCrySign.Draws.Count} passes, phase={_warCrySign.Phase}, active={_warCrySign.Active}" : _pulseFlare is not null ? $"Native flare passes: {_pulseFlare.Draws.Count}, active={_pulseFlare.Active}" : _columnFlare is not null ? $"Column flares: {_columnFlare.Draws.Count}, phase={_columnFlare.Phase}, active={_columnFlare.Active}" : _spriteFlare is not null ? $"Sprite flares: {_spriteFlare.Draws.Count}, active={_spriteFlare.Active}" : _controlledFlare is not null ? $"Controlled ground flares: {_controlledFlare.Draws.Count}, active={_controlledFlare.Active}" : _confusion is not null ? $"2 ground planes, 2 helical ribbons, active={_confusion.Active}" : IsPortal ? "3 portal layers" : _elementStone is not null ? "model, 3 beams, flicker plane, 2 flares"
         : _forgeElement is not null ? $"Forge phase {_forgeElement.Phase}: model, 2 ground flares, cylindrical strip"
         : _glyph is not null ? "2 glyph model passes, 20 ribbons, glow" : _ringShield is not null ? $"Shield surfaces: {_ringShield.Draws.Count}, phase={_ringShield.Phase}, active={_ringShield.Active}" : _strikeSymbol is not null ? $"Strike sprite: frame {_strikeSymbol.TextureFrame}, active={_strikeSymbol.Active}" : _layeredFlare is not null ? $"Ground flares: {_layeredFlare.Draws.Count} layers, active={_layeredFlare.Active}" : _anducar is not null ? $"Anducar: {_anducar.Draws.Count} model passes" : _pong is not null ? "Pong paddle: scrolling box surface and 12 glow lines" : $"{_particles.Count} particles";
-    public IReadOnlyList<string> TextureNames => _stoned?.TextureNames ?? _doorSpike?.TextureNames ?? _ringSurface?.TextureNames ?? _warCrySign?.TextureNames ?? _pulseFlare?.TextureNames ?? _columnFlare?.TextureNames ?? _spriteFlare?.TextureNames ?? _controlledFlare?.TextureNames ?? _portal?.TextureNames ?? _elementStone?.TextureNames ?? _forgeElement?.TextureNames ?? _glyph?.TextureNames ?? _pong?.TextureNames ?? _anducar?.TextureNames ?? _layeredFlare?.TextureNames ?? _strikeSymbol?.TextureNames ?? _ringShield?.TextureNames ?? _confusion?.TextureNames ?? new[] { _definition.Draw!.TextureName, _definition.Halo?.TextureName }
+    public IReadOnlyList<string> TextureNames => _deflection is not null ? [] : _stoned?.TextureNames ?? _doorSpike?.TextureNames ?? _ringSurface?.TextureNames ?? _warCrySign?.TextureNames ?? _pulseFlare?.TextureNames ?? _columnFlare?.TextureNames ?? _spriteFlare?.TextureNames ?? _controlledFlare?.TextureNames ?? _portal?.TextureNames ?? _elementStone?.TextureNames ?? _forgeElement?.TextureNames ?? _glyph?.TextureNames ?? _pong?.TextureNames ?? _anducar?.TextureNames ?? _layeredFlare?.TextureNames ?? _strikeSymbol?.TextureNames ?? _ringShield?.TextureNames ?? _confusion?.TextureNames ?? new[] { _definition.Draw!.TextureName, _definition.Halo?.TextureName }
         .OfType<string>().Concat(_definition.AdditionalDraws.Select(draw => draw.TextureName))
         .Concat(_definition.AdditionalHalos.Select(halo => halo.TextureName))
         .Concat(_definition.Emperor is { } emperor ? [emperor.FlareTexture] : [])
-        .Concat(_expandingBurst?.TextureNames ?? []).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        .Concat(_expandingBurst?.TextureNames ?? []).Where(name => !string.IsNullOrWhiteSpace(name))
+        .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     public SacredTextureChannelEncoding Encoding(string texture) => _encodings.GetValueOrDefault(texture);
     public void SetTexture(TextureAsset texture) => _encodings[texture.Name] = SacredTextureChannelAnalyzer.Analyze(texture.Rgba8);
 
     private void Start()
     {
+        if (_deflection is not null) { _deflection.Restart(); return; }
         if (_stoned is not null) { _stoned.Restart(); return; }
         if (_doorSpike is not null) { _doorSpike.Restart(); return; }
         if (_ringSurface is not null) { _ringSurface.Restart(); return; }
@@ -388,6 +370,7 @@ internal sealed class FxPreviewPlayback
 
     public void Advance(float seconds)
     {
+        if (_deflection is not null) { _deflection.Advance(seconds, !_seeking); return; }
         if (_stoned is not null) { _stoned.Advance(seconds); return; }
         if (_doorSpike is not null) { _doorSpike.Advance(seconds); return; }
         if (_ringSurface is not null) { _ringSurface.Advance(seconds); return; }
@@ -415,37 +398,9 @@ internal sealed class FxPreviewPlayback
         _draws.Clear();
         for (var index = 0; index < _particles.Count; index++)
         {
-            var particle = _particles[index];
             var draw = _drawSlots[index];
-            draw.TextureName = particle.Sprite.TextureName;
-            draw.Additive = particle.Additive;
-            draw.SourceColorOnly = particle.SourceColorOnly;
-            var color = particle.Color;
-            draw.UsesCornerTint = particle.CornerColors is not null;
-            if (draw.UsesCornerTint) color = (color & 0xFF000000) | 0xFFFFFF;
-            draw.Color = new((color >> 16 & 255) / 255f, (color >> 8 & 255) / 255f,
-                (color & 255) / 255f, (color >> 24) / 255f);
+            FxPreviewParticleMesh.Write(_particles[index], draw, Mesh, index);
             _draws.Add(draw);
-            var ground = IsometricProjection.WorldToModel(particle.WorldX, particle.WorldY);
-            var center = new Vector3(ground, particle.Height * MathF.Sqrt(2));
-            var halfWidth = particle.Size * .5f;
-            var halfHeight = particle.RenderHeight * .5f;
-            var sine = MathF.Sin(particle.Rotation); var cosine = MathF.Cos(particle.Rotation);
-            var side = particle.Sprite.AtlasColumns;
-            var cell = particle.AtlasCell;
-            for (var corner = 0; corner < 4; corner++)
-            {
-                var u = corner / 2; var v = corner % 2;
-                var x = (u * 2 - 1) * halfWidth; var y = (v * 2 - 1) * halfHeight;
-                var offset = particle.GroundAligned
-                    ? new Vector2(((u * 2 - 1) * cosine + (v * 2 - 1) * sine) * halfWidth,
-                        ((u * 2 - 1) * sine - (v * 2 - 1) * cosine) * halfHeight)
-                    : new Vector2(x * cosine - y * sine, x * sine + y * cosine);
-                Mesh.Vertices[index * 4 + corner] = new(center,
-                    new(offset.X, offset.Y,
-                        particle.CornerColors is { } colors ? (colors[corner] & 0xFFFFFF) + 1 : 1),
-                    new((cell % side + u) / (float)side, (cell / side + 1 - v) / (float)particle.Sprite.AtlasRows));
-            }
         }
         _expandingBurst?.Append(Mesh, _drawSlots.Length - _expandingBurst.Capacity, _draws);
         Mesh.NotifyVerticesChanged();

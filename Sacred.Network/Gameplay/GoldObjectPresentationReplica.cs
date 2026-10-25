@@ -8,6 +8,7 @@ public sealed class GoldObjectPresentationReplica
     private readonly List<GoldObjectPresentationWork> _pending = [];
     public GoldObjectPresentationReplica() => Pending = _pending.AsReadOnly();
     public IReadOnlyList<GoldObjectPresentationWork> Pending { get; }
+    internal event Action<GoldObjectPresentationWork>? Published;
     public long MissingOrInactiveCount { get; private set; }
     public long AlreadyClosedCount { get; private set; }
     internal bool Apply(GoldGameEvent entry, Dictionary<uint, GoldReplicatedObject> objects)
@@ -28,7 +29,20 @@ public sealed class GoldObjectPresentationReplica
         var changed = obj with { BaseState = obj.BaseState with { Flags = flags } };
         objects[reference] = changed;
         _pending.Add(new(decoded, changed));
+        Published?.Invoke(_pending[^1]);
         return true;
     }
     internal void Clear() { _pending.Clear(); MissingOrInactiveCount = AlreadyClosedCount = 0; }
+    internal static bool Complete(GoldObjectPresentationWork work, uint motion, Dictionary<uint, GoldReplicatedObject> objects)
+    {
+        var reference = work.Object.BaseState.ObjectReference;
+        if (!objects.TryGetValue(reference, out var current) || current.InstanceVersion != work.Object.InstanceVersion ||
+            current.Physical is null || (current.BaseState.Flags & GoldObjectLifecycleLayout.InactiveFlag) != 0) return false;
+        if (current.PositionVersion != work.Object.PositionVersion && current.PositionOpcode is >= 0x169 and <= 0x16E) return false;
+        var flags = current.BaseState.Flags | GoldObjectPresentationCodec.AnimationChangedFlag;
+        if (work.Event is GoldContainerCloseEvent) flags |= GoldContainerActivationCodec.ActivatedFlag;
+        objects[reference] = current with { Physical = current.Physical.WithAnimation(motion),
+            BaseState = current.BaseState with { Flags = flags }, ActivationVersion = current.ActivationVersion + 1 };
+        return true;
+    }
 }

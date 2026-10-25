@@ -10,6 +10,8 @@ public static class GoldObjectStateLayout
     public const int TypeOffset = 8;
     /// <summary>Native +0x14, including inactive/removal bit 0x10 and container opened/broken bit 0x4000.</summary>
     public const int FlagsOffset = 12;
+    /// <summary>Gold corpse cleanup hides the model with native +14 bit 28, without retiring its reference.</summary>
+    public const uint HiddenFlag = 0x10000000;
     public const int SectorOffset = 16;
     public const int XOffset = 18;
     public const int YOffset = 22;

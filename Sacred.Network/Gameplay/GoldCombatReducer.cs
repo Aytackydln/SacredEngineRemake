@@ -18,7 +18,7 @@ internal static class GoldCombatReducer
         };
         var current = actor.CurrentHitPoints ?? actor.Values?.CurrentHitPoints;
         combat.Add(owned, actor.InstanceVersion, owned is GoldCreatureHealthEvent
-            ? actor.ReportedHitPoints ?? current : current);
+            ? actor.ReportedHitPoints ?? current : current, actor);
         objects[entry.ObjectReference] = owned switch
         {
             GoldCreatureSleepEvent sleep => actor with
@@ -30,6 +30,7 @@ internal static class GoldCombatReducer
             },
             GoldCreatureHealthEvent health => actor with
             {
+                Death = health.HitPoints > 0 ? null : actor.Death,
                 CurrentHitPoints = health.HitPoints,
                 ReportedHitPoints = health.HitPoints,
                 Values = actor.Values?.WithCurrentHitPoints(health.HitPoints)

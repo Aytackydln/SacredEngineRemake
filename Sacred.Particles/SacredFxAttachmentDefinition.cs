@@ -4,7 +4,10 @@ namespace Sacred.Particles;
 
 /// <summary>Native cObjectFX attachment branch, extracted independently of particle resource IDs.</summary>
 public sealed record SacredFxAttachmentDefinition(uint FxSubtype, ushort Bone, bool BoneFromSelector,
-    uint NativeAddress);
+    uint NativeAddress)
+{
+    public ushort? FallbackBone { get; init; }
+}
 
 public static class SacredFxAttachments
 {

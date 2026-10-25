@@ -14,6 +14,8 @@ internal sealed class FxPreviewDraw
     public bool Additive { get; set; }
     public bool SourceColorOnly { get; set; }
     public bool UsesCornerTint { get; set; }
+    public bool Untextured { get; set; }
+    public bool LineStrip { get; set; }
     public bool UsesModelLighting { get; set; }
     public ParticleTextureMode Mode { get; set; } = ParticleTextureMode.NativeFx;
 }

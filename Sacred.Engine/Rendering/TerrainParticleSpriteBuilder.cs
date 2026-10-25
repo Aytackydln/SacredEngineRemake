@@ -65,6 +65,7 @@ internal sealed class TerrainParticleSpriteBuilder(AssetManager assets)
                 particle.DrawOrder,
                 particle.Opacity)
             {
+                IsGroundDecal = particle.GroundDecal,
                 ParticleColor = particle.Color,
                 ParticleCorners = particle.CornerColors,
                 ParticleAtlasCell = particle.AtlasCell,
@@ -74,7 +75,9 @@ internal sealed class TerrainParticleSpriteBuilder(AssetManager assets)
                 ParticleBlendFlags = (particle.Additive ? 2u : 0u) | (particle.SourceColorOnly ? 4u : 0u) |
                                      (particle.GroundAligned ? 128u : 0u) |
                                      (particle.CornerColors.HasValue ? 256u : 0u) |
-                                     (particle.Sheared ? 512u : 0u) | (particle.Untextured ? 1024u : 0u)
+                                     (particle.Sheared ? 512u : 0u) | (particle.Untextured ? 1024u : 0u) |
+                                     (particle.HealthArc ? 2048u : 0u) |
+                                     (particle.UiBrightness ? 4096u : 0u) | (particle.GroundPlaneDepth ? 8192u : 0u)
             });
         }
 

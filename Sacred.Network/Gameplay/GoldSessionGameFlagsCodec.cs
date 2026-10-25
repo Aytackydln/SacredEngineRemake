@@ -10,6 +10,16 @@ public static class GoldSessionGameFlagsCodec
 {
     public const ushort Opcode = 0x01E;
     public const uint LockMask = 4;
+    /// <summary>Gold 7DB280, used by 42384A to enable multiplayer team hostility.</summary>
+    public const uint PlayerVersusPlayerFlag = 0x40;
+    public const uint BronzeDifficultyFlag = 0x100;
+    public const uint SilverDifficultyFlag = 0x200;
+    public const uint GoldDifficultyFlag = 0x400;
+    public const uint PlatinumDifficultyFlag = 0x800;
+    /// <summary>Gold 7D9AB2–7D9B07 resets to zero, then applies difficulty flags in ascending order.</summary>
+    public static uint Difficulty(uint flags) => (flags & PlatinumDifficultyFlag) != 0 ? 4u :
+        (flags & GoldDifficultyFlag) != 0 ? 3u : (flags & SilverDifficultyFlag) != 0 ? 2u :
+        (flags & BronzeDifficultyFlag) != 0 ? 1u : 0u;
     public static GoldSessionGameFlagsEvent Decode(GoldMessage message)
     {
         ArgumentNullException.ThrowIfNull(message);

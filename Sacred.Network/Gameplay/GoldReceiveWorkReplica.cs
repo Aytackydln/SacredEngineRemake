@@ -13,6 +13,7 @@ public sealed class GoldReceiveWorkReplica
     { CreatureWork = _creatureWork.AsReadOnly(); FxWork = _fxWork.AsReadOnly(); ControlledObjects = _controlled.AsReadOnly(); }
     public IReadOnlyList<GoldCreatureReceiptWork> CreatureWork { get; }
     public IReadOnlyList<GoldFxBatchWork> FxWork { get; }
+    internal event Action<GoldFxBatchEvent, GoldFxBatchWork>? FxPublished;
     public IReadOnlyList<GoldControlledObjectWork> ControlledObjects { get; }
     public GoldTradeReplica Trade { get; } = new();
     public GoldReferenceReconciliationReplica Reconciliation { get; } = new();
@@ -65,10 +66,12 @@ public sealed class GoldReceiveWorkReplica
                 var old = objects.GetValueOrDefault(partial.ObjectReference);
                 if (old?.Fx is null || (old.BaseState.Flags & 0x10) != 0) return false;
                 var fx = GoldReceiveWorkCodec.MergePartial(partial, old.Fx);
-                objects[partial.ObjectReference] = old with { Fx = fx };
+                objects[partial.ObjectReference] = old with { Fx = fx, FxReloadVersion = old.FxReloadVersion + 1 };
                 return true;
             case GoldFxBatchEvent batch:
-                _fxWork.AddRange(GoldFxBatchCodec.Plan(batch, objects)); return true;
+                foreach (var fxWork in GoldFxBatchCodec.Plan(batch, objects))
+                { _fxWork.Add(fxWork); FxPublished?.Invoke(batch, fxWork); }
+                return true;
             case GoldInterpreterStateEvent interpreter: Interpreter = interpreter; ResourceVersion++; return true;
             case GoldCreatureTableEvent creatures: CreatureTable = creatures; ResourceVersion++; return true;
             case GoldBannerEvent banner: Banner = banner; ResourceVersion++; return true;
