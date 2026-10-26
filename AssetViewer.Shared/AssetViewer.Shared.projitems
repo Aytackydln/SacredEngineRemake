@@ -1,0 +1,16 @@
+<Project>
+  <!-- Linked sources are deliberately the desktop viewer's original files. Both
+       hosts compile the same decoders, controls, texture binding and FX logic. -->
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)../AssetViewer/ItemViewer/InventoryEffects.cs" Link="Shared/Viewer/InventoryEffects.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)../AssetViewer/AssetViewer/*.cs"
+             Exclude="$(MSBuildThisFileDirectory)../AssetViewer/AssetViewer/AssetViewerConsole.cs"
+             Link="Shared/Views/%(Filename)%(Extension)" />
+    <Compile Include="$(MSBuildThisFileDirectory)../AssetViewer/ItemViewer/ModelViewerControl.cs;$(MSBuildThisFileDirectory)../AssetViewer/ItemViewer/IModelViewport.cs;$(MSBuildThisFileDirectory)../AssetViewer/ItemViewer/ModelTextureBinding.cs;$(MSBuildThisFileDirectory)../AssetViewer/ItemViewer/WeaponPakPreviewTransform.cs;$(MSBuildThisFileDirectory)../AssetViewer/ItemViewer/EnumFilterViewModel.cs;$(MSBuildThisFileDirectory)../AssetViewer/ItemViewer/SacredItemData*.cs;$(MSBuildThisFileDirectory)../AssetViewer/ItemViewer/SacredItemFavoriteStore.cs;$(MSBuildThisFileDirectory)../AssetViewer/ItemViewer/SacredItemFilterSaveStore.cs"
+             Link="Shared/Viewer/%(Filename)%(Extension)" />
+    <Compile Include="$(MSBuildThisFileDirectory)../AssetViewer/ItemViewer/PreviewCamera.cs;$(MSBuildThisFileDirectory)../AssetViewer/ItemViewer/ModelPreviewMaterials.cs;$(MSBuildThisFileDirectory)../AssetViewer/ItemViewer/IEquipmentSlotRenderBackend.cs;$(MSBuildThisFileDirectory)../AssetViewer/ItemViewer/ItemSelectionSoundPlayer.cs;$(MSBuildThisFileDirectory)../AssetViewer/ItemViewer/WaveVolumeScaler.cs" Link="Shared/Viewer/%(Filename)%(Extension)" />
+    <AvaloniaXaml Include="$(MSBuildThisFileDirectory)../AssetViewer/ItemViewer/SacredItemDataTable.axaml" Link="Shared/Viewer/SacredItemDataTable.axaml" />
+    <Compile Include="$(MSBuildThisFileDirectory)../Sacred.Shaders/*Constants.cs;$(MSBuildThisFileDirectory)../Sacred.Shaders/ModelShaderVariables.cs;$(MSBuildThisFileDirectory)../Sacred.Shaders/ShaderLayouts.cs"
+             Link="Shared/ShaderConstants/%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>
