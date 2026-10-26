@@ -53,7 +53,11 @@ internal sealed class ModelsMetadataTable
         if (!File.Exists(path))
             return Empty;
 
-        var bytes = File.ReadAllBytes(path);
+        return Parse(File.ReadAllBytes(path));
+    }
+
+    internal static ModelsMetadataTable Parse(byte[] bytes)
+    {
         if (bytes.Length < HeaderSize)
             throw new InvalidDataException("Models.tmp is shorter than its header.");
 

@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -102,6 +98,7 @@ internal sealed class CharactersWindow : Window, IAssetViewerWindow
         _animation.SelectionChanged += (_, _) => { if (!_updatingAnimations) RebuildPreview(); };
         _playPause.Click += (_, _) => SetAnimationPlaying(!_playing);
         _equipmentSlots.SelectionChanged += row => { _quickslot.Refresh(row); FilterEquipment(); };
+        _equipmentSlots.SelectionCleared += () => { _quickslot.Refresh(null); FilterEquipment(); };
         _quickslot.Selected += row => _equipmentSlots.Select(row);
         _backpack.SelectionChanged += RefreshDescription;
         _backpack.EquipRequested += (slot, item) => Equip(slot.Index, item.EntryId);
@@ -234,6 +231,7 @@ internal sealed class CharactersWindow : Window, IAssetViewerWindow
     }
 
     public void SelectInventorySlot(int index) => _equipmentSlots.Select(_slots.Single(slot => slot.Index == index));
+    public void ClearInventorySlotFilter() => _equipmentSlots.ClearSelection();
     public void SelectInventoryItem(uint itemId) => _backpack.Select(itemId);
     public void PrintSelectedDescription() => _description.PrintDescription();
 

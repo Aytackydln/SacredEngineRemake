@@ -1,5 +1,9 @@
 # Sacred Asset Viewer
 
+The separate [WebAssembly host](../AssetViewer.Browser/README.md) reuses these
+controls and preview logic with mandatory WebGPU rendering and range-based local
+PAK access. This project retains the Windows DX12 renderer.
+
 Run `AssetViewer` on Windows (`dotnet run --project AssetViewer`). The launcher automatically loads the
 last successful game installation, using the existing ItemViewer settings so
 favorites and saved equipment filters remain available. Choose another installation

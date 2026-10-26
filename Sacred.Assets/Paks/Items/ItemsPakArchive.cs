@@ -13,7 +13,11 @@ public static class ItemsPakArchive
     {
         using var stopwatch = new LoggingStopwatch("Loading Items.pak... ");
 
-        var pakBytes = File.ReadAllBytes(filePath);
+        return Load(File.ReadAllBytes(filePath));
+    }
+
+    public static IEnumerable<ItemsPakEntry> Load(byte[] pakBytes)
+    {
         using var ms = new MemoryStream(pakBytes);
         using var br = new BinaryReader(ms, SacredEncoding);
 

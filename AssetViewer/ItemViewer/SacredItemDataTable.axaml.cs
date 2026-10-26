@@ -1,14 +1,8 @@
-using System;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.IO;
-using System.Linq;
 using System.Linq.Expressions;
 using System.Numerics;
 using System.Reflection;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using AssetViewer.AssetViewer;
 using Avalonia.Collections;
 using Avalonia.Controls;
@@ -54,7 +48,7 @@ public partial class SacredItemDataTable : UserControl
     public SacredItemDataTable()
     {
         InitializeComponent();
-        GrannyBackendComboBox.ItemsSource = Enum.GetValues<GrnBackendKind>();
+        GrannyBackendComboBox.ItemsSource = OperatingSystem.IsBrowser() ? new[] { GrnBackendKind.ManagedParser } : Enum.GetValues<GrnBackendKind>();
         GrannyBackendComboBox.SelectedItem = _grannyBackend;
         ModelViewerPanel.Children.Add(_modelViewer);
         ModelYawSlider.ValueChanged += (_, _) => UpdateModelRotationFromSliders();
@@ -121,7 +115,7 @@ public partial class SacredItemDataTable : UserControl
         var savedSettings = _filterSaveStore.Load();
         _savedEnumFilters = savedSettings.EnumFilters;
         _favoriteItemIds = _favoriteStore.Load();
-        _grannyBackend = savedSettings.GrannyBackend;
+        _grannyBackend = OperatingSystem.IsBrowser() ? GrnBackendKind.ManagedParser : savedSettings.GrannyBackend;
         _changingGrannyBackend = true;
         try
         {
@@ -150,8 +144,11 @@ public partial class SacredItemDataTable : UserControl
             Path.Combine(pakDirectory, "models.pak"),
             assetLoader: GrnAssetLoaderFactory.Create(_grannyBackend, _gameDir));
         _texturePakArchive = _session?.Textures ?? TexturePakArchive.LoadFromDirectory(pakDirectory);
-        _itemSelectionSoundPlayer = new ItemSelectionSoundPlayer(Path.Combine(pakDirectory, "sound.pak"));
-        _itemSelectionSoundPlayer.SetMuted(MuteSoundsCheckBox.IsChecked == true);
+        if (OperatingSystem.IsWindows())
+        {
+            _itemSelectionSoundPlayer = new ItemSelectionSoundPlayer(Path.Combine(pakDirectory, "sound.pak"));
+            _itemSelectionSoundPlayer.SetMuted(MuteSoundsCheckBox.IsChecked == true);
+        }
 
         BuildEnumFilters();
         _tableViewModel.LoadPage(0);
@@ -219,6 +216,7 @@ public partial class SacredItemDataTable : UserControl
         };
     }
 
+#if !BROWSER
     private async Task<string> PromptForGameDirectoryAsync(string savedGameDirectory)
     {
         var args = Environment.GetCommandLineArgs();
@@ -241,6 +239,8 @@ public partial class SacredItemDataTable : UserControl
             ? initialGameDirectory
             : selectedGameDirectory.Trim();
     }
+
+#endif
 
     private void OnFilterHasModelChanged(bool value)
     {

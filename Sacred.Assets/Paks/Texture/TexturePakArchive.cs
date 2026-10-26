@@ -1,9 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
-using Microsoft.Win32.SafeHandles;
 using Sacred.Assets.Utils;
 using Sacred.Core.Pak.Texture;
-using Sacred.Core.Utils;
 
 namespace Sacred.Assets.Paks.Texture;
 
@@ -13,7 +11,7 @@ public sealed class TexturePakArchive : IDisposable, ITextureSource
 
     private readonly PakStream[] _archives;
     private readonly Dictionary<string, IndexedTexturePakRecord> _recordsByName = new(StringComparer.OrdinalIgnoreCase);
-    private readonly UnpackedTextureIndex _unpackedTextures;
+    private readonly UnpackedTextureIndex? _unpackedTextures;
     private readonly Dictionary<uint, IndexedTexturePakRecord> _recordsByEntryId = new();
     private readonly Dictionary<(string Archive, uint EntryId), IndexedTexturePakRecord> _archiveEntries = new();
     private readonly List<TexturePakEntry> _entries = [];
@@ -40,7 +38,7 @@ public sealed class TexturePakArchive : IDisposable, ITextureSource
 
             _archives = archives.ToArray();
             foreach (var archive in _archives)
-                Index(archive);
+                IndexAsync(archive, CancellationToken.None).GetAwaiter().GetResult();
             _unpackedTextures = new UnpackedTextureIndex(pakDirectory);
         }
         catch
@@ -49,6 +47,34 @@ public sealed class TexturePakArchive : IDisposable, ITextureSource
                 archive.Dispose();
             throw;
         }
+    }
+
+    private TexturePakArchive(PakStream[] archives) => _archives = archives;
+
+    /// <summary>Indexes caller-supplied seekable streams without copying archive payloads.
+    /// Takes ownership of streams on success; the caller retains ownership on failure.</summary>
+    public static async Task<TexturePakArchive> LoadAsync(IEnumerable<(string Name, Stream Stream)> streams,
+        CancellationToken cancellationToken = default)
+    {
+        var archives = streams.OrderBy(file => TexturePakSortKey(Path.GetFileNameWithoutExtension(file.Name)))
+            .ThenBy(file => file.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(file => new PakStream(file.Name, file.Stream)).ToArray();
+        if (archives.Length == 0) throw new ArgumentException("At least one texture archive is required.", nameof(streams));
+        var result = new TexturePakArchive(archives);
+        foreach (var archive in archives)
+        {
+            if (!archive.Stream.CanSeek || !archive.Stream.CanRead)
+                throw new ArgumentException("A readable seekable stream is required.", nameof(streams));
+            await result.IndexAsync(archive, cancellationToken).ConfigureAwait(false);
+        }
+        return result;
+    }
+
+    private bool TryFindUnpacked(string name, out UnpackedTextureFile file)
+    {
+        if (_unpackedTextures is not null) return _unpackedTextures.TryFind(name, out file);
+        file = default;
+        return false;
     }
 
     public static TexturePakArchive LoadFromDirectory(string pakDirectory)
@@ -73,7 +99,7 @@ public sealed class TexturePakArchive : IDisposable, ITextureSource
 
     public Task<TextureAsset> LoadTextureAsync(string textureName, CancellationToken cancellationToken = default)
     {
-        if (_unpackedTextures.TryFind(textureName, out var file))
+        if (TryFindUnpacked(textureName, out var file))
             return LoadUnpackedTextureAsync(file, textureName, cancellationToken);
 
         if (!TryFindTexture(textureName, out var indexedRecord))
@@ -84,7 +110,7 @@ public sealed class TexturePakArchive : IDisposable, ITextureSource
 
     public bool TryResolveTextureName(string textureName, out string resolvedName)
     {
-        if (_unpackedTextures.TryFind(textureName, out var file))
+        if (TryFindUnpacked(textureName, out var file))
         {
             resolvedName = TryFindTexture(textureName, out var packed) ? packed.Record.Name : file.Name;
             return true;
@@ -129,7 +155,7 @@ public sealed class TexturePakArchive : IDisposable, ITextureSource
         if (!_recordsByEntryId.TryGetValue(entryId, out var indexedRecord))
             throw new FileNotFoundException($"Texture entry #{entryId} was not found in: {string.Join(", ", _archives.Select(static archive => Path.GetFileName(archive.Path)))}.");
 
-        if (_unpackedTextures.TryFind(indexedRecord.Record.Name, out var file))
+        if (TryFindUnpacked(indexedRecord.Record.Name, out var file))
             return LoadUnpackedTextureAsync(file, indexedRecord.Record.Name, cancellationToken);
 
         return LoadTextureAsync(indexedRecord, cancellationToken);
@@ -147,7 +173,7 @@ public sealed class TexturePakArchive : IDisposable, ITextureSource
         try
         {
             await ReadExactlyAtAsync(
-                    archive.Stream.SafeFileHandle,
+                    archive.Stream,
                     payload,
                     payloadOffset,
                     cancellationToken)
@@ -180,19 +206,16 @@ public sealed class TexturePakArchive : IDisposable, ITextureSource
     }
 
     private static async Task ReadExactlyAtAsync(
-        SafeFileHandle handle,
+        Stream stream,
         Memory<byte> destination,
         long fileOffset,
         CancellationToken cancellationToken)
     {
+        stream.Position = fileOffset;
         var totalRead = 0;
         while (totalRead < destination.Length)
         {
-            var bytesRead = await RandomAccess.ReadAsync(
-                    handle,
-                    destination[totalRead..],
-                    fileOffset + totalRead,
-                    cancellationToken)
+            var bytesRead = await stream.ReadAsync(destination[totalRead..], cancellationToken)
                 .ConfigureAwait(false);
             if (bytesRead == 0)
                 throw new EndOfStreamException("The texture payload ended before its indexed size.");
@@ -201,31 +224,41 @@ public sealed class TexturePakArchive : IDisposable, ITextureSource
         }
     }
 
-    private void Index(PakStream archive)
+    private async Task IndexAsync(PakStream archive, CancellationToken cancellationToken)
     {
         var stream = archive.Stream;
-        using var reader = new BinaryReader(stream, Encoding.Latin1, leaveOpen: true);
-        var header = reader.ReadStruct<TexturePakHeaderLayout>(TexturePakHeaderLayout.SerializedSize);
+        stream.Position = 0;
+        var headerBytes = new byte[TexturePakHeaderLayout.SerializedSize];
+        await stream.ReadExactlyAsync(headerBytes, cancellationToken).ConfigureAwait(false);
+        var header = MemoryMarshal.Read<TexturePakHeaderLayout>(headerBytes);
         header.ValidateSignature();
         var count = TexturePakDecoder.ReadEntryCount(header.EntryCount, stream.Length);
-        var descriptors = PakDataHelpers.ReadEntryDescriptors(stream, count, Path.GetFileName(archive.Path));
+        var descriptorBytes = new byte[checked(count * PakDataHelpers.EntryDescriptorSize)];
+        await stream.ReadExactlyAsync(descriptorBytes, cancellationToken).ConfigureAwait(false);
+        var descriptors = MemoryMarshal.Cast<byte, PakEntryDescriptor>(descriptorBytes).ToArray();
         var offsets = descriptors.Where(static entry => entry.Offset > 0)
             .Select(static entry => (long)entry.Offset).Distinct().Order().ToArray();
 
+        var ranges = descriptors.Where(entry => entry.Offset != 0 && entry.Size is > 0 and <= int.MaxValue &&
+                (long)entry.Offset + TexturePakDecoder.TextureHeaderSize <= stream.Length)
+            .Select(entry => new StreamReadRange(entry.Offset, TexturePakEntryHeaderLayout.SerializedSize)).ToArray();
+        var textureHeaders = await StreamRangeReader.ReadAsync(stream, ranges, cancellationToken).ConfigureAwait(false);
+        var headerOffset = 0;
         for (var i = 0; i < count; i++)
         {
             var descriptor = descriptors[i];
             var offset = descriptor.Offset;
             var size = descriptor.Size;
-            if (offset <= 0 || size <= 0 || offset > int.MaxValue || size > int.MaxValue)
+            if (offset == 0 || size == 0 || size > int.MaxValue)
                 continue;
 
-            if (offset + TexturePakDecoder.TextureHeaderSize > stream.Length)
+            if ((long)offset + TexturePakDecoder.TextureHeaderSize > stream.Length)
                 continue;
 
-            stream.Position = offset;
-            var textureHeader = reader.ReadStruct<TexturePakEntryHeaderLayout>(TexturePakEntryHeaderLayout.SerializedSize);
-            var textureHeaderBytes = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref textureHeader, 1));
+            cancellationToken.ThrowIfCancellationRequested();
+            var textureHeaderBytes = textureHeaders.AsSpan(headerOffset, TexturePakEntryHeaderLayout.SerializedSize);
+            headerOffset += TexturePakEntryHeaderLayout.SerializedSize;
+            var textureHeader = MemoryMarshal.Read<TexturePakEntryHeaderLayout>(textureHeaderBytes);
 
             var name = ReadCString(textureHeaderBytes, 0x20);
             if (string.IsNullOrWhiteSpace(name))
@@ -364,15 +397,15 @@ public sealed class TexturePakArchive : IDisposable, ITextureSource
             return;
 
         _disposed = true;
-        _unpackedTextures.Dispose();
+        _unpackedTextures?.Dispose();
         foreach (var archive in _archives)
             archive.Dispose();
     }
 
-    private sealed class PakStream(string path, FileStream stream) : IDisposable
+    private sealed class PakStream(string path, Stream stream) : IDisposable
     {
         public string Path { get; } = path;
-        public FileStream Stream { get; } = stream;
+        public Stream Stream { get; } = stream;
         public SemaphoreSlim StreamLock { get; } = new(1, 1);
 
         public void Dispose()

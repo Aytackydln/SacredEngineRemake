@@ -1,10 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Numerics;
-using System.Threading;
-using System.Threading.Tasks;
 using AssetViewer.ItemViewer;
 using Avalonia;
 using Avalonia.Controls;
@@ -196,14 +190,14 @@ internal sealed class ModelPreviewPane : UserControl
                 var reference = aliases.GetValueOrDefault(key, ModelTextureReference.Static(key));
                 try
                 {
-                    var texture = await _session.Textures.LoadTextureAsync(reference.TextureName, token);
+                    var texture = await _session.TextureCache.LoadTextureAsync(reference.TextureName, token);
                     TextureAsset? overlay = null;
                     if (reference.HasOverlay)
-                        overlay = await _session.Textures.LoadTextureAsync(reference.OverlayTextureName!, token);
+                        overlay = await _session.TextureCache.LoadTextureAsync(reference.OverlayTextureName!, token);
                     if ((reference.Animation.HasSecondaryGlow || reference.OverlayAnimation.HasSecondaryGlow) &&
                         !loaded.ContainsKey(TextureAnimation.MultitextureGlowName))
                         loaded[TextureAnimation.MultitextureGlowName] = new ModelTextureBinding(
-                            await _session.Textures.LoadTextureAsync(TextureAnimation.MultitextureGlowName, token));
+                            await _session.TextureCache.LoadTextureAsync(TextureAnimation.MultitextureGlowName, token));
                     loaded[key] = new ModelTextureBinding(texture with { Animation = reference.Animation },
                         overlay is null ? null : overlay with { Animation = reference.OverlayAnimation }, reference.OverlayMode);
                 }
@@ -220,7 +214,7 @@ internal sealed class ModelPreviewPane : UserControl
                 if (loaded.TryGetValue(key, out var existing)) { fx?.SetTexture(existing.BaseTexture); continue; }
                 try
                 {
-                    var texture = await _session.Textures.LoadTextureAsync(key, token);
+                    var texture = await _session.TextureCache.LoadTextureAsync(key, token);
                     fx?.SetTexture(texture);
                     loaded[key] = new ModelTextureBinding(texture);
                 }

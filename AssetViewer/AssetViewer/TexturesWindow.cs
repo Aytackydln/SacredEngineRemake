@@ -1,8 +1,6 @@
-using System;
-using System.Linq;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Threading;
-using System.Threading.Tasks;
+using AssetViewer.ItemViewer;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -72,7 +70,7 @@ internal sealed class TexturesWindow : Window, IAssetViewerWindow
     public void Select(string archive, uint id) => _table.Select(row => row.Archive.Equals(archive, StringComparison.OrdinalIgnoreCase) && row.EntryId == id);
     public void SaveScreenshot(string path)
     {
-        (_bitmap ?? throw new InvalidOperationException("Select a texture first.")).Save(path);
+        PreviewImageExport.Save(_bitmap ?? throw new InvalidOperationException("Select a texture first."), path);
         Console.WriteLine($"[Assets] Screenshot saved: {path}");
     }
 
@@ -80,17 +78,22 @@ internal sealed class TexturesWindow : Window, IAssetViewerWindow
     {
         _load?.Cancel(); _load?.Dispose(); _load = new CancellationTokenSource();
         var token = _load.Token;
-        _pixels = null; _image.Source = null; _bitmap?.Dispose(); _bitmap = null;
+        _pixels = null; _image.Source = null;
         _status.Text = $"Loading {row.Archive}:{row.EntryId} {row.Name}...";
         try
         {
-            var asset = await Task.Run(() => _session.Textures.LoadTextureAsync(row.Entry, token), token);
+            var started = Stopwatch.GetTimestamp();
+            var asset = OperatingSystem.IsBrowser()
+                ? await _session.TextureCache.LoadTextureAsync(row.Entry, token)
+                : await Task.Run(() => _session.TextureCache.LoadTextureAsync(row.Entry, token), token);
             token.ThrowIfCancellationRequested();
             if (_closed) return;
             _pixels = asset.Rgba8; _width = asset.Width; _height = asset.Height;
+            var loaded = Stopwatch.GetTimestamp();
             UpdateBitmap();
             _status.Text = $"{row.Archive}:{row.EntryId} · {row.Name}\n{_width} × {_height} · {row.Format} · offset 0x{row.Offset:X} · {row.Size:N0} bytes";
-            Console.WriteLine($"[Assets] Texture ready: {row.Archive}:{row.EntryId} {row.Name}, {_width}x{_height}.");
+            Console.WriteLine($"[Assets] Texture ready: {row.Archive}:{row.EntryId} {row.Name}, {_width}x{_height}; " +
+                $"load {Stopwatch.GetElapsedTime(started, loaded).TotalMilliseconds:F1} ms; bitmap {Stopwatch.GetElapsedTime(loaded).TotalMilliseconds:F1} ms.");
         }
         catch (OperationCanceledException) { }
         catch (Exception error)
@@ -103,19 +106,26 @@ internal sealed class TexturesWindow : Window, IAssetViewerWindow
     private void UpdateBitmap()
     {
         if (_pixels is null) return;
-        var pixels = (byte[])_pixels.Clone();
-        for (var i = 0; i < pixels.Length; i += 4)
+        var channel = _channel.SelectedIndex;
+        var pixels = channel == 0 ? _pixels : (byte[])_pixels.Clone();
+        for (var i = 0; channel != 0 && i < pixels.Length; i += 4)
         {
-            if (_channel.SelectedIndex == 1) pixels[i + 3] = 255;
-            if (_channel.SelectedIndex == 2)
+            if (channel == 1) pixels[i + 3] = 255;
+            if (channel == 2)
             { pixels[i] = pixels[i + 1] = pixels[i + 2] = pixels[i + 3]; pixels[i + 3] = 255; }
         }
-        var bitmap = new WriteableBitmap(new PixelSize(_width, _height), new Vector(96, 96), PixelFormat.Rgba8888, AlphaFormat.Unpremul);
-        using (var framebuffer = bitmap.Lock())
-            for (var row = 0; row < _height; row++)
+        if (_bitmap is null || _bitmap.PixelSize != new PixelSize(_width, _height))
+        {
+            _bitmap?.Dispose();
+            _bitmap = new WriteableBitmap(new PixelSize(_width, _height), new Vector(96, 96), PixelFormat.Rgba8888, AlphaFormat.Unpremul);
+        }
+        using (var framebuffer = _bitmap.Lock())
+        {
+            if (framebuffer.RowBytes == _width * 4) Marshal.Copy(pixels, 0, framebuffer.Address, pixels.Length);
+            else for (var row = 0; row < _height; row++)
                 Marshal.Copy(pixels, row * _width * 4, framebuffer.Address + row * framebuffer.RowBytes, _width * 4);
-        _image.Source = bitmap;
-        _bitmap?.Dispose(); _bitmap = bitmap;
+        }
+        _image.Source = _bitmap;
         UpdateZoom(_fit);
     }
 

@@ -4,7 +4,6 @@ using System.Runtime.InteropServices;
 using System.Text;
 using Sacred.Assets.Utils;
 using Sacred.Core.Pak.Models;
-using Sacred.Core.Utils;
 using Sacred.Granny.Abstractions;
 using Sacred.Granny.Animation;
 using Sacred.Granny.Assets;
@@ -20,7 +19,7 @@ public sealed class ModelsPakArchive : IDisposable
     private const int ModelScaleSize = 12;
     private static readonly Encoding NameEncoding = Encoding.Latin1;
 
-    private readonly FileStream _stream;
+    private readonly Stream _stream;
     private readonly SemaphoreSlim _streamLock = new(1, 1);
     private readonly FrozenDictionary<string, ModelPakRecord> _recordsByName;
     private readonly ModelsMetadataTable _metadata;
@@ -28,7 +27,7 @@ public sealed class ModelsPakArchive : IDisposable
     private bool _disposed;
 
     private ModelsPakArchive(
-        FileStream stream,
+        Stream stream,
         Dictionary<string, ModelPakRecord> recordsByName,
         ModelsMetadataTable metadata,
         IGrnAssetLoader assetLoader)
@@ -44,17 +43,31 @@ public sealed class ModelsPakArchive : IDisposable
         string? metadataPath = null,
         IGrnAssetLoader? assetLoader = null)
     {
-        using var stopwatch = new LoggingStopwatch("Loading Models.pak... ");
-
-        if (!File.Exists(path))
-            throw new FileNotFoundException("models.pak was not found.", path);
-
         var stream = OpenArchiveStream(path);
+        try
+        {
+            var metadata = metadataPath is not null && File.Exists(metadataPath)
+                ? File.ReadAllBytes(metadataPath) : null;
+            return LoadAsync(stream, metadata, assetLoader).GetAwaiter().GetResult();
+        }
+        catch { stream.Dispose(); throw; }
+    }
 
-        using var reader = new BinaryReader(stream, Encoding.Latin1, leaveOpen: true);
-        var header = reader.ReadStruct<ModelsPakHeaderLayout>(ModelsPakHeaderLayout.SerializedSize);
-        var count = (int)header.EntryCount;
-        var descriptors = ReadDescriptors(stream, count);
+    /// <summary>Indexes a seekable archive using asynchronous range reads. Takes ownership on success.</summary>
+    public static async Task<ModelsPakArchive> LoadAsync(Stream stream, byte[]? metadataBytes = null,
+        IGrnAssetLoader? assetLoader = null, CancellationToken cancellationToken = default)
+    {
+        if (!stream.CanRead || !stream.CanSeek) throw new ArgumentException("A readable seekable stream is required.", nameof(stream));
+        stream.Position = 0;
+        var headerBytes = new byte[ModelsPakHeaderLayout.SerializedSize];
+        await stream.ReadExactlyAsync(headerBytes, cancellationToken).ConfigureAwait(false);
+        var header = MemoryMarshal.Read<ModelsPakHeaderLayout>(headerBytes);
+        var count = checked((int)header.EntryCount);
+        if (count > (stream.Length - stream.Position) / ModelPakDescriptor.SerializedSize)
+            throw new InvalidDataException("Models.pak descriptor table exceeds the archive.");
+        var descriptorBytes = new byte[checked(count * ModelPakDescriptor.SerializedSize)];
+        await stream.ReadExactlyAsync(descriptorBytes, cancellationToken).ConfigureAwait(false);
+        var descriptors = MemoryMarshal.Cast<byte, ModelPakDescriptor>(descriptorBytes).ToArray();
 
         var modelDescriptors = new List<ModelPakDescriptor>(count);
         foreach (var descriptor in descriptors)
@@ -80,14 +93,23 @@ public sealed class ModelsPakArchive : IDisposable
 
         var recordsByName = new Dictionary<string, ModelPakRecord>(StringComparer.OrdinalIgnoreCase);
         var recordsByOffset = new Dictionary<uint, ModelPakRecord>();
+        var nameRanges = modelDescriptors.Select(descriptor => descriptor.Offset).Distinct()
+            .Where(sizesByOffset.ContainsKey)
+            .Select(offset => new StreamReadRange(offset, Math.Min(NameProbeLength, sizesByOffset[offset]))).ToArray();
+        var nameBytes = await StreamRangeReader.ReadAsync(stream, nameRanges, cancellationToken).ConfigureAwait(false);
+        var nameOffset = 0;
         foreach (var descriptor in modelDescriptors)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (!sizesByOffset.TryGetValue(descriptor.Offset, out var size))
                 continue;
 
             if (!recordsByOffset.TryGetValue(descriptor.Offset, out var record))
             {
-                var name = ReadPayloadStartName(stream, descriptor.Offset, size);
+                var probe = nameBytes.AsSpan(nameOffset, Math.Min(NameProbeLength, size));
+                nameOffset += probe.Length;
+                var end = probe.IndexOf((byte)0);
+                var name = end <= 0 ? string.Empty : NameEncoding.GetString(probe[..end]);
                 record = new ModelPakRecord(descriptor.Offset, size, name);
                 recordsByOffset.Add(descriptor.Offset, record);
             }
@@ -98,9 +120,7 @@ public sealed class ModelsPakArchive : IDisposable
             }
         }
 
-        var metadata = metadataPath is null
-            ? ModelsMetadataTable.Empty
-            : ModelsMetadataTable.Load(metadataPath);
+        var metadata = metadataBytes is null ? ModelsMetadataTable.Empty : ModelsMetadataTable.Parse(metadataBytes);
         return new ModelsPakArchive(
             stream,
             recordsByName,
@@ -340,7 +360,7 @@ public sealed class ModelsPakArchive : IDisposable
         ReadPayloadAsync(_stream, _streamLock, record, cancellationToken);
 
     private static async Task<byte[]> ReadPayloadAsync(
-        FileStream stream,
+        Stream stream,
         SemaphoreSlim streamLock,
         ModelPakRecord record,
         CancellationToken cancellationToken)
@@ -362,7 +382,7 @@ public sealed class ModelsPakArchive : IDisposable
     }
 
     private static async Task<byte[]> ReadPayloadPrefixAsync(
-        FileStream stream,
+        Stream stream,
         SemaphoreSlim streamLock,
         ModelPakRecord record,
         int requestedLength,
@@ -382,32 +402,6 @@ public sealed class ModelsPakArchive : IDisposable
         }
 
         return payload;
-    }
-
-    private static string ReadPayloadStartName(FileStream stream, uint offset, int size)
-    {
-        var length = Math.Min(NameProbeLength, size);
-        Span<byte> probe = stackalloc byte[length];
-        stream.Position = offset;
-        stream.ReadExactly(probe);
-
-        var end = probe.IndexOf((byte)0);
-        if (end <= 0)
-            return string.Empty;
-
-        return NameEncoding.GetString(probe[..end]);
-    }
-
-    private static ModelPakDescriptor[] ReadDescriptors(FileStream stream, int count)
-    {
-        var descriptors = new ModelPakDescriptor[count];
-        var descriptorBytes = MemoryMarshal.AsBytes(descriptors.AsSpan());
-        var expectedLength = count * ModelPakDescriptor.SerializedSize;
-        if (descriptorBytes.Length != expectedLength)
-            throw new InvalidDataException($"models.pak descriptor layout is {descriptorBytes.Length / Math.Max(1, count)} bytes, expected {ModelPakDescriptor.SerializedSize}.");
-
-        stream.ReadExactly(descriptorBytes);
-        return descriptors;
     }
 
     private static FileStream OpenArchiveStream(string path) =>

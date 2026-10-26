@@ -1,9 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Numerics;
-using System.Threading;
-using System.Threading.Tasks;
 using AssetViewer.AssetViewer;
 using Avalonia;
 using Avalonia.Controls;
@@ -16,7 +11,7 @@ namespace AssetViewer.ItemViewer;
 
 public sealed class ModelViewerControl : UserControl
 {
-    private readonly Dx12ModelViewportHost _viewport = new();
+    private readonly IModelViewport _viewport = ModelViewportFactory.Create();
     private readonly TextBlock _statusText;
     private GrnAsset? _asset;
     private string _status = "Select an item to load its model.";
@@ -59,8 +54,8 @@ public sealed class ModelViewerControl : UserControl
                 }
             }
         };
-        root.Children.Add(_viewport);
-        Grid.SetRow(_viewport, 0);
+        root.Children.Add((Control)_viewport);
+        Grid.SetRow((Control)_viewport, 0);
         root.Children.Add(_statusText);
         Grid.SetRow(_statusText, 1);
 

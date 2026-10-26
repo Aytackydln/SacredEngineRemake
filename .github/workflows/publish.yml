@@ -3,103 +3,129 @@ name: Publish Projects on Tag
 on:
   push:
     tags:
-      - 'v*.*.*'  # Adjust pattern as needed (e.g., v* or *)
+      - 'v*.*.*'
+
+permissions:
+  contents: read
 
 jobs:
-  publish:
+  desktop-build:
+    name: Build ${{ matrix.project }}
     runs-on: windows-latest
-    permissions:
-      contents: write  # needed to create releases and upload assets
-
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - SacredEngineRemake
+          - AssetViewer
+          - Sacred.World.Renderer.Terminal
+    env:
+      PUBLISH_PROJECT: ${{ matrix.project }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
         with:
-          fetch-depth: 0
-
-      - name: Setup .NET (adjust version if needed)
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'   # Change according to your projects
-
-      - name: Extract version
-        shell: bash
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-
-      # ==================== SacredEngineRemake ====================
-      - name: Publish SacredEngineRemake
-        shell: bash
-        run: |
-          dotnet publish SacredEngineRemake/SacredEngineRemake.csproj \
-            --configuration Release \
-            --output ./publish/SacredEngineRemake \
-            -p:Version=${{ env.VERSION }} \
-            -p:PublishSingleFile=true \
-            -p:SelfContained=true \
-            -p:IncludeNativeLibrariesForSelfExtract=true \
-            -p:StackTraceSupport=true \
-            -p:DebugSymbols=true \
-            -p:DebugType=portable \
-            -p:StripSymbols=false \
-            -r win-x64
-
-      # ==================== AssetViewer ====================
-      - name: Publish AssetViewer
-        shell: bash
-        run: |
-          dotnet publish AssetViewer/AssetViewer.csproj \
-            --configuration Release \
-            --output ./publish/AssetViewer \
-            -p:Version=${{ env.VERSION }} \
-            -p:PublishSingleFile=true \
-            -p:SelfContained=true \
-            -p:IncludeNativeLibrariesForSelfExtract=true \
-            -p:StackTraceSupport=true \
-            -p:DebugSymbols=true \
-            -p:DebugType=portable \
-            -p:StripSymbols=false \
-            -r win-x64
-
-      # ==================== Sacred.World.Renderer.Terminal ====================
-      - name: Publish Sacred.World.Renderer.Terminal
-        shell: bash
-        run: |
-          dotnet publish Sacred.World.Renderer.Terminal/Sacred.World.Renderer.Terminal.csproj \
-            --configuration Release \
-            --output ./publish/Sacred.World.Renderer.Terminal \
-            -p:Version=${{ env.VERSION }} \
-            -p:PublishSingleFile=true \
-            -p:SelfContained=true \
-            -p:IncludeNativeLibrariesForSelfExtract=true \
-            -p:StackTraceSupport=true \
-            -p:DebugSymbols=true \
-            -p:DebugType=portable \
-            -p:StripSymbols=false \
-            -r win-x64
-
-      - name: Package debug symbols
+          dotnet-version: '10.0.x'
+      - name: Publish desktop application
         shell: pwsh
         run: |
-          foreach ($project in @('SacredEngineRemake', 'AssetViewer', 'Sacred.World.Renderer.Terminal')) {
-            Compress-Archive -Path "./publish/$project/*.pdb" -DestinationPath "./publish/$project-symbols.zip"
+          $project = $env:PUBLISH_PROJECT
+          $version = $env:GITHUB_REF_NAME.Substring(1)
+          dotnet publish "$project/$project.csproj" `
+            --configuration Release `
+            --output "./publish/$project" `
+            "-p:Version=$version" `
+            -p:PublishSingleFile=true `
+            -p:SelfContained=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:StackTraceSupport=true `
+            -p:DebugSymbols=true `
+            -p:DebugType=portable `
+            -p:StripSymbols=false `
+            -r win-x64
+      - name: Collect executable and debug symbols
+        shell: pwsh
+        run: |
+          $project = $env:PUBLISH_PROJECT
+          New-Item -ItemType Directory -Path release-assets | Out-Null
+          Copy-Item -LiteralPath "./publish/$project/$project.exe" -Destination release-assets
+          Compress-Archive -Path "./publish/$project/*.pdb" -DestinationPath "./release-assets/$project-symbols.zip"
+          if ($project -eq 'SacredEngineRemake') {
+            Copy-Item -LiteralPath "./publish/$project/cimgui.dll" -Destination release-assets
           }
-
-      # Attach to GitHub Release (if triggered by tag)
-      - name: Release
-        uses: softprops/action-gh-release@v1
+      - name: Upload desktop release assets
+        uses: actions/upload-artifact@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          name: desktop-${{ matrix.project }}
+          path: release-assets/
+          if-no-files-found: error
+
+  browser-build:
+    name: Build AssetViewer browser
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Install WebAssembly workload
+        run: dotnet workload install wasm-tools
+      - name: Publish browser application
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME.Substring(1)
+          dotnet publish AssetViewer.Browser/AssetViewer.Browser.csproj -c Release "-p:Version=$version" -v:minimal
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: AssetViewer.Browser/bin/Release/net10.0-browser/publish/wwwroot
+
+  release:
+    name: Upload draft release
+    needs: desktop-build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download desktop release assets
+        uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: release-assets
+      - name: Create or update draft release
+        uses: softprops/action-gh-release@v3
+        with:
           draft: true
-          files: |
-            ./publish/SacredEngineRemake/SacredEngineRemake.exe
-            ./publish/AssetViewer/AssetViewer.exe
-            ./publish/Sacred.World.Renderer.Terminal/Sacred.World.Renderer.Terminal.exe
-            ./publish/SacredEngineRemake/cimgui.dll
-            ./publish/SacredEngineRemake-symbols.zip
-            ./publish/AssetViewer-symbols.zip
-            ./publish/Sacred.World.Renderer.Terminal-symbols.zip
-          fail_on_unmatched_files: true
           tag_name: ${{ github.ref_name }}
-          allow_override: true
+          overwrite_files: true
+          fail_on_unmatched_files: true
+          files: |
+            release-assets/SacredEngineRemake.exe
+            release-assets/AssetViewer.exe
+            release-assets/Sacred.World.Renderer.Terminal.exe
+            release-assets/cimgui.dll
+            release-assets/SacredEngineRemake-symbols.zip
+            release-assets/AssetViewer-symbols.zip
+            release-assets/Sacred.World.Renderer.Terminal-symbols.zip
+
+  deploy-pages:
+    name: Deploy AssetViewer to GitHub Pages
+    needs: browser-build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

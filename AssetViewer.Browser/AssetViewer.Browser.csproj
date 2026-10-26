@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+  <PropertyGroup>
+    <TargetFramework>net10.0-browser</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <DefineConstants>$(DefineConstants);BROWSER</DefineConstants>
+    <WasmMainJSPath>wwwroot/main.js</WasmMainJSPath>
+    <WasmEnableSIMD>true</WasmEnableSIMD>
+    <WasmEnableThreads>false</WasmEnableThreads>
+    <WebGpuSlangRoot>$(PkgSlangDxcBundle_Toolchain)/tools/slang</WebGpuSlangRoot>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.9" PrivateAssets="all" />
+    <PackageReference Include="Avalonia.Browser" Version="12.0.4" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.0.0" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.4" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.0.4" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="SlangDxcBundle.Toolchain" Version="2026.14.1" GeneratePathProperty="true"
+                      PrivateAssets="all" IncludeAssets="build;buildTransitive" />
+    <ProjectReference Include="../AssetViewer.WebGpu.Generator/AssetViewer.WebGpu.Generator.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Sacred.Assets/Sacred.Assets.csproj" />
+    <ProjectReference Include="../Sacred.Particles/Sacred.Particles.csproj" />
+    <ProjectReference Include="../Sacred.UI/Sacred.UI.csproj" />
+    <ProjectReference Include="../Sacred.World/Sacred.World.csproj" />
+    <ProjectReference Include="../Sacred.GameplayHost/Sacred.GameplayHost.csproj" />
+  </ItemGroup>
+  <Import Project="../AssetViewer.Shared/AssetViewer.Shared.projitems" />
+  <ItemGroup>
+    <!-- The desktop's platform-independent packing ABI is also the browser's source of truth. -->
+    <Compile Include="../Sacred.Engine/Graphics/Skinning/GpuSkinSourceData.cs" Link="Shared/GpuSkinSourceData.cs" />
+    <Compile Include="../Sacred.Engine/Scene/InGame/SolarLightingCalculator.cs" Link="Shared/SolarLightingCalculator.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <CompilerVisibleProperty Include="WebGpuSlangRoot" />
+    <AdditionalFiles Include="../Sacred.Shaders/Shaders/*.hlsl" />
+    <AdditionalFiles Include="../AssetViewer/ItemViewer/PreviewGroundGrid.hlsl;Rendering/SacredSkinning.compute.hlsl" />
+    <Content Update="wwwroot/**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

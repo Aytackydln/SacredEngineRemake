@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Assets.Paks.Texture;
+using Sacred.Engine.Scene.InGame;
 using Sacred.Granny.Assets;
 using Sacred.Granny.Meshes;
 using Sacred.Particles;
@@ -627,99 +628,36 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
             wvp,
             world,
             ModelShaderVariables.ColorFromName(_modelName));
-        var defaultModelColor = ModelShaderVariables.ColorFromName(_modelName);
-        _modelShaderConstants.WriteTextureFlags(
-            constants + ModelShaderLayout.TextureFlagsOffset,
-            ModelShaderVariables.TextureModeNoTexture,
-            ModelShaderVariables.TextureAnimationNone,
-            ModelShaderLayout.PreserveProjectedDepth,
-            animationTimeScale: 0.0f);
-
-        for (var passIndex = 0; passIndex < 3; passIndex++)
+        PreviewMaterialTexture? Material(string? name)
         {
-            var pass = (ModelSurfacePass)passIndex;
-            foreach (var surface in _surfaces)
+            var texture = ResolveTexture(name);
+            return texture is null ? null : new(texture.Animation, texture.OverlayAnimation,
+                texture.OverlayMode, texture.OverlayResource is not null, texture.HasTranslucentPixels);
+        }
+        var glowSlot = _textures.GetValueOrDefault(TextureAnimation.MultitextureGlowName)?.SrvSlot ?? -1;
+        foreach (var draw in ModelPreviewMaterials.Enumerate(_surfaces, _sourceMesh, _modelName, Material, glowSlot))
+        {
+            var surface = draw.Surface;
+            if (surface.IndexCount <= 0 || surface.IndexStart >= mesh.IndexCount) continue;
+            var texture = ResolveTexture(surface.TextureName);
+            _commandList.SetPipelineState(draw.Pass switch
             {
-                if (surface.IndexCount <= 0 || surface.IndexStart >= mesh.IndexCount)
-                    continue;
-
-                var texture = ResolveTexture(surface.TextureName);
-                var animatesBase = texture?.Animation.IsAnimated == true;
-                var hasOverlay = texture?.OverlayResource is not null &&
-                                 texture.OverlayMode != TextureOverlayMode.None;
-                var animatesOverlay = hasOverlay && texture!.OverlayAnimation.IsAnimated;
-                var drawCount = Math.Min(surface.IndexCount, mesh.IndexCount - surface.IndexStart);
-                var hasTexture = texture is not null;
-                var animation = TextureAnimation.None;
-                var drawOverlay = false;
-                if (pass == ModelSurfacePass.AnimatedBase)
-                {
-                    if (!animatesBase || !hasTexture)
-                        continue;
-
-                    hasOverlay = false;
-                    animation = texture!.Animation;
-                }
-                else if (pass == ModelSurfacePass.EffectOverlay)
-                {
-                    if (animatesBase || !animatesOverlay || !hasTexture)
-                        continue;
-
-                    drawOverlay = true;
-                    animation = texture!.OverlayAnimation;
-                }
-                else
-                {
-                    if (animatesBase || (hasOverlay && animatesOverlay))
-                        continue;
-
-                    hasOverlay = hasOverlay && !animatesOverlay;
-                }
-
-                _commandList.SetPipelineState(pass switch
-                {
-                    ModelSurfacePass.AnimatedBase => _animatedPipelineState,
-                    ModelSurfacePass.EffectOverlay => _effectPipelineState,
-                    _ when texture?.HasTranslucentPixels == true => _transparentModelPipelineState,
-                    _ => _pipelineState
-                });
-
-                var modelColor = animation.Mode == TextureAnimationMode.RadialSweepBlackKey &&
-                                 _sourceMesh is not null &&
-                                 MeshSurfaceRadialSweep.TryCalculate(_sourceMesh, surface, out var radialSweep)
-                    ? radialSweep
-                    : defaultModelColor;
-                if (animation.HasSecondaryGlow)
-                    modelColor.W = _textures.GetValueOrDefault(TextureAnimation.MultitextureGlowName)?.SrvSlot ?? -1;
-                _modelShaderConstants.WriteModelColor(constants + 32, modelColor);
-
-                _modelShaderConstants.WriteTextureFlags(
-                    constants + ModelShaderLayout.TextureFlagsOffset,
-                    ModelShaderVariables.PackTextureMode(
-                        hasTexture,
-                        drawOverlay || hasOverlay,
-                        drawOverlay || texture?.OverlayMode == TextureOverlayMode.MultiTextureFill),
-                    animation.Mode == TextureAnimationMode.NativeItemTransform
-                        ? ModelShaderVariables.PackNativeItemTextureAnimation(animation.NativeEffectSelector)
-                        : ModelShaderVariables.PackTextureAnimation(
-                        animation.IsAnimated,
-                        animation.Mode == TextureAnimationMode.RadialSweepBlackKey,
-                        overlay: false),
-                    ModelShaderLayout.PreserveProjectedDepth,
-                    animation.IsAnimated ? animation.TimeScale : 0.0f);
-                _commandList.SetGraphicsRoot32BitConstants(
-                    ModelShaderLayout.ModelConstantsRootParameter,
-                    ModelShaderLayout.ModelConstantsCount,
-                    constants,
-                    0);
-                _commandList.SetGraphicsRootDescriptorTable(
-                    ModelShaderLayout.ModelTextureRootParameter,
-                    SrvGpuHandle(texture?.SrvSlot ?? FallbackTextureSlot));
-                _commandList.SetGraphicsRootDescriptorTable(
-                    ModelShaderLayout.ModelOverlayTextureRootParameter,
-                    SrvGpuHandle(drawOverlay || hasOverlay ? texture!.OverlaySrvSlot : FallbackTextureSlot));
-                _commandList.DrawIndexedInstanced((uint)drawCount, 1, (uint)surface.IndexStart, 0, 0);
-            }
+                PreviewMaterialPass.AnimatedBase => _animatedPipelineState,
+                PreviewMaterialPass.EffectOverlay => _effectPipelineState,
+                _ when draw.Translucent => _transparentModelPipelineState,
+                _ => _pipelineState
+            });
+            _modelShaderConstants.WriteModelColor(constants + 32, draw.Color);
+            _modelShaderConstants.WriteTextureFlags(constants + ModelShaderLayout.TextureFlagsOffset,
+                draw.TextureMode, draw.AnimationValue, ModelShaderLayout.PreserveProjectedDepth, draw.TimeScale);
+            _commandList.SetGraphicsRoot32BitConstants(ModelShaderLayout.ModelConstantsRootParameter,
+                ModelShaderLayout.ModelConstantsCount, constants, 0);
+            _commandList.SetGraphicsRootDescriptorTable(ModelShaderLayout.ModelTextureRootParameter,
+                SrvGpuHandle(texture?.SrvSlot ?? FallbackTextureSlot));
+            _commandList.SetGraphicsRootDescriptorTable(ModelShaderLayout.ModelOverlayTextureRootParameter,
+                SrvGpuHandle(draw.UsesOverlay ? texture!.OverlaySrvSlot : FallbackTextureSlot));
+            _commandList.DrawIndexedInstanced((uint)Math.Min(surface.IndexCount, mesh.IndexCount - surface.IndexStart),
+                1, (uint)surface.IndexStart, 0, 0);
         }
     }
 
@@ -1096,17 +1034,7 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
 
     private GpuDescriptorHandle SrvGpuHandle(int index) => _srvHeap.GetGPUDescriptorHandleForHeapStart() + index * _srvDescriptorSize;
 
-    private static bool HasTranslucentPixels(ReadOnlySpan<byte> rgba8)
-    {
-        for (var index = 3; index < rgba8.Length; index += 4)
-        {
-            var alpha = rgba8[index];
-            if (alpha is not 0 and not byte.MaxValue)
-                return true;
-        }
-
-        return false;
-    }
+    private static bool HasTranslucentPixels(ReadOnlySpan<byte> rgba8) => ModelPreviewMaterials.HasTranslucentPixels(rgba8);
 
     private static MeshBounds CalculateBounds(IReadOnlyList<VertexPositionNormalTexture> vertices)
     {
@@ -1127,8 +1055,10 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
     {
         var sceneRadius = Math.Max(GridCellWorldSize * 3.0f, _meshBounds.Radius * _modelScale * 2.0f);
         var distance = Math.Max(120.0f, sceneRadius * 3.25f);
-        var lightDirection = Vector3.Normalize(
-            new Vector3(-sceneRadius * 0.35f, distance * 0.55f, sceneRadius * 0.85f));
+        // Models and characters share the game's Z-up light direction.
+        var lightDirection = _assetPreview
+            ? SolarLightingCalculator.Calculate(0).DirectionToLight
+            : Vector3.Normalize(new Vector3(-sceneRadius * 0.35f, distance * 0.55f, sceneRadius * 0.85f));
 
         _modelShaderConstants.WriteSceneConstants(
             target,
@@ -1147,13 +1077,6 @@ internal sealed partial class Dx12ItemModelRenderer : IDisposable
         return float.IsFinite(value.X) &&
                float.IsFinite(value.Y) &&
                float.IsFinite(value.Z);
-    }
-
-    private enum ModelSurfacePass
-    {
-        Static = 0,
-        AnimatedBase = 1,
-        EffectOverlay = 2
     }
 
     private sealed record ModelTexture(

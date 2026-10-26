@@ -27,7 +27,13 @@ public static class SacredResUnpack
     private static IEnumerable<KeyValuePair<uint, string>> ReadFile(string fileName)
     {
         using var fs = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.Read, 16384, false);
-        using var br = new BinaryReader(fs, Encoding.Unicode);
+        foreach (var entry in Read(fs)) yield return entry;
+    }
+
+    /// <summary>Decodes resources without taking ownership of the seekable stream.</summary>
+    public static IEnumerable<KeyValuePair<uint, string>> Read(Stream fs)
+    {
+        using var br = new BinaryReader(fs, Encoding.Unicode, leaveOpen: true);
 
         var stringCount = br.ReadUInt32();
 

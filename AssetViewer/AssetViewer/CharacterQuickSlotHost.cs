@@ -1,7 +1,6 @@
-using System;
-using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.Threading;
 using Sacred.UI.Inventory;
 
 namespace AssetViewer.AssetViewer;
@@ -38,7 +37,7 @@ internal sealed class CharacterQuickSlotHost : UserControl, IDisposable
     {
         try
         {
-            _assets = await EquipmentPanelAssets.LoadAsync(session.GameDirectory, name => session.Textures.LoadTextureAsync(name));
+            _assets = await EquipmentPanelAssets.LoadAsync(session.GameDirectory, name => session.TextureCache.LoadTextureAsync(name));
             if (_disposed) return;
             _artwork = new(_assets); Rebuild();
             Console.WriteLine("[Assets] Weapon quickslot loaded: one native frame; main hand then offhand.");
@@ -60,6 +59,6 @@ internal sealed class CharacterQuickSlotHost : UserControl, IDisposable
     public void Dispose()
     {
         _disposed = true; _quickslot?.Dispose(); _artwork?.Dispose();
-        _ = Ready.ContinueWith(_ => _previews.Dispose(), TaskScheduler.FromCurrentSynchronizationContext());
+        _ = Ready.ContinueWith(_ => Dispatcher.UIThread.Post(_previews.Dispose), TaskScheduler.Default);
     }
 }

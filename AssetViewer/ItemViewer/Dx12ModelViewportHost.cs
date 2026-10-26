@@ -11,8 +11,7 @@ using Avalonia.Threading;
 using Sacred.Granny.Assets;
 
 namespace AssetViewer.ItemViewer;
-
-internal sealed class Dx12ModelViewportHost : NativeControlHost
+internal sealed class Dx12ModelViewportHost : NativeControlHost, IModelViewport
 {
     private readonly DispatcherTimer _renderTimer;
     private EmbeddedRenderWindow? _window;

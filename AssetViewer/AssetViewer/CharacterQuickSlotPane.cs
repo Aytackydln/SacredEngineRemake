@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -34,7 +29,8 @@ internal sealed class CharacterQuickSlotPane : UserControl, IDisposable
     {
         _rows = rows; _assets = assets; _previews = previews;
         Width = assets.QuickSlot.Frame.Size.X; Height = assets.QuickSlot.Frame.Size.Y;
-        var layers = new Grid();
+        // The artwork and item layers ignore input; keep the entire empty/filled frame clickable.
+        var layers = new Grid { Background = Brushes.Transparent };
         _empty = new Image { Source = artwork.Get(assets.QuickSlot.Empty), Stretch = Stretch.Fill, IsHitTestVisible = false };
         layers.Children.Add(_empty);
         layers.Children.Add(new Image { Source = artwork.Get(assets.QuickSlot.Frame), Stretch = Stretch.Fill, IsHitTestVisible = false });

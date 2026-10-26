@@ -43,6 +43,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Compile Include="../Sacred.Engine/Scene/InGame/SolarLightingCalculator.cs" Link="Shared/SolarLightingCalculator.cs"/>
         <EmbeddedResource Include="ItemViewer\PreviewGroundGrid.hlsl"/>
         <ProjectReference Include="..\Sacred.Assets\Sacred.Assets.csproj"/>
         <ProjectReference Include="..\Sacred.Granny\Sacred.Granny.csproj"/>

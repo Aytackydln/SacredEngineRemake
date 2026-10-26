@@ -1,10 +1,8 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Sacred.Inventory.Actors;
 using Sacred.UI.Inventory;
 
@@ -25,13 +23,14 @@ internal sealed class CharacterEquipmentSlotsPane : UserControl, IDisposable
     private bool _disposed;
     public CharacterSlotRow? Selected { get; private set; }
     public event Action<CharacterSlotRow>? SelectionChanged;
+    public event Action? SelectionCleared;
     public Task Ready => AwaitReadyAsync();
 
     public CharacterEquipmentSlotsPane(AssetViewerSession session)
     {
         _previews = new(session);
         Content = new ScrollViewer { Content = _panel, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-        _panel.Children.Add(new TextBlock { Text = "Equipment slots", FontWeight = FontWeight.Bold });
+        AddHeader();
         _panel.Children.Add(new TextBlock { Text = "Loading original equipment artwork…" });
         _loading = LoadAsync(session);
     }
@@ -53,10 +52,19 @@ internal sealed class CharacterEquipmentSlotsPane : UserControl, IDisposable
         Console.WriteLine($"[Assets] Equipment slot selected: {row.Index}; {row.Type}; occurrence {row.Occurrence + 1}.");
     }
 
+    public void ClearSelection()
+    {
+        Selected = null;
+        Refresh();
+        SelectionCleared?.Invoke();
+        Console.WriteLine("[Assets] Equipment slot filter cleared.");
+    }
+
     public void Refresh()
     {
         foreach (var slot in Controls()) { slot.SetSelected(slot.Row == Selected); slot.Refresh(); }
-        _selected.Text = Selected?.ToString() ?? "Select a character.";
+        _selected.Text = Selected?.ToString() ?? (_rows.Length == 0
+            ? "Select a character." : "All equipment · select a slot to equip an item.");
     }
 
     public void PrintLayout()
@@ -76,7 +84,7 @@ internal sealed class CharacterEquipmentSlotsPane : UserControl, IDisposable
         try
         {
             _assets = await EquipmentPanelAssets.LoadAsync(session.GameDirectory,
-                name => session.Textures.LoadTextureAsync(name));
+                name => session.TextureCache.LoadTextureAsync(name));
             if (_disposed) return;
             _artwork = new(_assets);
             Rebuild();
@@ -97,7 +105,7 @@ internal sealed class CharacterEquipmentSlotsPane : UserControl, IDisposable
         if (_assets is null || _artwork is null || _rows.Length == 0) return;
         _armor?.Dispose(); _armor = null;
         _panel.Children.Clear();
-        _panel.Children.Add(new TextBlock { Text = "Equipment slots", FontWeight = FontWeight.Bold });
+        AddHeader();
         if (_class is { } characterClass)
         {
             _armor = new(characterClass, _rows, _assets, _artwork, _previews);
@@ -115,11 +123,19 @@ internal sealed class CharacterEquipmentSlotsPane : UserControl, IDisposable
         await Task.WhenAll(Controls().Select(s => s.Ready));
     }
 
+    private void AddHeader()
+    {
+        _panel.Children.Add(new TextBlock { Text = "Equipment slots", FontWeight = FontWeight.Bold });
+        var all = new Button { Content = "All equipment" };
+        all.Click += (_, _) => ClearSelection();
+        _panel.Children.Add(all);
+    }
+
     public void Dispose()
     {
         _disposed = true;
         _armor?.Dispose();
         _artwork?.Dispose();
-        _ = Ready.ContinueWith(_ => _previews.Dispose(), TaskScheduler.FromCurrentSynchronizationContext());
+        _ = Ready.ContinueWith(_ => Dispatcher.UIThread.Post(_previews.Dispose), TaskScheduler.Default);
     }
 }

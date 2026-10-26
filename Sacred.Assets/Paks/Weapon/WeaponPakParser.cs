@@ -1,4 +1,5 @@
 ﻿using System.Collections.Frozen;
+using System.Text;
 using Sacred.Assets.Utils;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Pak.Weapon;
@@ -12,7 +13,13 @@ public static class WeaponPakParser
     {
         using var stopwatch = new LoggingStopwatch("Loading Weapons.pak... ");
         using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read);
-        using var br = new BinaryReader(fs);
+        return Parse(fs, items);
+    }
+
+    /// <summary>Reads equipment without taking ownership of the input stream.</summary>
+    public static IEnumerable<SacredEquipment> Parse(Stream fs, FrozenDictionary<ushort, ItemsPakEntry> items)
+    {
+        using var br = new BinaryReader(fs, Encoding.Latin1, leaveOpen: true);
 
         var header = br.ReadStruct<WeaponPakHeaderLayout>(WeaponPakHeaderLayout.SerializedSize);
         header.ValidateSignature();

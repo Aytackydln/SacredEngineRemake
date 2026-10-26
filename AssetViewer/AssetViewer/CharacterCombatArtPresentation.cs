@@ -1,10 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Threading;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -74,7 +68,7 @@ internal sealed class CharacterCombatArtPresentation : IDisposable
                 try
                 {
                     if (!loaded.TryGetValue(selector.TextureName, out var texture))
-                        loaded[selector.TextureName] = texture = await _session.Textures.LoadTextureAsync(selector.TextureName, _cancel.Token);
+                        loaded[selector.TextureName] = texture = await _session.TextureCache.LoadTextureAsync(selector.TextureName, _cancel.Token);
                     _cancel.Token.ThrowIfCancellationRequested();
                     var bitmap = Crop(texture, selector);
                     _icons.Add(code, bitmap);

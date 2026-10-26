@@ -100,7 +100,11 @@ internal static class AssetViewerConsole
             case "stats-view": ((CharactersWindow)await main.OpenViewerAsync("characters")).SelectStatsView(argument); break;
             case "inventory": ((CharactersWindow)await main.OpenViewerAsync("characters")).PrintInventory(); break;
             case "equipment-layout": ((CharactersWindow)await main.OpenViewerAsync("characters")).PrintEquipmentLayout(); break;
-            case "inventory-slot": ((CharactersWindow)await main.OpenViewerAsync("characters")).SelectInventorySlot(int.Parse(argument)); break;
+            case "inventory-slot":
+                var inventory = (CharactersWindow)await main.OpenViewerAsync("characters");
+                if (argument == "all") inventory.ClearInventorySlotFilter();
+                else inventory.SelectInventorySlot(int.Parse(argument));
+                break;
             case "inventory-item": ((CharactersWindow)await main.OpenViewerAsync("characters")).SelectInventoryItem(uint.Parse(argument)); break;
             case "item-description": ((CharactersWindow)await main.OpenViewerAsync("characters")).PrintSelectedDescription(); break;
             case "screenshot-item":

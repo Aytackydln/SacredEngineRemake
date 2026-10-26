@@ -1,7 +1,3 @@
-using System;
-using System.IO;
-using System.Linq;
-using System.Threading.Tasks;
 using AssetViewer.ItemViewer;
 using Sacred.Assets;
 using Sacred.Assets.Equipment;
@@ -17,12 +13,13 @@ namespace AssetViewer.AssetViewer;
 
 internal sealed class AssetViewerSession : IDisposable
 {
-    private AssetViewerSession(string directory, SacredGameData data, ModelsPakArchive models, TexturePakArchive textures)
+    internal AssetViewerSession(string directory, SacredGameData data, ModelsPakArchive models, TexturePakArchive textures)
     {
         GameDirectory = directory;
         Data = data;
         Models = models;
         Textures = textures;
+        TextureCache = new ViewerTextureCache(textures, OperatingSystem.IsBrowser());
         Items = data.GamePakStore.Items.Values.OrderBy(item => item.ItemIndex).ToArray();
         Equipment = data.GamePakStore.Weapons.Values.ToArray();
         _equipmentGeneration = new(() => Task.Run(() =>
@@ -37,6 +34,7 @@ internal sealed class AssetViewerSession : IDisposable
     public SacredGameData Data { get; }
     public ModelsPakArchive Models { get; }
     public TexturePakArchive Textures { get; }
+    public ViewerTextureCache TextureCache { get; }
     public ItemsPakEntry[] Items { get; }
     public SacredEquipment[] Equipment { get; }
     public SacredGameActor? DropHero { get; set; }
@@ -77,6 +75,7 @@ internal sealed class AssetViewerSession : IDisposable
 
     public void Dispose()
     {
+        TextureCache.Dispose();
         Models.Dispose();
         Textures.Dispose();
     }

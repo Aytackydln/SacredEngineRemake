@@ -29,6 +29,12 @@ public class SacredGameData
         Console.WriteLine($"Loaded rune combat arts: {CombatArts.Entries.Count} definitions.");
     }
 
+    /// <summary>Creates the same catalogues from caller-owned, decoded installation resources.</summary>
+    public static SacredGameData FromResources(GamePakStore paks, GameResStore resources,
+        CreaturePakArchive? creatures = null, IReadOnlyList<SacredSetEntry>? sets = null,
+        IReadOnlyList<SacredWeaponModifier>? modifiers = null) => new(paks, resources)
+        { Creatures = creatures, ItemSets = sets ?? [], WeaponModifiers = modifiers ?? [] };
+
     public static SacredGameData LoadFromGamePaks(SacredGameDirectories gameDirectories)
     {
         var gamePakStore = LoadGamePakStore(gameDirectories);

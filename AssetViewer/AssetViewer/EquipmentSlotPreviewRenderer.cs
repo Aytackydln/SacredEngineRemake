@@ -1,9 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Numerics;
-using System.Threading;
-using System.Threading.Tasks;
 using AssetViewer.ItemViewer;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Core.Pak.Weapon;
@@ -12,11 +7,10 @@ using Sacred.UI.Inventory;
 
 namespace AssetViewer.AssetViewer;
 
-/// <summary>Renders transparent item layers with the existing DX12 pipeline, without Present or focus.</summary>
+/// <summary>Renders transparent item layers through the platform backend without focus.</summary>
 internal sealed class EquipmentSlotPreviewRenderer(AssetViewerSession session) : IDisposable
 {
-    private EmbeddedRenderWindow? _window;
-    private Dx12ItemModelRenderer? _renderer;
+    private readonly IEquipmentSlotRenderBackend _renderer = EquipmentSlotRenderFactory.Create();
     private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _disposed;
 
@@ -36,13 +30,13 @@ internal sealed class EquipmentSlotPreviewRenderer(AssetViewerSession session) :
         {
             var reference = ModelTextureResolver.Resolve(session.Textures, desc.TextureId, desc.EffectTextureId,
                 desc.GraphicFlags, hasEffect, names.Length == 1, name, desc.EffectTextureIndex);
-            var texture = await session.Textures.LoadTextureAsync(reference.TextureName, token);
+            var texture = await session.TextureCache.LoadTextureAsync(reference.TextureName, token);
             TextureAsset? overlay = reference.HasOverlay
-                ? await session.Textures.LoadTextureAsync(reference.OverlayTextureName!, token) : null;
+                ? await session.TextureCache.LoadTextureAsync(reference.OverlayTextureName!, token) : null;
             if ((reference.Animation.HasSecondaryGlow || reference.OverlayAnimation.HasSecondaryGlow) &&
                 !bindings.ContainsKey(TextureAnimation.MultitextureGlowName))
                 bindings[TextureAnimation.MultitextureGlowName] = new ModelTextureBinding(
-                    await session.Textures.LoadTextureAsync(TextureAnimation.MultitextureGlowName, token));
+                    await session.TextureCache.LoadTextureAsync(TextureAnimation.MultitextureGlowName, token));
             bindings.Add(name!, new(texture with { Animation = reference.Animation },
                 overlay is null ? null : overlay with { Animation = reference.OverlayAnimation }, reference.OverlayMode));
         }
@@ -51,8 +45,6 @@ internal sealed class EquipmentSlotPreviewRenderer(AssetViewerSession session) :
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             token.ThrowIfCancellationRequested();
-            _window ??= new EmbeddedRenderWindow(0, _ => { }, visible: false, width: 256, height: 256);
-            _renderer ??= new Dx12ItemModelRenderer(_window.Hwnd);
             _renderer.SetInventoryPlacement(item.PreviewScale, item.PreviewOffset);
             _renderer.SetModel(asset, item.PreviewRotation, item.Width, item.Height, EquipmentEffectScene.Empty);
             var center = weaponSlot ? WeaponSlotLayout.ItemCenter(item) : new(item.Width * 16, item.Height * 16);
@@ -76,7 +68,7 @@ internal sealed class EquipmentSlotPreviewRenderer(AssetViewerSession session) :
             _renderer.SetEquipmentSlotViewport(renderSize, center - minimum);
             await _renderer.SetTexturesAsync(bindings, token);
             token.ThrowIfCancellationRequested();
-            var bitmap = _renderer.CaptureBitmap();
+            var bitmap = await _renderer.CaptureBitmapAsync();
             Console.WriteLine($"[Assets] Equipment slot preview ready: {item.IdemId}; {size.X}x{size.Y}; " +
                 $"authored cells {item.Width}x{item.Height}; effects disabled.");
             return new(bitmap, minimum, renderSize);
@@ -88,7 +80,7 @@ internal sealed class EquipmentSlotPreviewRenderer(AssetViewerSession session) :
     {
         _disposed = true;
         _renderer?.Dispose();
-        _window?.Dispose();
+
         // Pending loads use their caller's cancellation token before entering the renderer.
     }
 }

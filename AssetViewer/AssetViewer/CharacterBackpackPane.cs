@@ -1,5 +1,3 @@
-using System;
-using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -57,11 +55,14 @@ internal sealed class CharacterBackpackPane : UserControl
     private void Filter()
     {
         var query = _search.Text?.Trim() ?? string.Empty;
-        var matches = _slot is { } slot ? _equipment.Where(item => CharacterEquipment.CanEquip(slot.Type, _class, item.Item)
-            && item.ToString().Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray() : [];
+        var matches = _equipment.Where(item => (_slot is { } slot
+                ? CharacterEquipment.CanEquip(slot.Type, _class, item.Item)
+                : _class is not { } characterClass || EquipmentSlotRules.CanEquip(characterClass, item.Item))
+            && item.ToString().Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray();
         _matches.ItemsSource = matches;
         _equip.IsEnabled = false;
         _status.Text = $"{matches.Length:N0} matching definitions. Equipping creates an item with authored values.";
+        Console.WriteLine($"[Assets] Equipment filter: slot={_slot?.Type.ToString() ?? "all"}; class={_class?.ToString() ?? "unrestricted"}; matches={matches.Length}.");
         SelectionChanged?.Invoke();
     }
 }

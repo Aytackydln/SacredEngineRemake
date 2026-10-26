@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -84,8 +81,8 @@ internal sealed class AssetTableControl<T> : UserControl where T : class
         {
             _pendingSelection = row;
             _search.Text = string.Empty;
+            _filtered = _rows.Where(row => _rowFilter?.Invoke(row) ?? true).ToArray();
         }
-        _filtered = _rows.Where(row => _rowFilter?.Invoke(row) ?? true).ToArray();
         _page = Array.IndexOf(_filtered, row) / PageSize;
         ShowPage();
         SetSelected(row);
@@ -123,7 +120,9 @@ internal sealed class AssetTableControl<T> : UserControl where T : class
     {
         var pages = Math.Max(1, (_filtered.Length + PageSize - 1) / PageSize);
         _page = Math.Clamp(_page, 0, pages - 1);
-        Table.ItemsSource = _filtered.Skip(_page * PageSize).Take(PageSize).ToArray();
+        var rows = _filtered.Skip(_page * PageSize).Take(PageSize).ToArray();
+        if (Table.ItemsSource is not T[] visible || !visible.SequenceEqual(rows))
+            Table.ItemsSource = rows;
         _count.Text = $"{_filtered.Length:N0} entries · page {_page + 1}/{pages}";
         _previous.IsEnabled = _page > 0;
         _next.IsEnabled = _page < pages - 1;
