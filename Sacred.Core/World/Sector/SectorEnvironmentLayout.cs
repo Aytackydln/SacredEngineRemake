@@ -30,7 +30,9 @@ public readonly struct SectorEnvironmentLayout
     [FieldOffset(0xD1)] public readonly ushort MonsterMaxCount;
     /// <summary>Also overwritten by script opcode 100's second integer (Gold 0x4A970E).</summary>
     [FieldOffset(0xD3)] public readonly ushort MonsterMinLevel;
-    /// <summary>Also overwritten by script opcode 100's third integer (Gold 0x4A971C).</summary>
+    /// <summary>Also overwritten by script opcode 100's third integer (Gold 0x4A971C).
+    /// Gold SetLevel 0x565451 adds this nonzero word to the difficulty maximum
+    /// before applying actor-specific cap rules; this is not an absolute level cap.</summary>
     [FieldOffset(0xD5)] public readonly ushort MonsterMaxLevel;
     /// <summary>Native region01: raw region number, read by Gold 0x622D50.
     /// Gold 0x602250 maps this through a signed-byte table to a separate script-region number.

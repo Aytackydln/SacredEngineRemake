@@ -45,6 +45,8 @@ internal sealed class SacredNativeTypeSwitch
             else if (code[..2].SequenceEqual<byte>([0x33, 0xC9])) { ecx = 0; address += 2; }
             else if (code[..2].SequenceEqual<byte>([0x33, 0xD2])) { edx = 0; address += 2; }
             else if (code[0] == 0xB8) { eax = Word(code[1..]); address += 5; }
+            else if (code[0] == 0xB0) { eax = (eax & 0xFFFFFF00) | code[1]; address += 2; }
+            else if (code[..2].SequenceEqual<byte>([0x32, 0xC0])) { eax &= 0xFFFFFF00; address += 2; }
             else if (code[0] == 0x3D) { left = eax; right = Word(code[1..]); address += 5; }
             else if (code[..2].SequenceEqual<byte>([0x83, 0xF8])) { left = eax; right = unchecked((uint)(sbyte)code[2]); address += 3; }
             else if (code[0] == 0x48) { eax = unchecked(eax - 1); left = eax; right = 0; address++; }

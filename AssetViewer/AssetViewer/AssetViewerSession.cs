@@ -4,12 +4,14 @@ using System.Linq;
 using System.Threading.Tasks;
 using AssetViewer.ItemViewer;
 using Sacred.Assets;
+using Sacred.Assets.Equipment;
 using Sacred.Assets.Paks.Models;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Core;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Pak.Weapon;
 using Sacred.Granny.Loading;
+using Sacred.Inventory.Actors;
 
 namespace AssetViewer.AssetViewer;
 
@@ -23,6 +25,12 @@ internal sealed class AssetViewerSession : IDisposable
         Textures = textures;
         Items = data.GamePakStore.Items.Values.OrderBy(item => item.ItemIndex).ToArray();
         Equipment = data.GamePakStore.Weapons.Values.ToArray();
+        _equipmentGeneration = new(() => Task.Run(() =>
+        {
+            var generation = SacredEquipmentGenerationData.Load(GameDirectory);
+            Console.WriteLine($"[Drops] Loaded original generation data: {generation.Templates.Equipment.Count} equipment definitions, {generation.Variants.Count} variant profiles.");
+            return generation;
+        }));
     }
 
     public string GameDirectory { get; }
@@ -31,6 +39,9 @@ internal sealed class AssetViewerSession : IDisposable
     public TexturePakArchive Textures { get; }
     public ItemsPakEntry[] Items { get; }
     public SacredEquipment[] Equipment { get; }
+    public SacredGameActor? DropHero { get; set; }
+    private readonly Lazy<Task<SacredEquipmentGenerationData>> _equipmentGeneration;
+    public Task<SacredEquipmentGenerationData> LoadEquipmentGenerationAsync() => _equipmentGeneration.Value;
 
     public static Task<AssetViewerSession> LoadAsync(string directory) => Task.Run(() =>
     {

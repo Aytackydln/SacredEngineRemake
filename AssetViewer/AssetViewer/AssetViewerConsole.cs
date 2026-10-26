@@ -3,6 +3,8 @@ using System.Globalization;
 using System.IO;
 using System.Threading.Tasks;
 using Avalonia.Threading;
+using Sacred.Core.Loot;
+using Sacred.Core.Pak.Items;
 
 namespace AssetViewer.AssetViewer;
 
@@ -15,7 +17,10 @@ internal static class AssetViewerConsole
         Console.WriteLine("[Assets] FX cheats: open effects, fx <Items.pak row>, fx-implemented <true|false>, fx-search <text>, fx-variant <script|event subtype>, fx-strength <unsigned value>, fx-distance <native units, 0..2000>, fx-defaults, fx-restart, fx-actor, fx-play <true|false>, fx-time <seconds>.");
         Console.WriteLine("[Assets] FX controller cheats: fx-release (Forge compression/fade), fx-extend <timer units> (Mana duration), fx-cell <0..15> (Trap01 atlas), fx-hit (hit/toggle response), fx-step <seconds> (advance paused FX in 60 Hz steps).");
         Console.WriteLine("[Assets] Models/Effects camera cheat: zoom <wheel steps>; positive zooms in, negative zooms out.");
-        Console.WriteLine("[Assets] Cheats: open <models|equipment|textures|characters>, model <row>, item <id>, texture <archive.pak> <row>, character <row>, class <name|npc>, animations, animation <bind|default|slot|GRN name>, animation-play <true|false>, animation-time <seconds>, rotate <horizontal degrees>, equipment-rotation <yaw> <pitch> <roll>, effects <true|false>, equip <slot-index> <id>, unequip <slot-index>, screenshot <path.png>, screenshot-ui <path.png>, location <directory>, close <view>, gc, quit.");
+        Console.WriteLine("[Drops] Cheats: open drops, drop <difficulty 0..4> <hero-level> <category|random|weighted|reward|armor|jewelry> <class 0..9> <seed> [rarity random|0..14], drop-replay, drop-select <history index>, drop-values, drop-copy-equipment, drop-clear. Screenshot cheats work without desktop input.");
+        Console.WriteLine("[Drops] Rarity-stage cheat: drop-rarity-stage <Creature|Container> <difficulty> <hero-level> <source-level> <equipment-find-bonus> <survival-seconds> <resolved-creature-bonus> <progression-mask> <seed>. This is not a full kill/open/reward event.");
+        Console.WriteLine("[Drops] Authored name preview: drop-authored <unique/set resource>. Uses original values and the native resource name without adding a random drop.");
+        Console.WriteLine("[Assets] Cheats: open <models|equipment|textures|characters|drops>, model <row>, item <id>, texture <archive.pak> <row>, character <row>, class <name|npc>, animations, animation <bind|default|slot|GRN name>, animation-play <true|false>, animation-time <seconds>, rotate <horizontal degrees>, equipment-rotation <yaw> <pitch> <roll>, effects <true|false>, equip <slot-index> <id>, unequip <slot-index>, screenshot <path.png>, screenshot-ui <path.png>, location <directory>, close <view>, gc, quit.");
         _ = Task.Run(async () =>
         {
             while (Console.ReadLine() is { } input)
@@ -40,6 +45,33 @@ internal static class AssetViewerConsole
         switch (command)
         {
             case "open": await main.OpenViewerAsync(argument); break;
+            case "drop":
+                var drop = argument.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (drop.Length is not (5 or 6)) throw new ArgumentException("Usage: drop <difficulty 0..4> <hero-level> <category|random|weighted|reward|armor|jewelry> <class 0..9> <seed> [rarity random|0..14]");
+                var choice = ItemDropCategoryChoice.Parse(drop[2]);
+                await ((ItemDropSimulatorWindow)await main.OpenViewerAsync("drops")).RollAsync(new(ushort.Parse(drop[1], CultureInfo.InvariantCulture),
+                    uint.Parse(drop[0], CultureInfo.InvariantCulture), uint.Parse(drop[4], CultureInfo.InvariantCulture),
+                    choice.Category, uint.Parse(drop[3], CultureInfo.InvariantCulture), choice.Mode,
+                    drop.Length == 5 || drop[5].Equals("random", StringComparison.OrdinalIgnoreCase) ? null : uint.Parse(drop[5], CultureInfo.InvariantCulture)));
+                break;
+            case "drop-replay": await ((ItemDropSimulatorWindow)await main.OpenViewerAsync("drops")).ReplayAsync(); break;
+            case "drop-rarity-stage":
+                var stage = argument.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (stage.Length != 9) throw new ArgumentException("Usage: drop-rarity-stage <Creature|Container> <difficulty> <hero-level> <source-level> <equipment-find-bonus> <survival-seconds> <creature-bonus> <unlocks> <seed>");
+                await ((ItemDropSimulatorWindow)await main.OpenViewerAsync("drops")).RollAsync(new(
+                    ushort.Parse(stage[2], CultureInfo.InvariantCulture), uint.Parse(stage[1], CultureInfo.InvariantCulture),
+                    uint.Parse(stage[8], CultureInfo.InvariantCulture), Category: SacredItemCategory.Weapon, Quality: null)
+                {
+                    RarityContext = new(Enum.Parse<SacredLootRarityProfile>(stage[0], true),
+                        float.Parse(stage[4], CultureInfo.InvariantCulture), uint.Parse(stage[5], CultureInfo.InvariantCulture),
+                        ushort.Parse(stage[3], CultureInfo.InvariantCulture), ushort.Parse(stage[6], CultureInfo.InvariantCulture), byte.Parse(stage[7], CultureInfo.InvariantCulture))
+                });
+                break;
+            case "drop-select": ((ItemDropSimulatorWindow)await main.OpenViewerAsync("drops")).SelectHistory(int.Parse(argument, CultureInfo.InvariantCulture)); break;
+            case "drop-values": ((ItemDropSimulatorWindow)await main.OpenViewerAsync("drops")).PrintValues(); break;
+            case "drop-clear": ((ItemDropSimulatorWindow)await main.OpenViewerAsync("drops")).ClearDrops(); break;
+            case "drop-copy-equipment": ((ItemDropSimulatorWindow)await main.OpenViewerAsync("drops")).CopyEquipmentFind(); break;
+            case "drop-authored": await ((ItemDropSimulatorWindow)await main.OpenViewerAsync("drops")).InspectAuthoredAsync(uint.Parse(argument, CultureInfo.InvariantCulture)); break;
             case "model": ((ModelsWindow)await main.OpenViewerAsync("models")).Select(ushort.Parse(argument)); break;
             case "fx": ((EffectsWindow)await main.OpenViewerAsync("effects")).Select(ushort.Parse(argument)); break;
             case "fx-variant": ((EffectsWindow)await main.OpenViewerAsync("effects")).SelectVariant(argument.Equals("script", StringComparison.OrdinalIgnoreCase) ? null : int.Parse(argument)); break;

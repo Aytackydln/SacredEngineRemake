@@ -197,6 +197,7 @@ internal sealed class CharactersWindow : Window, IAssetViewerWindow
             _actor.Progression.ConfigureCombatArts(_session.Data.CombatArts.Entries);
             _actors.Add(character.EntryId, _actor);
         }
+        _session.DropHero = _actor;
         var occurrences = new Dictionary<EquipmentSlotType, int>();
         _slots = _actor.EquipmentSlots.Select((slot, index) =>
         {

@@ -10,6 +10,8 @@ public static class SacredSavedCreatureLayout
     public const int EiModeOffset = Block150Offset;
     /// <summary>Packed native +0x174 control copied into Gold movement message prefixes.</summary>
     public const int MovementControlOffset = Block150Offset + 0x24;
+    /// <summary>Nineteen native reference words in SacredCreatureEquipmentSlot order;
+    /// live storage begins at creature +0x1A4. Native slot selection is 0x54ACC0.</summary>
     public const int EquipmentOffset = 419;
     public const int EquipmentCount = 19;
     /// <summary>Native +0x1EC (last equipment word): 8054D0 follows this creature reference for sector context when base flag 2 is set and its own sector is zero.</summary>

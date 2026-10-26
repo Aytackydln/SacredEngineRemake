@@ -12,8 +12,11 @@ public sealed class SacredObjectTemplateArchive
 {
     private readonly Dictionary<uint, ItemsPakEntry> _items;
     private readonly Dictionary<uint, byte[]> _instances;
-    private SacredObjectTemplateArchive(Dictionary<uint, ItemsPakEntry> items, Dictionary<uint, byte[]> instances)
-        => (_items, _instances) = (items, instances);
+    private SacredObjectTemplateArchive(Dictionary<uint, ItemsPakEntry> items, Dictionary<uint, byte[]> instances,
+        Dictionary<uint, SacredEquipmentLayout> equipment)
+        => (_items, _instances, Equipment) = (items, instances, equipment);
+    public IReadOnlyDictionary<uint, SacredEquipmentLayout> Equipment { get; }
+    public IReadOnlyDictionary<uint, ItemsPakEntry> Items => _items;
 
     public static SacredObjectTemplateArchive Load(string installationDirectory)
     {
@@ -34,6 +37,7 @@ public sealed class SacredObjectTemplateArchive
             throw new InvalidDataException("Truncated Weapon.pak template table.");
         var visuals = items.ToDictionary(pair => pair.Key, pair => pair.Value);
         var instances = new Dictionary<uint, byte[]>();
+        var equipment = new Dictionary<uint, SacredEquipmentLayout>();
         var inheritance = new List<(uint Type, uint Parent)>();
         for (var index = 0; index < header.EntryCount; index++)
         {
@@ -41,6 +45,7 @@ public sealed class SacredObjectTemplateArchive
             var type = BinaryPrimitives.ReadUInt32LittleEndian(bytes[128..]);
             var parent = BinaryPrimitives.ReadUInt32LittleEndian(bytes[36..]);
             instances[type] = bytes[128..].ToArray();
+            equipment[type] = MemoryMarshal.Read<SacredEquipmentLayout>(bytes);
             inheritance.Add((type, parent));
             if (visuals.TryGetValue(type, out var item))
             {
@@ -55,7 +60,7 @@ public sealed class SacredObjectTemplateArchive
                 visuals[type] = child with { ModelDesc = basis.ModelDesc.WithWeaponEntry(child.ModelDesc.WeaponEntry)
                         .WithItemId(child.ModelDesc.ResourceId != 0 ? child.ModelDesc.ResourceId : type),
                     ModelName = basis.ModelName };
-        return new(visuals, instances);
+        return new(visuals, instances, equipment);
     }
 
     public ItemsPakEntry GetItem(uint type) => _items.TryGetValue(type, out var item) ? item :

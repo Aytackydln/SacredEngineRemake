@@ -69,6 +69,8 @@ public readonly struct SacredEquipmentLayout
     [FieldOffset(32)] public readonly byte ParrySet;
     [FieldOffset(33)] public readonly byte MissSet;
     [FieldOffset(34)] public readonly byte LolSet;
+    /// <summary>Gold pricing 0x5D4830: zero permits repeated bonus normalization
+    /// when generation flags 0x30000000 are present and SpawnLevel is not initialized.</summary>
     [FieldOffset(35)] public readonly byte SetType;
 
     /// <summary>Optional base visual item. Native predicates test this ID after the item's own ID;
@@ -108,8 +110,12 @@ public readonly struct SacredEquipmentLayout
     [FieldOffset(134)]
     public readonly byte RarityAndClassFlags;
 
-    /// <summary>Remaining high byte of the native sWeaponInfo::Flag word.</summary>
-    [FieldOffset(135), BinaryUnknown] public readonly byte UnknownFlagHighByte;
+    /// <summary>Compatibility view of the generation/difficulty/init flag byte;
+    /// bits 5/6 remain unresolved outside this construction path.</summary>
+    [FieldOffset(135)] public readonly byte UnknownFlagHighByte;
+    /// <summary>Gold 0x5D56A0: low nibble is generation difficulty + 1;
+    /// bit 4 marks generation and bit 7 is pricing's initialized-level latch.</summary>
+    [FieldOffset(135)] public readonly byte GenerationFlags;
     [FieldOffset(136)] public readonly uint Price;
     /// <summary>Native SlotType[8] bytes.</summary>
     [FieldOffset(140)] public readonly SacredEquipmentSlotTypes SlotTypes;

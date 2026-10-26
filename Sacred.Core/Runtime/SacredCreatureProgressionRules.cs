@@ -35,6 +35,9 @@ public static class SacredCreatureProgressionRules
         var x = (double)level;
         var value = x * x * x * x + 40 * x * x * x + 150 * x * x + 200 * x - 90;
         // __ftol returns a 64-bit integer; the writer retains EAX before /100*100.
+        // On signed 64-bit overflow x87 supplies the integer-indefinite value,
+        // whose low word is zero. Managed floating casts need not do the same.
+        if (value >= 9223372036854775808d) return 0;
         return unchecked((uint)(long)value) / 100 * 100;
     }
 

@@ -1,0 +1,31 @@
+namespace Sacred.Core.GameBin.Balance;
+
+/// <summary>Loot fields in Balance.bin's counted global block (Gold 0xAD4490).
+/// Chance checks are sequential; these values are not category weights.</summary>
+public static class SacredLootBalanceLayout
+{
+    /// <summary>0x559DA0: initial chance budget per thousand. Values above
+    /// one thousand allow multiple outer passes; this is not a percentage.</summary>
+    public const int CreatureBaseChanceOffset = 0x700;
+    public const int CreatureBoostedChanceFactorOffset = 0x708;
+    public const int CreatureWeaponChanceOffset = 0x89C; // rand()%1000
+    public const int CreatureArmorChanceOffset = 0x8A0;
+    public const int CreatureMoneyChanceOffset = 0x8A4;
+    public const int CreaturePotionChanceOffset = 0x8B4;
+    /// <summary>0x551530: lower interpolation ratio, upper penalty threshold,
+    /// and start of the full-value plateau, respectively.</summary>
+    public const int LevelRatioLowerOffset = 0x9A8;
+    public const int LevelRatioUpperOffset = 0x9AC;
+    public const int LevelRatioPlateauOffset = 0x9B0;
+    /// <summary>0x559BF0 / 0x5D57C0: floor blended into rarity weight scaling.</summary>
+    public const int RarityWeightFloorOffset = 0x1218;
+    /// <summary>0x5D5B29: multiplier on the survival-time curve added to find score.</summary>
+    public const int SurvivalRarityFactorOffset = 0x121C;
+    /// <summary>0x559E94: extra chance per eligible nearby party member, capped
+    /// at four members by the caller. Network eligibility is separate.</summary>
+    public const int CreaturePartyMemberChanceFactorOffset = 0x126C;
+    /// <summary>0x559FE2: rescale the caller's rarity argument using
+    /// sqrt(creature info +0x0A * scale) / scale before each selection attempt.</summary>
+    public const int CreatureExperienceBonusScaleOffset = 0x1318;
+    public const int RequiredGlobalBytes = CreatureExperienceBonusScaleOffset + sizeof(float);
+}

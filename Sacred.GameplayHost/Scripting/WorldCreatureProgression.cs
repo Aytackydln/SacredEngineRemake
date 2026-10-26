@@ -11,7 +11,7 @@ namespace Sacred.GameplayHost.Scripting;
 /// remain actor services. Incomplete calculated stats are never published as full values.</summary>
 public sealed class WorldCreatureProgression
 {
-    private readonly byte[] _values = new byte[SacredActorValuesLayout.Size];
+    private readonly byte[] _values;
     private readonly byte[] _health = new byte[GoldCreatureValuesLayout.Block128Size];
     private readonly SacredCreatureTemplate? _template;
 
@@ -22,24 +22,8 @@ public sealed class WorldCreatureProgression
     public WorldCreatureProgression(uint type) : this(type, null) { }
     private WorldCreatureProgression(uint type, SacredCreatureTemplate? template)
     {
-        if (template?.Class == SacredCreatureClass.Hero)
-            throw new ArgumentException("Hero construction requires native learned combat arts and hero initialization.", nameof(template));
         _template = template;
-        BinaryPrimitives.WriteUInt32LittleEndian(_values, type);
-        // Seed 0x586C00 copies the Basis in archive order, independently of its
-        // first current-attribute assignment. CalcResults subsequently reads Basis.
-        byte[] basis = template is null ? [25,15,20,20,10,5] :
-            [template.Strength, template.Dexterity, template.PhysicalRegeneration,
-                template.Endurance, template.Charisma, template.MentalRegeneration];
-        for (var i = 0; i < basis.Length; i++)
-            BinaryPrimitives.WriteUInt16LittleEndian(_values.AsSpan(66 + i * 2), basis[i]);
-        for (var i = 0; template is not null && i < 8; i++)
-        {
-            var skill = i < 2 ? template.StartingSkills[i] : template.AvailableSkills[i - 2];
-            _values[28 + i] = skill;
-            if (skill != 0) _values[36 + i] = 1;
-        }
-        SetLevelWord(1);
+        _values = WorldCreatureComponentSeed.Create(type, template);
         SetHitPoints(100);
         // The original constructor still has reference/owner zero. Its first
         // CalcResults and SetLevel leave regeneration zero and preserve seeded ranks.
@@ -48,19 +32,43 @@ public sealed class WorldCreatureProgression
     public ushort Level => BinaryPrimitives.ReadUInt16LittleEndian(_values.AsSpan(78));
     public uint Experience => BinaryPrimitives.ReadUInt32LittleEndian(_values.AsSpan(4));
 
+    /// <summary>Actor-aware native SetLevel selection. Callers must supply runtime
+    /// additions/sector limits at this invocation; script input alone is insufficient.</summary>
+    public void SetLevel(ushort input, WorldCreatureLevelContext context, SacredCreatureLevelBalance levels,
+        SacredCreatureBalance balance, uint players, float bossFactor = 1, bool runtimeHealthBonus = false,
+        ushort? strength = null, ushort? endurance = null, byte calculatedAttributeBonusMask = 0)
+    {
+        var selected = WorldCreatureLevel.Resolve(input, _template, context, levels, balance);
+        SetResolvedLevel(selected, context.ObjectReference > 16, balance, context.Difficulty, players,
+            bossFactor, runtimeHealthBonus, strength, endurance, calculatedAttributeBonusMask);
+    }
+
     public void SetLevel(ushort resolvedLevel, SacredCreatureBalance balance, uint difficulty, uint players,
         float bossFactor = 1, bool runtimeHealthBonus = false, ushort? strength = null, ushort? endurance = null,
         byte calculatedAttributeBonusMask = 0)
     {
         if (resolvedLevel == 0) throw new ArgumentOutOfRangeException(nameof(resolvedLevel));
+        SetResolvedLevel(new(resolvedLevel), true, balance, difficulty, players,
+            bossFactor, runtimeHealthBonus, strength, endurance, calculatedAttributeBonusMask);
+    }
+
+    private void SetResolvedLevel(WorldCreatureLevelSelection selected, bool updateSkills, SacredCreatureBalance balance,
+        uint difficulty, uint players, float bossFactor, bool runtimeHealthBonus, ushort? strength,
+        ushort? endurance, byte calculatedAttributeBonusMask)
+    {
         if (_template is null) throw new InvalidOperationException("Missing-template level recalculation requires the native fallback attribute calculation.");
+        var resolvedLevel = selected.Level;
+        // Zero is a valid selection for special actors/zero caps; health calculation's
+        // supported nonzero-level domain must not silently substitute a level here.
+        if (resolvedLevel == 0) throw new InvalidOperationException("Selected level zero requires native zero-level value calculation.");
         SetLevelWord(resolvedLevel);
-        BinaryPrimitives.WriteUInt32LittleEndian(_values.AsSpan(4), resolvedLevel < 2 ? 0 :
-            SacredCreatureProgressionRules.ExperienceAtLevel((ushort)(resolvedLevel - 1)));
-        _values.AsSpan(36, 8).Clear();
-        var active = SacredCreatureProgressionRules.ActiveSkillCount(resolvedLevel);
-        for (var i = 0; i < active; i++)
-            if (_values[28 + i] != 0) _values[36 + i] = unchecked((byte)(resolvedLevel / 3));
+        BinaryPrimitives.WriteUInt32LittleEndian(_values.AsSpan(4), selected.Experience);
+        if (updateSkills)
+        {
+            _values.AsSpan(36, 8).Clear();
+            for (var i = 0; i < selected.ActiveSkillCount; i++)
+                if (_values[28 + i] != 0) _values[36 + i] = selected.SkillRank;
+        }
         var currentStrength = strength ?? Grow(_template.Strength, resolvedLevel);
         var currentEndurance = endurance ?? Grow(_template.Endurance, resolvedLevel);
         _values[26] = calculatedAttributeBonusMask;

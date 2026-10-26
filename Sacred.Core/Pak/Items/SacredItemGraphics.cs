@@ -58,6 +58,9 @@ public enum SacredItemGraphicFlags : ushort
 
     /// <summary>Observed unresolved flag bit. The name preserves its raw hexadecimal value.</summary>
     Byte0800 = 0x0800,
+    /// <summary>Gold 0x43F620 / 0x5C8099: combined descriptor bit 27
+    /// excludes an item from random equipment category-pool construction.</summary>
+    ExcludedFromRandomEquipmentPool = 0x0800,
 }
 
 /// <summary>

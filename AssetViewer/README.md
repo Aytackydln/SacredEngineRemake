@@ -1,12 +1,12 @@
 # Sacred Asset Viewer
 
-Run `Sacred.ItemViewer.Avalonia` on Windows. The launcher automatically loads the
+Run `AssetViewer` on Windows (`dotnet run --project AssetViewer`). The launcher automatically loads the
 last successful game installation, using the existing ItemViewer settings so
 favorites and saved equipment filters remain available. Choose another installation
 with **Browse** or the location field and **Load game**. `--game-directory <path>`
 overrides the remembered location for startup.
 
-The launcher opens five independent windows:
+The launcher opens six independent windows:
 
 - **Models**: the `Items.pak` table excluding Effect-category rows, searchable by row, resource ID, model
   or category, with 3D previews, authored model effects and descriptor field offsets/raw bytes.
@@ -169,6 +169,26 @@ The launcher opens five independent windows:
   [cyclic and flare FX](../docs/research/particle-definitions/cyclic-and-flare-fx.md),
   [previous constructor decoding](../docs/research/particle-definitions/standard-fx-families.md)
   and [implementation progress](../docs/research/particle-definitions/asset-viewer-progress.md).
+- **Item drop simulator**: native-compared equipment generation with required
+  difficulty and hero level, fixed/uniform/original-weighted equipment categories,
+  neutral/creature/chest rarity stages or fixed magic quality 0..14, seeds, repeatable history and
+  resolved descriptions/model previews. Books and unsupported families are excluded;
+  set/unique resource selection and whole monster/chest/quest drop events remain
+  unfinished. Rarity-stage inputs include equipment find-special-items totals,
+  survival time, source level and caller bonus. **Copy Characters equipment**
+  snapshots the selected character's equipped bonuses and active socket records. Use
+  `open drops`, `drop 3 50 weighted 0 123457 random`, `drop-values`, `drop-replay`
+  `drop-copy-equipment` and `drop-clear` from the
+  console. Screenshots use the existing cheats; `--no-activate` prevents the
+  launcher/viewers from activating during scripted checks. See the
+  [native evidence and continuation](../docs/game-server/host-item-drop-simulator.md).
+  Generated drops use the original naming rules and retain the name in history
+  and tooltips. **Show unique / set item names** inspects original piece names and
+  authored values; use `drop-authored <resource>` from the console. See
+  [name-generation evidence](../docs/game-server/host-equipment-names.md).
+  For a source-rarity check use `drop-rarity-stage Creature 0 50 200 0 0 700 0 2004`;
+  the nine operands are profile, difficulty, hero/source levels, equipment find
+  bonus, survival seconds, creature caller bonus, progression flags and seed.
 - **Equipment**: the existing `Weapon.pak` equipment browser with item information,
   filters, favorites, preview experiments, sounds and effects.
 - **Textures**: every entry from `texture*.pak`, with archive and row identity,

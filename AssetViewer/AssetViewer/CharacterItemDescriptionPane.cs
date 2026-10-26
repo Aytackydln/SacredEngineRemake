@@ -43,30 +43,46 @@ internal sealed class CharacterItemDescriptionPane : UserControl
         ShowModel(definition);
     }
 
-    public void Show(SacredItemInstance instance)
+    public void Show(SacredItemInstance instance) => Show(instance, "Equipped item");
+
+    public void Show(SacredItemInstance instance, string heading)
     {
         var details = _details.Create(instance.Definition);
+        var classification = instance.NativeValues is { } values
+            ? SacredEquipmentClassification.FromBytes((byte)values.Flags, values.EquipmentTypeCode, (byte)(values.Flags >> 16))
+            : instance.Definition.Classification;
         var socketCount = 0;
         var slots = instance.SlotTypes;
         foreach (var slot in slots) if (slot != 0) socketCount++;
         details = details with
         {
-            Identity = details.Identity with { Level = (byte)instance.Level, Price = instance.Price, SocketCount = socketCount },
+            Identity = details.Identity with
+            {
+                ResolvedName = instance.ResolvedName?.Text,
+                Level = (byte)instance.Level, Price = instance.Price, SocketCount = socketCount,
+                Classes = instance.NativeValues?.Classes ?? details.Identity.Classes,
+                Type = classification.ResolveEquipmentType(instance.Definition.Item.ModelDesc.Category),
+                Handedness = classification.InferHandedness(instance.Definition.UsageIdentifier, instance.Definition.Height),
+                OccupiedSocketCount = instance.SocketRecords.Select((record, index) =>
+                    index < 8 && slots[index] is >= 1 and <= 4 && record.ItemType != 0).Count(occupied => occupied)
+            },
             BaseValues = new(instance.Damage, instance.BaseStats, instance.Bonuses.Where(bonus => bonus.Code == 812).Sum(bonus => bonus.Value)),
             Requirements = instance.Requirements,
             Bonuses = instance.Bonuses
         };
-        _heading.Text = "Equipped item";
+        _heading.Text = heading;
         _text.Text = SacredEquipmentDescriptionText.Format(_formatter.Format(details));
         ShowModel(instance.Definition);
     }
 
-    public void Clear()
+    public void Clear() => Clear("Item description", "Select an equipped item or an item from the list.", "Select an item to preview.");
+
+    public void Clear(string heading, string description, string previewMessage)
     {
-        _heading.Text = "Item description";
-        _text.Text = "Select an equipped item or an item from the list.";
+        _heading.Text = heading;
+        _text.Text = description;
         _previewedItemId = null;
-        _preview.ShowStatus("Select an item to preview.");
+        _preview.ShowStatus(previewMessage);
     }
 
     public Task Ready => _preview.CurrentLoad;

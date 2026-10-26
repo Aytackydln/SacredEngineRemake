@@ -25,7 +25,7 @@ public sealed class SacredEquipmentDescriptionFormatter(GameResStore resources)
         if (bonuses.Count > 0)
             sections.Add(new("Base bonuses", bonuses));
 
-        var name = resources.GetString(Number(details.Identity.NameResourceKey), details.Identity.AuthoredName);
+        var name = details.Identity.ResolvedName ?? resources.GetString(Number(details.Identity.NameResourceKey), details.Identity.AuthoredName);
         return new(name, sections);
     }
 }

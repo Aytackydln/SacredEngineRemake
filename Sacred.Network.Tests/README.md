@@ -89,6 +89,42 @@ separate checks. Run them when a change affects those boundaries; the fast suite
 reuses their recorded evidence rather than reopening executables or rerunning all
 research for each packet.
 
+Host construction adds `CreatureComponentSeed`, `CreatureLevelSelection` and
+`EquipmentZeroQuality` native replay suites: 7,683 assertions against original
+instruction results, with portable original-file prefixes retained in evidence.
+These compare initialized component inputs, level/experience/skill selection,
+and the zero-budget equipment socket/clearing/rarity stage. Full creature results,
+equipment installation, startup execution and Engine/live acceptance remain
+separate. Run `docs/game-server/tools/test-host-construction.ps1` for the packet
+suite and affected builds; `-Native -Installation` also reruns the original
+instruction fixtures and existing installed-data suites. See the
+[dependency audit](../docs/game-server/host-creature-initialization.md).
+
+`EquipmentNormalization`, `EquipmentPricing` and `EquipmentSlotSelection` add
+21,811 assertions against 7,939 further original-instruction cases. Pricing checks
+compare all item mutations as well as returned price; slot checks stop at dispatch
+into the substituted installation service. They do not establish actual attachment,
+ownership or full NPC construction. The same host-construction runner includes
+their native generators and installed executable-definition checks. See the
+[equipment continuation](../docs/game-server/host-equipment-values.md).
+
+The item-drop selection suites (`EquipmentModifierLookup`, `EquipmentSelectionPool`,
+`EquipmentSelection`, `EquipmentResourceNames`) add 12,881 assertions: installed
+modifier association, static symbolic names, original pool membership and prepared
+candidate/offline draw order and RNG. Shared initialization/name-class mutation,
+live-hero retries and complete generation remain separate. The host-construction
+runner regenerates these native fixtures. See the
+[simulator continuation](../docs/game-server/host-item-drop-simulator.md).
+
+`EquipmentClassInference`, `EquipmentVariants` and `EquipmentFactory` add 37,981
+assertions for original symbolic class rules, Rust.bin/canonical-source variants,
+complete ordinary quality-zero values, persistent shared-state hashes and fresh
+replay/random/no-result requests. `test-item-drop-simulator.ps1` separately runs
+AssetViewer console commands and compares four displayed value blocks/RNG states
+with native evidence, saving UI and direct-render preview screenshots without
+activation. Nonzero magic, object naming, special item paths and enemy drop rates
+remain explicit continuation work.
+
 `ConsumerDeliveryTests`, `FxConsumerTests` and `NativeReplay/ConsumerPresentationChecks`
 cover ordered independent consumers, repeats/dependencies, visible overflow faults,
 session/lifetime cleanup, shared text slots, mode-16 notices, native drag clearing,

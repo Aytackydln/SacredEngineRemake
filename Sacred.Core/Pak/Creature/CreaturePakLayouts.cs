@@ -32,6 +32,8 @@ public readonly struct CreatureDemoRecordLayout
     [FieldOffset(5)] public readonly byte HorseClass;
     [FieldOffset(6)] public readonly ushort Flags;
     [FieldOffset(8)] public readonly ushort ExperienceMinimum;
+    /// <summary>Also rescales the creature drop caller's rarity argument in
+    /// Gold 0x559FB7: sqrt(value * Balance +0x1318) / that balance value.</summary>
     [FieldOffset(10)] public readonly ushort ExperienceMaximum;
     /// <summary>ST, GS, RP, WI, CH, RM, reserved, remaining attribute points.
     /// Native initialization reorders these into ST, WI, GS, RP, RM, CH.</summary>
@@ -65,10 +67,15 @@ public readonly struct CreatureGoldRecordLayout
     [FieldOffset(5)] public readonly byte HorseClass;
     /// <summary>Gold 0x52E23B tests bit 0x20 and sets creature behavior +0x1F4 bit 0x01000000.
     /// Character seed 0x586C00 tests bit 0x40 and sets behavior bit 0x08000000.
+    /// SetLevel 0x5654A8 / 0x5654D4 tests bit 1 through 0x426CB0: with actor
+    /// behavior 0x80000 or +0x2B8 mask 0x40, this bit exempts the actor from
+    /// the corresponding sector cap. Ordinary actors still use their cap.
     /// Gold path speed 0x4F7692 tests bit 1: with actor behavior 0x00200000, force run action/base speed 200.
     /// Other bits and these behaviors' gameplay meanings remain unresolved.</summary>
     [FieldOffset(6)] public readonly ushort Flags;
     [FieldOffset(8)] public readonly ushort ExperienceMinimum;
+    /// <summary>Also rescales the creature drop caller's rarity argument in
+    /// Gold 0x559FB7; zero bypasses that adjustment.</summary>
     [FieldOffset(10)] public readonly ushort ExperienceMaximum;
     [FieldOffset(12)] public readonly CreatureBaseBytes Base;
     [FieldOffset(12)] public readonly byte Strength;

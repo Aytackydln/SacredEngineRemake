@@ -12,7 +12,21 @@ public readonly struct SacredEquipmentInstanceLayout
     /// <summary>Resource retained in the value record. Gold serializes it independently of
     /// the parent object's current visual resource; the two need not be equal.</summary>
     [FieldOffset(0)] public readonly uint ItemType;
+    /// <summary>Gold pricing 0x5D3D90 tests bit 31 as its initialized SpawnLevel latch;
+    /// an unset bit permits level reconstruction, optional bonus renormalization
+    /// and legacy minimum-level adjustment, then 0x5D49C2 sets the bit.</summary>
     [FieldOffset(4)] public readonly uint Flags;
+    /// <summary>Gold 0x5D56A0 stores difficulty + 1 in the low nibble and sets
+    /// bit 4 for generated values. Pricing sets bit 7 as the level-init latch.</summary>
+    [FieldOffset(7)] public readonly byte GenerationFlags;
+    /// <summary>Gold 0x5C84B1 rejects this value flag during random item selection.</summary>
+    public bool ExcludedFromRandomSelection => (Flags & 0x100000) != 0;
+    /// <summary>Concrete native class bits: six base heroes at bits 0..5,
+    /// Dwarf/Daemon at bits 22/23. This does not infer classes from shared visuals.</summary>
+    public SacredCharacterClassMask Classes => (SacredCharacterClassMask)((Flags & 0x3F) | ((Flags >> 16) & 0xC0));
+    /// <summary>Generated subtype stored by 0x5D5203 from wpmod WeaponType;
+    /// valid as a weapon subtype only for the Weapon descriptor family.</summary>
+    public byte EquipmentTypeCode => unchecked((byte)(Flags >> 8));
     [FieldOffset(8)] public readonly uint Price;
     /// <summary>Eight parent socket-kind bytes. Gold 0x5BE9E0 enables merged record i only
     /// when this byte is 1, 2, 3 or 4; 3/4 share returned socket category 3.</summary>
@@ -40,5 +54,8 @@ public readonly struct SacredEquipmentInstanceLayout
     [FieldOffset(74)] public readonly SacredEquipmentBonusGroups BonusGroups;
     [FieldOffset(106)] public readonly SacredEquipmentBonusValues BonusValues;
     [FieldOffset(122)] public readonly SacredEquipmentLegacyRequirements LegacyRequirements;
+    /// <summary>Pricing 0x5D49B8 updates this nonzero legacy minimum only before
+    /// the bit-31 initialization latch is set. Current minimum is at +20.</summary>
+    [FieldOffset(122)] public readonly byte LegacyMinimumLevel;
     [FieldOffset(129)] public readonly byte BlacksmithLevel;
 }

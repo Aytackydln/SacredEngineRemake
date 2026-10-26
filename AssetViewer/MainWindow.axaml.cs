@@ -27,6 +27,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         var args = Environment.GetCommandLineArgs();
+        ShowActivated = !args.Contains("--no-activate");
         var index = Array.IndexOf(args, "--game-directory");
         GameDirectoryBox.Text = index >= 0 && index + 1 < args.Length ? args[index + 1] : _settings.Load().GameDirectory;
         Opened += (_, _) =>
@@ -105,11 +106,13 @@ public partial class MainWindow : Window
                 "equipment" => new EquipmentWindow(_session),
                 "textures" => new TexturesWindow(_session),
                 "characters" => new CharactersWindow(_session),
-                _ => throw new ArgumentException("Viewer must be models, effects, equipment, textures or characters.")
+                "drops" => new ItemDropSimulatorWindow(_session),
+                _ => throw new ArgumentException("Viewer must be models, effects, equipment, textures, characters or drops.")
             };
             _windows[kind] = window;
             window.Closed += (_, _) => { _windows.Remove(kind); if (ReferenceEquals(ActiveViewer, window)) ActiveViewer = null; };
             window.Activated += (_, _) => ActiveViewer = (IAssetViewerWindow)window;
+            window.ShowActivated = ShowActivated;
             window.Show(this);
         }
         ActiveViewer = (IAssetViewerWindow)window;
@@ -157,4 +160,5 @@ public partial class MainWindow : Window
     private void Equipment_OnClick(object? sender, RoutedEventArgs e) => OpenViewer("equipment");
     private void Textures_OnClick(object? sender, RoutedEventArgs e) => OpenViewer("textures");
     private void Characters_OnClick(object? sender, RoutedEventArgs e) => OpenViewer("characters");
+    private void Drops_OnClick(object? sender, RoutedEventArgs e) => OpenViewer("drops");
 }

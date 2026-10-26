@@ -17,6 +17,7 @@
             <Button Content="Equipment" Margin="0,0,0,8" HorizontalAlignment="Stretch" Click="Equipment_OnClick" />
             <Button Content="Textures" Margin="0,0,8,0" HorizontalAlignment="Stretch" Click="Textures_OnClick" />
             <Button Content="Characters and inventory" HorizontalAlignment="Stretch" Click="Characters_OnClick" />
+            <Button Content="Item drop simulator" HorizontalAlignment="Stretch" Click="Drops_OnClick" />
         </UniformGrid>
         <TextBlock Text="Each viewer opens in its own window. Changing the game location reloads the asset catalogs." TextWrapping="Wrap" Opacity="0.7" />
     </StackPanel>

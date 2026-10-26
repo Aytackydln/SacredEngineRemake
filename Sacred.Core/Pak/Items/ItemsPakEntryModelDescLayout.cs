@@ -103,7 +103,9 @@ public readonly struct ItemsPakEntryModelDescLayout
 
     /// <summary>Object script-resource identifier (<c>cObjectShared::resourceid</c>).
     /// Gold 0x44A1C0 / 0x428830 use it when native instance +0x3C is zero;
-    /// this is distinct from the Items.pak item/type index.</summary>
+    /// this is distinct from the Items.pak item/type index. Item-name lookup
+    /// (0x44A200 / 0x672BA0) treats a clear high bit as a numeric string key,
+    /// and a set high bit as an already computed resource hash.</summary>
     [FieldOffset(32)]
     public readonly uint ResourceId;
 
@@ -254,6 +256,9 @@ public readonly struct ItemsPakEntryModelDescLayout
     /// <summary>Object switch behavior.</summary>
     [FieldOffset(116)]
     public readonly ushort SwitchType;
+    /// <summary>For equipment, Gold 0x43CA20 reads this as a Rust.bin profile
+    /// index after following base visuals. Profile zero requests no replacement.</summary>
+    [FieldOffset(116)] public readonly ushort EquipmentVariantProfile;
 
     [FieldOffset(118)]
     public readonly ItemsPakEntryReservedBytes Reserved;
@@ -263,6 +268,7 @@ public readonly struct ItemsPakEntryModelDescLayout
 
     public bool IsLightEmitting => GraphicFlags.HasFlag(SacredItemGraphicFlags.LightEmitting);
     public bool IsEquipmentFallback => GraphicFlags.HasFlag(SacredItemGraphicFlags.EquipmentFallback);
+    public bool ExcludedFromRandomEquipmentPool => (GraphicFlags & SacredItemGraphicFlags.ExcludedFromRandomEquipmentPool) != 0;
     public bool CastsStaticShadow => GraphicFlags.HasFlag(SacredItemGraphicFlags.CastsStaticShadow);
 
     /// <summary>Draws in the final world-object layer, above ordinary scenery and models.</summary>

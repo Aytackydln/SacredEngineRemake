@@ -10,4 +10,7 @@ public sealed record SacredEquipmentIdentity(
     uint Price,
     byte Level,
     int SocketCount,
-    int OccupiedSocketCount);
+    int OccupiedSocketCount)
+{
+    public string? ResolvedName { get; init; }
+}

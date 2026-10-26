@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using Sacred.Core.Pak.Weapon;
 using Sacred.Core.Pak.Weapon.Bonuses;
+using Sacred.Core.Pak.Weapon.Names;
 
 namespace Sacred.Inventory.Items;
 
@@ -33,6 +34,8 @@ public sealed class SacredItemInstance
     public SacredEquipmentBaseStats BaseStats { get; }
     public SacredEquipmentDamage Damage { get; }
     public IReadOnlyList<SacredEquipmentBonus> Bonuses { get; }
+    public SacredEquipmentNameResult? ResolvedName { get; private set; }
+    public void SetResolvedName(SacredEquipmentNameResult name) => ResolvedName = name;
     public SacredEquipmentRequirements Requirements { get; private init; }
     public uint Price { get; private init; }
     public SacredEquipmentSlotTypes SlotTypes { get; private init; }

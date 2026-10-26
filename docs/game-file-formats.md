@@ -1491,7 +1491,7 @@ These catalogued formats were found in the game or are adjacent to the formats c
 | `bin/Balance.bin` | Balance tables | `bin/Balance.bin` (23.8 KiB) |
 | `bin/**/merc.bin` | Mercenary data | `bin/Addon/merc.bin` (1.8 KiB), `bin/merc.bin` (1.8 KiB) |
 | `bin/MultiStart.bin` | Multiplayer start data | `bin/MultiStart.bin` (768 B) |
-| `bin/Rust.bin` | Unmapped binary table | `bin/Rust.bin` (4.3 KiB) |
+| `bin/Rust.bin` | Equipment variant profiles: uint profile count, then counted eight-byte source/replacement pairs; Items.pak +0x74 selects the profile (zero bypasses replacement) | `bin/Rust.bin` (4.3 KiB); [native lookup evidence](game-server/host-item-drop-simulator.md) |
 | `bin/sgq.bin` | Compiled quest data | `bin/sgq.bin` (40 B) |
 | `bin/sgqp.bin` | Compiled quest-pool data | `bin/sgqp.bin` (1 B) |
 | `bin/static*.bin` | Static-object auxiliary data | `bin/static10_18.bin` (40.5 KiB) |

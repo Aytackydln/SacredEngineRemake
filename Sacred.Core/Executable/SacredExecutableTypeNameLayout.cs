@@ -9,7 +9,8 @@ namespace Sacred.Core.Executable;
 public readonly struct SacredExecutableTypeNameLayout
 {
     public const int SerializedSize = 68;
+    public const int NameOffset = 4;
     public const int NameLength = 64;
     [FieldOffset(0)] public readonly uint TypeId;
-    [FieldOffset(4), BinaryString("Name", NameLength, "ISO-8859-1")] private readonly byte _name;
+    [FieldOffset(NameOffset), BinaryString("Name", NameLength, "ISO-8859-1")] private readonly byte _name;
 }

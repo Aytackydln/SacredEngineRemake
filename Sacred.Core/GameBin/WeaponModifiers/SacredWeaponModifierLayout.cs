@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using Sacred.Core.Binary;
 
 namespace Sacred.Core.GameBin.WeaponModifiers;
 
@@ -17,7 +16,9 @@ public readonly struct SacredWeaponModifierLayout
     [FieldOffset(16)] public readonly uint ItemId4;
     [FieldOffset(20)] public readonly int ItemCount;
     /// <summary>Percentage factor applied when generating damage/protection. Also the over-level
-    /// armor movement penalty coefficient (Gold CalcResults 0x57A067), valid only in 1..999.</summary>
+    /// armor movement penalty coefficient (Gold CalcResults 0x57A067), valid only in 1..999.
+    /// Gold pricing 0x5D479D divides the concrete damage/protection total by this
+    /// coefficient after multiplying by 100 to reconstruct SpawnLevel.</summary>
     [FieldOffset(24)] public readonly int Modifier;
     /// <summary>Damage spread percentage (Gold 0x5D042D): minimum = value * (1 - spread),
     /// maximum = value * (1 + spread), truncated separately. Spread is capped at 100.0,
@@ -42,7 +43,12 @@ public readonly struct SacredWeaponModifierLayout
     [FieldOffset(164)] public readonly SacredModifierRange Requirement0;
     [FieldOffset(176)] public readonly SacredModifierRange Requirement1;
     [FieldOffset(188)] public readonly SacredModifierRange Requirement2;
-    [FieldOffset(160), BinaryUnknown] public readonly int WordA0;
+    /// <summary>Compatibility name for <see cref="SelectionLimitValue"/>.</summary>
+    [FieldOffset(160)] public readonly int WordA0;
+    /// <summary>Gold 0x5C85AA: unsigned upper-bound filter in base-item selection.
+    /// Compared to the selector's last argument (commonly 14). Its wider gameplay
+    /// meaning is not yet established; retained separately from generated rarity.</summary>
+    [FieldOffset(160)] public readonly int SelectionLimitValue;
     [FieldOffset(164)] public readonly SacredEquipmentEligibilityLayout Eligibility0;
     [FieldOffset(176)] public readonly SacredEquipmentEligibilityLayout Eligibility1;
     [FieldOffset(188)] public readonly SacredEquipmentEligibilityLayout Eligibility2;
