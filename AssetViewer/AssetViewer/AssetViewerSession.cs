@@ -1,3 +1,7 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 using AssetViewer.ItemViewer;
 using Sacred.Assets;
 using Sacred.Assets.Equipment;
