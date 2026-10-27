@@ -79,6 +79,24 @@ Those checks cover:
 it for further transport cases; do not create another packet-specific fake server.
 Tests have no scratch-project dependency or hardcoded installation path.
 
+`CreatureLootEvent` and `CreatureLootDecisionSession` compare source counts,
+death caller inputs, rune thresholds, retry loops, source choices, potion
+resources and money amounts against original instructions. The composed host
+checks replace prepared selection/construction with recorded callback outcomes
+and known RNG consumption. They do not establish full monster deaths, special
+item construction, world placement or an Engine loot oracle. See the
+[exact native boundary](../docs/game-server/host-creature-loot-decisions.md).
+
+`CreatureLootEntry`, `CreatureDeathRewards`, `LootSpecialResources` and
+`CreatureDeathPrefix` add 59,922 assertions for death eligibility/attribution,
+boosted-source recipes, authored RNG reseeding, progression forcing, candidate
+gates, signed inclusive ranges, descriptor/shared lookup, ordered modifier
+families and unique filtering. Composed native-prefix checks preserve callback
+order/RNG and unresolved stops. Runtime relation/stat/clock inputs, detach,
+equipment generation and post-entry invocation bodies remain supplied dependencies.
+These are not complete death events or an Engine loot oracle; see the
+[continuation and substitutions](../docs/game-server/host-creature-death-loot.md).
+
 The coverage check currently requires an example for every concrete record in
 `GoldGameEvent.cs`, with additional examples for recent packets in other files.
 It does **not** claim every branch of every gameplay decoder is covered.

@@ -14,8 +14,26 @@ public partial class SacredItemDataTable
             throw new ArgumentException($"Unknown equipment {id}.");
         ResetModelRotationSliders();
         _tableViewModel.SelectDescription(id);
+        ShowNativeDescription(id);
         Console.WriteLine($"[Equipment] Description for {id}:\n{_tableViewModel.DescriptionText}");
-        PreviewReady = LoadModel(SacredItemDataModel.FromSacredEquipment(equipment, _session.Data.GameResStore));
+        PreviewReady = Task.WhenAll(LoadModel(SacredItemDataModel.FromSacredEquipment(equipment, _session.Data.GameResStore)),
+            _nativeDescription?.Ready ?? Task.CompletedTask);
+    }
+
+    private void ShowNativeDescription(uint? id)
+    {
+        if (_nativeDescription is null || _session is null) return;
+        if (id is { } value && _session.Data.GamePakStore.Weapons.TryGetValue(value, out var equipment))
+        {
+            ItemDescriptionHost.Content = _nativeDescription;
+            _nativeDescription.Show(Sacred.Inventory.Items.SacredItemInstance.FromDefinition(equipment));
+        }
+        else
+        {
+            _nativeDescription.Clear();
+            ItemDescriptionHost.Content = new Avalonia.Controls.TextBlock
+            { Text = "Select an item to view its description.", TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+        }
     }
 
     internal void SavePreviewScreenshot(string path) => _modelViewer.SaveScreenshot(path);

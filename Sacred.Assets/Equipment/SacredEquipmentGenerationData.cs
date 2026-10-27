@@ -8,6 +8,9 @@ using Sacred.Core.GameBin.EquipmentVariants;
 using Sacred.Core.GameBin.WeaponModifiers;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Pak.Weapon;
+using Sacred.Core.Loot;
+using Sacred.Assets.GameBin.Sets;
+using Sacred.Core.GameBin.Sets;
 
 namespace Sacred.Assets.Equipment;
 
@@ -22,6 +25,10 @@ public sealed record SacredEquipmentGenerationData(SacredObjectTemplateArchive T
     SacredItemCategoryRules? CategoryRules = null, Func<uint, bool>? SingleMagicBonusItem = null)
 {
     public SacredEquipmentNamingData? Naming { get; init; }
+    public SacredCreatureLootResources? CreatureLootResources { get; init; }
+    public SacredCreatureDeathLootRules? CreatureDeathLootRules { get; init; }
+    public SacredCreatureDeathRewardRules? CreatureDeathRewardRules { get; init; }
+    public IReadOnlyList<SacredSetEntry> Sets { get; init; } = [];
     public uint? ParentResource(uint type) => Templates.Equipment.TryGetValue(type, out var definition) ? definition.BaseItemId : null;
 
     public SacredEquipmentPriceContext PriceContext(uint type)
@@ -59,6 +66,10 @@ public sealed record SacredEquipmentGenerationData(SacredObjectTemplateArchive T
                     generation.CombatArtClass, type => names.Find(type) ?? ModelName(templates, type), prices.Overrides,
                     SacredItemCategoryDefinitions.Read(image), SacredEquipmentMagicDefinitions.Read(image))
                 {
+                    CreatureLootResources = SacredCreatureLootDefinitions.Read(image),
+                    CreatureDeathLootRules = SacredCreatureDeathLootDefinitions.Read(image),
+                    CreatureDeathRewardRules = SacredCreatureDeathRewardDefinitions.Read(image),
+                    Sets = SetsBinArchive.Load(Path.Combine(installation, "bin", "sets.bin")),
                     Naming = new(SacredEquipmentNameDefinitions.Read(image), new(SacredResUnpack.UnpackAsDictionary(
                         Path.Combine(installation, "scripts", "us", "global.res"))))
                 };

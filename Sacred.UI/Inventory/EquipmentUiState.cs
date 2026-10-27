@@ -13,12 +13,14 @@ public sealed class EquipmentUiState
     public InventoryPanelLayout? Layout { get; set; }
     public InventoryTab ActiveTab { get; private set; }
     public CombatArtPanelState CombatArts { get; } = new();
+    public ItemHoverState ItemHover { get; } = new();
     public event Action? Changed;
 
     public void Bind(SacredGameActor actor)
     {
         if (ReferenceEquals(Actor, actor)) return;
         Actor = actor;
+        ItemHover.Clear();
         SelectedSlot = null;
         Layout = null;
         CombatArts.Bind(actor);
@@ -28,6 +30,7 @@ public sealed class EquipmentUiState
     {
         SetOpen(false);
         Actor = null;
+        ItemHover.Clear();
         SelectedSlot = null;
         Layout = null;
         ActiveTab = InventoryTab.Inventory;
@@ -38,6 +41,7 @@ public sealed class EquipmentUiState
     {
         if (IsOpen == open) return;
         IsOpen = open;
+        ItemHover.Clear();
         CombatArts.CancelSelection();
         Changed?.Invoke();
     }
@@ -47,6 +51,7 @@ public sealed class EquipmentUiState
         if (!Enum.IsDefined(tab)) throw new ArgumentOutOfRangeException(nameof(tab));
         if (ActiveTab == tab) return;
         ActiveTab = tab;
+        ItemHover.Clear();
         CombatArts.CancelSelection();
         Changed?.Invoke();
     }

@@ -60,7 +60,8 @@ public readonly struct SacredEquipmentLayout
     public readonly byte Height;
 
     /// <summary>Weapon/animation usage code. Gold's hand-slot predicates use 7/13 for bows
-    /// and 12/14 for crossbows/muskets (left hand); other weapon usages use the right hand.</summary>
+    /// and 12/14 for crossbows/muskets (left hand); other weapon usages use the right hand.
+    /// Native item descriptions also use this shared byte for Weapon Skill and two-handed text.</summary>
     [FieldOffset(30)]
     public readonly byte UsageIdentifier;
 
@@ -90,8 +91,13 @@ public readonly struct SacredEquipmentLayout
     /// <summary>Items.pak identifier for the equipment's visual definition.</summary>
     [FieldOffset(128)]
     public readonly uint ItemId;
+    /// <summary>Complete original shared sWeaponInfo block, also returned by
+    /// Gold 0x4340B0 using the descriptor's WeaponEntry rather than its type ID.</summary>
+    [FieldOffset(128)] public readonly SacredEquipmentInstanceLayout InstanceValues;
 
-    /// <summary>Native <c>sWeaponInfo::Flag</c> word, retaining every authored flag bit.</summary>
+    /// <summary>Native <c>sWeaponInfo::Flag</c> word, retaining every authored flag bit.
+    /// Unique resource selection 0x53447A requires bits 16..19 all set,
+    /// SetType zero, and shared MinimumLevel no higher than the hero's level.</summary>
     [FieldOffset(132)]
     public readonly uint RawFlags;
 

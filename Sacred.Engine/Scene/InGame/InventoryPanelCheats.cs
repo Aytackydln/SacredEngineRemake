@@ -8,6 +8,18 @@ internal static class InventoryPanelCheats
     public static bool TryExecute(string option, string value, EquipmentUiState state, out string message)
     {
         message = string.Empty;
+        if (option.Equals("inventory-hover", StringComparison.OrdinalIgnoreCase))
+        {
+            if (value is "off" or "auto" or "clear") state.ItemHover.Override(null);
+            else if (int.TryParse(value, out var slot) && state.Actor is { } actor && (uint)slot < (uint)actor.EquipmentSlots.Count)
+            {
+                state.SetOpen(true);
+                state.ItemHover.Override(slot);
+            }
+            else { message = "inventory-hover: equipment slot index, off or auto"; return true; }
+            message = $"Item hover: {state.ItemHover.Slot?.ToString() ?? "none"}.";
+            return true;
+        }
         if (!option.Equals("inventory", StringComparison.OrdinalIgnoreCase)) return false;
         switch (value.ToLowerInvariant())
         {

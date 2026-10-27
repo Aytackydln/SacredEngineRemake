@@ -105,6 +105,7 @@ jobs:
             release-assets/AssetViewer.exe
             release-assets/Sacred.World.Renderer.Terminal.exe
             release-assets/cimgui.dll
+            release-assets/dxcompiler.dll
             release-assets/SacredEngineRemake-symbols.zip
             release-assets/AssetViewer-symbols.zip
             release-assets/Sacred.World.Renderer.Terminal-symbols.zip

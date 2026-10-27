@@ -44,11 +44,14 @@ public partial class SacredItemDataTable : UserControl
     private bool _changingGrannyBackend;
     private bool _hasLoaded;
     private readonly AssetViewerSession? _session;
+    private ItemDescriptionControl? _nativeDescription;
 
     internal SacredItemDataTable(AssetViewerSession session) : this()
     {
         _session = session;
         _gameDir = session.GameDirectory;
+        _nativeDescription = new(session);
+        ItemDescriptionHost.Content = _nativeDescription;
     }
 
     public SacredItemDataTable()
@@ -65,6 +68,7 @@ public partial class SacredItemDataTable : UserControl
             CancelModelLoad();
             _itemSelectionSoundPlayer?.Dispose();
             _itemSelectionSoundPlayer = null;
+            _nativeDescription?.Dispose();
         };
         UpdateModelRotationFromSliders();
     }
@@ -356,6 +360,7 @@ public partial class SacredItemDataTable : UserControl
         _modelViewer.ShowStatus("...");
         ClearModelData("no model selected");
         _tableViewModel.SelectDescription((DataGrid.SelectedItem as SacredItemDataModel?)?.ItemId);
+        ShowNativeDescription((DataGrid.SelectedItem as SacredItemDataModel?)?.ItemId);
 
         if (sender is not DataGrid { SelectedItem: SacredItemDataModel selectedItem })
         {
@@ -379,7 +384,7 @@ public partial class SacredItemDataTable : UserControl
             return;
         }
 
-        PreviewReady = LoadModel(selectedItem);
+        PreviewReady = Task.WhenAll(LoadModel(selectedItem), _nativeDescription?.Ready ?? Task.CompletedTask);
     }
 
     private void MuteSoundsCheckBox_OnCheckedChanged(object? sender, RoutedEventArgs e)

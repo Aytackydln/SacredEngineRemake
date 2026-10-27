@@ -17,7 +17,9 @@ public readonly struct SacredEquipmentInstanceLayout
     /// and legacy minimum-level adjustment, then 0x5D49C2 sets the bit.</summary>
     [FieldOffset(4)] public readonly uint Flags;
     /// <summary>Gold 0x5D56A0 stores difficulty + 1 in the low nibble and sets
-    /// bit 4 for generated values. Pricing sets bit 7 as the level-init latch.</summary>
+    /// bit 4 for generated values. Pricing sets bit 7 as the level-init latch.
+    /// The description maps difficulty codes 2..5 to the Silver..Niobium emblems;
+    /// other codes select the first (Bronze) emblem.</summary>
     [FieldOffset(7)] public readonly byte GenerationFlags;
     /// <summary>Gold 0x5C84B1 rejects this value flag during random item selection.</summary>
     public bool ExcludedFromRandomSelection => (Flags & 0x100000) != 0;

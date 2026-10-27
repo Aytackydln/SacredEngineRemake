@@ -17,6 +17,8 @@ public sealed class SacredObjectTemplateArchive
         => (_items, _instances, Equipment) = (items, instances, equipment);
     public IReadOnlyDictionary<uint, SacredEquipmentLayout> Equipment { get; }
     public IReadOnlyDictionary<uint, ItemsPakEntry> Items => _items;
+    /// <summary>Original Weapon.pak row order, preserving repeated resource IDs.</summary>
+    public IReadOnlyList<SacredEquipmentLayout> EquipmentRows { get; private init; } = [];
 
     public static SacredObjectTemplateArchive Load(string installationDirectory)
     {
@@ -39,6 +41,7 @@ public sealed class SacredObjectTemplateArchive
         var instances = new Dictionary<uint, byte[]>();
         var equipment = new Dictionary<uint, SacredEquipmentLayout>();
         var inheritance = new List<(uint Type, uint Parent)>();
+        var nativeRows = new SacredEquipmentLayout[(int)header.EntryCount];
         for (var index = 0; index < header.EntryCount; index++)
         {
             var bytes = weaponData.Slice(WeaponPakHeaderLayout.SerializedSize + index * SacredEquipmentLayout.Size, SacredEquipmentLayout.Size);
@@ -46,6 +49,7 @@ public sealed class SacredObjectTemplateArchive
             var parent = BinaryPrimitives.ReadUInt32LittleEndian(bytes[36..]);
             instances[type] = bytes[128..].ToArray();
             equipment[type] = MemoryMarshal.Read<SacredEquipmentLayout>(bytes);
+            nativeRows[index] = equipment[type];
             inheritance.Add((type, parent));
             if (visuals.TryGetValue(type, out var item))
             {
@@ -60,11 +64,24 @@ public sealed class SacredObjectTemplateArchive
                 visuals[type] = child with { ModelDesc = basis.ModelDesc.WithWeaponEntry(child.ModelDesc.WeaponEntry)
                         .WithItemId(child.ModelDesc.ResourceId != 0 ? child.ModelDesc.ResourceId : type),
                     ModelName = basis.ModelName };
-        return new(visuals, instances, equipment);
+        return new(visuals, instances, equipment) { EquipmentRows = Array.AsReadOnly(nativeRows) };
     }
 
     public ItemsPakEntry GetItem(uint type) => _items.TryGetValue(type, out var item) ? item :
         throw new InvalidDataException($"CreateObj type {type} has no original Items.pak descriptor.");
     public byte[] GetInstance(uint type) => _instances.TryGetValue(type, out var bytes) ? bytes.ToArray() :
         throw new InvalidDataException($"CreateObj type {type} requires native Weapon.pak default-row resolution.");
+
+    /// <summary>Gold 0x434030 / 0x4340B0: descriptor-to-shared-row lookup.
+    /// Does not fabricate a default for an invalid or missing original index.</summary>
+    public bool TryGetSharedTemplate(uint type, out SacredEquipmentLayout template)
+    {
+        if (_items.TryGetValue(type, out var item) && item.ModelDesc.WeaponEntry < EquipmentRows.Count)
+        {
+            template = EquipmentRows[item.ModelDesc.WeaponEntry];
+            return true;
+        }
+        template = default;
+        return false;
+    }
 }

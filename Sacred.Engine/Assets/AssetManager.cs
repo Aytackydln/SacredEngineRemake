@@ -1456,6 +1456,8 @@ public sealed partial class AssetManager : IDisposable, IGameplayResourceCatalog
         int DestRight,
         int DestBottom);
 
+    public bool TryGetEquipmentResource(uint itemId, out SacredEquipment equipment) => TryResolveEquipment(itemId, out equipment);
+
     private bool TryResolveEquipment(uint itemId, out SacredEquipment equipment)
     {
         equipment = default;

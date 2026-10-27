@@ -34,6 +34,8 @@ public readonly struct SacredWeaponModifierLayout
     [FieldOffset(116)] public readonly SacredModifierRange PoisonProtection;
     [FieldOffset(128)] public readonly SacredModifierRange Attack;
     [FieldOffset(140)] public readonly SacredModifierRange Defense;
+    /// <summary>Generation subtype. Gold 0x5D4AC0 also groups every associated
+    /// Weapon.pak row by this value, in record order, for unique/set variants.</summary>
     [FieldOffset(152)] public readonly int WeaponType;
     /// <summary>Minimum generation level after multiplication by Balance.bin +0x111C.
     /// Gold 0x5D52D0 raises the level after computing the combat level factor.</summary>

@@ -4,7 +4,8 @@ namespace Sacred.Core.Loot;
 
 /// <summary>Gold 0x559DA0..0x559F17: initial creature drop chance budget.
 /// Caller supplies resolved eligible party count, source-boost flag and the
-/// original survival argument. This does not determine item selection retries.</summary>
+/// original curve argument (death caller: skill 42/table 55's resolved word,
+/// not save survival seconds). This does not determine item selection retries.</summary>
 public static class SacredCreatureLootChance
 {
     public static int Calculate(SacredLootBalance balance, uint nearbyPartyMembers, bool boostedSource, float survival)

@@ -36,6 +36,8 @@ internal static class Dx12DescriptorLayout
     public const int MaximumPortraitTextures = 64;
     public const int FirstNpcOverheadTexture = FirstPortraitTexture + MaximumPortraitTextures;
     public const int MaximumNpcOverheadTextures = 64;
-    public const int FirstWeatherTexture = FirstNpcOverheadTexture + MaximumNpcOverheadTextures;
+    public const int FirstItemDescriptionTexture = FirstNpcOverheadTexture + MaximumNpcOverheadTextures;
+    public const int MaximumItemDescriptionTextures = 8;
+    public const int FirstWeatherTexture = FirstItemDescriptionTexture + MaximumItemDescriptionTextures;
     public const int TotalCount = FirstWeatherTexture + 2;
 }

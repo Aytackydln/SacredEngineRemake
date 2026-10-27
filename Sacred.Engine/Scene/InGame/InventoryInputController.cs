@@ -20,10 +20,11 @@ internal sealed class InventoryInputController(EquipmentUiState state, InputStat
     public void Update()
     {
         if (!ReferenceEquals(_actor, state.Actor) || _tab != state.ActiveTab)
-        { _actor = state.Actor; _tab = state.ActiveTab; _captured = false; _pressed = null; }
+        { _actor = state.Actor; _tab = state.ActiveTab; _captured = false; _pressed = null; state.ItemHover.Update(null, input.MousePosition); }
         if (state.Actor is null || input.ImGuiWantsMouse || Hud is not { Visible: true })
-        { _captured = false; _pressed = null; return; }
+        { _captured = false; _pressed = null; state.ItemHover.Update(null, input.MousePosition); return; }
         var size = viewport();
+        state.ItemHover.Update(HoverEquipment(input.MousePosition, size), input.MousePosition);
         if (input.PendingLeftClickPosition is { } point && Contains(point, size))
         {
             input.TryConsumeLeftClick(out _);
@@ -65,6 +66,25 @@ internal sealed class InventoryInputController(EquipmentUiState state, InputStat
     private bool Contains(Vector2 point, Vector2 size) =>
         state.IsOpen && (InventoryPanelLayout.Bounds(size).Contains(point) || InventoryTabsLayout.Bounds(size).Contains(point)) ||
         QuickSlot(point, size).HasValue;
+
+    private int? HoverEquipment(Vector2 point, Vector2 size)
+    {
+        if (state.IsOpen && state.Layout?.HitTest(point, size) is { } slot) return slot;
+        if (Hud?.Layout is not { } layout || state.Actor is not { } actor ||
+            (uint)Hud.SelectedWeaponSlot >= (uint)layout.QuickSlots.HandSlots.Count) return null;
+        var bounds = BottomHudQuickSlotLayout.GetBounds(layout.QuickSlots.HandSlots[Hud.SelectedWeaponSlot], size);
+        if (!bounds.Contains(point)) return null;
+        int? left = null, right = null;
+        for (var index = 0; index < actor.EquipmentSlots.Count; index++)
+        {
+            if (actor.EquipmentSlots[index].Instance is null) continue;
+            if (actor.EquipmentSlots[index].Type == EquipmentSlotType.LeftHand) left = index;
+            if (actor.EquipmentSlots[index].Type == EquipmentSlotType.RightHand) right = index;
+        }
+        if (!left.HasValue) return right;
+        if (!right.HasValue) return left;
+        return point.X < bounds.Position.X + bounds.Size.X / 2 ? left : right;
+    }
 
     private int? QuickSlot(Vector2 point, Vector2 size)
     {

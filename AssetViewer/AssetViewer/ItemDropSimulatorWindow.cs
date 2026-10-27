@@ -18,7 +18,7 @@ namespace AssetViewer.AssetViewer;
 internal sealed class ItemDropSimulatorWindow : Window, IAssetViewerWindow
 {
     private readonly AssetViewerSession _session;
-    private readonly CharacterItemDescriptionPane _description;
+    private readonly ItemDropDescriptionPane _description;
     private readonly ComboBox _difficulty = new() { MinWidth = 140 };
     private readonly NumericUpDown _level = new() { Minimum = 1, Maximum = ushort.MaxValue, Increment = 1, Value = 20, FormatString = "0", MinWidth = 100 };
     private readonly ComboBox _category = new() { MinWidth = 260 };
@@ -46,7 +46,7 @@ internal sealed class ItemDropSimulatorWindow : Window, IAssetViewerWindow
         _rarityContext = new(session);
         _authoredNames = new(session, async type => { try { await InspectAuthoredAsync(type); } catch (Exception error) { ShowError(error); } });
         _description = new(session);
-        _description.Clear("Generated item", "Roll an item, or select one from the history.", "Roll an item to preview.");
+        _description.Clear("Roll an item, or select one from the history.", "Roll an item to preview.");
         Title = "Sacred Asset Viewer · Item drop simulator";
         Width = 1450; Height = 900; MinWidth = 1000; MinHeight = 650;
         _difficulty.ItemsSource = new[] { "Bronze", "Silver", "Gold", "Platinum", "Niobium" };
@@ -149,7 +149,7 @@ internal sealed class ItemDropSimulatorWindow : Window, IAssetViewerWindow
         var count = _history.Count;
         _rolls.SelectedItem = null;
         _history.Clear(); _number = 0;
-        _description.Clear("Generated item", "Roll an item, or select one from the history.", "Roll an item to preview.");
+        _description.Clear("Roll an item, or select one from the history.", "Roll an item to preview.");
         _status.Text = "Drops cleared. Ready to roll with the current settings.";
         Console.WriteLine($"[Drops] Cleared {count} drops; history count {_history.Count}; selection none; preview cleared.");
     }
@@ -165,7 +165,7 @@ internal sealed class ItemDropSimulatorWindow : Window, IAssetViewerWindow
         var instance = SacredItemInstance.FromNativeObjectRecord(definition, type, values);
         instance.SetResolvedName(name);
         _rolls.SelectedItem = null;
-        _description.Show(instance, "Authored unique / set item");
+        _description.Show(instance);
         _status.Text = name.Text + " · original authored values";
         Console.WriteLine($"[Drops] Authored {type}: {name.Text}; values {Convert.ToHexString(values)}");
         _description.PrintDescription();
@@ -225,12 +225,12 @@ internal sealed class ItemDropSimulatorWindow : Window, IAssetViewerWindow
         if (row.Item is null)
         {
             var reason = row.Result.UnavailableReason ?? $"No {row.Result.Category} item matched the selected class preference and level.";
-            _description.Clear(row.Name, reason, "No item to preview.");
+            _description.Clear(reason, "No item to preview.");
             _status.Text = reason;
         }
         else
         {
-            _description.Show(row.Item, "Generated item");
+            _description.Show(row.Item);
             _status.Text = $"{row.Name} · hero level {row.Result.Request.HeroLevel}, item level {row.Item.Level} · quality {row.Result.RolledQuality}, rarity tier {row.Result.RarityTier} · seed {row.Result.Request.Seed}";
         }
     }

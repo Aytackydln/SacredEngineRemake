@@ -214,18 +214,11 @@
                                    FontSize="11"
                                    Foreground="#A5B89D"
                                    Margin="0,0,0,10" />
-                        <TextBox Name="ItemDescriptionText"
-                                 Grid.Row="2"
-                                 Text="{Binding DescriptionText, Mode=OneWay}"
-                                 IsReadOnly="True"
-                                 AcceptsReturn="True"
-                                 TextWrapping="Wrap"
-                                 Background="Transparent"
-                                 Foreground="#E8F4D6"
-                                 BorderThickness="0"
-                                 FontSize="13"
-                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                 ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                        <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled">
+                            <ContentControl Name="ItemDescriptionHost">
+                                <TextBlock Text="{Binding DescriptionText, Mode=OneWay}" TextWrapping="Wrap" />
+                            </ContentControl>
+                        </ScrollViewer>
                     </Grid>
                 </Border>
             </Grid>

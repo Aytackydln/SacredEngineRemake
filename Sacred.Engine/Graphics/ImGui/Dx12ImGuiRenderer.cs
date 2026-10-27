@@ -86,6 +86,7 @@ internal sealed unsafe partial class Dx12ImGuiRenderer : IDisposable
     public ImFontPtr BodyFont { get; private set; }
     public ImFontPtr MapFont { get; private set; }
     public ImFontPtr EscapeMenuFont { get; private set; }
+    public ImFontPtr ItemDescriptionFont { get; private set; }
 
     public void SetPipeline(Dx12CreatedPipelineGroup pipeline)
     {
@@ -211,6 +212,7 @@ internal sealed unsafe partial class Dx12ImGuiRenderer : IDisposable
         // Retain the native atlas at small output sizes to avoid minifying the large
         // glyphs through a single bilinear sample. BeginFrame selects by output size.
         EscapeMenuFont = _escapeMenuNativeFont;
+        ItemDescriptionFont = AddFontOrDefault(atlas, Path.Combine(gameDirectory, "font", "AntiquaSSK.TTF"), 36.0f);
         EngineLog.WriteLine($"World map font loaded: {mapFontPath}.");
     }
 

@@ -28,6 +28,8 @@ internal sealed class Dx12BottomHudPass : IDisposable
     private readonly Dx12InventoryPanelPass _inventory;
     private readonly Dx12ActorPortraitPass _portraits;
     private readonly Dx12NpcOverheadPass _npcOverheads;
+    private readonly Dx12ItemHoverPass _itemHover;
+    public ImFontPtr ItemDescriptionFont { private get; set; }
 
     public Dx12BottomHudPass(AssetManager assets, string gameDirectory,
         Dx12DeviceContext graphics, Dx12TextureUploader uploader)
@@ -39,6 +41,7 @@ internal sealed class Dx12BottomHudPass : IDisposable
         _inventory = new(assets, gameDirectory, graphics, uploader);
         _portraits = new(assets, gameDirectory, graphics, uploader);
         _npcOverheads = new(assets, gameDirectory, graphics, uploader);
+        _itemHover = new(assets, gameDirectory, graphics, uploader);
     }
     public void BuildNpcOverheads(SceneState scene)
     {
@@ -61,7 +64,8 @@ internal sealed class Dx12BottomHudPass : IDisposable
             state.SelectedWeaponSlot, state.SelectedCombatArtSlot);
         if (actor is not null)
             _previews.Prepare(actor.EquipmentSlots.Where(s => s.Equipment.HasValue).Select(s => s.Equipment!.Value)
-                .Concat(HudWeaponSet.Equipment(state.WeaponSets ?? [])));
+                .Concat(HudWeaponSet.Equipment(state.WeaponSets ?? []))
+                .Concat(_itemHover.SocketEquipment(actor)));
         foreach (var wing in layout.QuickSlots.Wings)
             DrawRegion(draw, wing.Region, wing.Position, viewport);
         DrawRegion(draw, layout.Panel, layout.PanelPosition, viewport);
@@ -96,6 +100,7 @@ internal sealed class Dx12BottomHudPass : IDisposable
         }
         _inventory.Build(scene.EquipmentUi, _previews, viewport);
         _portraits.Build(scene);
+        _itemHover.Build(scene, _previews, ItemDescriptionFont, viewport);
     }
 
     private bool EnsureTextures()
@@ -151,5 +156,6 @@ internal sealed class Dx12BottomHudPass : IDisposable
         _inventory.Dispose(); _previews.Dispose();
         _portraits.Dispose();
         _npcOverheads.Dispose();
+        _itemHover.Dispose();
     }
 }
