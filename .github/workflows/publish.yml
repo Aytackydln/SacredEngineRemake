@@ -52,6 +52,7 @@ jobs:
           Compress-Archive -Path "./publish/$project/*.pdb" -DestinationPath "./release-assets/$project-symbols.zip"
           if ($project -eq 'SacredEngineRemake') {
             Copy-Item -LiteralPath "./publish/$project/cimgui.dll" -Destination release-assets
+            Copy-Item -LiteralPath "./publish/$project/dxcompiler.dll" -Destination release-assets
           }
       - name: Upload desktop release assets
         uses: actions/upload-artifact@v4
