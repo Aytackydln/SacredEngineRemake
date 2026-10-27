@@ -83,6 +83,11 @@ internal sealed class BrowserInstallation : IDisposable
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
             await File.WriteAllBytesAsync(destination, await ReadMetadataAsync(path, token), token);
         }
+        // Item descriptions load the original font by path, like the small UI metadata.
+        // Use the helper's canonical casing: the browser filesystem is case-sensitive.
+        Directory.CreateDirectory(Path.Combine(_directory, "font"));
+        await File.WriteAllBytesAsync(Path.Combine(_directory, "font", "AntiquaSSK.TTF"),
+            await ReadMetadataAsync("font/AntiquaSSK.TTF", token), token);
         Directory.CreateDirectory(Path.Combine(_directory, "PAK"));
         Directory.CreateDirectory(Path.Combine(_directory, "scripts", "us"));
         await File.WriteAllBytesAsync(Path.Combine(_directory, "PAK", "Items.pak"), itemBytes, token);
