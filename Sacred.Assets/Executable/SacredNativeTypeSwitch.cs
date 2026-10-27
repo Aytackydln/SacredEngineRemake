@@ -33,7 +33,7 @@ internal sealed class SacredNativeTypeSwitch
                 return _imageBase + (ulong)(section.VirtualAddress + offset - section.PointerToRawData);
         throw new InvalidDataException("Native switch instruction lies outside executable sections.");
     }
-    public uint Read(ulong address, uint type)
+    public uint Read(ulong address, uint type, uint secondArgument = 0)
     {
         uint eax = 0, ecx = 0, edx = 0, left = 0, right = 0;
         for (var step = 0; step < 64; step++)
@@ -41,6 +41,9 @@ internal sealed class SacredNativeTypeSwitch
             var code = At(address, 16);
             if (code[..4].SequenceEqual<byte>([0x8B, 0x4C, 0x24, 4])) { ecx = type; address += 4; }
             else if (code[..4].SequenceEqual<byte>([0x8B, 0x44, 0x24, 4])) { eax = type; address += 4; }
+            else if (code[..4].SequenceEqual<byte>([0x8B, 0x44, 0x24, 8])) { eax = secondArgument; address += 4; }
+            else if (code[..4].SequenceEqual<byte>([0x83, 0x7C, 0x24, 8])) { left = secondArgument; right = unchecked((uint)(sbyte)code[4]); address += 5; }
+            else if (code[..2].SequenceEqual<byte>([0x85, 0xC0])) { left = eax; right = 0; address += 2; }
             else if (code[..2].SequenceEqual<byte>([0x33, 0xC0])) { eax = 0; address += 2; }
             else if (code[..2].SequenceEqual<byte>([0x33, 0xC9])) { ecx = 0; address += 2; }
             else if (code[..2].SequenceEqual<byte>([0x33, 0xD2])) { edx = 0; address += 2; }

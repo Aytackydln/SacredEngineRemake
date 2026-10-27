@@ -97,6 +97,20 @@ equipment generation and post-entry invocation bodies remain supplied dependenci
 These are not complete death events or an Engine loot oracle; see the
 [continuation and substitutions](../docs/game-server/host-creature-death-loot.md).
 
+`EquipmentReward`, `EquipmentLiveSelection`, `CreatureLootGeneration` and
+`CreatureLootUnique` compare another 6,656 original-instruction cases: reward
+attempts/money calls, final-selection fit retries and resource aliases, difficulty
+reversal and generation/upgrade decisions, selector-zero replacement/fallback and
+effect ordering/RNG. Concrete fit, creation/destruction, upgrade and publication
+bodies remain supplied. Reward caller scratch context is explicit. See the
+[wrapper boundaries](../docs/game-server/host-loot-construction-wrappers.md).
+
+`CreatureLootSets` and `EquipmentFit` add 33,847 native-result assertions across
+1,544 source/set decisions and 6,144 actual class/requirement fits. These preserve
+byte row indexing, equipped-member RNG, strict level gates, class flag mutations
+and skill/variant short circuits. Runtime object/type/value/skill probes and
+variant results remain supplied; see the [set/fit boundary](../docs/game-server/host-loot-sets-and-fit.md).
+
 The coverage check currently requires an example for every concrete record in
 `GoldGameEvent.cs`, with additional examples for recent packets in other files.
 It does **not** claim every branch of every gameplay decoder is covered.
@@ -118,6 +132,18 @@ suite and affected builds; `-Native -Installation` also reruns the original
 instruction fixtures and existing installed-data suites. See the
 [dependency audit](../docs/game-server/host-creature-initialization.md).
 
+The 27 October startup continuation adds `EquipmentInstallation`,
+`EquipmentVariantNormalization`, `CreatureResultInitialization` and
+`CreatureInnateBonuses`: 2,938,744 byte/state/order/guard comparisons. The existing
+variant suite additionally checks 32,355 original source aliases against Gold
+and pureHD. Installer effect bodies remain supplied. Result initialization is a
+prefix; supported innates exclude active legacy power operations 23..36, which
+fail before mutation. An isolated x86 hardware oracle compares the innate block
+independently of Unicorn and retains its power discrepancies. See the
+[exact boundaries and remaining first-creature work](../docs/game-server/host-startup-creature-results.md).
+`test-host-construction.ps1 -Native -Installation` now regenerates startup
+dependencies by default; `-IncludeLoot` explicitly adds the paused loot laboratory.
+
 `EquipmentNormalization`, `EquipmentPricing` and `EquipmentSlotSelection` add
 21,811 assertions against 7,939 further original-instruction cases. Pricing checks
 compare all item mutations as well as returned price; slot checks stop at dispatch
@@ -131,7 +157,7 @@ The item-drop selection suites (`EquipmentModifierLookup`, `EquipmentSelectionPo
 modifier association, static symbolic names, original pool membership and prepared
 candidate/offline draw order and RNG. Shared initialization/name-class mutation,
 live-hero retries and complete generation remain separate. The host-construction
-runner regenerates these native fixtures. See the
+runner regenerates these native fixtures with `-IncludeLoot`. See the
 [simulator continuation](../docs/game-server/host-item-drop-simulator.md).
 
 `EquipmentClassInference`, `EquipmentVariants` and `EquipmentFactory` add 37,981

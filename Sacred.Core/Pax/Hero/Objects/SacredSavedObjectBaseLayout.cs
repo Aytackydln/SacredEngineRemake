@@ -33,7 +33,12 @@ public readonly struct SacredSavedObjectBaseLayout
     /// <summary>Native cached +0x28 angle in projected-world degrees; wire/file words preserve its float bits.
     /// Current physical heading is derived from +0x70 and can differ after movement.</summary>
     [FieldOffset(33)] public readonly float FacingDegrees;
-    [FieldOffset(37), BinaryUnknown] public readonly uint Word2C;
+    /// <summary>Native +0x2C link (Gold 0x4498F0). Flags bit 0x400 selects an
+    /// attachment parent; otherwise this is the world link. This is independent
+    /// of the peer-owner byte at native +0x39.</summary>
+    [FieldOffset(37)] public readonly uint Word2C;
+    public uint AttachmentParent => (Flags & 0x400) != 0 ? Word2C : 0;
+    public uint WorldLink => (Flags & 0x400) == 0 ? Word2C : 0;
     [FieldOffset(41), BinaryUnknown] public readonly uint Word30;
     /// <summary>Object trigger reference at native +0x34; assigned by Gold OBJECT_SET_TRIGGER (0x174).</summary>
     [FieldOffset(TriggerReferenceOffset)] public readonly uint Word34;

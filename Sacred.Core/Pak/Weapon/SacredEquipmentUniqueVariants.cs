@@ -9,6 +9,15 @@ public static class SacredEquipmentUniqueVariants
     public static uint? Select(IReadOnlyList<uint> family, ushort heroLevel, uint excludedMinimum, uint excludedMaximum,
         Func<uint, SacredEquipmentSelectionCandidate> candidate, SacredRandomSequence random)
     {
+        var eligible = Eligible(family, heroLevel, excludedMinimum, excludedMaximum, candidate);
+        return eligible.Count == 0 ? null : eligible[SacredRandomRange.Inclusive(0, eligible.Count - 1, random)];
+    }
+
+    /// <summary>Shared by the death jackpot and selector-zero replacement.
+    /// Filtering preserves family order/duplicates and consumes no RNG.</summary>
+    public static IReadOnlyList<uint> Eligible(IReadOnlyList<uint> family, ushort heroLevel, uint excludedMinimum, uint excludedMaximum,
+        Func<uint, SacredEquipmentSelectionCandidate> candidate)
+    {
         var eligible = new List<uint>();
         foreach (var resource in family)
         {
@@ -17,6 +26,6 @@ public static class SacredEquipmentUniqueVariants
             if ((item.Values.Flags & 0xF0000) != 0xF0000 || item.SetType != 0 || item.Values.MinimumLevel > heroLevel) continue;
             eligible.Add(resource);
         }
-        return eligible.Count == 0 ? null : eligible[SacredRandomRange.Inclusive(0, eligible.Count - 1, random)];
+        return eligible;
     }
 }

@@ -2,6 +2,7 @@ using System.Collections.Frozen;
 using System.Text.Json;
 using Sacred.Assets.Equipment;
 using Sacred.Assets.Executable;
+using Sacred.Assets.GameBin.Sets;
 using Sacred.Core.GameRes;
 using Sacred.Core.Loot;
 using Sacred.Core.Pak.Items;
@@ -23,7 +24,12 @@ internal static class EquipmentNameChecks
     {
         using var fixture = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "docs/game-server/evidence/native-equipment-names.json")));
         using var ordinary = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "docs/game-server/evidence/native-equipment-factory.json")));
-        var data = EquipmentGenerationFixture.Read(root, ordinary.RootElement) with { Naming = ReadNaming(fixture.RootElement) };
+        using var rewards = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "docs/game-server/evidence/native-creature-death-rewards.json")));
+        var data = EquipmentGenerationFixture.Read(root, ordinary.RootElement) with
+        {
+            Naming = ReadNaming(fixture.RootElement),
+            Sets = SetsBinArchive.Parse(Convert.FromHexString(rewards.RootElement.GetProperty("sets_hex").GetString()!))
+        };
         var names = new WorldEquipmentNames(data);
         var checks = 0;
         var failures = new List<string>();
@@ -31,7 +37,7 @@ internal static class EquipmentNameChecks
         {
             var bytes = Convert.FromHexString(row.GetProperty("initial_hex").GetString()!);
             var random = new SacredRandomSequence(row.GetProperty("seed").GetUInt32());
-            var name = names.Generate(bytes, row.GetProperty("visual").GetUInt32(), random);
+            var name = names.GenerateOrdinary(bytes, row.GetProperty("visual").GetUInt32(), random);
             if (name.NativeReference != row.GetProperty("native_reference").GetUInt32() || name.Text != row.GetProperty("text").GetString() ||
                 random.State != row.GetProperty("final_seed").GetUInt32() || !bytes.AsSpan().SequenceEqual(Convert.FromHexString(row.GetProperty("result_hex").GetString()!)))
                 failures.Add($"Native item name differs: {row}; actual {name}, RNG {random.State}, values {Convert.ToHexString(bytes)}");
@@ -73,6 +79,6 @@ internal static class EquipmentNameChecks
             checks += 5;
         }
         if (failures.Count != 0) throw new Exception($"{failures.Count} native item-name differences:\n" + string.Join("\n", failures.Take(8)));
-        return checks;
+        return checks + EquipmentNamePolicyChecks.Run(data, fixture.RootElement);
     }
 }

@@ -28,6 +28,12 @@ public sealed record SacredEquipmentGenerationData(SacredObjectTemplateArchive T
     public SacredCreatureLootResources? CreatureLootResources { get; init; }
     public SacredCreatureDeathLootRules? CreatureDeathLootRules { get; init; }
     public SacredCreatureDeathRewardRules? CreatureDeathRewardRules { get; init; }
+    public SacredEquipmentRewardRules? EquipmentRewardRules { get; init; }
+    public SacredEquipmentPreferenceRules? SelectionPreferences { get; init; }
+    public SacredCreatureLootSetRules? CreatureLootSetRules { get; init; }
+    public SacredEquipmentClassFitRules? EquipmentClassFitRules { get; init; }
+    public SacredEquipmentSourceDefinitions? EquipmentSources { get; init; }
+    public SacredEquipmentDefaultDefinitions? EquipmentDefaults { get; init; }
     public IReadOnlyList<SacredSetEntry> Sets { get; init; } = [];
     public uint? ParentResource(uint type) => Templates.Equipment.TryGetValue(type, out var definition) ? definition.BaseItemId : null;
 
@@ -69,6 +75,12 @@ public sealed record SacredEquipmentGenerationData(SacredObjectTemplateArchive T
                     CreatureLootResources = SacredCreatureLootDefinitions.Read(image),
                     CreatureDeathLootRules = SacredCreatureDeathLootDefinitions.Read(image),
                     CreatureDeathRewardRules = SacredCreatureDeathRewardDefinitions.Read(image),
+                    EquipmentRewardRules = SacredEquipmentRewardDefinitions.Read(image),
+                    SelectionPreferences = SacredEquipmentPreferenceDefinitions.Read(image),
+                    CreatureLootSetRules = SacredCreatureLootSetDefinitions.Read(image),
+                    EquipmentClassFitRules = SacredEquipmentClassFitDefinitions.Read(image),
+                    EquipmentSources = SacredEquipmentSourceDefinitions.Read(image),
+                    EquipmentDefaults = SacredEquipmentDefaultDefinitions.Read(image),
                     Sets = SetsBinArchive.Load(Path.Combine(installation, "bin", "sets.bin")),
                     Naming = new(SacredEquipmentNameDefinitions.Read(image), new(SacredResUnpack.UnpackAsDictionary(
                         Path.Combine(installation, "scripts", "us", "global.res"))))

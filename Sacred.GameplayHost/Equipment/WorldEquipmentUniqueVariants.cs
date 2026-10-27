@@ -23,9 +23,18 @@ public sealed class WorldEquipmentUniqueVariants
 
     public uint? Select(uint preparedResource, ushort heroLevel, SacredRandomSequence random)
     {
+        var eligible = Candidates(preparedResource, heroLevel);
+        return eligible is null || eligible.Count == 0 ? null : eligible[SacredRandomRange.Inclusive(0, eligible.Count - 1, random)];
+    }
+
+    /// <summary>Null denotes a missing modifier. A missing or filtered-empty
+    /// family remains empty. Replacement selection follows native cleanup.</summary>
+    public IReadOnlyList<uint>? Candidates(uint preparedResource, ushort heroLevel)
+    {
         var modifier = _data.Modifiers.Find(preparedResource);
-        if (modifier is null || !_families.TryGetValue(modifier.Definition.WeaponType, out var family)) return null;
+        if (modifier is null) return null;
+        if (!_families.TryGetValue(modifier.Definition.WeaponType, out var family)) return [];
         var rules = _data.CreatureDeathRewardRules ?? throw new InvalidOperationException("Original unique exclusion rules unavailable.");
-        return SacredEquipmentUniqueVariants.Select(family, heroLevel, rules.UniqueExcludedMinimum, rules.UniqueExcludedMaximum, _shared.Candidate, random);
+        return SacredEquipmentUniqueVariants.Eligible(family, heroLevel, rules.UniqueExcludedMinimum, rules.UniqueExcludedMaximum, _shared.Candidate);
     }
 }

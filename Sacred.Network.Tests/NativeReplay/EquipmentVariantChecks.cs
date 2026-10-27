@@ -20,13 +20,23 @@ internal static class EquipmentVariantChecks
         var profiles = EquipmentVariantsBinArchive.Read(bytes);
         var gate = SacredEquipmentSelectionClassGateDefinitions.ReadCode(Convert.FromHexString(fixture.RootElement.GetProperty("gate_code_hex").GetString()!),
             fixture.RootElement.GetProperty("replacement_source_minimum").GetUInt32(), fixture.RootElement.GetProperty("marker").GetString()!);
+        var aliases = SacredEquipmentSourceDefinitions.Read(Image(fixture.RootElement));
+        var variants = fixture.RootElement.GetProperty("definition_variants").EnumerateArray()
+            .Select(row => SacredEquipmentSourceDefinitions.Read(Image(row))).Append(aliases).ToArray();
+        foreach (var row in fixture.RootElement.GetProperty("canonical_cases").EnumerateArray())
+            foreach (var variant in variants)
+            {
+                var actual = variant.CanonicalResource(row[0].GetUInt32());
+                if (actual != row[1].GetUInt32()) throw new Exception($"Native equipment source alias differs: {row}; actual {actual}");
+                checks++;
+            }
         foreach (var row in fixture.RootElement.GetProperty("cases").EnumerateArray())
         {
             var descriptorBytes = new byte[ItemsPakEntryModelDescLayout.SerializedSize];
             descriptorBytes[46] = row.GetProperty("category").GetByte();
             BinaryPrimitives.WriteUInt16LittleEndian(descriptorBytes.AsSpan(116), row.GetProperty("profile").GetUInt16());
             var descriptor = MemoryMarshal.Read<ItemsPakEntryModelDescLayout>(descriptorBytes);
-            var result = SacredEquipmentVariantLookup.ResolveCanonicalSource(1000, row.GetProperty("canonical").GetUInt32(),
+            var result = SacredEquipmentVariantLookup.ResolveCanonicalSource(1000, aliases.CanonicalResource(row.GetProperty("source").GetUInt32()),
                 gate.MinimumReplacementSource, rules, profiles, _ => null, _ => descriptor);
             if (result.Supported != row.GetProperty("supported").GetBoolean() || result.ReplacementType != row.GetProperty("replacement").GetUInt32())
                 throw new Exception($"Native equipment variant differs: {row}; actual {result}");
@@ -38,5 +48,13 @@ internal static class EquipmentVariantChecks
             catch (InvalidDataException) { checks++; }
         }
         return checks;
+    }
+
+    private static byte[] Image(JsonElement json)
+    {
+        var image = new byte[json.GetProperty("image_size").GetInt32()];
+        foreach (var chunk in json.GetProperty("definition_chunks").EnumerateArray())
+            Convert.FromHexString(chunk.GetProperty("hex").GetString()!).CopyTo(image, chunk.GetProperty("offset").GetInt32());
+        return image;
     }
 }

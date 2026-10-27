@@ -71,7 +71,9 @@ public readonly struct SacredEquipmentLayout
     [FieldOffset(33)] public readonly byte MissSet;
     [FieldOffset(34)] public readonly byte LolSet;
     /// <summary>Gold pricing 0x5D4830: zero permits repeated bonus normalization
-    /// when generation flags 0x30000000 are present and SpawnLevel is not initialized.</summary>
+    /// when generation flags 0x30000000 are present and SpawnLevel is not initialized.
+    /// Creature selector-one loot also collects equipped value resources only
+    /// when their shared SetType is nonzero (0x55B02D).</summary>
     [FieldOffset(35)] public readonly byte SetType;
 
     /// <summary>Optional base visual item. Native predicates test this ID after the item's own ID;

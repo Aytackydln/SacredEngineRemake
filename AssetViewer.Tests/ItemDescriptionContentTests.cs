@@ -1,7 +1,10 @@
 using System.Buffers.Binary;
 using System.Collections.Frozen;
+using System.Runtime.InteropServices;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sacred.Core.GameRes;
+using Sacred.Core.GameBin.Sets;
+using Sacred.Core.Pak.Items;
 using Sacred.Core.Pak.Weapon;
 using Sacred.Core.Pak.Weapon.Names;
 using Sacred.Inventory.Items;
@@ -66,5 +69,70 @@ public sealed class ItemDescriptionContentTests
         var item = SacredItemInstance.FromDefinition(definition);
         var lines = new ItemDescriptionContentBuilder(GameResStore.Empty, []).Create(item);
         CollectionAssert.AreEqual(new[] { "Plain ring", "Price: 0", "Level: 0" }, lines.Select(line => line.Text).ToArray());
+    }
+
+    [TestMethod]
+    [DataRow(false, "Generated ordinary name")]
+    [DataRow(true, "Authored set piece")]
+    public void CatalogueMembershipOverridesGeneratedNativeInstanceName(bool catalogueMember, string expectedName)
+    {
+        var definition = default(SacredEquipment) with { IdemId = 321, Name = "Authored set piece" };
+        var values = new byte[SacredEquipmentInstanceLayout.Size];
+        BinaryPrimitives.WriteUInt32LittleEndian(values, definition.IdemId);
+        var item = SacredItemInstance.FromNativeRecord(definition, values);
+        item.SetResolvedName(new(0x80012345, "Generated ordinary name", "Gen_test"));
+        var resources = new GameResStore(new Dictionary<uint, string>
+            { [0x12345] = "Generated ordinary name" }.ToFrozenDictionary());
+        SacredSetEntry[] sets = catalogueMember ? [new(2, 0, 0, 0, [321])] : [];
+        var builder = new ItemDescriptionContentBuilder(resources, sets);
+        Assert.AreEqual(expectedName, builder.GetName(item));
+        Assert.AreEqual(expectedName, builder.Create(item)[0].Text);
+    }
+
+    [TestMethod]
+    [DataRow(0xF0000u, (byte)0, false, 0u)]
+    [DataRow(0xF0000u, (byte)0, false, 0x80023456u)]
+    [DataRow(0u, (byte)2, false, 0u)]
+    [DataRow(0u, (byte)2, false, 0x80023456u)]
+    [DataRow(0u, (byte)0, true, 0u)]
+    [DataRow(0u, (byte)0, true, 0x80023456u)]
+    public void UniqueAndSetHeadingsUseAuthoredResourceEvenWithStaleGeneratedNames(uint flags, byte setType, bool catalogueMember, uint generatedReference)
+    {
+        const uint id = 321;
+        const uint resourceHash = 0x80012345;
+        var descriptorBytes = new byte[ItemsPakEntryModelDescLayout.SerializedSize];
+        BinaryPrimitives.WriteUInt32LittleEndian(descriptorBytes.AsSpan(32), resourceHash);
+        var descriptor = MemoryMarshal.Read<ItemsPakEntryModelDescLayout>(descriptorBytes);
+        var definition = default(SacredEquipment) with
+        {
+            IdemId = id, Name = "Wrong template text", SetType = setType,
+            Item = new(default, descriptor, "")
+        };
+        var values = new byte[SacredEquipmentInstanceLayout.Size];
+        BinaryPrimitives.WriteUInt32LittleEndian(values, id);
+        BinaryPrimitives.WriteUInt32LittleEndian(values.AsSpan(4), flags);
+        var item = SacredItemInstance.FromNativeRecord(definition, values);
+        item.SetResolvedName(new(generatedReference, "Wrong generated name", "Gen_wrong"));
+        SacredSetEntry[] sets = catalogueMember ? [new(2, 0, 0, 0, [id])] : [];
+        var resources = new GameResStore(new Dictionary<uint, string>
+        { [resourceHash & 0x7FFFFFFF] = "Authored piece name" }.ToFrozenDictionary());
+        var builder = new ItemDescriptionContentBuilder(resources, sets);
+        Assert.AreEqual("Authored piece name", builder.GetName(item));
+        Assert.AreEqual("Authored piece name", builder.Create(item)[0].Text);
+    }
+
+    [TestMethod]
+    public void AuthoredCataloguePieceIgnoresStaleGeneratedReferenceAndKeepsSeparateSetTitle()
+    {
+        var definition = default(SacredEquipment) with { IdemId = 321, Name = "Authored set piece" };
+        var item = SacredItemInstance.FromDefinition(definition);
+        item.SetResolvedName(new(0x80023456, "Wrong generated name", "Gen_wrong"));
+        var resources = new GameResStore(new Dictionary<uint, string>
+        { [SacredResourceHash.Compute("SetName2")] = "Set title" }.ToFrozenDictionary());
+
+        var lines = new ItemDescriptionContentBuilder(resources, [new(2, 0, 0, 0, [321])]).Create(item);
+
+        Assert.AreEqual("Authored set piece", lines[0].Text);
+        Assert.AreEqual("Set title", lines[1].Text);
     }
 }

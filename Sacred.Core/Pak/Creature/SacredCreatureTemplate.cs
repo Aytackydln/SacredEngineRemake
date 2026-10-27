@@ -28,4 +28,12 @@ public sealed record SacredCreatureTemplate(
         };
 }
 
-public readonly record struct SacredCreatureInnateBonus(ushort Code, byte Percent, byte CreatureClass);
+/// <summary>Gold CalcResults' BonusAuf: low byte selects the source/scaling
+/// operation; high byte selects damage/protection/attack/defense destination.
+/// These are not equipment bonus codes. The passive result pass ignores rows
+/// whose CreatureClass byte is nonzero (Gold 0x57B6F0).</summary>
+public readonly record struct SacredCreatureInnateBonus(ushort Code, byte Percent, byte CreatureClass)
+{
+    public byte SourceOperation => unchecked((byte)Code);
+    public byte Destination => (byte)(Code >> 8);
+}

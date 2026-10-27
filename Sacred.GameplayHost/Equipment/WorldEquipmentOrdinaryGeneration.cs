@@ -57,7 +57,7 @@ public sealed class WorldEquipmentOrdinaryGeneration(SacredEquipmentGenerationDa
         SacredEquipmentMagicGeneration.Apply(result, category, data.Templates.Equipment[basis].UsageIdentifier,
             unchecked((uint)modifier.Definition.WeaponType), quality, difficulty,
             singleBonus, tuning, random, data.CombatArtClass);
-        GeneratedName = Naming?.Generate(result, type, random);
+        GeneratedName = Naming?.GenerateOrdinary(result, type, random);
         flags = BinaryPrimitives.ReadUInt32LittleEndian(result.AsSpan(4)) | 0x10000000 | ((difficulty + 1) << 24);
         BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(4), flags);
         var price = SacredEquipmentPricing.CalculateOrdinary(result, data.PriceContext(basis), tuning.Pricing,

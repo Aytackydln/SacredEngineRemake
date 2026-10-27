@@ -12,7 +12,7 @@ public sealed record HdrBrightnessSettings
     public const float DefaultSunSpecularNits = 600.0f;
     public const float DefaultUnlitSpriteNits = 380.0f;
     public const float DefaultUnlitColorMultiplier = 2.0f;
-    public const float DefaultParticleColorMultiplier = 2.5f;
+    public const float DefaultParticleColorMultiplier = 1.5f;
 
     private const float MinimumNits = 1.0f;
     private const float MaximumNits = 10_000.0f;

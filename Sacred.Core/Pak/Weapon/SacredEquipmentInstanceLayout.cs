@@ -33,6 +33,9 @@ public readonly struct SacredEquipmentInstanceLayout
     /// <summary>Eight parent socket-kind bytes. Gold 0x5BE9E0 enables merged record i only
     /// when this byte is 1, 2, 3 or 4; 3/4 share returned socket category 3.</summary>
     [FieldOffset(12)] public readonly SacredEquipmentSlotTypes SlotTypes;
+    /// <summary>Gold 0x54ABE0 compares level and the four following attribute
+    /// bytes against unsigned hero words. Class fit may mutate Flags before a
+    /// requirement fails; absence of the value getter skips these comparisons.</summary>
     [FieldOffset(20)] public readonly byte MinimumLevel;
     [FieldOffset(21)] public readonly byte MinimumStrength;
     [FieldOffset(22)] public readonly byte MinimumDexterity;

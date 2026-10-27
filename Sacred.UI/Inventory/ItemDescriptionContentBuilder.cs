@@ -5,6 +5,7 @@ using Sacred.Core.GameRes;
 using Sacred.Core.Pak.Weapon;
 using Sacred.Core.Pak.Weapon.Descriptions;
 using Sacred.Core.Pak.Weapon.Details;
+using Sacred.Core.Pak.Weapon.Names;
 using Sacred.Inventory.Items;
 
 namespace Sacred.UI.Inventory;
@@ -14,6 +15,21 @@ namespace Sacred.UI.Inventory;
 public sealed class ItemDescriptionContentBuilder(GameResStore resources, IReadOnlyList<SacredSetEntry> sets,
     ItemDescriptionEquipmentRules? equipmentRules = null)
 {
+    /// <summary>The piece name shared by hover headings, drop history and status text, without socket counts.</summary>
+    public string GetName(SacredItemInstance item) =>
+        GetName(item, new SacredEquipmentDetailsBuilder(sets).Create(item.Definition).Identity.Set);
+
+    private string GetName(SacredItemInstance item, SacredEquipmentSetReference? set)
+    {
+        var definition = item.Definition;
+        var rarity = item.ResolvedFlags is { } flags ? (flags >> 16) & 15 : definition.Classification.RarityTierCode;
+        if (set is null && rarity != 15 && item.ResolvedName is { } resolved)
+            return resolved.Text;
+
+        var authoredName = SacredEquipmentNameLookup.Resolve(resources, definition.Item.ModelDesc.ResourceId);
+        return string.IsNullOrEmpty(authoredName) ? Get(definition.IdemId, definition.Name) : authoredName;
+    }
+
     public IReadOnlyList<ItemDescriptionLine> Create(SacredItemInstance item)
     {
         var lines = new List<ItemDescriptionLine>();
@@ -23,7 +39,8 @@ public sealed class ItemDescriptionContentBuilder(GameResStore resources, IReadO
             : definition.Classification;
         var flags = item.ResolvedFlags ?? ((uint)classification.CharacterClassMaskCode |
             ((uint)classification.EquipmentTypeCode << 8) | ((uint)classification.RarityAndClassFlags << 16));
-        var name = item.ResolvedName?.Text ?? Get(definition.IdemId, definition.Name);
+        var set = new SacredEquipmentDetailsBuilder(sets).Create(definition).Identity.Set;
+        var name = GetName(item, set);
         var slots = item.SlotTypes;
         var available = 0;
         var occupied = 0;
@@ -36,10 +53,10 @@ public sealed class ItemDescriptionContentBuilder(GameResStore resources, IReadO
         if (available > 0) name += $" [{Number(occupied)}/{Number(available)}]";
         lines.Add(new(name, ItemDescriptionColors.Name(flags, definition.SetType, definition.Item.ModelDesc.Category))
         { IsHeading = true, IconSelector = ItemDescriptionEquipmentRules.DifficultyEmblem(flags) });
-        if (new SacredEquipmentDetailsBuilder(sets).Create(definition).Identity.Set is { } set)
+        if (set is { } membership)
         {
-            var title = resources.GetString($"SetName{set.Index}", "");
-            if (set.NameResourceId is { } resourceId) title = resources.Strings.GetValueOrDefault(resourceId, title);
+            var title = resources.GetString($"SetName{membership.Index}", "");
+            if (membership.NameResourceId is { } resourceId) title = resources.Strings.GetValueOrDefault(resourceId, title);
             if (!string.IsNullOrEmpty(title)) lines.Add(new(title, ItemDescriptionColors.Set) { IsHeading = true });
         }
         var skill = ItemDescriptionEquipmentRules.WeaponSkill(definition);

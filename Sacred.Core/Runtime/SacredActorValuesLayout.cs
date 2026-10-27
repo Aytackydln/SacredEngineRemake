@@ -55,14 +55,17 @@ public readonly struct SacredActorValuesLayout
     [FieldOffset(98)] public readonly float FireProtection;
     [FieldOffset(102)] public readonly float MagicProtection;
     [FieldOffset(106)] public readonly float PoisonProtection;
-    [FieldOffset(110)] public readonly float PhysicalDamageMinimum;
-    [FieldOffset(114)] public readonly float FireDamageMinimum;
-    [FieldOffset(118)] public readonly float MagicDamageMinimum;
-    [FieldOffset(122)] public readonly float PoisonDamageMinimum;
-    [FieldOffset(126)] public readonly float PhysicalDamageMaximum;
-    [FieldOffset(130)] public readonly float FireDamageMaximum;
-    [FieldOffset(134)] public readonly float MagicDamageMaximum;
-    [FieldOffset(138)] public readonly float PoisonDamageMaximum;
+    /// <summary>Actor damage stores maxima before minima, unlike the equipment
+    /// value block. Gold CalcResults adds equipment +36..42 to +110..122 and
+    /// equipment +28..34 to +126..138; its unarmed fallback follows this order.</summary>
+    [FieldOffset(110)] public readonly float PhysicalDamageMaximum;
+    [FieldOffset(114)] public readonly float FireDamageMaximum;
+    [FieldOffset(118)] public readonly float MagicDamageMaximum;
+    [FieldOffset(122)] public readonly float PoisonDamageMaximum;
+    [FieldOffset(126)] public readonly float PhysicalDamageMinimum;
+    [FieldOffset(130)] public readonly float FireDamageMinimum;
+    [FieldOffset(134)] public readonly float MagicDamageMinimum;
+    [FieldOffset(138)] public readonly float PoisonDamageMinimum;
     // Native accumulator names retained until their application stages are traced.
     [FieldOffset(142), BinaryUnknown] public readonly float BonusPh;
     [FieldOffset(146), BinaryUnknown] public readonly float BonusFe;

@@ -1,5 +1,4 @@
 using System;
-using System.Buffers.Binary;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Linq;
@@ -12,6 +11,7 @@ using Sacred.Assets.Equipment;
 using Sacred.Core.Loot;
 using Sacred.GameplayHost.Equipment;
 using Sacred.Inventory.Items;
+using Sacred.UI.Inventory;
 
 namespace AssetViewer.AssetViewer;
 
@@ -126,11 +126,10 @@ internal sealed class ItemDropSimulatorWindow : Window, IAssetViewerWindow
             ? "Special resource required" : result.UnavailableReason is null ? "No matching item" : "Category only";
         if (result.SelectedType.HasValue)
         {
-            var valueType = BinaryPrimitives.ReadUInt32LittleEndian(result.Values.Span);
             var definition = _session.Data.GamePakStore.Weapons[result.SelectedType.Value];
             instance = SacredItemInstance.FromNativeObjectRecord(definition, result.SelectedType.Value, result.Values.Span);
             if (result.Name is { } generatedName) instance.SetResolvedName(generatedName);
-            name = result.Name?.Text ?? _session.Data.GameResStore.GetString(valueType.ToString(CultureInfo.InvariantCulture), definition.Name);
+            name = new ItemDescriptionContentBuilder(_session.Data.GameResStore, _session.Data.ItemSets).GetName(instance);
         }
         var row = new ItemDropHistoryRow(++_number, result, instance, name);
         _history.Insert(0, row);

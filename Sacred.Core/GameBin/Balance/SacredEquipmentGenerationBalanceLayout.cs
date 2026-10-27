@@ -7,7 +7,9 @@ public static class SacredEquipmentGenerationBalanceLayout
     public const int LevelFactorZeroOffset = 0x1FC;
     public const int LevelFactorHundredOffset = 0x200;
     /// <summary>Generation level cap = truncate(216 / scale). Also raises generation level
-    /// to meet wpmod.bin +0x9C, after the combat level factor has already been computed.</summary>
+    /// to meet wpmod.bin +0x9C, after the combat level factor has already been computed.
+    /// Creature set loot 0x55B247 additionally requires shared SpawnLevel * this
+    /// scale strictly below the hero's level before accepting a selected member.</summary>
     public const int LevelScaleOffset = 0x111C;
     /// <summary>Seventy 24-byte curves for bonus codes 800..869, selected at 0x5E22B0.</summary>
     public const int IndividualBonusCurvesOffset = 0x9DC;

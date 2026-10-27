@@ -14,8 +14,7 @@ public sealed class SacredEquipmentNameGeneration(SacredEquipmentNameContext con
     public SacredEquipmentNameResult Existing(uint visualType, uint nativeReference = 0)
     {
         var reference = nativeReference == 0 ? context.ResourceId(visualType) : nativeReference;
-        var hash = (reference & 0x80000000) != 0 ? reference & 0x7FFFFFFF : Hash(reference.ToString(CultureInfo.InvariantCulture));
-        return new(nativeReference, reference is 0 or uint.MaxValue ? "" : context.Resources.Strings.GetValueOrDefault(hash, ""));
+        return new(nativeReference, SacredEquipmentNameLookup.Resolve(context.Resources, reference));
     }
 
     public SacredEquipmentNameResult Generate(Span<byte> bytes, uint visualType, SacredRandomSequence random)

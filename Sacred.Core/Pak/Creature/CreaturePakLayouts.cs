@@ -66,7 +66,7 @@ public readonly struct CreatureGoldRecordLayout
     [FieldOffset(4)] public readonly SacredCreatureClass Class;
     [FieldOffset(5)] public readonly byte HorseClass;
     /// <summary>Gold 0x52E23B tests bit 0x20 and sets creature behavior +0x1F4 bit 0x01000000.
-    /// Character seed 0x586C00 tests bit 0x40 and sets behavior bit 0x08000000.
+    /// Character seed 0x586C00 and CalcResults 0x579811 test bit 0x40 and set behavior bit 0x08000000.
     /// SetLevel 0x5654A8 / 0x5654D4 tests bit 1 through 0x426CB0: with actor
     /// behavior 0x80000 or +0x2B8 mask 0x40, this bit exempts the actor from
     /// the corresponding sector cap. Ordinary actors still use their cap.
@@ -90,8 +90,18 @@ public readonly struct CreatureGoldRecordLayout
     [FieldOffset(22)] public readonly CreatureGoldSkills AvailableSkills;
     [FieldOffset(38)] public readonly ushort WalkSpeed;
     [FieldOffset(40)] public readonly ushort RunSpeed;
+    /// <summary>Six BonusAuf words. Low byte: 0 constant, 1..7 attribute/level
+    /// percent, 8..14 melee multiplier, 15 ranged all-damage percent,
+    /// 16..22 ranged attribute/level multiplier, 23..28 attribute powers,
+    /// 29..32 minimum-damage powers, 33..36 protection powers. Attribute
+    /// selectors are ST, WI, RP, RM, GS, CH, level. High byte chooses destination;
+    /// see SacredCreatureInnateBonuses for the native ordered applications.</summary>
     [FieldOffset(42)] public readonly CreatureBonusCodes BonusCodes;
+    /// <summary>Unsigned magnitude: percent scale .01, multiplier scale .0001,
+    /// or exponent addition .001, selected by BonusCodes' low byte.</summary>
     [FieldOffset(54)] public readonly CreatureBonusBytes BonusPercent;
+    /// <summary>Nonzero excludes the row from the passive CalcResults pass;
+    /// retained for the separate conditional/opponent calculation.</summary>
     [FieldOffset(60)] public readonly CreatureBonusBytes BonusClasses;
     [FieldOffset(66)] public readonly CreatureResistanceFactors PhysicalResistanceFactors;
     [FieldOffset(71)] public readonly CreatureResistanceFactors FireResistanceFactors;

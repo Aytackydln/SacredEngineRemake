@@ -34,6 +34,10 @@ public static class SacredSavedPhysicalLayout
     public const int QuestNumberOffset = Word94Offset;
     /// <summary>Signed 16-bit quest script effect identity, native +0x96 (Gold 0x450E20).</summary>
     public const int QuestEffectOffset = Word96Offset;
+    /// <summary>Physical flags at native +0xB0. Equipment installation 0x555E00
+    /// uses 0x10/0x08 in its retained-replacement path; detach 0x556A30 suppresses
+    /// its returned reference when the removed item has 0x08. Other object types
+    /// use this same word for their own physical flags.</summary>
     public const int WordB0Offset = 155;
     public const int ReservedWordsOffset = 159;
     public const int AnimationDoublesOffset = 175;
