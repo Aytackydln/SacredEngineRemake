@@ -1,3 +1,5 @@
+using Sacred.Core.Pax.Hero.Objects;
+
 namespace Sacred.Network.Gameplay;
 
 /// <summary>Gold 0x450140 physical stream; offsets include the 41-byte base object block.</summary>
@@ -29,13 +31,21 @@ public static class GoldPhysicalStateLayout
     /// <summary>Signed 16-bit quest script effect identity, native +0x96 (Gold 0x450E20).</summary>
     public const int QuestEffectOffset = Word96Offset;
     public const int WordB0Offset = 105;
+    /// <summary>Base object +0x14 bit 26: a Granny model sequence is loaded,
+    /// queried by Gold 0x44C320. Node activation is a different native flag.</summary>
+    public const uint ModelLoadedFlag = SacredSavedObjectBaseLayout.ModelLoadedFlag;
     /// <summary>Native event 208 marks a corpse with +B0 bit 1 (Gold 5364DD).</summary>
     public const uint CorpseFlag = 2;
     /// <summary>Native +B0: renders ground-symbol kind 0 (Gold 599FF0).</summary>
     public const uint ChampionGroundSymbolFlag = 0x400;
     /// <summary>With VectorCCFlag: exact model root pivot (native +0xCC), independent of
     /// the integer logical base X/Y. Gold 0x450254 writes it; 0x44B324 consumes it on render.
-    /// Without the flag this is +0x98 or a bone result, not an absolute placement.</summary>
+    /// Without the flag this is +0x98 or a bone result, not an absolute placement.
+    /// Zero model handles make GrannyGetBoneState return error without writing
+    /// the temporary vector. An unplaced (base flag 2) receiver discards it and
+    /// stores zero at +0x98 (Gold 0x450407..0x450428). A placed receiver retains
+    /// it, but creature Reset3DPosition skips this cache via 0x44D582/0x426610;
+    /// non-creature position consumers can read and use it.</summary>
     public const int SelectedVectorOffset = 109;
     // Flag 0x800000 selects native +0xCC. Otherwise +0x98 or a Granny bone result is written.
     public const uint VectorCCFlag = 0x800000;

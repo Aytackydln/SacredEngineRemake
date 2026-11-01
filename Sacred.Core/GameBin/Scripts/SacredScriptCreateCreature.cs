@@ -10,6 +10,9 @@ public sealed record SacredScriptCreateCreature(string? Name, uint TypeId, IRead
     public const ushort Opcode = 1;
     /// <summary>Native CreateNPC command-mode scratch; service bits also suppress regional substitution.</summary>
     public uint ConstructionFlags { get; init; }
+    /// <summary>Operand 0x90: early raise-only level assignment, caller scratch +74.
+    /// LevelInput (0x1F) is a later request with normal difficulty adjustment.</summary>
+    public int AssignedLevelInput { get; init; }
     /// <summary>Operand 0x6B; default -1. Zero additionally enables the native regional
     /// replacement pass before construction. Flag application requires the constructed actor.</summary>
     public int Flag2B7Mask08Input { get; init; } = -1;

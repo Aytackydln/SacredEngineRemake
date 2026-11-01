@@ -23,6 +23,18 @@ internal static class PacketCatalog
         void Add<T>(string name, ushort opcode, Func<byte[]> bytes, PayloadRule rule = PayloadRule.Exact,
             Action<GoldGameEvent>? verify = null, byte sender = 0, bool owns = false, int[]? shorter = null) where T : GoldGameEvent =>
             rows.Add(new(name, opcode, typeof(T), bytes, rule, verify, sender, owns, shorter));
+        Add<GoldObjectEvent>("native complete startup Horse", 0x16F, () => StartupHorseChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
+            verify: e => { var value = (GoldObjectEvent)e; Assert.AreEqual(65u, value.BaseState.ObjectReference);
+                Assert.AreEqual(555u, value.BaseState.ObjectType); Assert.IsFalse((value.BaseState.Flags & 2) != 0); },
+            shorter: [65, 66, 67, 68, 145, 146, 147, 148, 469, 470, 471, 472]);
+        Add<GoldObjectEvent>("native initial equipped placed creature", 0x16F, () => StartupCreatureSerializationChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
+            verify: e => { var value = (GoldObjectEvent)e; Assert.AreEqual(26u, value.BaseState.ObjectReference);
+                Assert.IsFalse((value.BaseState.Flags & 2) != 0); }, shorter: [65, 66, 67, 68, 145, 146, 147, 148, 469, 470, 471, 472]);
+        Add<GoldObjectEvent>("native unloaded unplaced creature", 0x16F, () => UnloadedModelChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
+            verify: e => { var value = (GoldObjectEvent)e; Assert.AreEqual(500u, value.BaseState.ObjectReference);
+                Assert.AreEqual(295u, value.BaseState.ObjectType); Assert.AreEqual(2u, value.BaseState.Flags);
+                Assert.IsFalse((value.BaseState.Flags & GoldPhysicalStateLayout.ModelLoadedFlag) != 0); },
+            shorter: [65, 66, 67, 68, 145, 146, 147, 148, 469, 470, 471, 472]);
         Add<GoldCreatureHealthEvent>("absolute signed health consumer", 0x128, () => Words(500, uint.MaxValue),
             verify: e => Assert.AreEqual(-1, ((GoldCreatureHealthEvent)e).HitPoints), owns: true);
         Add<GoldCreatureAttackEvent>("melee swing without a damage result", 0x17C,
@@ -381,6 +393,37 @@ internal static class PacketCatalog
                 () => VampireVisualPackets.SpecialPayload(code), PayloadRule.RetainedSuffix,
                 e => Assert.AreEqual(code, ((GoldCreatureSpecialMoveEvent)e).Code), owns: true,
                 shorter: Enumerable.Range(8, 84).ToArray());
+        Add<GoldObjectEvent>("native startup Horse equipment before rejected installation", 0x16E, () => StartupHorseChecks.EquipmentWireExample(RepositoryFiles.Root), PayloadRule.Structured,
+            verify: e => { var value = (GoldObjectEvent)e; Assert.AreEqual(66u, value.BaseState.ObjectReference);
+                Assert.AreEqual(3201u, value.BaseState.ObjectType); Assert.IsTrue((value.BaseState.Flags & 2) != 0); },
+            shorter: [49, 50, 51, 52, 129, 130, 131, 132, 272]);
+        foreach (var index in new[] { 0, 1 })
+            Add<GoldObjectEvent>($"native initial installed equipment {index}", 0x16E, () => StartupCreatureSerializationChecks.EquipmentWireExample(RepositoryFiles.Root, index), PayloadRule.Structured,
+                verify: e => Assert.AreEqual(index == 0 ? 28u : 27u, ((GoldObjectEvent)e).BaseState.ObjectReference),
+                shorter: index == 0 ? [49, 50, 51, 52, 129, 130, 131, 132] : [49, 50, 51, 52, 129, 130, 131, 132, 273, 274, 275, 276]);
+        Add<GoldMapIconEvent>("native startup map label", 0x1CB, () => StartupMapIconChecks.WireExample(RepositoryFiles.Root),
+            PayloadRule.RetainedSuffix, e => { var icon = ((GoldMapIconEvent)e).Icon;
+                Assert.AreEqual(3376, icon.X); Assert.AreEqual(2670, icon.Y); Assert.AreEqual((sbyte)43, icon.AngleDegrees);
+                Assert.IsTrue(icon.IsLabel); }, owns: true);
+        Add<GoldObjectEvent>("native startup active FX with particle snapshot", 0x16F,
+            () => StartupEffectFactoryChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
+            e => { var fx = GoldObjectFxState.FromPayload(((GoldObjectEvent)e).ObjectState);
+                Assert.AreEqual(34u, fx.FxType); Assert.AreEqual(802u, GoldParticleSnapshot.FromPayload(fx.ParticleState.Span).Resource); },
+            shorter: new[] { 65, 66, 67, 68 }.Concat(Enumerable.Range(251, 224)).ToArray());
+        Add<GoldObjectEvent>("native startup placed QuestItem", 0x16E,
+            () => StartupItemCreationChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
+            e => { var state = GoldItemState.FromPayload(((GoldObjectEvent)e).ObjectState);
+                Assert.AreEqual(54u,state.PhysicalState.BaseState.ObjectReference); Assert.AreEqual(4993u,state.PhysicalState.BaseState.ObjectType);
+                Assert.AreEqual(0x201u,state.PhysicalState.BaseState.Flags); }, shorter: [49,50,51,52,129,130,131,132]);
+        Add<GoldCreatureUpdateEvent>("native startup Horse owner dialog state", 0x11A,
+            () => StartupOwnerChecks.WireExample(RepositoryFiles.Root), PayloadRule.Exact,
+            verify: e => { var state=(GoldCreatureUpdateEvent)e; Assert.AreEqual(65u,state.ObjectReference); });
+        Add<GoldCreatureMountEvent>("native startup previous Horse detach", 0x15C,
+            () => StartupOwnerChecks.ReplacementWireExample(RepositoryFiles.Root), PayloadRule.Exact,
+            verify: e => { var value=(GoldCreatureMountEvent)e; Assert.AreEqual(0u,value.FirstReference); Assert.AreEqual(65u,value.SecondReference); });
+        Add<GoldObjectEvent>("native startup indoor Horse",0x16F,()=>StartupLoadedHorseChecks.WireExample(RepositoryFiles.Root),PayloadRule.Structured,
+            verify:e=>{var value=(GoldObjectEvent)e;Assert.AreEqual(86u,value.BaseState.ObjectReference);Assert.AreEqual((byte)1,value.BaseState.Surface);},
+            shorter:[65,66,67,68,145,146,147,148,469,470,471,472]);
         return rows;
     }
     private static byte[] Words(params uint[] words)

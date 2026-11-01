@@ -1,6 +1,8 @@
 namespace Sacred.Network.Gameplay;
 
-/// <summary>Gold TRIGGER_INSERT_MAPICON / TRIGGER_INSERT_ATTRACTOR. Both append 24 opaque-preserving bytes.</summary>
+/// <summary>Gold TRIGGER_INSERT_MAPICON / TRIGGER_INSERT_ATTRACTOR. Both append
+/// 24 opaque-preserving bytes. In native sMapIcon, +2..3, +13..15 and +18..19
+/// are alignment padding; SetMapIcon initializes the remaining fields.</summary>
 public static class GoldScriptSpatialLayout
 {
     public const ushort MapIconOpcode = 0x1CB;

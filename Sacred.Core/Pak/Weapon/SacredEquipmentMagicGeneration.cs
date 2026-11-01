@@ -10,8 +10,9 @@ public static class SacredEquipmentMagicGeneration
 {
     public static void Apply(Span<byte> values, SacredItemCategory category, byte usage, uint weaponType,
         uint quality, uint difficulty, bool singleBonus, SacredEquipmentGenerationTuning tuning,
-        SacredRandomSequence random, Func<uint, byte> combatArtClass)
+        SacredRandomSequence random, Func<uint, byte> combatArtClass, SacredX87Precision precision = SacredX87Precision.Extended)
     {
+        var fp = new SacredResultArithmetic(precision);
         var sockets = tuning.Sockets;
         var requested = unchecked((ushort)sockets.Budget(quality));
         if (requested == 0)
@@ -56,7 +57,7 @@ public static class SacredEquipmentMagicGeneration
             {
                 for (var i = 0; i < shares.Count; i++)
                 {
-                    if (i == 0 && !jewelry && requested * 1000d / (sockets.Budget(14) << 1) > random.Next() % 1000)
+                    if (i == 0 && !jewelry && fp.Divide(fp.Multiply(requested, 1000d), sockets.Budget(14) << 1) > random.Next() % 1000)
                     { kinds.Add(8); continue; }
                     int kind;
                     do { kind = random.Next() % 8; } while (kind == firstFamily || kinds.Contains(kind));
@@ -71,18 +72,18 @@ public static class SacredEquipmentMagicGeneration
                 var slot = Math.Max(1, shares[i].Slot - failed);
                 if (kinds[i] == 1) defenseSlot = slot;
                 if (!SacredEquipmentMagicBonusSelection.Apply(kinds[i], values, slot, jewelry, (uint)shares[i].Budget,
-                    category, usage, ranges, tuning.Bonuses, random, combatArtClass)) { failed++; continue; }
+                    category, usage, ranges, tuning.Bonuses, random, combatArtClass, precision)) { failed++; continue; }
                 WriteAmount(values, slot, 0);
-                var added = SacredEquipmentMagicBonusValue.Add(values, slot, shares[i].Budget, category, difficulty, tuning.Bonuses, tuning.Normalization);
-                cost = (float)(added * (double)multiplier + .5 + cost);
+                var added = SacredEquipmentMagicBonusValue.Add(values, slot, shares[i].Budget, category, difficulty, tuning.Bonuses, tuning.Normalization, precision);
+                cost = (float)fp.Add(fp.Add(fp.Multiply(added, multiplier), .5), cost);
             }
             remaining = (int)(requested - cost);
             if (remaining > 0)
             {
                 if (defenseSlot >= 0)
-                    cost += SacredEquipmentMagicBonusValue.Add(values, defenseSlot, remaining, category, difficulty, tuning.Bonuses, tuning.Normalization);
+                    cost += SacredEquipmentMagicBonusValue.Add(values, defenseSlot, remaining, category, difficulty, tuning.Bonuses, tuning.Normalization, precision);
                 else if (firstFamily == 1 && SacredEquipmentMagicBonusSelection.Family((ushort)ReadGroup(values, 1)) == 0)
-                    cost += SacredEquipmentMagicBonusValue.Add(values, 0, (int)(remaining / multiplier), category, difficulty, tuning.Bonuses, tuning.Normalization);
+                    cost += SacredEquipmentMagicBonusValue.Add(values, 0, (int)fp.Divide(remaining, multiplier), category, difficulty, tuning.Bonuses, tuning.Normalization, precision);
                 else
                 {
                     var savedGroup = ReadGroup(values, 1);
@@ -90,7 +91,7 @@ public static class SacredEquipmentMagicGeneration
                     var savedType = BinaryPrimitives.ReadUInt16LittleEndian(values[60..]);
                     BinaryPrimitives.WriteUInt16LittleEndian(values[60..], 0);
                     if (SacredEquipmentMagicBonusSelection.Apply(firstFamily == 1 ? 0 : 1, values, 1, jewelry, (uint)remaining,
-                        category, usage, ranges, tuning.Bonuses, random, combatArtClass))
+                        category, usage, ranges, tuning.Bonuses, random, combatArtClass, precision))
                     {
                         values.Slice(82, 16).CopyTo(values[86..]);
                         values.Slice(110, 8).CopyTo(values[112..]);
@@ -100,8 +101,8 @@ public static class SacredEquipmentMagicGeneration
                         WriteAmount(values, 1, 0);
                         // Original replenishment applies to slot zero after the
                         // attack branch, and slot one after the defense branch.
-                        cost += SacredEquipmentMagicBonusValue.Add(values, firstFamily == 1 ? 0 : 1, (int)(remaining / multiplier),
-                            category, difficulty, tuning.Bonuses, tuning.Normalization);
+                        cost += SacredEquipmentMagicBonusValue.Add(values, firstFamily == 1 ? 0 : 1, (int)fp.Divide(remaining, multiplier),
+                            category, difficulty, tuning.Bonuses, tuning.Normalization, precision);
                     }
                 }
             }

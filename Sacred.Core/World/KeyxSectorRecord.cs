@@ -35,11 +35,23 @@ public readonly record struct KeyxSectorRecord
     [FieldOffset(0x0D4)] public readonly int TilesRelativeOffset;
     /// <summary>Declared byte size of the outdoor tile table.</summary>
     [FieldOffset(0x0D8)] public readonly uint TilesSize;
+    /// <summary>Offset of the complete height-grid descriptor table in the
+    /// decompressed WLDX payload. Gold 0x637A21..0x637A34 uses this independently
+    /// of the outdoor tile offset; the first descriptor identifies the outdoor origin.</summary>
+    [FieldOffset(0x0E0)] public readonly uint TileGridDescriptorsRelativeOffset;
+    /// <summary>Number of 0x24-byte height-grid descriptors, including the outdoor
+    /// origin descriptor. This is an entry count, not a byte size (native sector +0x70).</summary>
+    [FieldOffset(0x0E4)] public readonly uint TileGridDescriptorCount;
     /// <summary>Absolute offset of the compressed sector payload in <c>sectors.wldx</c>.</summary>
     [FieldOffset(0x0EC)] public readonly uint CompressedOffset;
     /// <summary>Compressed sector payload size in bytes.</summary>
     [FieldOffset(0x0F0)] public readonly uint CompressedSize;
-    /// <summary>Authored environment and sector-edge flags.</summary>
+    /// <summary>Complete decompressed WLDX payload size. Gold 0x637966/0x6379BB
+    /// passes it through sector runtime +0x4CC to the native inflater.</summary>
+    [FieldOffset(0x108)] public readonly uint DecompressedSize;
+    /// <summary>Authored environment and sector-edge flags. Gold 0x638377 copies
+    /// the low word into sector runtime +0x2E; tile-data readiness lives separately
+    /// at runtime +0x30 bit 16 and is not an authored KEYX flag.</summary>
     [FieldOffset(0x1CC)] public readonly SectorEnvironmentFlags EnvironmentFlags;
     /// <summary>Native surround2[0]; meaning is not established beyond the native name.</summary>
     [FieldOffset(0x1D0)] public readonly uint Surround2A;

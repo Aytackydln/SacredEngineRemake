@@ -252,6 +252,21 @@ internal sealed class NetworkScenePresentation : IDisposable
         }
     }
 
+    public string DescribeNearbyActors()
+    {
+        var count = 0;
+        foreach (var pair in _actors)
+        {
+            var model = pair.Value.Actor.Model;
+            if (Vector2.Distance(new(model.Position.X, model.Position.Y), World.LocalPosition) > 25) continue;
+            if (!World.Replicas.Objects.TryGetValue(pair.Key, out var replica)) continue;
+            var item = _assets.GetItem(replica.BaseState.ObjectType);
+            EngineLog.WriteLine($"Nearby actor: ref {pair.Key}, resource {replica.BaseState.ObjectType}, item {item?.ModelName}; position {model.Position}; published {_published.Contains(model)}; flags {replica.BaseState.Flags:X8}; dead {replica.IsDead}; death-hidden {_deaths.IsHidden(replica)}; surface {replica.BaseState.Surface}; clip {model.Geometry.Animation?.Animation.Name}.");
+            count++;
+        }
+        return $"listed {count} loaded actors within 25 tiles";
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
@@ -278,3 +293,5 @@ internal sealed class NetworkScenePresentation : IDisposable
             TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 }
+
+

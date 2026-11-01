@@ -32,7 +32,7 @@ internal static class EquipmentMagicChecks
             if (row.GetProperty("kind").GetString() == "afford")
             {
                 var result = SacredEquipmentMagicBonusValue.CanAfford(row.GetProperty("code").GetUInt32(), row.GetProperty("budget").GetUInt32(),
-                    row.GetProperty("jewelry").GetBoolean(), (byte)row.GetProperty("level").GetUInt32(), data.Tuning.Bonuses);
+                    row.GetProperty("jewelry").GetBoolean(), (byte)row.GetProperty("level").GetUInt32(), data.Tuning.Bonuses, Sacred.Core.Runtime.SacredX87Precision.Extended);
                 if (result != (row.GetProperty("result").GetUInt32() != 0)) throw new Exception($"Native magic affordability differs: {row}; actual {result}");
             }
             else
@@ -40,7 +40,7 @@ internal static class EquipmentMagicChecks
                 var values = Convert.FromHexString(row.GetProperty("initial_hex").GetString()!);
                 var category = data.Templates.GetItem(BinaryPrimitives.ReadUInt32LittleEndian(values)).ModelDesc.Category;
                 var cost = SacredEquipmentMagicBonusValue.Add(values, row.GetProperty("slot").GetInt32(), row.GetProperty("budget").GetInt32(), category,
-                    row.GetProperty("difficulty").GetUInt32(), data.Tuning.Bonuses, data.Tuning.Normalization);
+                    row.GetProperty("difficulty").GetUInt32(), data.Tuning.Bonuses, data.Tuning.Normalization, Sacred.Core.Runtime.SacredX87Precision.Extended);
                 if (unchecked((uint)cost) != row.GetProperty("result").GetUInt32() || !values.AsSpan().SequenceEqual(Convert.FromHexString(row.GetProperty("result_hex").GetString()!)))
                     throw new Exception($"Native magic cost differs: {row}; actual {cost}, values {Convert.ToHexString(values)}");
             }

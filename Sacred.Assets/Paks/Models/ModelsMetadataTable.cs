@@ -29,6 +29,16 @@ internal sealed class ModelsMetadataTable
     private readonly Dictionary<string, ModelMotionTable> _modelMotions;
     private readonly Dictionary<uint, float> _motionSpeeds = [];
     private readonly Dictionary<uint, float> _bowReleaseTails = [];
+    private readonly Dictionary<string, int> _nativeModelIndexes = new(StringComparer.OrdinalIgnoreCase);
+    private bool[] _storedMotions = [];
+
+    public bool HasNativeMotion(string modelName, int slot, Func<string, bool> looseExists)
+    {
+        if (slot is <= 0 or >= 256 || !_nativeModelIndexes.TryGetValue(modelName, out var index) || index == 0 ||
+            !_modelMotions.TryGetValue(modelName, out var model)) return false;
+        var motion = model.MotionIndexes[slot];
+        return motion != 0 && motion < _motionNames.Length && (_storedMotions[motion] || looseExists(_motionNames[motion]));
+    }
     public float BowReleaseTail(string modelName, byte slot) =>
         _modelMotions.TryGetValue(modelName, out var table) ? _bowReleaseTails.GetValueOrDefault(table.MotionIndexes[slot]) : 0;
     public float MotionPlaybackSpeed(uint index) => _motionSpeeds.GetValueOrDefault(index, 1);
@@ -89,10 +99,14 @@ internal sealed class ModelsMetadataTable
         }
 
         var result = new ModelsMetadataTable(motionNames, modelMotions);
+        result._storedMotions = new bool[motionNames.Length];
+        for (var index = 0; index < modelCount; index++)
+            result._nativeModelIndexes.TryAdd(ReadName(bytes.AsSpan(checked(HeaderSize + index * ModelRecordSize), NameSize)), index);
         for (var index = 0; index < motionNames.Length; index++)
         {
             var offset = checked((int)motionTableOffset + index * MotionRecordSize);
             var motion = MemoryMarshal.Read<ModelsMetadataMotionLayout>(bytes.AsSpan(offset, MotionRecordSize));
+            result._storedMotions[index] = motion.StoredDataSize > 0 && motion.FileEntry != 0;
             var speed = motion.PlaybackSpeedMultiplier;
             result._motionSpeeds.TryAdd((uint)index, speed is >= .8f and < 5f ? speed : 1);
             result._bowReleaseTails.TryAdd((uint)index, motion.BowReleaseTailFraction);

@@ -11,6 +11,10 @@ public static class SacredSavedPhysicalLayout
     public const int Word68Offset = 67;
     public const int Word6COffset = 71;
     public const int Word5COffset = 75;
+    /// <summary>Native +0x5C palette mask/handle. Canonical SetLevel event 6
+    /// calls Gold 0x402490(mask,255); zero returns zero without reading palette
+    /// tables. Physical construction initializes this field to zero (0x44A3E7).</summary>
+    public const int PaletteMaskOffset = Word5COffset;
     /// <summary>Native physical +0x70 direction vector. Gold 0x450630 projects X/Y through
     /// 0x622620 and atan2 to obtain the movement-end heading; distinct from base +0x28 storage.</summary>
     public const int Vector70Offset = 79;

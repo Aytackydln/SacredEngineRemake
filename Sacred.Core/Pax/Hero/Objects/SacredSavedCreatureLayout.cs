@@ -40,6 +40,9 @@ public static class SacredSavedCreatureLayout
     public const uint FightModeFlag = 0x00008000;
     /// <summary>Signed native +0x245 dialog selector, updated by Gold 0x5498F0.</summary>
     public const int DialogIndexOffset = Block1F0Offset + 0x55;
+    /// <summary>Native +0x249 interpreter group. CreateNPC registers the reference
+    /// in the group map, then writes this word at Gold 0x483A4B.</summary>
+    public const int ScriptGroupOffset = Block1F0Offset + 0x59;
     /// <summary>Gold 0x539531 suppresses the automatic clearing of SleepingFlag while this bit is set.</summary>
     public const uint SleepWakeSuppressedFlag = 0x00020000;
     /// <summary>Native +0x204/+0x208: AI tick interval and elapsed seconds (Gold 0x537F3A).</summary>
@@ -49,6 +52,10 @@ public static class SacredSavedCreatureLayout
     /// Also multiplies movement percentage before base walk/run rates (Gold 0x4F761B).
     /// Shared file prefix is copied by GoldSavedCreatureStateImporter.</summary>
     public const int AnimationSpeedMultiplierOffset = Block1F0Offset + 0xD9;
+    /// <summary>Native +0x2B9, copied from base +0x18 by CreateNPC at
+    /// 0x4833EF..0x483411: original script placement (sector, X/Y, surface).
+    /// Stored as a padded 16-byte native position; serialized by the file prefix.</summary>
+    public const int ScriptInitialPositionOffset = Block1F0Offset + 0xC9;
     public const int Block2EDOffset = 748;
     public const int Block2EDSize = 173;
     // Native +0x2ED is an action bank. During path movement its first 128 bytes

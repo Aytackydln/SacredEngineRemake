@@ -39,7 +39,8 @@ internal sealed class SacredNativeTypeSwitch
         for (var step = 0; step < 64; step++)
         {
             var code = At(address, 16);
-            if (code[..4].SequenceEqual<byte>([0x8B, 0x4C, 0x24, 4])) { ecx = type; address += 4; }
+            if (code[..5].SequenceEqual<byte>([0x66, 0x8B, 0x44, 0x24, 4])) { eax = (eax & 0xFFFF0000) | (type & 0xFFFF); address += 5; }
+            else if (code[..4].SequenceEqual<byte>([0x8B, 0x4C, 0x24, 4])) { ecx = type; address += 4; }
             else if (code[..4].SequenceEqual<byte>([0x8B, 0x44, 0x24, 4])) { eax = type; address += 4; }
             else if (code[..4].SequenceEqual<byte>([0x8B, 0x44, 0x24, 8])) { eax = secondArgument; address += 4; }
             else if (code[..4].SequenceEqual<byte>([0x83, 0x7C, 0x24, 8])) { left = secondArgument; right = unchecked((uint)(sbyte)code[4]); address += 5; }
@@ -48,9 +49,14 @@ internal sealed class SacredNativeTypeSwitch
             else if (code[..2].SequenceEqual<byte>([0x33, 0xC9])) { ecx = 0; address += 2; }
             else if (code[..2].SequenceEqual<byte>([0x33, 0xD2])) { edx = 0; address += 2; }
             else if (code[0] == 0xB8) { eax = Word(code[1..]); address += 5; }
+            else if (code[0] == 0xB9) { ecx = Word(code[1..]); address += 5; }
             else if (code[0] == 0xB0) { eax = (eax & 0xFFFFFF00) | code[1]; address += 2; }
             else if (code[..2].SequenceEqual<byte>([0x32, 0xC0])) { eax &= 0xFFFFFF00; address += 2; }
             else if (code[0] == 0x3D) { left = eax; right = Word(code[1..]); address += 5; }
+            else if (code[..2].SequenceEqual<byte>([0x66, 0x3D])) { left = eax & 0xFFFF; right = BinaryPrimitives.ReadUInt16LittleEndian(code[2..]); address += 4; }
+            else if (code[..3].SequenceEqual<byte>([0x66, 0x3B, 0xC1])) { left = eax & 0xFFFF; right = ecx & 0xFFFF; address += 3; }
+            else if (code[..4].SequenceEqual<byte>([0x39, 0x4C, 0x24, 8])) { left = secondArgument; right = ecx; address += 4; }
+            else if (code[0] == 0x25) { eax &= Word(code[1..]); left = eax; right = 0; address += 5; }
             else if (code[..2].SequenceEqual<byte>([0x83, 0xF8])) { left = eax; right = unchecked((uint)(sbyte)code[2]); address += 3; }
             else if (code[0] == 0x48) { eax = unchecked(eax - 1); left = eax; right = 0; address++; }
             else if (code[0] == 0x05) { eax = unchecked(eax + Word(code[1..])); left = eax; right = 0; address += 5; }

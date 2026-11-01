@@ -17,7 +17,7 @@ public sealed class WorldScriptObjectWorld : IWorldScriptObjectWorld
     private readonly SacredSectorGrid _sectors;
     private readonly WorldScriptTriggerRegistry _triggers;
     private readonly byte _owner;
-    private byte _allocationCounter;
+    private readonly WorldObjectAllocationCounter _allocationCounter;
     private readonly bool _hasActiveHero;
     private readonly List<WorldScriptCreatedObject> _objects = [];
     private readonly List<GoldObjectScriptCallback> _callbacks = [];
@@ -30,13 +30,16 @@ public sealed class WorldScriptObjectWorld : IWorldScriptObjectWorld
         _triggers = triggers ?? throw new ArgumentNullException(nameof(triggers));
         if (owner is < 1 or > 16) throw new ArgumentOutOfRangeException(nameof(owner));
         _owner = owner;
-        _allocationCounter = initialAllocationCounter;
+        _allocationCounter = new(initialAllocationCounter);
         _hasActiveHero = hasActiveHero;
         Objects = _objects.AsReadOnly();
         Callbacks = _callbacks.AsReadOnly();
     }
     public IReadOnlyList<WorldScriptCreatedObject> Objects { get; }
     public IReadOnlyList<GoldObjectScriptCallback> Callbacks { get; }
+    /// <summary>Share this same session counter with NPC/equipment factories.</summary>
+    public WorldObjectAllocationCounter AllocationCounter => _allocationCounter;
+    public WorldScriptCreatureWorld? Creatures { get; set; }
 
     public void Create(WorldScriptExecutionContext context, SacredScriptCommand command)
     {
@@ -46,6 +49,20 @@ public sealed class WorldScriptObjectWorld : IWorldScriptObjectWorld
         // Native returns without creating anything if no type/placement was supplied.
         if (creation.TypeId == 0 || creation.TilePosition is null && creation.WorldPosition is null) return;
         var item = _templates.GetItem(creation.TypeId);
+        if (item.ModelDesc.Category == SacredItemCategory.QuestItem)
+        {
+            if (_hasActiveHero) throw new InvalidDataException("CreateObj item needs native active-hero value calculation.");
+            var items = Creatures?.Items ?? throw new InvalidDataException("CreateObj item needs the shared initial item factory.");
+            var created = items.Create(command, creation, item);
+            _callbacks.AddRange(created.Callbacks);
+            return;
+        }
+        if (item.ModelDesc.Category == SacredItemCategory.Effect)
+        {
+            var effects = Creatures?.Effects ?? throw new InvalidDataException("CreateObj Effect requires original definitions and an explicitly compared projection context.");
+            effects.Create(command,creation,item);
+            return;
+        }
         if (item.ModelDesc.Category != SacredItemCategory.Container)
             throw new InvalidDataException($"CreateObj type {creation.TypeId} requires the native {item.ModelDesc.Category} factory.");
         if (_hasActiveHero) throw new InvalidDataException("CreateObj item construction requires native active-hero value calculation.");
@@ -61,6 +78,7 @@ public sealed class WorldScriptObjectWorld : IWorldScriptObjectWorld
         foreach (var name in new[] { use, take }) if (name is not null) _ = GoldObjectScriptCallback.Create(GoldReferenceCodec.FirstObjectReference, name);
         if (!_references.TryAllocate(out var reference))
             throw new InvalidDataException("CreateObj needs a 0x153 object-reference reservation.");
+        _allocationCounter.BeginAllocation();
         var flags = 0x200u; // Native tile-placement branch clears 2 and sets 0x200 (0x48750C).
         if (((ushort)item.ModelDesc.GraphicFlags & 0x0100) != 0) flags |= 0x800;
         if (use is not null || take is not null) flags |= 1;
@@ -71,7 +89,7 @@ public sealed class WorldScriptObjectWorld : IWorldScriptObjectWorld
             unchecked((ushort)_sectors.GetSector(position.X, position.Y)),
             ToNative(position.X), ToNative(position.Y), unchecked((byte)Math.Max(0, position.Z)),
             BitConverter.SingleToUInt32Bits(creation.FacingDegrees is > 0 ? creation.FacingDegrees.Value : item.ModelDesc.Angle3D),
-            trigger, unchecked(++_allocationCounter), _owner, 0);
+            trigger, _allocationCounter.Value, _owner, 0);
         _objects.Add(new(command.FileOffset, creation, state, instance) { PendingAnimationEvent = animate ? (ushort)0xAB : null });
         if (use is not null) _callbacks.Add(GoldObjectScriptCallback.Create(reference, use));
         if (take is not null) _callbacks.Add(GoldObjectScriptCallback.Create(reference, take));

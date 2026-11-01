@@ -25,6 +25,7 @@ public static class SacredScriptOperandReader
                 case SacredScriptArgumentKind.ObjectReference:
                 case SacredScriptArgumentKind.ObjectTakeScript:
                 case SacredScriptArgumentKind.ObjectUseScript:
+                case SacredScriptArgumentKind.CreatureOwner:
                 case SacredScriptArgumentKind.CreatureSpellSelector:
                     result.Add(new(kind, start, Text: ReadString(data, ref offset)));
                     break;
@@ -32,6 +33,7 @@ public static class SacredScriptOperandReader
                 case SacredScriptArgumentKind.CreatureGroup:
                 case SacredScriptArgumentKind.ScriptResourceId:
                 case SacredScriptArgumentKind.PopulationCreatureValue:
+                case SacredScriptArgumentKind.CreatureAssignedLevel:
                     result.Add(new(kind, start, Integer: ReadInt(data, ref offset)));
                     break;
                 case SacredScriptArgumentKind.CreatureLevel:
@@ -97,6 +99,7 @@ public static class SacredScriptOperandReader
                 case SacredScriptArgumentKind.CreatureTrader:
                 case SacredScriptArgumentKind.CreatureComboMaster:
                 case SacredScriptArgumentKind.CreatureNpcBehavior:
+                case SacredScriptArgumentKind.CreatureHorseMerchant:
                 case SacredScriptArgumentKind.CreatureStationary:
                     result.Add(new(kind, start));
                     break;

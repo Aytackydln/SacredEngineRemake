@@ -1,3 +1,5 @@
+using Sacred.Core.Runtime;
+
 namespace Sacred.Core.GameBin.Balance;
 
 /// <summary>Gold item-generation level preparation (0x5D509B and 0x5D52A2..0x5D531D).
@@ -15,16 +17,17 @@ public sealed class SacredEquipmentGenerationBalance
     public float LevelFactorHundred { get; }
     public float LevelScale { get; }
 
-    public SacredEquipmentGenerationLevel ResolveLevel(uint input, int minimumLevel)
+    public SacredEquipmentGenerationLevel ResolveLevel(uint input, int minimumLevel, SacredX87Precision precision = SacredX87Precision.Extended)
     {
+        var fp = new SacredResultArithmetic(precision);
         var level = input & 0xFFFF;
-        var maximum = 216d / LevelScale;
+        var maximum = fp.Divide(216d, LevelScale);
         if (level > maximum) level = unchecked((uint)(long)maximum);
-        var factor = (float)(((double)LevelFactorHundred - LevelFactorZero) * (level & 0xFFFF) * (double)0.01f + LevelFactorZero);
+        var factor = (float)fp.Add(fp.Multiply(fp.Multiply(fp.Subtract(LevelFactorHundred, LevelFactorZero), level & 0xFFFF), 0.01f), LevelFactorZero);
         // The native minimum word is converted to single precision first.
         var minimum = (float)minimumLevel;
-        if ((level & 0xFFFF) * (double)LevelScale < minimum && LevelScale > 1.1920929e-7f)
-            level = unchecked((uint)(long)(minimum / (double)LevelScale + 0.5d));
+        if (fp.Multiply(level & 0xFFFF, LevelScale) < minimum && LevelScale > 1.1920929e-7f)
+            level = unchecked((uint)(long)fp.Add(fp.Divide(minimum, LevelScale), 0.5d));
         return new(unchecked((ushort)level), factor);
     }
 }

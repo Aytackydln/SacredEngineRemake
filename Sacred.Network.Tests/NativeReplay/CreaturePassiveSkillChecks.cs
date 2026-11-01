@@ -18,7 +18,8 @@ internal static class CreaturePassiveSkillChecks
                 input.GetProperty("usage").GetUInt16(), input.GetProperty("offhand").GetBoolean(), input.GetProperty("offhand_usage10").GetBoolean());
             var values = Convert.FromHexString(row.GetProperty("before_hex").GetString()!);
             var expected = Convert.FromHexString(row.GetProperty("after_hex").GetString()!);
-            var regeneration = SacredCreaturePassiveSkills.Apply(values, row.GetProperty("regeneration").GetUInt32(), 0, context, tuning);
+            var regeneration = SacredCreaturePassiveSkills.Apply(row.GetProperty("precision").GetInt32() == 24 ? SacredX87Precision.Single : SacredX87Precision.Extended,
+                values, row.GetProperty("regeneration").GetUInt32(), 0, context, tuning);
             if (!values.SequenceEqual(expected) || regeneration != row.GetProperty("regeneration_after").GetUInt32())
             {
                 var at = Enumerable.Range(0, values.Length).FirstOrDefault(i => values[i] != expected[i], -1);

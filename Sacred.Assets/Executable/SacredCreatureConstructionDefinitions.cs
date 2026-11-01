@@ -10,11 +10,16 @@ public readonly record struct SacredCreatureConstructionFlags(uint ObjectFlags, 
 public sealed class SacredCreatureConstructionDefinitions
 {
     private readonly FrozenDictionary<uint, SacredCreatureConstructionFlags> _flags;
+    private readonly FrozenDictionary<uint, SacredCreatureConstructionFlags> _earlyFlags;
     private readonly SacredNativeTypeSwitch _switch;
     private readonly ulong _equipment;
     private SacredCreatureConstructionDefinitions(Dictionary<uint, SacredCreatureConstructionFlags> flags,
-        SacredNativeTypeSwitch getter, ulong equipment) => (_flags, _switch, _equipment) = (flags.ToFrozenDictionary(), getter, equipment);
+        Dictionary<uint, SacredCreatureConstructionFlags> earlyFlags, SacredNativeTypeSwitch getter, ulong equipment) =>
+        (_flags, _earlyFlags, _switch, _equipment) = (flags.ToFrozenDictionary(), earlyFlags.ToFrozenDictionary(), getter, equipment);
     public SacredCreatureConstructionFlags Flags(uint type) => _flags.GetValueOrDefault(type);
+    /// <summary>Only predicates executed BEFORE the second SetLevel/CalcResults.
+    /// Applying the aggregated flags here changes native calculation ordering.</summary>
+    public SacredCreatureConstructionFlags EarlyFlags(uint type) => _earlyFlags.GetValueOrDefault(type);
     public ushort EquipmentSelector(uint type) => unchecked((ushort)_switch.Read(_equipment, type));
     public static SacredCreatureConstructionDefinitions Load(string directory)
     {
@@ -41,6 +46,7 @@ public sealed class SacredCreatureConstructionDefinitions
         if (!image.AsSpan(first, 3).SequenceEqual<byte>([0x8B, 0x46, 0x10])) throw new InvalidDataException("Unknown constructor prefix.");
         uint mask = 0;
         _ = Group(first + 3, ref mask);
+        var earlyFlags = new Dictionary<uint, SacredCreatureConstructionFlags>(flags);
         var cursor = Group(offset + 10, ref mask);
         _ = Group(cursor, ref mask);
         ReadOnlySpan<byte> ending = [0x8B, 0x46, 0x10, 0xB9];
@@ -51,7 +57,7 @@ public sealed class SacredCreatureConstructionDefinitions
         cursor = Group(cursor + 5, ref mask);
         _ = Group(cursor, ref mask);
         _ = getter.Read(equipment, 0); // Validate the constant-return default branch before exposing this reader.
-        return new(flags, getter, equipment);
+        return new(flags, earlyFlags, getter, equipment);
 
         int Group(int start, ref uint currentMask)
         {

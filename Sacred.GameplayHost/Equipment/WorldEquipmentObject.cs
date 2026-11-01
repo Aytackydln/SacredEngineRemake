@@ -10,6 +10,11 @@ public sealed class WorldEquipmentObject(GoldObjectBaseState state, bool physica
     public bool Physical { get; } = physical;
     public bool Item { get; } = item;
     public uint PhysicalFlags { get; set; }
+    public GoldPhysicalVector Direction { get; set; }
+    /// <summary>Native physical +0x7C..0x84, cleared by 0x44D7B0.</summary>
+    public GoldPhysicalVector Vector7C { get; set; }
+    /// <summary>Native physical +0x88..0x90, cleared when the ##Root query fails.</summary>
+    public GoldPhysicalVector Vector88 { get; set; }
     public uint Link { get; private set; }
     public uint AttachmentParent => (Base.Flags & 0x400) != 0 ? Link : 0;
     public uint WorldLink => (Base.Flags & 0x400) == 0 ? Link : 0;

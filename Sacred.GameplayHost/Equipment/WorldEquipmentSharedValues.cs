@@ -26,7 +26,7 @@ public sealed class WorldEquipmentSharedValues(SacredEquipmentGenerationData dat
         {
             var tuning = data.Tuning;
             var price = SacredEquipmentPricing.CalculateOrdinary(bytes, data.PriceContext(candidate.ItemType), tuning.Pricing,
-                tuning.Levels, tuning.Bonuses, tuning.Normalization, tuning.Sockets);
+                tuning.Levels, tuning.Bonuses, tuning.Normalization, tuning.Sockets, Sacred.Core.Runtime.SacredX87Precision.Extended);
             BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(8), price);
         }
         return Candidate(candidate.ItemType);

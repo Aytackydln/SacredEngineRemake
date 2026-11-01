@@ -7,6 +7,7 @@ using Sacred.GameplayHost.Scripting;
 using Sacred.Network.Admission;
 using Sacred.Network.Connection;
 using Sacred.Network.Gameplay;
+using Sacred.Core.Runtime;
 
 namespace Sacred.GameplayHost.Networking;
 /// <summary>Isolated first-client diagnostic shared by graphical and terminal consumers.
@@ -62,7 +63,10 @@ public static class SacredNetworkHostStartupProbe
                     throw new InvalidDataException($"Host startup probe rejected: reason {admission.RejectionReason}, mismatch 0x{admission.DataMismatchMask:X8}.");
                 if (admission.Phase != GoldAdmissionPhase.SlotAssigned) continue;
                 if (!admission.WorldStartup.AssignedClientHost || admission.WorldStartup.HostWorldAvailable || admission.WorldStartup.ParticipantStartApproved)
-                    throw new InvalidOperationException("Host startup probe requires a first-client host assignment on an empty server.");
+                    throw new InvalidOperationException($"Host startup probe requires a first-client host assignment on an empty server (slot {admission.PlayerSlot}, flags 0x{admission.Flags:X2}).");
+                await WorldHostStartupDiscovery.SeedAsync(installation,
+                    connection.RemoteEndpoint ?? throw new IOException("Admitted host has no TCP endpoint."), contact.Version,
+                    replicas.Session, log, limit.Token).ConfigureAwait(false);
                 if (!requested)
                 {
                     log($"Host startup probe: slot {admission.PlayerSlot}, flags 0x{admission.Flags:X2}; requesting separate trigger/object IDs.");
@@ -71,11 +75,16 @@ public static class SacredNetworkHostStartupProbe
                     requested = true;
                 }
                 if (!replicas.TriggerReferences.HasGrant || references.Available == 0) continue;
-                var sectors = SacredSectorIndex.Read(Path.Combine(installation, "World", "sectors.keyx")).CreateGrid();
+                var sectorIndex = SacredSectorIndex.Read(Path.Combine(installation, "World", "sectors.keyx"));
+                var sectors = sectorIndex.CreateGrid();
                 var triggers = new WorldScriptTriggerRegistry(source, replicas.TriggerReferences, sectors);
                 var templates = SacredObjectTemplateArchive.Load(installation);
                 var objects = new WorldScriptObjectWorld(templates, references,
                     sectors, triggers, admission.PlayerSlot, 0, hasActiveHero: false);
+                objects.Creatures = new(WorldScriptCreatureAssets.Load(installation, templates, sectorIndex), references,
+                    objects.AllocationCounter, new(admission.PlayerSlot, replicas.Session.Difficulty, false, 0, () => unchecked((uint)Environment.TickCount))
+                        { EffectProjection = WorldStartupEffectProjection.ComparedGold },
+                    new SacredRandomSequence(unchecked((uint)Environment.TickCount)), log);
                 var scripts = WorldCampaignScripts.Load(campaign);
                 var state = WorldScriptStartupInspection.Run(scripts, log, limit.Token, triggers, objects);
                 var pendingCreature = WorldScriptStartupDependencies.InspectCreature(installation, scripts, state, templates, log);
@@ -87,7 +96,7 @@ public static class SacredNetworkHostStartupProbe
                     log($"Host startup object: ref {row.ObjectReference}, type {row.ObjectType}, sector {row.Sector}, position {row.X},{row.Y},{row.Surface}, trigger {row.TriggerReference}.");
                 }
                 return new(admission.PlayerSlot, references.Issued, references.Available, state, triggers, objects)
-                    { PendingCreature = pendingCreature };
+                    { PendingCreature = pendingCreature, CreaturePreparation = objects.Creatures.Pending };
             }
             throw new IOException("Host startup connection ended before reservation preparation completed.");
         }

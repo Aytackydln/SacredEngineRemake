@@ -32,6 +32,7 @@ public sealed class WorldScriptExecutionContext
     public WorldScriptVariables Variables { get; } = new();
     public WorldScriptVariableGlobals VariableGlobals { get; } = new();
     public WorldScriptRegistrationTable Registrations { get; } = new();
+    public WorldScriptGroups Groups { get; } = new();
     public WorldScriptStartupParameters StartupParameters { get; } = new();
     public IReadOnlyList<SacredScriptFunction> Functions { get; }
     public ReadOnlyMemory<byte> FunctionCode { get; }
@@ -45,6 +46,8 @@ public sealed class WorldScriptExecutionContext
     /// An absent factory is required world work, not a successful declaration.</summary>
     public IWorldScriptTriggerRegistry? WorldTriggers { get; init; }
     public IWorldScriptObjectWorld? ObjectWorld { get; init; }
+    public IWorldScriptCreatureWorld? CreatureWorld { get; init; }
+    public WorldScriptMapIcons? MapIcons { get; init; }
     /// <summary>A consumer may reject an effect whose required runtime services are unavailable,
     /// before any mutation. Rejection is reported with the same file offset/call path as handler failure.</summary>
     public Action<SacredScriptCommand>? BeforeCommand { get; init; }

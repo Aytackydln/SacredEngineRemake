@@ -11,12 +11,13 @@ public static class SacredEquipmentAuthoredBonusGeneration
 {
     public static bool Apply(Span<byte> instance, IReadOnlyList<SacredWeaponModifierBonus> bonuses,
         ushort level, uint difficulty, SacredEquipmentBonusBalance balance,
-        SacredRandomSequence random, Func<uint, byte> combatArtClass)
+        SacredRandomSequence random, Func<uint, byte> combatArtClass, SacredX87Precision precision = SacredX87Precision.Extended)
     {
         ArgumentNullException.ThrowIfNull(bonuses);
         ArgumentNullException.ThrowIfNull(balance);
         ArgumentNullException.ThrowIfNull(random);
         ArgumentNullException.ThrowIfNull(combatArtClass);
+        var fp = new SacredResultArithmetic(precision);
         if (instance.Length != SacredEquipmentInstanceLayout.Size)
             throw new ArgumentException("Expected one native 130-byte item value block.", nameof(instance));
         SacredWeaponModifierBonus? selected = null;
@@ -39,7 +40,7 @@ public static class SacredEquipmentAuthoredBonusGeneration
                 type |= unchecked((ushort)(combatArtClass(group) << 8));
         }
         var factor = difficulty switch { 1 => 1.34f, 2 => 1.67f, 3 => 2f, 4 => 2.34f, _ => 1f };
-        var rolled = (float)(Sample(bonus, random) * (double)factor);
+        var rolled = (float)fp.Multiply(Sample(bonus, random), factor);
         var curve = balance.Get(unchecked((ushort)group));
         if ((bonus.Minimum == 0 || bonus.Maximum == 0) && bonus.CombatArtLevelDivisor == 0 && bonus.SkillLevelDivisor == 0)
         {
@@ -49,12 +50,12 @@ public static class SacredEquipmentAuthoredBonusGeneration
         double value;
         if ((group & 0xFFFF0000) != 0)
         {
-            var limit = curve.PercentageMaximum * (double)factor;
+            var limit = fp.Multiply(curve.PercentageMaximum, factor);
             // This branch stores a clamped limit back to a float before truncation.
             value = Math.Max(1, rolled > limit ? (float)limit : rolled);
         }
-        else if (curve.LevelScaling < 1.1920929e-7f) value = Math.Max(1, Math.Min(rolled, curve.FlatMaximum * (double)factor));
-        else value = Math.Max(1, ((uint)level + 9) * (double)factor * rolled * (double)0.01f);
+        else if (curve.LevelScaling < 1.1920929e-7f) value = Math.Max(1, Math.Min(rolled, fp.Multiply(curve.FlatMaximum, factor)));
+        else value = Math.Max(1, fp.Multiply(fp.Multiply(fp.Multiply((uint)level + 9, factor), rolled), 0.01f));
         var amount = SacredEquipmentElementRolls.Truncate(value);
         var originalCode = bonus.Group & 0xFFFF;
         if (originalCode <= 200)

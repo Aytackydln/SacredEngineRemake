@@ -253,10 +253,13 @@ internal sealed partial class InGameScene : IGameScene
     {
         if (TrySetWeather(option.ToLowerInvariant(), value, out message)) return true;
         if (TrySetCombatOption(option, value, out message)) return true;
+        if (ModelVisibilityCheats.TryExecute(option, value, _scene, _camera, out message)) return true;
         if (CreatureModelCheats.TrySetOption(option, value, _scene.Models.FirstOrDefault(), out message)) return true;
         if (TrySetNetworkInteraction(option, value, out message)) return true;
         if (WorldLightingCheats.TryExecute(option, value, _worldLighting, _scene.Lighting, out message)) return true;
         if (_escapeMenu.TrySetCheatOption(option, value, out message)) return true;
+        if (option.Equals("server-actors", StringComparison.OrdinalIgnoreCase) && _networkPresentation is { } actors)
+        { message = actors.DescribeNearbyActors(); return true; }
         if (_networkPresentation is { } network &&
             (NetworkStatusEffectCheats.TryExecute(option, value, network.GameplayObjects, out message) ||
              NetworkGroundSymbolCheats.TryExecute(option, value, network, _assets, out message) ||
@@ -588,3 +591,5 @@ internal sealed partial class InGameScene : IGameScene
         _assets.Dispose();
     }
 }
+
+

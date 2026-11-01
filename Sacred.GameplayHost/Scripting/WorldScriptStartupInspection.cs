@@ -30,8 +30,12 @@ public static class WorldScriptStartupInspection
         ArgumentNullException.ThrowIfNull(scripts);
         ArgumentNullException.ThrowIfNull(log);
         var definitions = WorldScriptDefinitions.Read(File.ReadAllBytes(scripts.Files.DefPosPath));
-        var context = new WorldScriptExecutionContext(definitions, scripts.Functions, scripts.FunctionCode, multiplayer: true)
-        { WorldTriggers = triggers, ObjectWorld = objects };
+        var creatures = objects?.Creatures;
+        WorldScriptExecutionContext? context = null;
+        context = new WorldScriptExecutionContext(definitions, scripts.Functions, scripts.FunctionCode, multiplayer: true,
+            random: creatures is null ? null : creatures.Random.Next,
+            positionAllowed: creatures?.Terrain is { } terrain ? (x,y) => terrain.IsAllowed(context!,x,y) : null)
+        { WorldTriggers = triggers, ObjectWorld = objects, CreatureWorld = creatures, MapIcons = creatures?.MapIcons };
         log($"Network startup execution: {scripts.Files.Name}; {context.Definitions.Records.Count} authored definitions, {context.Functions.Count} functions loaded.");
         try { new WorldScriptExecutor(context).ExecuteStartup(scripts.StartupCode, cancellationToken); }
         catch (WorldScriptExecutionFailure failure) { log($"Network startup blocked: {failure.Message}"); }
@@ -40,6 +44,11 @@ public static class WorldScriptStartupInspection
         foreach (var pair in context.Coverage.OrderBy(pair => pair.Key)) log($"  Executed opcode {pair.Key}: {pair.Value}.");
         log($"  Variable global writes: {context.VariableGlobals.Mutations.Count}; unresolved indices {context.VariableGlobals.UnresolvedIndexCount}; original initialization required before application.");
         log($"  Executed 80-byte registrations: {context.Registrations.Count} (includes native reserved entry zero).");
+        if (context.MapIcons is { } mapIcons) log($"  Prepared startup map icons: {mapIcons.Records.Count}; retained privately for complete world-bank upload.");
+        if (creatures?.Effects is { } effects) log($"  Prepared startup Effects: {effects.Created.Count}; complete particle messages retained privately.");
+        if (creatures is not null) log($"  Prepared startup state commands: {creatures.StateCommands.Publications.Count} private update messages.");
+        if (creatures is not null) log($"  Prepared startup equipment commands: {creatures.EquipmentCommands.Publications.Count} private item messages.");
+        if (creatures is not null) log($"  Prepared startup items: {creatures.Items.Created.Count}; complete item messages retained privately.");
         log($"  Known startup parameter words: {context.StartupParameters.Words.Count}; untouched words require native initialization.");
         if (triggers is not null)
             log($"  World triggers: original bound {triggers.AuthoredTableBound}, runtime slots {triggers.Count}, unknown slots {triggers.UnknownSlotCount}, {triggers.Patches.Count} cell mappings, {triggers.PendingPositions.Count} queued tile positions.");
@@ -47,6 +56,10 @@ public static class WorldScriptStartupInspection
             log($"  Constructed objects: {objects.Objects.Count}; object callbacks {objects.Callbacks.Count}; " +
                 $"pending animations {objects.Objects.Count(obj => obj.PendingAnimationEvent is not null)}; " +
                 "physical placement/bone state and item value initialization required before upload.");
+        if (creatures is not null)
+            log($"  Prepared startup creatures: {creatures.Prepared.Count}; {creatures.Prepared.Sum(value => value.Publications.Count)} ordered messages retained privately, complete campaign upload pending.");
+        if (creatures?.Pending is { } pending)
+            log($"  Startup creature: stage {pending.Stage}, ref {pending.Actor?.Base.ObjectReference}; incomplete opcode, no upload credit.");
         return context;
     }
 }

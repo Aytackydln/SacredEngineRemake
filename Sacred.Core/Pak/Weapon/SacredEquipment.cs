@@ -61,7 +61,10 @@ public readonly struct SacredEquipmentLayout
 
     /// <summary>Weapon/animation usage code. Gold's hand-slot predicates use 7/13 for bows
     /// and 12/14 for crossbows/muskets (left hand); other weapon usages use the right hand.
-    /// Native item descriptions also use this shared byte for Weapon Skill and two-handed text.</summary>
+    /// Native item descriptions also use this shared byte for Weapon Skill and two-handed text.
+    /// CreateNPC 0x484C43 first checks actor motion 0x8B for usage 12/14;
+    /// 0x484C9C then checks motion 0x72 for all usages 7/12/13/14 before
+    /// replacing authored equipment through its actor-resource selector.</summary>
     [FieldOffset(30)]
     public readonly byte UsageIdentifier;
 
@@ -110,7 +113,9 @@ public readonly struct SacredEquipmentLayout
     public readonly SacredCharacterClassMask CharacterClassMask;
 
     /// <summary>Stored weapon subtype in sWeaponInfo::Flag. Valid as a weapon subtype only
-    /// for Items.pak family Weapon; armor and shield roles come from the Items.pak family.</summary>
+    /// for Items.pak family Weapon; armor and shield roles come from the Items.pak family.
+    /// Gold passive weapon predicates 0x54A570/0x54A3B0/0x54A480 read this original
+    /// shared byte, independently of the generated subtype in the item's own values.</summary>
     [FieldOffset(133)]
     public readonly SacredEquipmentType EquipmentType;
 

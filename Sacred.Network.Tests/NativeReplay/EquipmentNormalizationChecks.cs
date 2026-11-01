@@ -18,7 +18,9 @@ internal static class EquipmentNormalizationChecks
         foreach (var row in fixture.RootElement.GetProperty("cases").EnumerateArray())
         {
             var initial = Convert.FromHexString(row.GetProperty("initial_hex").GetString()!);
-            var actual = SacredEquipmentBonusNormalization.Apply(initial, (SacredItemCategory)row.GetProperty("category").GetByte(), curves, factors, sockets);
+            var precision = (row.GetProperty("precision").GetInt32() & 0x300) == 0
+                ? Sacred.Core.Runtime.SacredX87Precision.Single : Sacred.Core.Runtime.SacredX87Precision.Extended;
+            var actual = SacredEquipmentBonusNormalization.Apply(initial, (SacredItemCategory)row.GetProperty("category").GetByte(), curves, factors, sockets, precision);
             var expected = Convert.FromHexString(row.GetProperty("result_hex").GetString()!);
             Check(initial.SequenceEqual(expected), $"Native normalization bytes differ: {row}; got {Convert.ToHexString(initial)}");
             Check(actual.Rarity == row.GetProperty("rarity").GetUInt32(), "Native normalization rarity return.");

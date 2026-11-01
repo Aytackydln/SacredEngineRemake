@@ -41,6 +41,14 @@ public sealed class GoldScriptResourceReplica
     public uint? FindLocalResource(string name) => GoldScriptNames.Equal(name, "hero") || GoldScriptNames.Equal(name, "NON_UNIQUE")
         ? GoldScriptResourceLayout.UnnamedResource : FindName(GoldScriptResourceLayout.LocalResourcePrefix + name)?.ResourceId;
 
+    /// <summary>Native CreateNPC 0x4836EE..0x48370F: assign the resource/object
+    /// map entry after lookup. The caller separately sets instance +0x3C.</summary>
+    public void BindObject(uint resource, uint reference)
+    {
+        _bindings[resource] = reference;
+        Revision++;
+    }
+
     public void Apply(GoldWorldBankSnapshot bank)
     {
         ArgumentNullException.ThrowIfNull(bank);

@@ -47,6 +47,10 @@ public readonly struct SacredActorValuesLayout
     /// <summary>Runtime horse movement profile selector; Gold getParam(13) substitutes one for zero
     /// before indexing the Balance.bin movement profile map.</summary>
     [FieldOffset(80)] public readonly byte HorseClass;
+    /// <summary>Gold CreateNPC 0x4835FF writes the explicit script level's low
+    /// byte after optional SetLevel(level,1,0). This shares the horse-class byte;
+    /// for ordinary scripted NPCs it preserves that authored level input.</summary>
+    [FieldOffset(80)] public readonly byte ScriptLevelInput;
     [FieldOffset(81), BinaryUnknown] public readonly byte Reserved;
     [FieldOffset(82)] public readonly float Attack;
     [FieldOffset(86)] public readonly float Defense;

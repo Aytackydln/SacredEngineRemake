@@ -176,7 +176,8 @@ public readonly record struct WldxTileRecord
     [FieldOffset(0x1D)] public readonly sbyte IndoorAnchorDeltaY;
     /// <summary>
     /// Authored per-tile world flags, including indoor areas, towns, triggers,
-    /// and runtime movement blocking.
+    /// and runtime movement blocking. Gold script-position validity (0x472B25/0x472BAA)
+    /// rejects masks 0x01 and 0x08 before consulting the exact +0x1F behavior selectors.
     /// </summary>
     [FieldOffset(0x1E)] public readonly WorldPathFlags PathFlags;
     /// <summary>

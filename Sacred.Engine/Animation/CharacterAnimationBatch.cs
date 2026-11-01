@@ -32,7 +32,7 @@ internal sealed class CharacterAnimationBatch
         _deltaSeconds = deltaSeconds;
         try
         {
-            if (_items.Count >= 8 && _options.MaxDegreeOfParallelism > 1)
+            if (HasSynchronousOwners() && _items.Count >= 8 && _options.MaxDegreeOfParallelism > 1)
                 Parallel.For(0, _items.Count, _options, _update);
             else
                 for (var i = 0; i < _items.Count; i++) Update(i);
@@ -41,9 +41,17 @@ internal sealed class CharacterAnimationBatch
         finally { _items.Clear(); _owners.Clear(); }
     }
 
+    private bool HasSynchronousOwners()
+    {
+        foreach (var item in _items)
+            if (item.State.AnimatedMesh is { } mesh && !mesh.Playback.Cpu.Asynchronous) return true;
+        return false;
+    }
+
     private void Update(int index)
     {
         var item = _items[index];
         item.State.UpdatePoseOnly(_deltaSeconds, item.Speed);
     }
 }
+

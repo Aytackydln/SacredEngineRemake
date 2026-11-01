@@ -13,6 +13,11 @@ internal static class WorldScriptStartupDependencies
         WorldScriptExecutionContext state, SacredObjectTemplateArchive templates, Action<string> log)
     {
         if (state.Failure is not { Opcode: SacredScriptCreateCreature.Opcode } failure) return null;
+        if (state.CreatureWorld is WorldScriptCreatureWorld { Pending: { } prepared })
+        {
+            log($"Host startup creature preparation: stage {prepared.Stage}, ref {prepared.Actor?.Base.ObjectReference}, equipment ref {prepared.PendingEquipment?.Physical.Base.ObjectReference}; incomplete caller/placed serialization, no upload credit.");
+            return prepared.Blueprint;
+        }
         var code = failure.Script == "StartCode.bin" ? scripts.StartupCode : scripts.FunctionCode;
         try
         {

@@ -36,6 +36,10 @@ public struct ItemsPakEntryReservedBytes
 public readonly struct ItemsPakEntryModelDescLayout
 {
     public const int SerializedSize = 128;
+    /// <summary>Gold 0x426610 accepts descriptor category 2, 3 or 0x20.
+    /// The unnamed legacy categories remain numeric; this predicate does not
+    /// imply that their constructors are supported by the host.</summary>
+    public bool IsCreature => (byte)Category is 2 or 3 or 0x20;
     internal const int Size = SerializedSize;
     internal const int ModelNameLength = 32;
     private const int ModelNameOffset = 55;
@@ -52,6 +56,10 @@ public readonly struct ItemsPakEntryModelDescLayout
     /// </summary>
     [FieldOffset(2)]
     public readonly SacredItemGraphicFlags GraphicFlags;
+    /// <summary>Gold 0x428650 / 0x5FB752 / 0x5FB840: descriptor +2 bit 8
+    /// adds base flag 0x800 and registers the new object in the manager's graphic
+    /// object vector. This is independent of the model-loaded instance flag.</summary>
+    public bool RequiresGraphicObjectRegistration => (GraphicFlags & SacredItemGraphicFlags.Byte0100) != 0;
     /// <summary>Gold 0x428460 / 0x44B8B5: sparkles around an unattached world model.</summary>
     public bool EmitsWorldSparkles => (GraphicFlags & SacredItemGraphicFlags.WorldSparkles) != 0;
     /// <summary>Compatibility predicate also consumed by the NPC overhead presentation.</summary>

@@ -8,7 +8,7 @@ namespace Sacred.Core.Pak.Weapon;
 internal static class SacredEquipmentElementRolls
 {
     public static void Roll(Span<short> values, ReadOnlySpan<SacredModifierRange> ranges,
-        float budget, uint difficulty, bool damage, SacredRandomSequence random)
+        float budget, uint difficulty, bool damage, SacredRandomSequence random, SacredResultArithmetic fp)
     {
         var selected = 0;
         var lastAmount = 0;
@@ -20,17 +20,17 @@ internal static class SacredEquipmentElementRolls
             if (random.Next() % 100 >= ranges[element].Chance || values[element] != 0 || element == 3 && selected == 2)
                 continue;
             var sample = Sample(ranges[element], random);
-            var multiplier = damage && element > 1 ? (double)factor + 1 : 1;
-            lastAmount = Truncate(Math.Max(1, multiplier * sample * budget * (double)0.01f));
+            var multiplier = damage && element > 1 ? fp.Add(factor, 1) : 1;
+            lastAmount = Truncate(Math.Max(1, fp.Multiply(fp.Multiply(fp.Multiply(multiplier, sample), budget), 0.01f)));
             values[element] = unchecked((short)(values[element] + lastAmount));
-            if (damage) penalty = Truncate(lastAmount * (double)factor + penalty);
+            if (damage) penalty = Truncate(fp.Add(fp.Multiply(lastAmount, factor), penalty));
             selected++;
         }
         if (random.Next() % 100 >= ranges[0].Chance || values[0] != 0) return;
         // Native tests the last unwrapped elemental amount, not the total or count.
         var physical = lastAmount == 0 ? Truncate(budget) :
-            Truncate(damage ? Math.Max(0, Sample(ranges[0], random) * (double)budget * (double)0.01f - penalty)
-                : Sample(ranges[0], random) * (double)budget * (double)0.01f);
+            Truncate(damage ? Math.Max(0, fp.Subtract(fp.Multiply(fp.Multiply(Sample(ranges[0], random), budget), 0.01f), penalty))
+                : fp.Multiply(fp.Multiply(Sample(ranges[0], random), budget), 0.01f));
         values[0] = unchecked((short)(values[0] + physical));
     }
 

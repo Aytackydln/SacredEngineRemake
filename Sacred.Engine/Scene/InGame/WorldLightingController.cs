@@ -225,7 +225,7 @@ public sealed class WorldLightingController
         // The existing cave presentation is independent of the outdoor clock.
         lighting.LightColor = new Vector3(0.46f, 0.60f, 1f);
         lighting.AmbientColor = new Vector3(0.83f, 0.86f, 1f);
-        lighting.AmbientIntensity = 0.48f;
+        lighting.AmbientIntensity = 0.32f;
         lighting.DiffuseIntensity = 0.25f;
         lighting.SpecularIntensity = 0.40f;
         lighting.WorldSurfaceAmbientColour = new Vector3(0.48f, 0.49f, 0.52f);

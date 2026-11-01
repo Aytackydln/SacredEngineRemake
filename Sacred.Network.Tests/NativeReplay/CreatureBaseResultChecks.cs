@@ -22,7 +22,8 @@ internal static class CreatureBaseResultChecks
             {
                 var values = Convert.FromHexString(row.GetProperty("before_hex").GetString()!);
                 var expected = Convert.FromHexString(row.GetProperty("after_hex").GetString()!);
-                SacredCreatureBaseResults.Apply(values, row.GetProperty("bonuses").EnumerateArray().Select(value => value.GetInt32()).ToArray(),
+                SacredCreatureBaseResults.Apply(row.GetProperty("precision").GetInt32() == 24 ? SacredX87Precision.Single : SacredX87Precision.Extended,
+                    values, row.GetProperty("bonuses").EnumerateArray().Select(value => value.GetInt32()).ToArray(),
                     row.GetProperty("ranged").GetBoolean(), definition.Profile(row.GetProperty("profile").GetByte()), balance);
                 if (!values.SequenceEqual(expected))
                 {

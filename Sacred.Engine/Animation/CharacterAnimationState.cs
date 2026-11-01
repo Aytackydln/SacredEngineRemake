@@ -21,7 +21,7 @@ internal enum CharacterAnimationStateId
 /// <summary>A small immediate-transition state machine for the player character.</summary>
 internal sealed class CharacterAnimationState
 {
-    private const float MinimumPoseIntervalSeconds = 1.0f / 240.0f;
+    private static float MinimumPoseIntervalSeconds => 1.0f / GrnCpuPoseRequestAdapter.UpdatesPerSecond;
 
     private readonly GrnAnimatedMesh? _animatedMesh;
     private readonly EquipmentEffectScene? _equipmentEffects;
@@ -55,6 +55,7 @@ internal sealed class CharacterAnimationState
         finally { _deferEquipmentEffects = false; }
     }
 
+    private float _equipmentElapsedSeconds;
     public void UpdateEquipmentEffects(float deltaSeconds)
     {
         if (_initialEquipmentPosePending)
@@ -62,8 +63,13 @@ internal sealed class CharacterAnimationState
             _initialEquipmentPosePending = false;
             if (_animatedMesh is not null) _equipmentEffects?.ApplyPose(_animatedMesh);
         }
-        if (_animatedMesh is not null && float.IsFinite(deltaSeconds) && deltaSeconds > 0)
-            _equipmentEffects?.ApplyPose(_animatedMesh, deltaSeconds);
+        if (_animatedMesh is null || _equipmentEffects is null || !float.IsFinite(deltaSeconds) || deltaSeconds <= 0) return;
+        _equipmentElapsedSeconds += deltaSeconds;
+        if (_equipmentElapsedSeconds < MinimumPoseIntervalSeconds) return;
+        var remainder = _equipmentElapsedSeconds % MinimumPoseIntervalSeconds;
+        var elapsed = _equipmentElapsedSeconds - remainder;
+        _equipmentElapsedSeconds = remainder;
+        _equipmentEffects.ApplyPose(_animatedMesh, elapsed);
     }
 
     public GrnAnimationClip? NpcAnimation(SacredNpcConversationMotion motion) => motion switch
@@ -131,6 +137,10 @@ internal sealed class CharacterAnimationState
             _animatedMesh = new GrnAnimatedMesh(asset.Mesh, asset.Skin, animations.Idle);
             _animatedMesh.RequestPose(0.0f);
             _fallbackMesh = _animatedMesh.Mesh;
+            // The renderer opts visible CPU draws into vertex materialization.
+            // Offscreen actors need palettes only, never full body CPU skinning.
+            _animatedMesh.MaterializeCpuVertices = false;
+            _animatedMesh.Playback.Cpu.Asynchronous = true;
         }
         else
         {
@@ -205,13 +215,13 @@ internal sealed class CharacterAnimationState
             SetState(_locomotionState);
         }
 
-        _timeSinceLastPose += animationDelta;
+        _timeSinceLastPose += deltaSeconds;
         if (_timeSinceLastPose >= MinimumPoseIntervalSeconds)
         {
             _timeSinceLastPose %= MinimumPoseIntervalSeconds;
             SubmitCurrentPose(_stateTimeSeconds);
         }
-        if (!_deferEquipmentEffects) _equipmentEffects?.ApplyPose(_animatedMesh, deltaSeconds);
+        if (!_deferEquipmentEffects) UpdateEquipmentEffects(deltaSeconds);
     }
 
     private void SetState(CharacterAnimationStateId state, bool restart = false)
@@ -254,3 +264,7 @@ internal sealed class CharacterAnimationState
         else _animatedMesh!.RequestPose(time, _npcAnimation is null ? GrnPoseTimeMode.Loop : GrnPoseTimeMode.Clamp);
     }
 }
+
+
+
+

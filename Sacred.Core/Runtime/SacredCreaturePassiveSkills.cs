@@ -11,7 +11,12 @@ public static class SacredCreaturePassiveSkills
 {
     public static uint Apply(byte[] values, uint regeneration, int learnedCombatArtCount,
         SacredCreatureSkillContext actor, SacredCreatureSkillBalanceLayout tuning)
+        => Apply(SacredX87Precision.Extended, values, regeneration, learnedCombatArtCount, actor, tuning);
+
+    public static uint Apply(SacredX87Precision precision, byte[] values, uint regeneration, int learnedCombatArtCount,
+        SacredCreatureSkillContext actor, SacredCreatureSkillBalanceLayout tuning)
     {
+        var fp = new SacredResultArithmetic(precision);
         if (values.Length != SacredActorValuesLayout.Size) throw new ArgumentException("Expected 238-byte actor values.", nameof(values));
         if (learnedCombatArtCount != 0) throw new NotSupportedException("Passive skill application to learned combat arts requires their native entry effects.");
         for (var slot = 0; slot < 8; slot++)
@@ -47,7 +52,7 @@ public static class SacredCreaturePassiveSkills
                     break;
                 case 10:
                     var signed = unchecked((int)regeneration);
-                    regeneration = unchecked((uint)(long)(signed + signed * (double)Curve(tuning.ConstitutionRegeneration) * 0.01f));
+                    regeneration = unchecked((uint)(long)fp.Add(signed, fp.Multiply(fp.Multiply(signed, Curve(tuning.ConstitutionRegeneration)), 0.01f)));
                     break;
                 case 11:
                     AddPercent(206, tuning.ArmorLorePhysical);
@@ -72,13 +77,15 @@ public static class SacredCreaturePassiveSkills
 
             float Curve(SacredSkillCurveLayout curve)
             {
-                var amount = ((double)curve.Limit - curve.Base) * (1d - 1d / ((rank - 1d) / curve.Divisor + 1d));
-                return (float)(amount + amount + curve.Base);
+                var denominator = fp.Add(fp.Divide(fp.Subtract(rank, 1), curve.Divisor), 1);
+                var approach = fp.Subtract(1, fp.Divide(1, denominator));
+                var amount = fp.Multiply(fp.Subtract(curve.Limit, curve.Base), approach);
+                return (float)fp.Add(fp.Add(amount, amount), curve.Base);
             }
             void AddPercent(int at, SacredSkillCurveLayout curve)
-                => BinaryPrimitives.WriteSingleLittleEndian(values.AsSpan(at), (float)(Curve(curve) * (double)0.01f + BinaryPrimitives.ReadSingleLittleEndian(values.AsSpan(at))));
+                => BinaryPrimitives.WriteSingleLittleEndian(values.AsSpan(at), (float)fp.Add(fp.Multiply(Curve(curve), 0.01f), BinaryPrimitives.ReadSingleLittleEndian(values.AsSpan(at))));
             void AddSpeed(int at, SacredSkillCurveLayout curve)
-                => BinaryPrimitives.WriteInt16LittleEndian(values.AsSpan(at), unchecked((short)(int)(BinaryPrimitives.ReadInt16LittleEndian(values.AsSpan(at)) + (double)Curve(curve))));
+                => BinaryPrimitives.WriteInt16LittleEndian(values.AsSpan(at), unchecked((short)(int)fp.Add(BinaryPrimitives.ReadInt16LittleEndian(values.AsSpan(at)), Curve(curve))));
             void Weapon(SacredSkillCurveLayout attack, SacredSkillCurveLayout speed)
             {
                 AddPercent(222, attack);

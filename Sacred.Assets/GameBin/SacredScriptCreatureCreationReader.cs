@@ -20,6 +20,7 @@ public static class SacredScriptCreatureCreationReader
         ushort? facing = null;
         var group = 0;
         var level = 0;
+        var assignedLevel = 0;
         var aggression = -1;
         var explicitBehavior = false;
         var flag2B7Bit8 = -1;
@@ -53,6 +54,8 @@ public static class SacredScriptCreatureCreationReader
                     level = operand.Integer ?? resolveVariable?.Invoke(operand.Text!) ??
                         throw new InvalidDataException($"Unresolved CreateNPC level variable '{operand.Text}' at +0x{operand.Offset:X}.");
                     break;
+                case SacredScriptArgumentKind.CreatureAssignedLevel:
+                    assignedLevel = operand.Integer!.Value; explicitBehavior = true; break;
                 case SacredScriptArgumentKind.CreatureFlag2B7Mask08:
                     flag2B7Bit8 = operand.Integer!.Value;
                     break;
@@ -83,6 +86,8 @@ public static class SacredScriptCreatureCreationReader
                     constructionFlags |= 4; explicitBehavior = true; break;
                 case SacredScriptArgumentKind.CreatureComboMaster:
                     constructionFlags |= 8; explicitBehavior = true; break;
+                case SacredScriptArgumentKind.CreatureHorseMerchant:
+                    constructionFlags |= 0x20; explicitBehavior = true; break;
                 case SacredScriptArgumentKind.CreatureNpcBehavior:
                     behavior = (behavior & 0xFFFF8000) | 0x8000; break;
                 case SacredScriptArgumentKind.CreatureStationary:
@@ -92,6 +97,7 @@ public static class SacredScriptCreatureCreationReader
             }
         }
         return new(name, type, equipment.AsReadOnly(), position, facing, group, level, behavior, aggression, explicitBehavior)
-            { WorldPosition = worldPosition, PlacementInput = placement, Flag2B7Mask08Input = flag2B7Bit8, ConstructionFlags = constructionFlags };
+            { WorldPosition = worldPosition, PlacementInput = placement, Flag2B7Mask08Input = flag2B7Bit8, ConstructionFlags = constructionFlags,
+                AssignedLevelInput = assignedLevel };
     }
 }

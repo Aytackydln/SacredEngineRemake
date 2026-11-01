@@ -14,6 +14,9 @@ public sealed class WorldEquipmentOrdinaryGeneration(SacredEquipmentGenerationDa
 {
     public WorldEquipmentNames? Naming { private get; init; }
     public SacredEquipmentNameResult? GeneratedName { get; private set; }
+    /// <summary>Original arithmetic mode for level/combat, eligibility, authored
+    /// bonuses, normalization, magic and pricing. Wider callers retain their default.</summary>
+    public SacredX87Precision Precision { get; init; } = SacredX87Precision.Extended;
 
     public byte[] Generate(uint type, ushort inputLevel, uint difficulty, ReadOnlySpan<byte> initialValues, SacredRandomSequence random, uint quality = 0)
     {
@@ -40,10 +43,10 @@ public sealed class WorldEquipmentOrdinaryGeneration(SacredEquipmentGenerationDa
         BinaryPrimitives.WriteUInt32LittleEndian(result, basis);
         BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(4), flags);
         var tuning = data.Tuning;
-        var level = tuning.Levels.ResolveLevel(inputLevel, modifier.Definition.MinimumLevel);
-        SacredEquipmentCombatGeneration.Apply(result, modifier.Definition, level.CombatFactor, difficulty, random);
-        SacredEquipmentEligibilityGeneration.Apply(result, modifier.Definition, level.Level, random);
-        _ = SacredEquipmentAuthoredBonusGeneration.Apply(result, modifier.Bonuses, level.Level, difficulty, tuning.Bonuses, random, data.CombatArtClass);
+        var level = tuning.Levels.ResolveLevel(inputLevel, modifier.Definition.MinimumLevel, Precision);
+        SacredEquipmentCombatGeneration.Apply(result, modifier.Definition, level.CombatFactor, difficulty, random, Precision);
+        SacredEquipmentEligibilityGeneration.Apply(result, modifier.Definition, level.Level, random, Precision);
+        _ = SacredEquipmentAuthoredBonusGeneration.Apply(result, modifier.Bonuses, level.Level, difficulty, tuning.Bonuses, random, data.CombatArtClass, Precision);
         if ((BinaryPrimitives.ReadUInt32LittleEndian(result.AsSpan(4)) & 0xC0003F) == 0)
         {
             _ = SacredEquipmentClassInference.Apply(result, data.Classes, data.ParentResource, data.ResourceName);
@@ -51,17 +54,17 @@ public sealed class WorldEquipmentOrdinaryGeneration(SacredEquipmentGenerationDa
             if ((flags & 0xC0003F) == 0) BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(4), flags | 0xC0003F);
         }
         result[25] = unchecked((byte)level.Level);
-        _ = SacredEquipmentBonusNormalization.Apply(result, category, tuning.Bonuses, tuning.Normalization, tuning.Sockets);
+        _ = SacredEquipmentBonusNormalization.Apply(result, category, tuning.Bonuses, tuning.Normalization, tuning.Sockets, Precision);
         var singleBonus = tuning.Sockets.Budget(quality) == 0 ? false :
             (data.SingleMagicBonusItem ?? throw new InvalidOperationException("Original magic resource predicate unavailable."))(basis);
         SacredEquipmentMagicGeneration.Apply(result, category, data.Templates.Equipment[basis].UsageIdentifier,
             unchecked((uint)modifier.Definition.WeaponType), quality, difficulty,
-            singleBonus, tuning, random, data.CombatArtClass);
+            singleBonus, tuning, random, data.CombatArtClass, Precision);
         GeneratedName = Naming?.GenerateOrdinary(result, type, random);
         flags = BinaryPrimitives.ReadUInt32LittleEndian(result.AsSpan(4)) | 0x10000000 | ((difficulty + 1) << 24);
         BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(4), flags);
         var price = SacredEquipmentPricing.CalculateOrdinary(result, data.PriceContext(basis), tuning.Pricing,
-            tuning.Levels, tuning.Bonuses, tuning.Normalization, tuning.Sockets);
+            tuning.Levels, tuning.Bonuses, tuning.Normalization, tuning.Sockets, Precision);
         BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(8), price);
         return result;
     }

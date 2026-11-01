@@ -544,7 +544,7 @@ internal sealed partial class SacredGameRuntime : IDisposable
                 EngineLog.WriteLine("Map: set map <ancaria|underworld|close|status>; set map-names <on|off>; set map-npcs <on|off>; set map-fit now.");
                 EngineLog.WriteLine("Map UI: set map-ui <close|waypoint|status> invokes native control actions; set map-panel <on|off> shows the diagnostic panel.");
                 EngineLog.WriteLine("Campaigns: set campaign list; set campaign status; set campaign <bin-directory-name|absolute-path> reloads the world using that script set (default NetScriptCamp).");
-                EngineLog.WriteLine("Viewport cheats: set window-size <width>x<height> resizes without activation; set viewport show reports client/output/scene dimensions. Timing cheats: set frame-log <on|off> reports frame pacing; set animation-log <on|off> reports CPU animation stages, upload bytes and completed GPU model/shadow timestamps every two seconds.");
+                EngineLog.WriteLine("Viewport cheats: set window-size <width>x<height> resizes without activation; set viewport show reports client/output/scene dimensions. Timing cheats: set animation-hz <1-1000> (default 60); set frame-log <on|off> reports frame pacing; set animation-log <on|off> reports CPU animation stages, upload bytes and completed GPU model/shadow timestamps every two seconds.");
                 EngineLog.WriteLine("GPU preparation cheat: set skin-preparation <on|off> prepares resources independently of model skinning selection.");
                  EngineLog.WriteLine("Door diagnostics: set door-list show lists decoded loaded playback positions and clip availability.");
                  EngineLog.WriteLine("Network door receives: set server doors. Halo ordering: set halo-layering <on|off>; off restores the diagnostic overlay pass.");
@@ -789,6 +789,10 @@ internal sealed partial class SacredGameRuntime : IDisposable
                 _renderer.FrameTiming.Enabled = frameLog;
                 message = $"frame timing log {(frameLog ? "enabled" : "disabled")}";
                 return true;
+            case "animation-hz" when int.TryParse(value, out var animationHz) && animationHz is >= 1 and <= 1000:
+                Sacred.Granny.Animation.GrnCpuPoseRequestAdapter.UpdatesPerSecond = animationHz;
+                message = $"animation update rate {animationHz} Hz";
+                return true;
             case "animation-log" when TryParseBoolean(value, out var animationLog):
                 _renderer.FrameTiming.Animation.Reset();
                 AnimationPerformance.Enabled = animationLog;
@@ -968,3 +972,4 @@ internal sealed partial class SacredGameRuntime : IDisposable
 
     private sealed record PendingInspection(Vector2 Position, string Label, DateTime CaptureAfter);
 }
+

@@ -32,7 +32,9 @@ internal static class EquipmentPricingChecks
             var overrides = definitions.Overrides(BinaryPrimitives.ReadUInt32LittleEndian(initial));
             var context = new SacredEquipmentPriceContext((SacredItemCategory)row.GetProperty("category").GetByte(), rule.ItemId0 != 0,
                 rule.Modifier, row.GetProperty("set_type").GetByte(), overrides.ClearClassRestrictions, overrides.ClearLevelAndSkillRequirements);
-            var actual = SacredEquipmentPricing.CalculateOrdinary(initial, context, pricing, generation, curves, factors, sockets);
+            var precision = (row.GetProperty("precision").GetInt32() & 0x300) == 0
+                ? Sacred.Core.Runtime.SacredX87Precision.Single : Sacred.Core.Runtime.SacredX87Precision.Extended;
+            var actual = SacredEquipmentPricing.CalculateOrdinary(initial, context, pricing, generation, curves, factors, sockets, precision);
             Check(actual == row.GetProperty("price").GetUInt32(), $"Native item price differs: got {actual}; fixture {row}");
             Check(initial.SequenceEqual(Convert.FromHexString(row.GetProperty("result_hex").GetString()!)),
                 $"Native price side effects differ: got {Convert.ToHexString(initial)}; fixture {row}");

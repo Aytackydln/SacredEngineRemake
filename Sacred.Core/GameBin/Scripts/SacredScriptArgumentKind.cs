@@ -26,8 +26,9 @@ public enum SacredScriptArgumentKind : byte
     CreatureBehavior2 = 0x13,
     /// <summary>CreateNPC: clear the low behavior word and preserve high flags (Gold 0x4829FC). No payload.</summary>
     CreatureBehavior0 = 0x14,
-    /// <summary>CreateNPC: signed Int32 level input, optionally a native expression.
-    /// Gold passes it through level initialization, difficulty/region limits and value recalculation.</summary>
+    /// <summary>CreateNPC/SetNPCState: later requested Int32 level, optionally a native expression.
+    /// Gold applies normal multiplayer/difficulty adjustment. Separate from the
+    /// early, raise-only assigned level operand 0x90.</summary>
     CreatureLevel = 0x1F,
     /// <summary>Gold operand 0x1D: UInt32 script-resource identity; the native operand
     /// reader also resolves its optional dialogue/logging text.</summary>
@@ -81,6 +82,17 @@ public enum SacredScriptArgumentKind : byte
     CreatureBehavior4000 = 0x46,
     /// <summary>Compiled "npc" selector (Gold 0x45810A); SetNPCState replaces the low behavior word with 0x8000. No payload.</summary>
     CreatureNpcBehavior = 0x4C,
+    /// <summary>SetNPCState owner name, NUL-terminated (Gold 0x48BD65).
+    /// The native definition retains its resource at +0x0C and name at +0x70.</summary>
+    CreatureOwner = 0x63,
+    /// <summary>Compiled HorseMerchant (Gold 0x4583F8/0x45841D). No payload.
+    /// CreateNPC ORs construction mode 0x20 and marks explicit behavior
+    /// (0x482CEC/0x482D55); its later service/dialog lifecycle is separate.</summary>
+    CreatureHorseMerchant = 0x64,
+    /// <summary>CreateNPC Int32 assigned level (Gold 0x48272C). This marks
+    /// explicit behavior, raises level before behavior/services, then retains
+    /// the low input byte at values +80. Separate from requested level 0x1F.</summary>
+    CreatureAssignedLevel = 0x90,
     /// <summary>NUL-terminated ECS_ spell selector, decoded by Gold 0x472BC0.</summary>
     CreatureSpellSelector = 0x67,
     /// <summary>CreateNPC UInt16 selector (Gold 0x4827DB): zero enables regional

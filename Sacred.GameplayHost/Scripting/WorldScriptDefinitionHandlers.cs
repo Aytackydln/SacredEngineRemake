@@ -12,6 +12,10 @@ internal static class WorldScriptDefinitionHandlers
     {
         switch (command.Opcode)
         {
+            case SacredScriptPortalOpcodes.SetMapIcon:
+                if (context.MapIcons is null) throw new InvalidDataException("SetMapIcon requires original resource lookup and world sector mapping.");
+                context.MapIcons.Apply(command, context.IsExecutingStartup);
+                return true;
             case SacredScriptExecutionOpcodes.SetStartupParameters:
                 var values = SacredScriptOperandReader.Read(command).Where(operand => operand.Kind == SacredScriptArgumentKind.Integer)
                     .Select(operand => Integer(context, operand)).ToArray();
@@ -63,7 +67,7 @@ internal static class WorldScriptDefinitionHandlers
     internal static string Text(SacredScriptOperand operand)
     {
         var name = operand.Text ?? throw new InvalidDataException($"Expected name at +0x{operand.Offset:X}.");
-        if (name.Contains('$') || name.StartsWith("res:", StringComparison.OrdinalIgnoreCase))
+        if (name.Contains('$') || name.Contains("+Var(",StringComparison.Ordinal) || name.StartsWith("res:", StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException($"Name '{name}' requires the native string/resource resolver at +0x{operand.Offset:X}.");
         return name;
     }

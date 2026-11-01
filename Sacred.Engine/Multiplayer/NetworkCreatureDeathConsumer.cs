@@ -13,10 +13,12 @@ namespace Sacred.Engine.Multiplayer;
 internal sealed class NetworkCreatureDeathConsumer
 {
     private readonly Dictionary<uint, State> _states = [];
-    public bool IsHidden(GoldReplicatedObject actor) =>
-        (actor.BaseState.Flags & GoldObjectStateLayout.HiddenFlag) != 0 ||
-        _states.TryGetValue(actor.BaseState.ObjectReference, out var state) &&
-        state.Instance == actor.InstanceVersion && state.Hidden;
+    // Bit 28 also occurs on living owned/script-created NPCs. It is a corpse
+    // cleanup marker only in the death lifecycle, not a universal draw exclusion.
+    public bool IsHidden(GoldReplicatedObject actor) => actor.IsDead &&
+        ((actor.BaseState.Flags & GoldObjectStateLayout.HiddenFlag) != 0 ||
+         _states.TryGetValue(actor.BaseState.ObjectReference, out var state) &&
+         state.Instance == actor.InstanceVersion && state.Hidden);
 
     public void CollectDisappearance(IEnumerable<GoldReplicatedObject> creatures, uint localPlayer,
         SacredParticleQuality quality, Func<GoldReplicatedObject, WorldObjectFxAttachment?> actor, WorldReceivedFxSystem effects)
@@ -62,3 +64,5 @@ internal sealed class NetworkCreatureDeathConsumer
         public NetworkActorPresentation? Actor;
     }
 }
+
+

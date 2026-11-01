@@ -53,6 +53,18 @@ public sealed class GrnAnimatedMesh
     public GrnPoseRequest RequestPose(float timeSeconds, GrnPoseTimeMode mode = GrnPoseTimeMode.Loop)
         => Playback.Request(timeSeconds, mode, MaterializeCpuVertices);
 
+    /// <summary>Owner-thread publication after the worker has stopped touching its output buffers.</summary>
+    internal void PublishPose(GrnPose pose, Mesh? skinned)
+    {
+        Pose.CopyFrom(pose);
+        if (!MaterializeCpuVertices) return;
+        if (skinned is null) { MaterializeCpuMesh(); return; }
+        skinned.Vertices.AsSpan().CopyTo(_cpuMesh.Vertices);
+        _cpuMesh.NotifyVerticesChanged();
+        CpuPoseRevision = Pose.Revision;
+        _materializedVertexRevision = _cpuMesh.VertexRevision;
+    }
+
     public Mesh MaterializeCpuMesh()
     {
         if (IsCpuMeshCurrent) return _cpuMesh;
@@ -71,3 +83,4 @@ public sealed class GrnAnimatedMesh
     public bool TryTransformRigidDirection(string boneName, Vector3 bind, out Vector3 result) =>
         GrnPoseQueries.TryTransformRigidDirection(Pose, boneName, bind, out result);
 }
+

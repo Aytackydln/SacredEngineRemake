@@ -97,6 +97,15 @@ public sealed class WorldScriptExecutor
                     case SacredScriptCommandHeaderLayout.CreateObjectOpcode when _context.ObjectWorld is not null:
                         _context.ObjectWorld.Create(_context, current);
                         break;
+                    case SacredScriptCreateCreature.Opcode when _context.CreatureWorld is not null:
+                        _context.CreatureWorld.Create(_context, current);
+                        break;
+                    case SacredScriptCommandHeaderLayout.SetCreatureStateOpcode when _context.CreatureWorld is IWorldScriptCreatureStateWorld state:
+                        state.SetState(_context,current);
+                        break;
+                    case SacredScriptCommandHeaderLayout.EquipItemOpcode when _context.CreatureWorld is IWorldScriptEquipmentWorld equipment:
+                        equipment.Equip(_context, current);
+                        break;
                     case SacredScriptExecutionOpcodes.CallFunction:
                         Call(current);
                         break;

@@ -9,23 +9,24 @@ namespace Sacred.Core.Pak.Weapon;
 public static class SacredEquipmentEligibilityGeneration
 {
     public static void Apply(Span<byte> instance, in SacredWeaponModifierLayout definition,
-        ushort level, SacredRandomSequence random)
+        ushort level, SacredRandomSequence random, SacredX87Precision precision = SacredX87Precision.Extended)
     {
         ArgumentNullException.ThrowIfNull(random);
         if (instance.Length != SacredEquipmentInstanceLayout.Size)
             throw new ArgumentException("Expected one native 130-byte item value block.", nameof(instance));
+        var fp = new SacredResultArithmetic(precision);
         instance.Slice(21, 4).Clear();
-        ApplyRow(instance, definition.Eligibility0, definition.RequirementType0, level, random);
-        ApplyRow(instance, definition.Eligibility1, definition.RequirementType1, level, random);
-        ApplyRow(instance, definition.Eligibility2, definition.RequirementType2, level, random);
+        ApplyRow(instance, definition.Eligibility0, definition.RequirementType0, level, random, fp);
+        ApplyRow(instance, definition.Eligibility1, definition.RequirementType1, level, random, fp);
+        ApplyRow(instance, definition.Eligibility2, definition.RequirementType2, level, random, fp);
     }
 
     private static void ApplyRow(Span<byte> instance, SacredEquipmentEligibilityLayout rule,
-        int selector, ushort level, SacredRandomSequence random)
+        int selector, ushort level, SacredRandomSequence random, SacredResultArithmetic fp)
     {
         if (rule.Chance > 100 || selector == 0 || random.Next() % 100 >= rule.Chance) return;
         var divisor = rule.LevelDivisor == 0 ? 5 : rule.LevelDivisor;
-        var rank = SacredEquipmentElementRolls.Truncate(level / (double)divisor + 0.5d);
+        var rank = SacredEquipmentElementRolls.Truncate(fp.Add(fp.Divide(level, divisor), 0.5d));
         uint classFlag = selector switch
         {
             10 => 2,

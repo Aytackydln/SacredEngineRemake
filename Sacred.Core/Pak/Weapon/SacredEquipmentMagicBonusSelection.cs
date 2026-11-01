@@ -11,14 +11,15 @@ public static class SacredEquipmentMagicBonusSelection
 {
     public static bool Apply(int kind, Span<byte> values, int slot, bool jewelry, uint budget,
         SacredItemCategory category, byte usage, IReadOnlyList<SacredEquipmentMagicPoolLayout> ranges,
-        SacredEquipmentBonusBalance curves, SacredRandomSequence random, Func<uint, byte> combatArtClass)
+        SacredEquipmentBonusBalance curves, SacredRandomSequence random, Func<uint, byte> combatArtClass,
+        SacredX87Precision precision = SacredX87Precision.Extended)
     {
         BinaryPrimitives.WriteUInt16LittleEndian(values[(58 + slot * 2)..], 0);
         var flags = BinaryPrimitives.ReadUInt32LittleEndian(values[4..]);
         var allClasses = (flags & 0xC0003F) == 0xC0003F;
         var weaponType = (flags >> 8) & 255;
         var level = values[25];
-        bool Affordable(uint code) => SacredEquipmentMagicBonusValue.CanAfford(code, budget, jewelry, level, curves);
+        bool Affordable(uint code) => SacredEquipmentMagicBonusValue.CanAfford(code, budget, jewelry, level, curves, precision);
         var candidates = new List<uint>();
         if (kind is 0 or 1)
         {

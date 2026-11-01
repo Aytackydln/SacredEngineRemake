@@ -13,6 +13,16 @@ public sealed class GrnPose
         RigidTransforms = new Matrix4x4[data.Bones.Length];
     }
 
+    internal void CopyFrom(GrnPose source)
+    {
+        source.WorldTransforms.CopyTo(WorldTransforms, 0);
+        source.RegularTransforms.CopyTo(RegularTransforms, 0);
+        source.RigidTransforms.CopyTo(RigidTransforms, 0);
+        Animation = source.Animation;
+        SampleTimeSeconds = source.SampleTimeSeconds;
+        Revision++;
+    }
+
     public GrnSkinningData Data { get; }
     public ulong Revision { get; internal set; }
     public bool IsEvaluated => Revision != 0;
@@ -25,3 +35,4 @@ public sealed class GrnPose
     internal Matrix4x4[] RegularTransforms { get; }
     internal Matrix4x4[] RigidTransforms { get; }
 }
+

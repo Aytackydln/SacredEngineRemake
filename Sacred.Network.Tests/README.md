@@ -1,5 +1,40 @@
 # Packet tests
 
+30 October [Horse dependency continuation](../docs/game-server/host-startup-horse-continuation.md): loaded indoor creation,
+level-only state changes and implicit unnamed Horses now compare with complete
+native commands. Startup reaches **1,755 commands, 92 NPCs and 290 private messages**,
+stopping in `grabsteindialogvars` at FunkCode +0x828D (condition tag 0x6E). The next
+closure also needs native +Var name expansion and opcode 111 loop control. All
+1,417 network tests and 4,279 installed checks pass; Engine/terminal builds are
+clean. Full host upload/readiness and Engine acceptance remain unfinished.
+
+
+The startup continuation adds native name/duplicate/binding comparisons (222
+assertions) and complete SetMapIcon producer comparisons (204 assertions), plus
+a 0x1CB wire example using shared envelope/ownership/atomic-dispatch/TCP checks.
+Fixed Effects add 24 complete native factory/command cases, nine complete native
+update/render backing comparisons, six projections and three complete reads.
+The three replay suites contain 354 assertions, including the shared producer's
+complete state, RNG, reference/counter/scheduler lifetime and private publication.
+Unknown received bytes remain lossless; only the matched family's independently
+proven unused ranges are canonicalized when producing its initial state. Renderer
+matrices, GPU submissions/queries, loaded-sector and disabled sound are explicit
+native boundaries. Regenerate with `verify-startup-effect-factory.py`,
+`verify-startup-effect-consumers.py` and `verify-startup-effect-receive.py` (included
+in `test-host-construction.ps1 -Native`).
+
+The [item/service/level continuation](../docs/game-server/host-startup-items-and-levels.md)
+adds 66 original item factories/commands and 60 real item reads/position updates,
+including all ten signposts and a valid-cache positive control. Its real placed
+`0x16E` example reuses the shared wire/TCP contracts. HorseMerchant operand
+ordering, twelve service/dialog cases, seven name-flag cases and eighteen distinct
+assigned/requested level-phase cases add four suites with 10,411 comparisons.
+The original caller produces level 6 from the first requested 5; the coupled
+equipment/result/stream evidence was regenerated for that correction. All 1,382
+network tests pass. Installed/live startup reaches the Horse constructor at
++0xAF32 after nine NPCs, ten Effects and ten QuestItems. Complete host upload
+and Engine readiness remain unfinished.
+
 Run from a checkout, without starting a game, installing Sacred, or emulating input:
 
 ```powershell
@@ -19,6 +54,22 @@ is not an assertion count: each native replay suite contains many existing
 comparisons against original results.
 Only the portable checks have been promoted; this does not replace every older
 scratch, Engine/render, installation or live-native scenario.
+
+`CreatureFactoryIdentity` compares 1,593 original NPC identity/heading and
+unpublished factory continuations (27,086 assertions). Heading vectors also
+have an independent original x86 hardware comparison. `CreaturePlacement` adds
+12,032 assertions across 256 ground/sector-deactivation cases and 256 distinct
+direct dormant script placements, including tile chains, sector swap removal,
+node flags, queue tombstones and exact retained times. Allocation/caller branch
+selection, world lookup, elevated/owned/loaded state, later equipment and placed
+serialization remain outside those replay boundaries. `CreatureAllocation`
+adds 11,520 assertions over 768 original reserved allocations, including shared
+counter wrap/controlled reentry, failed construction and registration before
+activation. Its constructor/storage are supplied boundaries; reference selection
+and occupied slots remain separate. Containers expose their counter for shared
+reuse. Regenerate with `verify-creature-allocation.py`,
+`verify-creature-factory-identity.py` / `verify-creature-flat-placement.py`;
+`test-host-construction.ps1 -Native` includes both without resuming loot work.
 
 `CreatureDeathConsumerTests` covers `17D` HP/combat transitions, active corpse
 lifetime, authoritative revival, reference reuse, copied posed-mesh disappearance
@@ -134,15 +185,85 @@ instruction fixtures and existing installed-data suites. See the
 
 The 27 October startup continuation adds `EquipmentInstallation`,
 `EquipmentVariantNormalization`, `CreatureResultInitialization` and
-`CreatureInnateBonuses`: 2,938,744 byte/state/order/guard comparisons. The existing
+`CreatureInnateBonuses`: 3,768,378 byte/state/order/guard comparisons after adding
+PC=24 innate coverage. The existing
 variant suite additionally checks 32,355 original source aliases against Gold
 and pureHD. Installer effect bodies remain supplied. Result initialization is a
 prefix; supported innates exclude active legacy power operations 23..36, which
 fail before mutation. An isolated x86 hardware oracle compares the innate block
 independently of Unicorn and retains its power discrepancies. See the
 [exact boundaries and remaining first-creature work](../docs/game-server/host-startup-creature-results.md).
+
+`CreatureBaseResults`, `CreaturePassiveSkills`, `CreatureEquipmentResults`,
+`CreatureResultFinalization`, `CreatureScalarResults` and `CreatureHealthResults`
+add 16,865,336 comparisons. These cover base profiles/Balance, ordered equipment,
+empty-art skills, scalar finalization, 3,072 composed pre-health NPC calculations
+and 9,216 ordinary health calls. Health power prefixes additionally run on x86
+hardware in explicit 24/53/64-bit modes. `StartupFloatingPoint` proves
+three original initialization/reset calls select **24-bit precision**: 61/64
+retained result blocks differ from the wider-mode boundary. Gold/pureHD selection
+extraction requires actual PC=24 startup arithmetic, which now matches the native
+stages and composition. `CreatureComponentResults` adds 478,368 comparisons for
+906 complete component constructions, including real SetLevel/CalcResults,
+TP refill and required event delivery before the template overlay. Actor event
+bodies remain supplied. Unsupported sets/level penalties, arts/effects, local/mounted
+states and boss health remain guarded. Native-equivalent private scalar buffers
+do not prove complete actor construction, attachment, publication or host readiness.
 `test-host-construction.ps1 -Native -Installation` now regenerates startup
 dependencies by default; `-IncludeLoot` explicitly adds the paused loot laboratory.
+
+`CreatureConstructor` adds 1,867,588 comparisons for 922 complete original ordinary
+outer constructors, including actual base/physical/component initialization,
+SetLevel/CalcResults/health, both canonical level-event handlers and CRT RNG.
+All 453 ordinary templates have two backing patterns; sixteen additional cases
+cover clock/scratch/RNG boundaries. Pre-overlay intermediates are compared only
+for zero backing; later stages/final initialized state must agree for both.
+Native pointers/untouched storage, lazy graphics initialization, nonzero palette
+events and later factory/model/publication work are excluded. `EquipmentBindings`
+adds 142,848 original Gold/pureHD slot-kind and initial target-bone comparisons.
+Both extend `NativeReplay`; neither supplies completed model bindings or a host oracle.
+
+The 28 October `UnloadedModels` continuation compares 768 actual reset/attachment
+bodies, 256 initial activations with duplicates and saved node headers, 114 ignored
+equipment notifications, and two original unplaced creature streams/physical
+receives. An isolated x86 helper calls the installed original Granny DLL with zero
+handles: error 6 leaves the output untouched. Under base flag 2 the real physical
+receiver discards that vector; zero-canonicalized construction matches the original
+zero-stack stream. Its independent `0x16F` example participates in the shared
+contract/envelope/atomic/TCP checks. Model loading is independent of node activation;
+placed vectors, loaded models, future node ticks and complete factory/startup
+execution remain separate. No Engine host oracle is granted by this evidence.
+The suite contains 204,127 native-result comparisons.
+
+`CreatureInitialFactory` compares 48 complete original unpublished factories and
+their script placement/pose/assigned level/relation/behavior state, plus 512 extra
+assigned level calls and the actual first opcode's private preparation. Shared
+reservations/counter, registry lifetime, RNG and incomplete-opcode guards are
+covered. `EquipmentInitialFactory` adds 18,432 comparisons against 128 complete
+original weapon/shield factories, including item-specific node timing and shared
+activation order. `StartupEquipmentGeneration` compares 195 complete named native
+caller generations in both PC=24/64 modes, including consecutive startup RNG.
+`StartupEquipmentCombat` compares 3,867 prefixes per precision.
+`StartupEquipmentInstallation` compares individual and consecutive hand-item
+installation, original signed damage ordering and measured zero-handle DLL behavior.
+`StartupEquippedResults` compares 24 full final caller calculations, 324 actual
+hand-query contexts and 2,048 armor factors independently matched on x86 hardware.
+`StartupCreatureSerialization` adds 414 comparisons for complete native caller
+streams, publication order and 128 placed receive/position cache variants, with a
+non-creature read control. Its three independent 0x16F/0x16E catalog examples
+exercise shared TCP/envelope/atomic contracts. `ModelMotionAvailability` adds
+18,906 comparisons for original metadata availability and actual ranged caller
+query order. Native map lookup, loose-file access and renderer/terrain boundaries
+are stated in each fixture. Production now completes seven ordinary NPC commands,
+retaining 15 private messages after 51 commands; the named caller at +0x6BC blocks.
+`CreaturePlacementSelection` covers fresh sector initialization, KEYX
+versus runtime flags and 536 actual branch selections. `StartupExperience`
+retains all 65,535 x86 hardware outputs: arguments 1..100 compare numerically,
+larger inputs remain explicit guards for unresolved legacy CRT rounding.
+`ScriptGroups` also covers startup publication suppression and sixty original
+CreateNPC group stages. These checks do not authorize placed NPC upload or host
+finish. Named/special callers, bank/global provenance and complete campaign upload
+remain required; prepared objects stay private.
 
 `EquipmentNormalization`, `EquipmentPricing` and `EquipmentSlotSelection` add
 21,811 assertions against 7,939 further original-instruction cases. Pricing checks

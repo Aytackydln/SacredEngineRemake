@@ -12,6 +12,30 @@ using Sacred.Core.Pak.Items;
 
 internal static class EquipmentGenerationFixture
 {
+    public static SacredEquipmentGenerationData ReadStartup(string root)
+    {
+        JsonDocument Read(string name) => JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "docs/game-server/evidence/" + name + ".json")));
+        using var ordinary = Read("native-equipment-factory");
+        using var names = Read("native-equipment-names");
+        using var magic = Read("native-equipment-magic");
+        using var variants = Read("native-equipment-variants");
+        using var installation = Read("native-equipment-installation");
+        var image = new byte[magic.RootElement.GetProperty("image_size").GetInt32()];
+        foreach (var chunk in magic.RootElement.GetProperty("definition_chunks").EnumerateArray())
+            Convert.FromHexString(chunk.GetProperty("hex").GetString()!).CopyTo(image, chunk.GetProperty("offset").GetInt32());
+        return EquipmentGenerationFixture.Read(root, ordinary.RootElement) with { Naming = EquipmentNameChecks.ReadNaming(names.RootElement),
+            SingleMagicBonusItem = SacredEquipmentMagicDefinitions.Read(image),
+            EquipmentSources = SacredEquipmentSourceDefinitions.Read(Image(variants.RootElement)),
+            EquipmentDefaults = SacredEquipmentDefaultDefinitions.Read(Image(installation.RootElement)) };
+
+        static byte[] Image(JsonElement source)
+        {
+            var bytes = new byte[source.GetProperty("image_size").GetInt32()];
+            foreach (var chunk in source.GetProperty("definition_chunks").EnumerateArray())
+                Convert.FromHexString(chunk.GetProperty("hex").GetString()!).CopyTo(bytes, chunk.GetProperty("offset").GetInt32());
+            return bytes;
+        }
+    }
     public static SacredEquipmentGenerationData Read(string root, JsonElement source)
     {
         JsonDocument Evidence(string filename) => JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "docs/game-server/evidence", filename)));

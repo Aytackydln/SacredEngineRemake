@@ -41,6 +41,8 @@ public static class GoldCreatureStateLayout
     public const uint AlternateBowProjectileMask = 0x00600000;
     public const int Word245Offset = 221;
     public const int Word249Offset = 225;
+    /// <summary>Native +0x249 interpreter group, assigned after group-map insertion.</summary>
+    public const int ScriptGroupOffset = Word249Offset;
     public const int Word24DOffset = 229;
     public const int Word251Offset = 233;
     /// <summary>Native +251 owner reference, followed for behavior +1F4 bit 2 by team comparison (4234EB).</summary>
@@ -53,6 +55,9 @@ public static class GoldCreatureStateLayout
     public const int Word2B7Offset = 250;
     public const int Block2B9Offset = 252;
     public const int Block2B9Size = 16;
+    /// <summary>Original CreateNPC placement copied from base position at Gold
+    /// 0x4833EF..0x483411 before the explicit script heading is applied.</summary>
+    public const int ScriptInitialPositionOffset = Block2B9Offset;
     public const int Word2C9Offset = 268;
     /// <summary>Native +0x2C9 float factor used by action-animation playback and walk/run path speed (0x4F761B).</summary>
     public const int AnimationSpeedMultiplierOffset = Word2C9Offset;

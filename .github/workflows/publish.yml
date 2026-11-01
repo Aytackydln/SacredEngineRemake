@@ -71,6 +71,7 @@ jobs:
         with:
           dotnet-version: '10.0.x'
           workloads: wasm-tools
+          cache: true
           check-latest: false
       - name: Publish browser application
         shell: pwsh

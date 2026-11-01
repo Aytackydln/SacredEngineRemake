@@ -40,6 +40,10 @@ public sealed class GoldObjectFxState
     public uint WordE0 => Word(GoldObjectFxStateLayout.WordE0Offset);
     public IReadOnlyList<uint> References => Enumerable.Range(0, checked((int)Word(GoldObjectFxStateLayout.ReferenceCountOffset)))
         .Select(i => Word(GoldObjectFxStateLayout.ReferencesOffset + i * 4)).ToArray();
+    /// <summary>Active systems append their native particle serializer after
+    /// references (0x5B752F/0x7CC7B0). Family-specific framing remains lossless.</summary>
+    public ReadOnlyMemory<byte> ParticleState => _payload.AsMemory(GoldObjectFxStateLayout.ReferencesOffset +
+        checked((int)Word(GoldObjectFxStateLayout.ReferenceCountOffset)) * 4);
     public byte[] ToPayload() => _payload.ToArray();
     public static GoldObjectFxState FromPayload(ReadOnlySpan<byte> payload)
     {
@@ -50,7 +54,8 @@ public sealed class GoldObjectFxState
         var count = BinaryPrimitives.ReadUInt32LittleEndian(payload[GoldObjectFxStateLayout.ReferenceCountOffset..]);
         if (count > (uint)((payload.Length - GoldObjectFxStateLayout.ReferencesOffset) / 4))
             throw new InvalidDataException("Truncated Gold cObjectFX reference vector.");
-        // Native object packets can include unused capacity after the serialized object.
+        // An active system can append a complete particle snapshot. Other
+        // retained suffix bytes have not all been classified.
         return new(payload.ToArray());
     }
     private uint Word(int offset) => BinaryPrimitives.ReadUInt32LittleEndian(_payload.AsSpan(offset));

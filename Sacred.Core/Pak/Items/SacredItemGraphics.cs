@@ -50,7 +50,9 @@ public enum SacredItemGraphicFlags : ushort
     Byte0100 = 0x0100,
 
     /// <summary>Invisible inventory fallback, such as hair or a base skirt. Native
-    /// isFallbackItem tests combined descriptor bit 25 (Demo 0x413EA0 / Gold 0x426550).</summary>
+    /// isFallbackItem tests combined descriptor bit 25 (Demo 0x413EA0 / Gold 0x426550).
+    /// Creature stream 0x54BD18/0x5FE790 writes zero for equipment references
+    /// whose registered item has this descriptor bit.</summary>
     EquipmentFallback = 0x0200,
 
     /// <summary>Observed unresolved flag bit. The name preserves its raw hexadecimal value.</summary>

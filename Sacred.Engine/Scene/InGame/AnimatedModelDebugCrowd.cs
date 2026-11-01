@@ -28,6 +28,7 @@ internal sealed class AnimatedModelDebugCrowd
                 {
                     var animation = new GrnAnimatedMesh(source.BindMesh, source.Pose.Data, source.Animation);
                     animation.RequestPose(i * .037f);
+                    animation.Playback.Cpu.Asynchronous = true;
                     var model = new SceneModel($"Debug instance {i + 1}: {player.Name}", animation.Mesh,
                         player.Position, player.Rotation, player.Scale, player.TextureAliases,
                         groundPlaneZ: player.GroundPlaneZ, sourceOriginOffset: player.SourceOriginOffset,
@@ -58,3 +59,4 @@ internal sealed class AnimatedModelDebugCrowd
         scene.SetWorldModels(_worldModels);
     }
 }
+

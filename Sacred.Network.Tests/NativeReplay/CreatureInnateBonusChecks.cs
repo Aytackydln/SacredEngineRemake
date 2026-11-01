@@ -18,7 +18,8 @@ internal static class CreatureInnateBonusChecks
             {
                 try
                 {
-                    SacredCreatureInnateBonuses.Apply(values, bonuses, row.GetProperty("unarmed").GetBoolean(), row.GetProperty("ranged").GetBoolean());
+                    SacredCreatureInnateBonuses.Apply(row.GetProperty("precision").GetInt32() == 24 ? SacredX87Precision.Single : SacredX87Precision.Extended,
+                        values, bonuses, row.GetProperty("unarmed").GetBoolean(), row.GetProperty("ranged").GetBoolean());
                     throw new Exception("Unresolved legacy innate power was accepted.");
                 }
                 catch (NotSupportedException)
@@ -29,7 +30,8 @@ internal static class CreatureInnateBonusChecks
                     continue;
                 }
             }
-            SacredCreatureInnateBonuses.Apply(values, bonuses, row.GetProperty("unarmed").GetBoolean(), row.GetProperty("ranged").GetBoolean());
+            SacredCreatureInnateBonuses.Apply(row.GetProperty("precision").GetInt32() == 24 ? SacredX87Precision.Single : SacredX87Precision.Extended,
+                values, bonuses, row.GetProperty("unarmed").GetBoolean(), row.GetProperty("ranged").GetBoolean());
             if (!values.SequenceEqual(expected))
             {
                 var at = Enumerable.Range(0, values.Length).First(i => values[i] != expected[i]);

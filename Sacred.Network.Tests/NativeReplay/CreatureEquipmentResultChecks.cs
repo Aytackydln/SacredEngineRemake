@@ -27,7 +27,8 @@ internal static class CreatureEquipmentResultChecks
                 for (var index = 0; index < records.Length; index++)
                 {
                     if (index != 0 && records[0][12 + index - 1] is not (1 or 2 or 3 or 4)) continue;
-                    flags |= SacredCreatureEquipmentContributions.Apply(values, pending, records[index], (SacredItemCategory)gear.GetProperty("category").GetByte(),
+                    flags |= SacredCreatureEquipmentContributions.Apply(row.GetProperty("precision").GetInt32() == 24 ? SacredX87Precision.Single : SacredX87Precision.Extended,
+                        values, pending, records[index], (SacredItemCategory)gear.GetProperty("category").GetByte(),
                         new(row.GetProperty("resource").GetUInt32(), row.GetProperty("unarmed").GetBoolean(), index != 0, 0, definitions.Profile(row.GetProperty("profile").GetByte())));
                 }
             }

@@ -11,67 +11,68 @@ namespace Sacred.Core.Pak.Weapon;
 public static class SacredEquipmentCombatGeneration
 {
     public static void Apply(Span<byte> instance, in SacredWeaponModifierLayout definition,
-        float levelFactor, uint difficulty, SacredRandomSequence random)
+        float levelFactor, uint difficulty, SacredRandomSequence random, SacredX87Precision precision = SacredX87Precision.Extended)
     {
         ArgumentNullException.ThrowIfNull(random);
         if (instance.Length != SacredEquipmentInstanceLayout.Size)
             throw new ArgumentException("Expected one native 130-byte item value block.", nameof(instance));
         if (!float.IsFinite(levelFactor)) throw new ArgumentOutOfRangeException(nameof(levelFactor));
-        Damage(instance, definition, levelFactor, difficulty, random);
-        Protection(instance, definition, levelFactor, random);
-        Rating(instance, 44, definition.Attack, levelFactor, random);
-        Rating(instance, 46, definition.Defense, levelFactor, random);
+        var fp = new SacredResultArithmetic(precision);
+        Damage(instance, definition, levelFactor, difficulty, random, fp);
+        Protection(instance, definition, levelFactor, random, fp);
+        Rating(instance, 44, definition.Attack, levelFactor, random, fp);
+        Rating(instance, 46, definition.Defense, levelFactor, random, fp);
     }
 
     private static void Damage(Span<byte> instance, in SacredWeaponModifierLayout definition,
-        float levelFactor, uint difficulty, SacredRandomSequence random)
+        float levelFactor, uint difficulty, SacredRandomSequence random, SacredResultArithmetic fp)
     {
         instance.Slice(36, 8).Clear();
         Span<SacredModifierRange> ranges = [definition.PhysicalDamage, definition.FireDamage,
             definition.MagicDamage, definition.PoisonDamage];
         if (!HasChance(ranges)) return; // The native zero-chance return retains the minima.
-        var budget = Budget(definition.Modifier, levelFactor);
+        var budget = Budget(definition.Modifier, levelFactor, fp);
         NormalizeRanges(ranges);
         Span<short> values = stackalloc short[4];
         values.Clear();
-        SacredEquipmentElementRolls.Roll(values, ranges, budget, difficulty, true, random);
-        NormalizeValues(values, budget);
-        var spread = Math.Min(100d, definition.Variance * (double)0.01f);
+        SacredEquipmentElementRolls.Roll(values, ranges, budget, difficulty, true, random, fp);
+        NormalizeValues(values, budget, fp);
+        var spread = Math.Min(100d, fp.Multiply(definition.Variance, 0.01f));
         instance.Slice(28, 8).Clear();
         for (var element = 0; element < values.Length; element++)
         {
             var value = values[element];
             if (value == 0) continue;
-            Write(instance, 28 + element * 2, SacredEquipmentElementRolls.Truncate(Math.Max(1, value - value * spread)));
-            Write(instance, 36 + element * 2, SacredEquipmentElementRolls.Truncate((spread + 1) * value));
+            Write(instance, 28 + element * 2, SacredEquipmentElementRolls.Truncate(Math.Max(1, fp.Subtract(value, fp.Multiply(value, spread)))));
+            Write(instance, 36 + element * 2, SacredEquipmentElementRolls.Truncate(fp.Multiply(fp.Add(spread, 1), value)));
         }
     }
 
     private static void Protection(Span<byte> instance, in SacredWeaponModifierLayout definition,
-        float levelFactor, SacredRandomSequence random)
+        float levelFactor, SacredRandomSequence random, SacredResultArithmetic fp)
     {
         instance.Slice(50, 8).Clear();
         Span<SacredModifierRange> ranges = [definition.PhysicalProtection, definition.FireProtection,
             definition.MagicProtection, definition.PoisonProtection];
         if (!HasChance(ranges)) return;
-        var budget = Budget(definition.Modifier, levelFactor);
+        var budget = Budget(definition.Modifier, levelFactor, fp);
         NormalizeRanges(ranges);
         Span<short> values = stackalloc short[4];
         values.Clear();
-        SacredEquipmentElementRolls.Roll(values, ranges, budget, 0, false, random);
-        NormalizeValues(values, budget);
+        SacredEquipmentElementRolls.Roll(values, ranges, budget, 0, false, random, fp);
+        NormalizeValues(values, budget, fp);
         for (var element = 0; element < values.Length; element++) Write(instance, 50 + element * 2, values[element]);
     }
 
-    private static float Budget(int modifier, float levelFactor) =>
-        (float)Math.Max(1, modifier * (double)levelFactor * (double)0.01f + 0.5d);
+    private static float Budget(int modifier, float levelFactor, SacredResultArithmetic fp) =>
+        (float)Math.Max(1, fp.Add(fp.Multiply(fp.Multiply(modifier, levelFactor), 0.01f), 0.5d));
 
     private static void Rating(Span<byte> instance, int offset, SacredModifierRange range,
-        float levelFactor, SacredRandomSequence random)
+        float levelFactor, SacredRandomSequence random, SacredResultArithmetic fp)
     {
         if (random.Next() % 100 < range.Chance)
             Write(instance, offset, SacredEquipmentElementRolls.Truncate(
-                SacredEquipmentElementRolls.Sample(range, random) * (double)levelFactor * (double)0.01f));
+                fp.Multiply(fp.Multiply(SacredEquipmentElementRolls.Sample(range, random), levelFactor), 0.01f)));
     }
 
     private static bool HasChance(ReadOnlySpan<SacredModifierRange> ranges) =>
@@ -84,7 +85,7 @@ public static class SacredEquipmentCombatGeneration
                 ranges[i] = ranges[i] with { Maximum = unchecked(ranges[i].Minimum + 1) };
     }
 
-    private static void NormalizeValues(Span<short> values, float budget)
+    private static void NormalizeValues(Span<short> values, float budget, SacredResultArithmetic fp)
     {
         var sum = values[0] + values[1] + values[2] + values[3];
         if (sum == 0)
@@ -96,10 +97,10 @@ public static class SacredEquipmentCombatGeneration
         var normalizedSum = 0;
         for (var i = 0; i < values.Length; i++)
         {
-            values[i] = unchecked((short)SacredEquipmentElementRolls.Truncate(values[i] * (double)budget / sum));
+            values[i] = unchecked((short)SacredEquipmentElementRolls.Truncate(fp.Divide(fp.Multiply(values[i], budget), sum)));
             normalizedSum += values[i];
         }
-        var remainder = SacredEquipmentElementRolls.Truncate(budget - (double)normalizedSum + 0.5d);
+        var remainder = SacredEquipmentElementRolls.Truncate(fp.Add(fp.Subtract(budget, normalizedSum), 0.5d));
         for (var i = 0; i < values.Length; i++)
             if (values[i] != 0) { values[i] = unchecked((short)(values[i] + remainder)); break; }
     }

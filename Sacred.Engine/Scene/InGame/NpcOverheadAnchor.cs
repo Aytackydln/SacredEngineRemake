@@ -1,4 +1,5 @@
 using System.Numerics;
+using Sacred.Engine.Graphics.Skinning;
 
 namespace Sacred.Engine.Scene.InGame;
 
@@ -10,10 +11,12 @@ internal static class NpcOverheadAnchor
         screen = default;
         var animation = model.Geometry.Animation;
         if (animation is null || !animation.Pose.Data.TryFindBone("Bip01 Head", out var head)) return false;
-        // A GPU pose has no current CPU palette. Query bones without materializing or skinning vertices.
-        if (animation.Playback.LastRequest is { } request && animation.Playback.Cpu.EvaluatedSequence != request.Sequence)
-            animation.Playback.Cpu.Evaluate(request with { MaterializeCpuVertices = false });
-        var pose = animation.Pose;
+        // Rendering consumes the published CPU pose, even when a newer request is pending.
+        // GPU-only sampling needs separate query storage: mutating the draw pose here
+        // invalidates uploaded palettes and CPU vertices in the middle of a frame.
+        var pose = animation.Playback.Sink is GpuPoseRequestSink && animation.Playback.LastRequest is { } request
+            ? animation.Playback.Cpu.EvaluateSnapshot(request)
+            : animation.Pose;
         if (!pose.IsEvaluated) return false;
         var local = pose.Data.Projection.Project(pose.BoneWorldTransforms[head].Translation);
         var clip = Vector4.Transform(new Vector4(local, 1), model.Transform * camera.View * camera.Projection);
@@ -22,3 +25,4 @@ internal static class NpcOverheadAnchor
         return screen.X >= -64 && screen.X < width + 64 && screen.Y >= -64 && screen.Y < height + 128;
     }
 }
+
