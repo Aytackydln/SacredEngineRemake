@@ -57,6 +57,14 @@ public sealed class WorldScriptDefinitions
         _records.Add(WorldScriptDefinition.Create(WorldDefinitionKind.PoolPosition, name, [x, y, parameter2, parameter3, 0, 0, 0, 0]));
     }
 
+    /// <summary>Native opcode 140 consumes one pool definition, shifting later records in order.</summary>
+    internal WorldScriptDefinition TakeAt(int index)
+    {
+        var selected = _records[index];
+        _records.RemoveAt(index);
+        return selected;
+    }
+
     /// <param name="random">Gold rand() results in 0..32767. A randomized definition requires an explicit source.</param>
     public SacredScriptPosition ResolvePosition(string name, Func<int>? random = null, Func<int, int, bool>? positionAllowed = null)
     {

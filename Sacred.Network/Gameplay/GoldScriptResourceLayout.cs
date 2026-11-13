@@ -11,6 +11,9 @@ public static class GoldScriptResourceLayout
     public const int NameRecordSize = 72;
     public const int TriggerReferenceOffset = 64;
     public const int ResourceIdOffset = 68;
+    /// <summary>Gold 0x46517A..0x4651CF scans map keys 8310..8398, irrespective of map values.</summary>
+    public const uint FirstLocalObjectResource = 0x2076;
+    public const uint LocalObjectResourceLimit = 0x20CF;
     public const uint UnnamedResource = uint.MaxValue;
     public const string LocalResourcePrefix = "LRes:";
 }

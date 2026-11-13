@@ -24,6 +24,7 @@ public sealed record SacredEquipmentGenerationData(SacredObjectTemplateArchive T
     Func<uint, string?> ResourceName, Func<uint, SacredEquipmentPriceOverrides> PriceOverrides,
     SacredItemCategoryRules? CategoryRules = null, Func<uint, bool>? SingleMagicBonusItem = null)
 {
+    public SacredWeaponHandRefreshDefinitions? HandRefresh { get; init; }
     public SacredEquipmentNamingData? Naming { get; init; }
     public SacredCreatureLootResources? CreatureLootResources { get; init; }
     public SacredCreatureDeathLootRules? CreatureDeathLootRules { get; init; }
@@ -81,6 +82,7 @@ public sealed record SacredEquipmentGenerationData(SacredObjectTemplateArchive T
                     EquipmentClassFitRules = SacredEquipmentClassFitDefinitions.Read(image),
                     EquipmentSources = SacredEquipmentSourceDefinitions.Read(image),
                     EquipmentDefaults = SacredEquipmentDefaultDefinitions.Read(image),
+                    HandRefresh = SacredWeaponHandRefreshDefinitions.Read(image),
                     Sets = SetsBinArchive.Load(Path.Combine(installation, "bin", "sets.bin")),
                     Naming = new(SacredEquipmentNameDefinitions.Read(image), new(SacredResUnpack.UnpackAsDictionary(
                         Path.Combine(installation, "scripts", "us", "global.res"))))

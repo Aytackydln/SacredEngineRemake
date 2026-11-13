@@ -6,6 +6,8 @@ public static class SacredSavedCreatureLayout
     public const int MarkerOffset = 247;
     public const int BlockFCOffset = 251;
     public const int KiModeOffset = BlockFCOffset;
+    /// <summary>Native +0xFE: 0x59F580 sets this word to 1 when +0xFC/+0xFE are both zero.</summary>
+    public const int KiInitializationStateOffset = BlockFCOffset + 2;
     public const int Block150Offset = 335;
     public const int EiModeOffset = Block150Offset;
     /// <summary>Packed native +0x174 control copied into Gold movement message prefixes.</summary>

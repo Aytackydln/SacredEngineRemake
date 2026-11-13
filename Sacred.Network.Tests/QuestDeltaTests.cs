@@ -42,8 +42,10 @@ public sealed class QuestDeltaTests
         Reject(0x1b8, [..Words(0), ..new byte[100], ..Words(26, 0)]);
         foreach (var opcode in new ushort[] { 0x1ba, 0x1bb, 0x1bc, 0x1bd, 0x15d })
         {
-            var packet = PacketCatalog.All.Single(row => row.Opcode == opcode).Message();
-            BinaryPrimitives.WriteUInt32LittleEndian(packet.Payload, uint.MaxValue); Reject(opcode, packet.Payload);
+            foreach (var packet in PacketCatalog.All.Where(row => row.Opcode == opcode).Select(row => row.Message()))
+            {
+                BinaryPrimitives.WriteUInt32LittleEndian(packet.Payload, uint.MaxValue); Reject(opcode, packet.Payload);
+            }
         }
     }
 

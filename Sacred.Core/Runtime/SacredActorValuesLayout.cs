@@ -14,6 +14,8 @@ namespace Sacred.Core.Runtime;
 public readonly struct SacredActorValuesLayout
 {
     public const int Size = 238;
+    public const int BaseAttributesOffset = 66;
+    public const int BaseAttributeCount = 6;
     [FieldOffset(0)] public readonly uint ItemType;
     [FieldOffset(4)] public readonly uint Experience;
     [FieldOffset(8)] public readonly ushort Strength;
@@ -41,8 +43,9 @@ public readonly struct SacredActorValuesLayout
     [FieldOffset(58)] public readonly ushort RemainingSkillPoints;
     [FieldOffset(60), BinaryUnknown] public readonly ushort SkillLearn;
     [FieldOffset(62)] public readonly uint Gold;
-    /// <summary>Runtime base values in ST, WI, GS, RP, RM, CH order, before level growth.</summary>
-    [FieldOffset(66)] public readonly SacredAttributeWords BaseAttributes;
+    /// <summary>Runtime base values in ST, WI, GS, RP, RM, CH order, before level growth.
+    /// Script SetCV 0x48DF30 selects one word by index 0..5 and clamps its input to 0..100.</summary>
+    [FieldOffset(BaseAttributesOffset)] public readonly SacredAttributeWords BaseAttributes;
     [FieldOffset(78)] public readonly ushort Level;
     /// <summary>Runtime horse movement profile selector; Gold getParam(13) substitutes one for zero
     /// before indexing the Balance.bin movement profile map.</summary>

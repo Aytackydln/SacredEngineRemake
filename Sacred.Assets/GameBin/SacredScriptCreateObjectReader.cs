@@ -27,7 +27,7 @@ public static partial class SacredScriptCreateObjectReader
         if (command.Opcode != SacredScriptCommandHeaderLayout.CreateObjectOpcode)
             return Fail("Not a create-object instruction.", out diagnostic);
 
-        string? name = null, triggerReference = null;
+        string? name = null, secondaryName = null, triggerReference = null;
         uint? typeId = null;
         SacredScriptPosition? tile = null, world = null;
         string? symbolicTilePosition = null;
@@ -46,7 +46,8 @@ public static partial class SacredScriptCreateObjectReader
                     if (end < 0) return Fail($"Unterminated string at +0x{offset:X}.", out diagnostic);
                     // Byte-preserving display decoding, as used for other original script names.
                     if (tag == SacredScriptArgumentKind.ObjectReference) triggerReference = Encoding.Latin1.GetString(payload[..end]);
-                    else name = Encoding.Latin1.GetString(payload[..end]);
+                    else if (string.IsNullOrEmpty(name)) name = Encoding.Latin1.GetString(payload[..end]);
+                    else secondaryName = Encoding.Latin1.GetString(payload[..end]);
                     offset += end + 2;
                     break;
                 case SacredScriptArgumentKind.TypeId:
@@ -99,7 +100,7 @@ public static partial class SacredScriptCreateObjectReader
         if (!typeId.HasValue) return Fail("No literal type identifier.", out diagnostic);
         if (tile is null && world is null && symbolicTilePosition is not null)
             return Fail("Symbolic tile position requires a DefPos resolver.", out diagnostic);
-        creation = new SacredScriptCreateObject(name, typeId.Value, tile, world, height, symbolicTilePosition, facingDegrees, triggerReference);
+        creation = new SacredScriptCreateObject(name, typeId.Value, tile, world, height, symbolicTilePosition, facingDegrees, triggerReference) { SecondaryName = secondaryName };
         return true;
     }
 
@@ -125,7 +126,7 @@ public static partial class SacredScriptCreateObjectReader
             BinaryPrimitives.ReadUInt16LittleEndian(data[2..]) != data.Length)
             return false;
 
-        string? name = null, triggerReference = null;
+        string? name = null, secondaryName = null, triggerReference = null;
         uint? typeId = null;
         SacredScriptPosition? tile = null, world = null;
         string? symbolicTilePosition = null;
@@ -150,7 +151,8 @@ public static partial class SacredScriptCreateObjectReader
                     if (end < 0)
                         return false;
                     if (tag == SacredScriptArgumentKind.ObjectReference) triggerReference = Encoding.Latin1.GetString(payload[..end]);
-                    else name = Encoding.Latin1.GetString(payload[..end]);
+                    else if (string.IsNullOrEmpty(name)) name = Encoding.Latin1.GetString(payload[..end]);
+                    else secondaryName = Encoding.Latin1.GetString(payload[..end]);
                     offset += end + 2;
                     continue;
                 case SacredScriptArgumentKind.TilePosition or SacredScriptArgumentKind.WorldPosition when payload.Length >= 12:
@@ -179,7 +181,7 @@ public static partial class SacredScriptCreateObjectReader
 
         if (!typeId.HasValue || (tile is null && world is null && symbolicTilePosition is null))
             return false;
-        creation = new SacredScriptCreateObject(name, typeId.Value, tile, world, null, symbolicTilePosition, facingDegrees, triggerReference);
+        creation = new SacredScriptCreateObject(name, typeId.Value, tile, world, null, symbolicTilePosition, facingDegrees, triggerReference) { SecondaryName = secondaryName };
         return true;
     }
 }

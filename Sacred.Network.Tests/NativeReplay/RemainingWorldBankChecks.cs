@@ -5,6 +5,12 @@ using Sacred.Network.Protocol;
 
 internal static class RemainingWorldBankChecks
 {
+    public static byte[] BankOneWireExample(string root)
+    {
+        using var fixture=JsonDocument.Parse(File.ReadAllText(Path.Combine(root,"docs/game-server/evidence/native-remaining-world-banks.json")));
+        return Convert.FromHexString(fixture.RootElement.GetProperty("samples").EnumerateArray()
+            .Single(row=>row.GetProperty("opcode").GetUInt16()==0x1b1).GetProperty("payload_hex").GetString()!);
+    }
     public static int Run(string root)
     {
         var checks = 0;

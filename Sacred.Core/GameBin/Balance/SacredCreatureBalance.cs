@@ -28,6 +28,10 @@ public sealed class SacredCreatureBalance
     public IReadOnlyList<SacredCreatureHealthLevel> HealthLevels { get; }
     public IReadOnlyList<float> HealthDifficulties { get; }
     public SacredSkillCurveLayout Vitality { get; }
+    /// <summary>Original global +0x8C0; unknown for manually supplied ordinary-only tuning.</summary>
+    public float? BehaviorHealthFactor { get; init; }
+    /// <summary>Original global +0x8C4; unknown for manually supplied ordinary-only tuning.</summary>
+    public float? StatusHealthFactor { get; init; }
     public IReadOnlyList<int> LevelPercentAdditions { get; }
     public IReadOnlyList<int> LevelAdditions { get; }
 }

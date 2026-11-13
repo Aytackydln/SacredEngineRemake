@@ -7,6 +7,8 @@ internal static class WorldScriptSectorHandlers
 {
     public static bool Execute(WorldScriptExecutionContext context, SacredScriptCommand command)
     {
+        if (command.Opcode == SacredScriptExecutionOpcodes.AddEquipmentPoolType)
+        { context.EquipmentPools.Apply(command); return true; }
         if (command.Opcode == SacredScriptSpawnEquipmentLayout.Opcode)
         {
             context.AddSpawnEquipment(SacredScriptSpawnEquipment.Read(command));

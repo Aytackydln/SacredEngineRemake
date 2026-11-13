@@ -35,6 +35,7 @@ public sealed class WorldScriptObjectWorld : IWorldScriptObjectWorld
         Objects = _objects.AsReadOnly();
         Callbacks = _callbacks.AsReadOnly();
     }
+    public bool HasActiveHero => _hasActiveHero;
     public IReadOnlyList<WorldScriptCreatedObject> Objects { get; }
     public IReadOnlyList<GoldObjectScriptCallback> Callbacks { get; }
     /// <summary>Share this same session counter with NPC/equipment factories.</summary>
@@ -46,23 +47,36 @@ public sealed class WorldScriptObjectWorld : IWorldScriptObjectWorld
         if (!context.IsExecutingStartup) throw new InvalidDataException("Live CreateObj requires sector/ownership dispatch.");
         var creation = SacredScriptObjectCreationReader.Read(command,
             name => context.Definitions.ResolvePosition(name, context.Random, context.PositionAllowed));
+        if (creation.SecondaryName is not null && (context.ObjectActionFlags & 1) != 0)
+            throw new InvalidDataException("CreateObj secondary-name association requires its native target lookup/deferred lifecycle before construction.");
+        if(context.DeferredObjectStates.FindForCreation(creation.Name) is not null)
+            throw new NotSupportedException($"CreateObj '{creation.Name}' requires queued open/lock target effects before construction.");
         // Native returns without creating anything if no type/placement was supplied.
         if (creation.TypeId == 0 || creation.TilePosition is null && creation.WorldPosition is null) return;
         var item = _templates.GetItem(creation.TypeId);
-        if (item.ModelDesc.Category == SacredItemCategory.QuestItem)
+        if (item.ModelDesc.Category is SacredItemCategory.QuestItem or SacredItemCategory.Book or SacredItemCategory.Weapon or SacredItemCategory.Shield)
         {
             if (_hasActiveHero) throw new InvalidDataException("CreateObj item needs native active-hero value calculation.");
+            if ((item.ModelDesc.Category is SacredItemCategory.Weapon or SacredItemCategory.Shield) &&
+                creation.TilePosition is { X: >= 0, Y: >= 0 } equipmentTile &&
+                Creatures?.Terrain?.Tiles.IsLoaded(_sectors.GetSector(equipmentTile.X, equipmentTile.Y)) == true)
+                throw new InvalidDataException("CreateObj ground equipment in a loaded sector requires its compared placement lifecycle.");
             var items = Creatures?.Items ?? throw new InvalidDataException("CreateObj item needs the shared initial item factory.");
-            var created = items.Create(command, creation, item);
-            _callbacks.AddRange(created.Callbacks);
+            var created = items.Create(command, creation, item, Creatures!.ItemResources);
+            foreach (var callback in created.Callbacks) AppendCallback(context, callback);
             return;
         }
         if (item.ModelDesc.Category == SacredItemCategory.Effect)
         {
             var effects = Creatures?.Effects ?? throw new InvalidDataException("CreateObj Effect requires original definitions and an explicitly compared projection context.");
-            effects.Create(command,creation,item);
+            if (creation.TilePosition is { X: >= 0, Y: >= 0 } effectTile &&
+                Creatures?.Terrain?.Tiles.IsLoaded(_sectors.GetSector(effectTile.X, effectTile.Y)) == true)
+                throw new InvalidDataException("CreateObj Effect in a loaded sector requires its compared tile-placement lifecycle.");
+            effects.Create(command,creation,item,Creatures!.ItemResources,context.ObjectActionFlags,key=>Creatures.FindObject(key,context));
             return;
         }
+        if (creation.SecondaryName is not null)
+            throw new InvalidDataException("CreateObj secondary-name association requires its compared category caller.");
         if (item.ModelDesc.Category != SacredItemCategory.Container)
             throw new InvalidDataException($"CreateObj type {creation.TypeId} requires the native {item.ModelDesc.Category} factory.");
         if (_hasActiveHero) throw new InvalidDataException("CreateObj item construction requires native active-hero value calculation.");
@@ -91,10 +105,15 @@ public sealed class WorldScriptObjectWorld : IWorldScriptObjectWorld
             BitConverter.SingleToUInt32Bits(creation.FacingDegrees is > 0 ? creation.FacingDegrees.Value : item.ModelDesc.Angle3D),
             trigger, _allocationCounter.Value, _owner, 0);
         _objects.Add(new(command.FileOffset, creation, state, instance) { PendingAnimationEvent = animate ? (ushort)0xAB : null });
-        if (use is not null) _callbacks.Add(GoldObjectScriptCallback.Create(reference, use));
-        if (take is not null) _callbacks.Add(GoldObjectScriptCallback.Create(reference, take));
+        if (use is not null) AppendCallback(context, GoldObjectScriptCallback.Create(reference, use));
+        if (take is not null) AppendCallback(context, GoldObjectScriptCallback.Create(reference, take));
     }
 
+    private void AppendCallback(WorldScriptExecutionContext context, GoldObjectScriptCallback callback)
+    {
+        _callbacks.Add(callback);
+        context.ObjectCallbacks.Append(callback);
+    }
     private static string? Callback(string? value, string prefix) => value is null ? null : prefix + value;
     // Gold uses x87 extended intermediates before truncation, rather than a rounded float product.
     private static int ToNative(int tile) => checked((int)((tile + 0.5d) * SacredNetworkPosition.NativeUnitsPerTile));

@@ -17,6 +17,10 @@ public sealed class SacredScriptRegionReplacementTable
         return new(data.ToArray());
     }
 
+    /// <summary>Exact 8,600-byte persisted/bank block, including unused entries
+    /// and unresolved header words. Returns an independent copy.</summary>
+    public byte[] ToPayload() => _data.ToArray();
+
     /// <summary>Gold 0x482F18 requires command mask 0x3C clear and operand 0x6B's
     /// runtime selector equal to zero. Callers must establish those gates first.</summary>
     public SacredScriptCreatureReplacement Resolve(byte rawRegion, uint typeId, uint behavior)

@@ -12,6 +12,32 @@ internal static class WorldScriptDefinitionHandlers
     {
         switch (command.Opcode)
         {
+            case SacredScriptRegionLayout.SetOpcode:
+            case SacredScriptRegionLayout.RemoveOpcode:
+                (context.ScriptRegions ?? throw new InvalidDataException("SetRG requires original sector/resource services."))
+                    .Apply(command,context.IsExecutingStartup,context.Multiplayer);
+                return true;
+            case SacredScriptExecutionOpcodes.StartPosition:
+                _ = SacredScriptOperandReader.Read(command);
+                if (!context.Multiplayer) throw new NotSupportedException("StartPosition requires its native single-player hero teleport lifecycle.");
+                return true;
+            case SacredScriptExecutionOpcodes.RandomVariable:
+                WorldScriptRandomVariableHandler.Apply(context, command);
+                return true;
+            case SacredScriptExecutionOpcodes.SetVariableBits:
+                WorldScriptBitVariableHandler.Apply(context, command);
+                return true;
+            case SacredScriptExecutionOpcodes.AssociateDialog:
+                context.DialogAssociations.Apply(context,command);
+                return true;
+            case SacredScriptExecutionOpcodes.CreateHideouts:
+                if (context.Hideouts is null) throw new InvalidDataException("Hideout generation requires native resource and sector services.");
+                context.Hideouts.Apply(context,command);
+                return true;
+            case WorldScriptMouseovers.Opcode:
+                if (context.Mouseovers is null) throw new InvalidDataException("Mouseover registration requires original resources and startup terrain.");
+                context.Mouseovers.Apply(context, command);
+                return true;
             case SacredScriptPortalOpcodes.SetMapIcon:
                 if (context.MapIcons is null) throw new InvalidDataException("SetMapIcon requires original resource lookup and world sector mapping.");
                 context.MapIcons.Apply(command, context.IsExecutingStartup);
@@ -32,6 +58,9 @@ internal static class WorldScriptDefinitionHandlers
                     if (context.WorldTriggers is null)
                         throw new InvalidDataException($"World-trigger allocation/registration is required for '{creation.Name}' (scope {creation.Scope}, state 0x{creation.State:X4}); load the original trigger table and use granted 0x154 IDs.");
                     context.WorldTriggers.Create(creation);
+                    // Gold 0x49655B clears the live name buffer across the following
+                    // variable suffix. The supported registry limits names to 63 bytes.
+                    if (creation.Name.Length < 64) WorldScriptVariableCallerEffects.EstablishZero(context);
                 }
                 return true;
             case SacredScriptTriggerOpcodes.TriggerPatch:
@@ -75,6 +104,14 @@ internal static class WorldScriptDefinitionHandlers
         operand.Integer ?? context.Variables.Find(Text(operand)) ??
         throw new InvalidDataException($"Unresolved integer variable '{operand.Text}' at +0x{operand.Offset:X}.");
 
+    private static string TextForVariable(SacredScriptOperand operand)
+    {
+        var text = operand.Text ?? throw new InvalidDataException("Expected variable name.");
+        if (text.Contains('$') || text.StartsWith("res:", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException($"Variable '{text}' requires resource resolution.");
+        return text;
+    }
+
     private static void Variable(WorldScriptExecutionContext context, SacredScriptCommand command)
     {
         string? name = null;
@@ -83,7 +120,7 @@ internal static class WorldScriptDefinitionHandlers
         {
             if (operand.Kind == SacredScriptArgumentKind.NullTerminatedString)
             {
-                if (name is null or "") name = Text(operand);
+                if (name is null or "") name = WorldScriptVariableNames.Expand(TextForVariable(operand), context.Variables.Find);
                 else value = context.Variables.Find(Text(operand)) ?? throw new InvalidDataException($"Unresolved source variable '{operand.Text}'.");
             }
             else if (operand.Kind == SacredScriptArgumentKind.Integer) value = Integer(context, operand);
@@ -93,7 +130,10 @@ internal static class WorldScriptDefinitionHandlers
         if (value is null) throw new InvalidDataException($"Variable '{name}' has no initialized value operand.");
         if (command.Opcode == SacredScriptExecutionOpcodes.AddVariable) context.Variables.Add(name, value.Value);
         else context.Variables.Set(name, value.Value);
-        context.VariableGlobals.Record(name, value.Value, command.Opcode == SacredScriptExecutionOpcodes.AddVariable);
+        context.VariableCallerIndex = context.VariableGlobals.RecordWithCallerIndex(name, value.Value,
+            command.Opcode == SacredScriptExecutionOpcodes.AddVariable, context.VariableCallerIndex);
+        if (name.Length >= 7)
+            context.VariableCallerStopsImmediately = WorldScriptVariableCallerEffects.StopsImmediately(name.Length == 7 ? '\0' : name[7]);
     }
 
     private static void Definition(WorldScriptExecutionContext context, SacredScriptCommand command)
@@ -120,7 +160,21 @@ internal static class WorldScriptDefinitionHandlers
         }
         if (name is null) return;
         if (command.Opcode == SacredScriptExecutionOpcodes.DefinePosition)
+        {
             context.Definitions.DefinePosition(name, parameters[0], parameters[1], parameters[2], parameters[3]);
+            // Gold 0x4787C3/0x478812 writes the first Int32 parameter over the
+            // following variable caller's +4..+7. Only a proven nonnumeric +7
+            // byte closes atoi without needing the following scratch bytes.
+            var operands = SacredScriptOperandReader.Read(command);
+            if (name.Length < 64 && operands.Count > 0 &&
+                operands[0].Kind == SacredScriptArgumentKind.NullTerminatedString &&
+                operands.Skip(1).All(operand => operand.Kind == SacredScriptArgumentKind.Integer && operand.Integer is not null))
+            {
+                var first = unchecked((byte)(parameters[0] >> 24));
+                if (first is not (>= (byte)'0' and <= (byte)'9') && first is not ((byte)'+' or (byte)'-' or (byte)' ') &&
+                    first is not (>= 9 and <= 13)) WorldScriptVariableCallerEffects.EstablishZero(context);
+            }
+        }
         else context.Definitions.AppendPoolPosition(name, parameters[0], parameters[1], parameters[2], parameters[3]);
     }
 
@@ -159,5 +213,10 @@ internal static class WorldScriptDefinitionHandlers
         }
         if (string.IsNullOrEmpty(name) || function is null) return;
         context.RegisterMovement(name, function.Value);
+        // Gold OnMoveOver 0x4918DF clears 128 name bytes. Its byte 99 aliases
+        // the next variable caller's suffix; no supplied name may overwrite it.
+        if (SacredScriptOperandReader.Read(command)
+            .Where(operand => operand.Kind == SacredScriptArgumentKind.NullTerminatedString)
+            .All(operand => operand.Text!.Length < 100)) WorldScriptVariableCallerEffects.EstablishZero(context);
     }
 }

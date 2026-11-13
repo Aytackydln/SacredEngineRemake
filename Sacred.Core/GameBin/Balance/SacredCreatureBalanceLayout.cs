@@ -18,6 +18,13 @@ public static class SacredCreatureBalanceLayout
     /// <summary>Six signed level additions, applied after percentage scaling;
     /// 0x55B51B subtracts them from source level before loot generation.</summary>
     public const int LevelAdditionsOffset = 0x11D0;
+    /// <summary>Float at global +0x8C0 (Gold 0xAD4D50). Health 0x565ABA selects
+    /// this factor when actor behavior +0x1F4 contains mask 0x80000, before the
+    /// original type/class/difficulty multiplier. It is not the final multiplier.</summary>
+    public const int BehaviorHealthFactorOffset = 0x8C0;
+    /// <summary>Float at global +0x8C4 (Gold 0xAD4D54). Health 0x565AC6 selects
+    /// this alternative for status +0x2B8 bit 6 when behavior mask 0x80000 is clear.</summary>
+    public const int StatusHealthFactorOffset = 0x8C4;
     public const int DifficultyCount = 6;
     public const int RequiredGlobalBytes = LevelAdditionsOffset + DifficultyCount * sizeof(int);
 }

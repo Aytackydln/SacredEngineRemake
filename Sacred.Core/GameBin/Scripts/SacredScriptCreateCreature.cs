@@ -8,6 +8,16 @@ public sealed record SacredScriptCreateCreature(string? Name, uint TypeId, IRead
     int Aggression, bool HasExplicitBehavior)
 {
     public const ushort Opcode = 1;
+    /// <summary>Tag 0x05: exact object callback name, registered without a Use:/Take: prefix.</summary>
+    public string? CallbackName { get; init; }
+    /// <summary>Tag 0x60: literal name prefixed with See: before ordered callback registration.</summary>
+    public string? SeeCallbackName { get; init; }
+    /// <summary>Last 0x09 name or 0x0A number selector; resolved against the interpreter registration table.</summary>
+    public SacredScriptDialogSelection? DialogSelection { get; init; }
+    /// <summary>0x67 ECS selector; low byte goes to actor +0x2B6, high word to +0x261.
+    /// FFFFFFFF instead clears +0x25F and preserves those two fields (Gold 0x483CF8).</summary>
+    public uint PackedSpell { get; init; }
+
     /// <summary>Native CreateNPC command-mode scratch; service bits also suppress regional substitution.</summary>
     public uint ConstructionFlags { get; init; }
     /// <summary>Operand 0x90: early raise-only level assignment, caller scratch +74.

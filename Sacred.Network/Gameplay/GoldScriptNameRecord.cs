@@ -7,11 +7,26 @@ namespace Sacred.Network.Gameplay;
 public sealed class GoldScriptNameRecord
 {
     private readonly byte[] _bytes;
-    private GoldScriptNameRecord(byte[] bytes) => _bytes = bytes;
+    private GoldScriptNameRecord(byte[] bytes, bool complete = true) => (_bytes, HasCompleteBytes) = (bytes, complete);
+    public bool HasCompleteBytes { get; }
     public string Name => GoldScriptNames.Read(_bytes.AsSpan(0, GoldScriptResourceLayout.NameSize));
     public uint TriggerReference => BinaryPrimitives.ReadUInt32LittleEndian(_bytes.AsSpan(GoldScriptResourceLayout.TriggerReferenceOffset));
     public uint ResourceId => BinaryPrimitives.ReadUInt32LittleEndian(_bytes.AsSpan(GoldScriptResourceLayout.ResourceIdOffset));
-    public byte[] ToPayload() => _bytes.ToArray();
+    public byte[] ToPayload() => HasCompleteBytes ? _bytes.ToArray()
+        : throw new InvalidDataException("Script name requires native caller-scratch provenance before bank serialization.");
+    internal static GoldScriptNameRecord CreatePartialLocal(string name, uint resource)
+    {
+        var bytes = new byte[GoldScriptResourceLayout.NameRecordSize];
+        GoldScriptNames.Encode(name).CopyTo(bytes, 0);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(GoldScriptResourceLayout.ResourceIdOffset), resource);
+        return new(bytes, false);
+    }
+    internal GoldScriptNameRecord InvalidateLocal()
+    {
+        var bytes = _bytes.ToArray(); bytes[0] = (byte)'X'; bytes[1] = 0;
+        bytes.AsSpan(GoldScriptResourceLayout.TriggerReferenceOffset,8).Clear();
+        return new(bytes, HasCompleteBytes);
+    }
     public static GoldScriptNameRecord FromPayload(ReadOnlySpan<byte> bytes)
     {
         if (bytes.Length != GoldScriptResourceLayout.NameRecordSize) throw new InvalidDataException("Script name record requires 72 bytes.");
@@ -32,14 +47,14 @@ public sealed class GoldScriptNameRecord
         // Native strcpy changes the spelling and terminator, retaining subsequent bytes.
         GoldScriptNames.Encode(name).CopyTo(bytes, 0);
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(GoldScriptResourceLayout.ResourceIdOffset), resource);
-        return new(bytes);
+        return new(bytes, HasCompleteBytes);
     }
     internal GoldScriptNameRecord WithTrigger(string name, uint trigger)
     {
         var bytes = _bytes.ToArray();
         GoldScriptNames.Encode(name).CopyTo(bytes, 0);
         BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(GoldScriptResourceLayout.TriggerReferenceOffset), trigger);
-        return new(bytes);
+        return new(bytes, HasCompleteBytes);
     }
 }
 

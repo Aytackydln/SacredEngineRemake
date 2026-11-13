@@ -20,13 +20,18 @@ public sealed class WorldCampaignScripts
             catch (InvalidDataException) { /* Already initialized regions do not require this lookup. */ }
             try { PopulationDefinitions = SacredPopulationDefinitions.Load(gameDirectory); }
             catch (InvalidDataException) { /* FillRegion retains an explicit dependency if absent. */ }
+            try { Initialization = SacredScriptInitializationDefinitions.Load(gameDirectory); }
+            catch (InvalidDataException) { /* Unavailable provenance remains explicit at serialization. */ }
             var balance = Path.Combine(gameDirectory, "bin", "Balance.bin");
             if (File.Exists(balance)) PopulationBalance = PopulationBalanceBinReader.Load(balance);
+            var equipmentPools = Path.Combine(gameDirectory, "bin", "wea.bin");
+            if (File.Exists(equipmentPools)) EquipmentPoolArchive = SacredScriptEquipmentPoolArchive.Load(equipmentPools);
         }
         StartupCode = File.ReadAllBytes(files.StartCodePath);
         FunctionCode = File.ReadAllBytes(files.FunctionCodePath);
         Vectors = File.ReadAllBytes(files.VectorsPath);
         Functions = SacredScriptFunctionReader.Read(Vectors.Span, FunctionCode.Length);
+        Quests = SacredScriptQuestReader.Read(Vectors.Span);
         var definitions = File.ReadAllBytes(files.DefPosPath);
         Positions = SacredDefPosPosition.ReadMany(definitions);
         Dialogs = SacredScriptDialogReader.Read(definitions);
@@ -41,6 +46,8 @@ public sealed class WorldCampaignScripts
     }
 
     public SacredCampaignFiles Files { get; }
+    public SacredScriptInitializationDefinitions? Initialization { get; }
+    public SacredScriptEquipmentPoolArchive? EquipmentPoolArchive { get; }
     public SacredRegionDefinitions? Regions { get; }
     public SacredPopulationDefinitions? PopulationDefinitions { get; }
     public SacredPopulationBalance? PopulationBalance { get; }
@@ -48,6 +55,7 @@ public sealed class WorldCampaignScripts
     public ReadOnlyMemory<byte> FunctionCode { get; }
     public ReadOnlyMemory<byte> Vectors { get; }
     public IReadOnlyList<SacredScriptFunction> Functions { get; }
+    public IReadOnlyList<SacredScriptQuestDefinition> Quests { get; }
     public IReadOnlyList<SacredDefPosPosition> Positions { get; }
     public IReadOnlyList<SacredScriptDialog> Dialogs { get; }
     public ReadOnlyMemory<byte> QuestCode { get; }

@@ -56,6 +56,9 @@ public sealed class GrnAnimatedMesh
     /// <summary>Owner-thread publication after the worker has stopped touching its output buffers.</summary>
     internal void PublishPose(GrnPose pose, Mesh? skinned)
     {
+        // A worker may publish a blend at the same time cached by the synchronous
+        // evaluator. Its next explicit evaluation must rebuild its own sample.
+        Evaluator.InvalidateSample();
         Pose.CopyFrom(pose);
         if (!MaterializeCpuVertices) return;
         if (skinned is null) { MaterializeCpuMesh(); return; }

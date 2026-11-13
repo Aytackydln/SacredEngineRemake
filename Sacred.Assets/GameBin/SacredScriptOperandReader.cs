@@ -21,6 +21,10 @@ public static class SacredScriptOperandReader
             var kind = (SacredScriptArgumentKind)data[offset++];
             switch (kind)
             {
+                case SacredScriptArgumentKind.CreatureCallbackName:
+                case SacredScriptArgumentKind.CreatureSeeCallbackName:
+                case SacredScriptArgumentKind.DialogRegistrationName:
+                case SacredScriptArgumentKind.ScriptResourceName:
                 case SacredScriptArgumentKind.NullTerminatedString:
                 case SacredScriptArgumentKind.ObjectReference:
                 case SacredScriptArgumentKind.ObjectTakeScript:
@@ -28,6 +32,11 @@ public static class SacredScriptOperandReader
                 case SacredScriptArgumentKind.CreatureOwner:
                 case SacredScriptArgumentKind.CreatureSpellSelector:
                     result.Add(new(kind, start, Text: ReadString(data, ref offset)));
+                    break;
+                case SacredScriptArgumentKind.DialogRegistrationNumber:
+                    if (data.Length - offset < 2) throw new InvalidDataException($"Truncated dialog registration number at +0x{start:X}.");
+                    result.Add(new(kind, start, Integer: BinaryPrimitives.ReadUInt16LittleEndian(data[offset..])));
+                    offset += 2;
                     break;
                 case SacredScriptArgumentKind.TypeId:
                 case SacredScriptArgumentKind.CreatureGroup:
@@ -79,6 +88,9 @@ public static class SacredScriptOperandReader
                     result.Add(new(kind, start, Integer: ReadInt(data, ref offset), SecondInteger: ReadInt(data, ref offset),
                         ThirdInteger: ReadInt(data, ref offset)));
                     break;
+                case SacredScriptArgumentKind.MouseoverMode1:
+                case SacredScriptArgumentKind.MouseoverMode2:
+                case SacredScriptArgumentKind.MouseoverShortRange:
                 case SacredScriptArgumentKind.TriggerStateOn:
                 case SacredScriptArgumentKind.TriggerStateOff:
                 case SacredScriptArgumentKind.TriggerState8000On:
@@ -88,6 +100,7 @@ public static class SacredScriptOperandReader
                 case SacredScriptArgumentKind.CreatureBehavior1:
                 case SacredScriptArgumentKind.CreatureBehavior2:
                 case SacredScriptArgumentKind.CreatureBehavior0:
+                case SacredScriptArgumentKind.CreatureBehavior2000:
                 case SacredScriptArgumentKind.CreatureBehavior4000:
                 case SacredScriptArgumentKind.CreatureBehavior10:
                 case SacredScriptArgumentKind.CreatureBehavior40:
@@ -96,6 +109,7 @@ public static class SacredScriptOperandReader
                 case SacredScriptArgumentKind.CreatureBehavior20:
                 case SacredScriptArgumentKind.CreatureBehavior80:
                 case SacredScriptArgumentKind.CreatureBehavior400:
+                case SacredScriptArgumentKind.CreatureSmith:
                 case SacredScriptArgumentKind.CreatureTrader:
                 case SacredScriptArgumentKind.CreatureComboMaster:
                 case SacredScriptArgumentKind.CreatureNpcBehavior:

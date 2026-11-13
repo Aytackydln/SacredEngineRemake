@@ -9,6 +9,7 @@ public sealed class GrnPosePlayback
     private static long _nextIdentity;
     private ulong _sequence;
     private ulong _sourceVersion = 1;
+    internal ulong SourceVersion => _sourceVersion;
     internal GrnPosePlayback(GrnAnimatedMesh owner, GrnAnimationClip animation)
     {
         Instance = new(Interlocked.Increment(ref _nextIdentity), 1);

@@ -9,12 +9,22 @@ public sealed class GrnCpuPoseRequestAdapter : IGrnPoseRequestSink
     internal GrnCpuPoseRequestAdapter(GrnAnimatedMesh owner) => _owner = owner;
     public ulong EvaluatedSequence { get; private set; }
     private GrnAsyncPoseEvaluator? _async;
-    /// <summary>Opt-in background sampling; explicit Evaluate calls remain synchronous.</summary>
+    /// <summary>Opt-in background sampling; callers schedule requests in simulation time.
+    /// Explicit Evaluate calls remain synchronous.</summary>
     public bool Asynchronous { get; set; }
+    /// <summary>Shared cadence for playback callers; does not throttle explicit evaluations.</summary>
     public static int UpdatesPerSecond
     {
         get => GrnAsyncPoseEvaluator.UpdatesPerSecond;
         set => GrnAsyncPoseEvaluator.UpdatesPerSecond = value;
+    }
+    /// <summary>Cached simulation interval, recalculated only when the selected rate changes.</summary>
+    public static float UpdateIntervalSeconds => GrnAsyncPoseEvaluator.IntervalSeconds;
+    /// <summary>Publish finished work on the owning thread without waiting or scheduling another sample.</summary>
+    public void PublishCompleted()
+    {
+        if (Asynchronous && _async is not null)
+            EvaluatedSequence = _async.PublishCompleted(_owner, EvaluatedSequence);
     }
     public void Submit(in GrnPoseRequest request)
     {

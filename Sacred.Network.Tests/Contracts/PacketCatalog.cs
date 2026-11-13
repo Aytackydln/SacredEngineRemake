@@ -23,6 +23,18 @@ internal static class PacketCatalog
         void Add<T>(string name, ushort opcode, Func<byte[]> bytes, PayloadRule rule = PayloadRule.Exact,
             Action<GoldGameEvent>? verify = null, byte sender = 0, bool owns = false, int[]? shorter = null) where T : GoldGameEvent =>
             rows.Add(new(name, opcode, typeof(T), bytes, rule, verify, sender, owns, shorter));
+        Add<GoldObjectEvent>("native complete startup callback AI NPC", 0x16F, () => StartupNpcAiCommandChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
+            verify: e => { var value = (GoldObjectEvent)e; Assert.AreEqual(119u,value.BaseState.ObjectType);
+                Assert.AreEqual(1u,value.CreatureState!.Word1F4 & 1u); },
+            shorter: [65,66,67,68,145,146,147,148,469,470,471,472]);
+        Add<GoldObjectEvent>("native complete startup trader", 0x16F, () => StartupMerchantCommandChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
+            verify: e => { var value = (GoldObjectEvent)e; Assert.AreEqual(692u,value.BaseState.ObjectType);
+                Assert.AreEqual(0x2000u,value.CreatureState!.Word200 & 0x2000u); },
+            shorter: [65,66,67,68,145,146,147,148,469,470,471,472]);
+        Add<GoldObjectEvent>("native complete startup healer", 0x16F, () => StartupHealerCommandChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
+            verify: e => { var value = (GoldObjectEvent)e; Assert.AreEqual(654u,value.BaseState.ObjectType);
+                Assert.AreEqual(7,value.CreatureState!.Byte2B6); Assert.AreEqual(1u,value.CreatureState.Word245); },
+            shorter: [65,66,67,68,145,146,147,148,469,470,471,472]);
         Add<GoldObjectEvent>("native complete startup Horse", 0x16F, () => StartupHorseChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
             verify: e => { var value = (GoldObjectEvent)e; Assert.AreEqual(65u, value.BaseState.ObjectReference);
                 Assert.AreEqual(555u, value.BaseState.ObjectType); Assert.IsFalse((value.BaseState.Flags & 2) != 0); },
@@ -318,6 +330,12 @@ internal static class PacketCatalog
             PayloadRule.Structured, owns: true, shorter: Enumerable.Range(0, 128).ToArray());
         Add<GoldSpawnRenewEvent>("spawn renew registration", 0x1cf, () => Enumerable.Range(0, 60).Select(i => (byte)i).ToArray(),
             PayloadRule.RetainedSuffix, e => Assert.AreEqual((byte)59, ((GoldSpawnRenewEvent)e).Record.ToPayload()[59]), owns: true);
+        Add<GoldMouseoverEvent>("native startup hideout mouseover",0x1D0,()=>StartupHideoutChecks.WireExample(RepositoryFiles.Root),
+            PayloadRule.RetainedSuffix,e=>{var patch=((GoldMouseoverEvent)e).Record;Assert.AreEqual(2,patch.Mode);Assert.AreEqual((ushort)1,patch.RangeInput);Assert.AreEqual("callback",patch.Callback);},owns:true);
+        Add<GoldMouseoverEvent>("native startup grave mouseover", 0x1D0, () => StartupMouseoverChecks.WireExample(RepositoryFiles.Root),
+            PayloadRule.RetainedSuffix, e => { var patch = ((GoldMouseoverEvent)e).Record;
+                Assert.AreEqual((ushort)3546,patch.X); Assert.AreEqual((ushort)2463,patch.Y);
+                Assert.AreEqual("setvar_000",patch.Callback); Assert.AreEqual(1,patch.Mode); }, owns: true);
         Add<GoldMouseoverEvent>("mouseover registration", 0x1d0, () => new byte[88], PayloadRule.RetainedSuffix,
             e => Assert.AreEqual((ushort)0, ((GoldMouseoverEvent)e).Record.X), owns: true);
         foreach (var op in new ushort[] { 0x1d3, 0x1d4, 0x1d5 })
@@ -410,11 +428,37 @@ internal static class PacketCatalog
             e => { var fx = GoldObjectFxState.FromPayload(((GoldObjectEvent)e).ObjectState);
                 Assert.AreEqual(34u, fx.FxType); Assert.AreEqual(802u, GoldParticleSnapshot.FromPayload(fx.ParticleState.Span).Resource); },
             shorter: new[] { 65, 66, 67, 68 }.Concat(Enumerable.Range(251, 224)).ToArray());
+        Add<GoldObjectEvent>("native complete startup special level NPC", 0x16F, () => StartupSpecialLevelChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
+            verify: e => { var value=(GoldObjectEvent)e; Assert.AreEqual(355u,value.BaseState.ObjectType);
+                Assert.AreEqual(0x80000u,value.CreatureState!.Word1F4 & 0x80000u); },
+            shorter: [65,66,67,68,145,146,147,148,469,470,471,472]);
+        Add<GoldObjectEvent>("native MAGICPRISON opaque snapshot", 0x16F, () => MagicPrisonSnapshotChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
+            verify: e => { var fx=GoldObjectFxState.FromPayload(((GoldObjectEvent)e).ObjectState);
+                Assert.AreEqual(854u,fx.BaseState.ObjectType); Assert.AreEqual(78u,fx.FxType);
+                Assert.IsFalse(GoldParticleSnapshot.FromPayload(fx.ParticleState.Span).HasDerivedMarker); }, shorter: new[]{65,66,67,68}.Concat(Enumerable.Range(251,1332)).ToArray());
+        Add<GoldObjectEvent>("verified host named MAGICPRISON snapshot", 0x16F, () => MagicPrisonNamedChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
+            verify: e => { var fx=GoldObjectFxState.FromPayload(((GoldObjectEvent)e).ObjectState);
+                Assert.AreEqual(854u,fx.BaseState.ObjectType); Assert.AreEqual(8310u,fx.BaseState.Word3C);
+                Assert.AreEqual(78u,fx.FxType); Assert.IsTrue(fx.IsSystemActive); },
+            shorter: new[]{65,66,67,68}.Concat(Enumerable.Range(251,1332)).ToArray());
+        Add<GoldObjectEvent>("native complete startup Book", 0x16E, () => StartupBookCreationChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
+            verify: e => Assert.AreEqual(4098u,((GoldObjectEvent)e).BaseState.ObjectType), shorter: [49,50,51,52,129,130,131,132]);
         Add<GoldObjectEvent>("native startup placed QuestItem", 0x16E,
             () => StartupItemCreationChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
             e => { var state = GoldItemState.FromPayload(((GoldObjectEvent)e).ObjectState);
                 Assert.AreEqual(54u,state.PhysicalState.BaseState.ObjectReference); Assert.AreEqual(4993u,state.PhysicalState.BaseState.ObjectType);
                 Assert.AreEqual(0x201u,state.PhysicalState.BaseState.Flags); }, shorter: [49,50,51,52,129,130,131,132]);
+        Add<GoldObjectEvent>("verified host ground Weapon", 0x16E,
+            () => StartupGroundEquipmentChecks.WireExample(RepositoryFiles.Root,1779), PayloadRule.Structured,
+            e => { var state = GoldItemState.FromPayload(((GoldObjectEvent)e).ObjectState);
+                Assert.AreEqual(1779u,state.PhysicalState.BaseState.ObjectType); Assert.AreEqual(0x200u,state.PhysicalState.BaseState.Flags);
+                Assert.IsTrue(state.HasWeaponExtension); Assert.AreEqual(285,state.SerializedSize); },
+            shorter: [49,50,51,52,129,130,131,132,273,274,275,276]);
+        Add<GoldObjectEvent>("verified host ground Shield", 0x16E,
+            () => StartupGroundEquipmentChecks.WireExample(RepositoryFiles.Root,1200), PayloadRule.Structured,
+            e => { var state = GoldItemState.FromPayload(((GoldObjectEvent)e).ObjectState);
+                Assert.AreEqual(1200u,state.PhysicalState.BaseState.ObjectType); Assert.IsFalse(state.HasWeaponExtension);
+                Assert.AreEqual(265,state.SerializedSize); }, shorter: [49,50,51,52,129,130,131,132]);
         Add<GoldCreatureUpdateEvent>("native startup Horse owner dialog state", 0x11A,
             () => StartupOwnerChecks.WireExample(RepositoryFiles.Root), PayloadRule.Exact,
             verify: e => { var state=(GoldCreatureUpdateEvent)e; Assert.AreEqual(65u,state.ObjectReference); });
@@ -424,6 +468,77 @@ internal static class PacketCatalog
         Add<GoldObjectEvent>("native startup indoor Horse",0x16F,()=>StartupLoadedHorseChecks.WireExample(RepositoryFiles.Root),PayloadRule.Structured,
             verify:e=>{var value=(GoldObjectEvent)e;Assert.AreEqual(86u,value.BaseState.ObjectReference);Assert.AreEqual((byte)1,value.BaseState.Surface);},
             shorter:[65,66,67,68,145,146,147,148,469,470,471,472]);
+        Add<GoldObjectEvent>("host pre-install Armor EquipItem",0x16E,
+            () => ScriptArmorCommandChecks.WireExample(RepositoryFiles.Root),PayloadRule.Structured,
+            e => { var item=GoldItemState.FromPayload(((GoldObjectEvent)e).ObjectState);
+                Assert.AreEqual(3846u,item.PhysicalState.BaseState.ObjectType);
+                Assert.IsFalse(item.HasWeaponExtension);Assert.AreEqual(265,item.SerializedSize); },
+            shorter: [49,50,51,52,129,130,131,132]);
+        Add<GoldObjectEvent>("host explicit elevated blocker NPC",0x16F,
+            ()=>LoadedBlockedNpcChecks.WireExample(RepositoryFiles.Root),PayloadRule.Structured,
+            e=> { var value=(GoldObjectEvent)e;Assert.AreEqual(516u,value.BaseState.ObjectType);Assert.AreEqual((byte)1,value.BaseState.Surface); },
+            shorter:[65,66,67,68,145,146,147,148,469,470,471,472]);
+        Add<GoldObjectEvent>("host sector-zero NPC",0x16F,
+            ()=>SectorZeroNpcChecks.WireExample(RepositoryFiles.Root),PayloadRule.Structured,
+            e=> { var value=(GoldObjectEvent)e;Assert.AreEqual(297u,value.BaseState.ObjectType);Assert.AreEqual((ushort)0,value.BaseState.Sector);Assert.AreEqual(0u,value.BaseState.Flags&2u); },
+            shorter:[65,66,67,68,145,146,147,148,469,470,471,472]);
+        Add<GoldObjectEvent>("verified host named BUBBLEPRISON", 0x16F, () => BubblePrisonChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
+            verify: e => { var fx=GoldObjectFxState.FromPayload(((GoldObjectEvent)e).ObjectState);
+                Assert.AreEqual(853u,fx.BaseState.ObjectType); Assert.AreEqual(8310u,fx.BaseState.Word3C); Assert.AreEqual(77u,fx.FxType);
+                Assert.AreEqual(128,GoldParticleSnapshot.FromPayload(fx.ParticleState.Span).DerivedState.Length); },
+            shorter: new[]{65,66,67,68}.Concat(Enumerable.Range(251,296)).ToArray());
+        Add<GoldObjectEvent>("verified host elevated BUBBLEPRISON", 0x16F, () => ElevatedBubblePrisonChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
+            verify: e => { var fx=GoldObjectFxState.FromPayload(((GoldObjectEvent)e).ObjectState);
+                Assert.AreEqual((byte)1,fx.BaseState.Surface); Assert.AreEqual(17572u,fx.BaseState.Word3C);
+                Assert.AreEqual(0f,GoldParticleSnapshot.FromPayload(fx.ParticleState.Span).Position.Z); },
+            shorter: new[]{65,66,67,68}.Concat(Enumerable.Range(251,296)).ToArray());
+        Add<GoldWorldBankEvent>("normalized host dialog association section fixture",0x1B3,
+            () => DialogAssociationNormalizationChecks.BankThreeWireExample(RepositoryFiles.Root),PayloadRule.RetainedSuffix,
+            e => { var bank=((GoldWorldBankEvent)e).Snapshot;
+                Assert.AreEqual(1,bank.Sections[5].Count); Assert.AreEqual(88,bank.Sections[5].ElementSize); });
+        Add<GoldWorldBankEvent>("native bank-one reader fixture",0x1B1,
+            () => RemainingWorldBankChecks.BankOneWireExample(RepositoryFiles.Root),PayloadRule.RetainedSuffix,
+            e => { var bank=((GoldWorldBankEvent)e).Snapshot;
+                Assert.AreEqual(128,bank.Globals!.FirstBlock.Length); Assert.AreEqual(10,bank.Sections.Count); });
+        Add<GoldWorldBankEvent>("host replacement block in native bank-one reader control",0x1B1,
+            () => RegionReplacementBankChecks.BankOneWireExample(RepositoryFiles.Root),PayloadRule.RetainedSuffix,
+            e => Assert.IsTrue(((GoldWorldBankEvent)e).Snapshot.Globals!.SecondBlock.ToArray().All(value => value == 0)));
+        Add<GoldScriptRegionEvent>("verified host SetRG producer",0x1C5,
+            () => ScriptSetRegionChecks.WireExample(RepositoryFiles.Root),PayloadRule.RetainedSuffix,
+            e => { var region=(GoldScriptRegionEvent)e; Assert.AreEqual(2726u,region.FirstKey); Assert.AreEqual(2655u,region.SecondKey); Assert.AreEqual(1u,region.Region.Type); });
+        Add<GoldEquipmentRemovalEvent>("verified host Armor hand removal",0x11D,
+            () => ScriptArmorRefreshChecks.RemovalWireExample(RepositoryFiles.Root), PayloadRule.Exact,
+            e => { var removal=(GoldEquipmentRemovalEvent)e; Assert.AreEqual(2691u,removal.CreatureReference); });
+        Add<GoldObjectEvent>("verified host ShoulderArmor EquipItem",0x16E,
+            () => ScriptArmorCommandChecks.ShoulderWireExample(RepositoryFiles.Root),PayloadRule.Structured,
+            e => { var item=GoldItemState.FromPayload(((GoldObjectEvent)e).ObjectState);
+                Assert.AreEqual(4015u,item.PhysicalState.BaseState.ObjectType); Assert.AreEqual(265,item.SerializedSize); },
+            shorter: [49,50,51,52,129,130,131,132]);
+        foreach (var type in new uint[] { 4013, 4014, 4012 })
+            Add<GoldObjectEvent>($"verified host Armor accessory {type}",0x16E,
+                () => ScriptArmorCommandChecks.ChainWireExample(RepositoryFiles.Root,type),PayloadRule.Structured,
+                e => { var item=GoldItemState.FromPayload(((GoldObjectEvent)e).ObjectState);
+                    Assert.AreEqual(type,item.PhysicalState.BaseState.ObjectType); Assert.AreEqual(265,item.SerializedSize); },
+                shorter: [49,50,51,52,129,130,131,132]);
+        Add<GoldObjectEvent>("verified host behavior-2000 trader",0x16F,
+            ()=>StartupMerchantCommandChecks.Behavior2000WireExample(RepositoryFiles.Root),PayloadRule.Structured,
+            e=> { var value=(GoldObjectEvent)e;Assert.AreEqual(692u,value.BaseState.ObjectType);Assert.AreEqual(0x2000u,value.CreatureState!.Word1F4&0x2000u); },
+            shorter:[65,66,67,68,145,146,147,148,469,470,471,472]);
+        Add<GoldQuestUpdateEvent>("verified host Tutorial entry journal",0x1BD,
+            ()=>ScriptTriggerQuestChecks.WireExample(RepositoryFiles.Root),PayloadRule.RetainedSuffix,
+            e=> { var value=(GoldQuestUpdateEvent)e;Assert.AreEqual(0u,value.Index);Assert.AreEqual(3u,BinaryPrimitives.ReadUInt32LittleEndian(value.Record.Data)); },
+            owns:true, shorter:[4,12,371]);
+        Add<GoldQuestUpdateEvent>("verified host populated QuestBook journal",0x1BD,
+            ()=>ScriptQuestBookChecks.WireExample(RepositoryFiles.Root),PayloadRule.RetainedSuffix,
+            e=> { var value=(GoldQuestUpdateEvent)e;Assert.AreEqual(0u,value.Index);Assert.AreEqual(9000u,BinaryPrimitives.ReadUInt32LittleEndian(value.Record.Data[32..])); },
+            owns:true, shorter:[4,12,371]);
+        Add<GoldQuestUpdateEvent>("verified host Tutorial compass journal",0x1BD,
+            ()=>ScriptQuestCompassChecks.WireExample(RepositoryFiles.Root),PayloadRule.RetainedSuffix,
+            e=> { var value=(GoldQuestUpdateEvent)e;Assert.AreEqual(0u,value.Index);Assert.AreEqual(3349u,BinaryPrimitives.ReadUInt32LittleEndian(value.Record.Data[12..])); },
+            owns:true, shorter:[4,12,371]);
+        Add<GoldCreatureUpdateEvent>("verified host startup dialog change",0x11A,
+            ()=>StartupDialogStateChecks.WireExample(RepositoryFiles.Root),PayloadRule.Exact,
+            e=> { var value=(GoldCreatureUpdateEvent)e;Assert.AreEqual(2u,value.State.Word245); });
         return rows;
     }
     private static byte[] Words(params uint[] words)

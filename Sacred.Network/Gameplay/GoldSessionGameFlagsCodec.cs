@@ -16,6 +16,10 @@ public static class GoldSessionGameFlagsCodec
     public const uint SilverDifficultyFlag = 0x200;
     public const uint GoldDifficultyFlag = 0x400;
     public const uint PlatinumDifficultyFlag = 0x800;
+    /// <summary>Gold 0x7DB230: either bit selects the campaign callback path,
+    /// after the connected game-object gates. This is not a FIRSTCONTACT role mask.</summary>
+    public const uint CampaignFlagsMask = 0x40010;
+    public static bool IsCampaignGame(uint flags) => (flags & CampaignFlagsMask) != 0;
     /// <summary>Gold 7D9AB2–7D9B07 resets to zero, then applies difficulty flags in ascending order.</summary>
     public static uint Difficulty(uint flags) => (flags & PlatinumDifficultyFlag) != 0 ? 4u :
         (flags & GoldDifficultyFlag) != 0 ? 3u : (flags & SilverDifficultyFlag) != 0 ? 2u :

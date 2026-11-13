@@ -13,6 +13,10 @@ public sealed class WorldScriptCreatedObject
     public int SourceOffset { get; }
     public SacredScriptCreateObject Creation { get; }
     public GoldObjectBaseState BaseState { get; }
+    /// <summary>Native +0x2C, static floor selected on elevated sector re-placement.</summary>
+    public uint StaticSurfaceReference { get; internal set; }
+    /// <summary>Native +0x30, linked by the sector-load callback.</summary>
+    public uint NextOnTile { get; internal set; }
     public byte[] GetAuthoredInstance() => _instance.ToArray();
     public bool PacketReady => false;
     /// <summary>Native 0xAB still requires model/animation execution before packet production.</summary>

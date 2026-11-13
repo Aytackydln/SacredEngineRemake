@@ -23,6 +23,7 @@ public sealed class GrnPoseEvaluator
     }
 
     public GrnPose Pose { get; }
+    internal void InvalidateSample() => _needsEvaluation = true;
     public GrnAnimationClip Animation { get; private set; } = null!;
 
     public void SetAnimation(GrnAnimationClip animation)

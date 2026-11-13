@@ -51,6 +51,7 @@ public static class GoldCreatureStateLayout
     public const int Word259Offset = 241;
     public const int Word25FOffset = 245;
     public const int Word261Offset = 247;
+    /// <summary>Native +0x2B6: initial ECS selector low byte (Gold CreateNPC 0x483D0A).</summary>
     public const int Byte2B6Offset = 249;
     public const int Word2B7Offset = 250;
     public const int Block2B9Offset = 252;

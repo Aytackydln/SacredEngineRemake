@@ -1,0 +1,226 @@
+using Sacred.Assets.GameBin;
+using Sacred.Core.GameBin.Scripts;
+using Sacred.Core.Runtime;
+using Sacred.Core.World;
+using Sacred.Network.Gameplay;
+using Sacred.Core.Pak.Items;
+using Sacred.GameplayHost.Equipment;
+using System.Buffers.Binary;
+
+namespace Sacred.GameplayHost.Scripting;
+
+/// <summary>Initial CreateNPC stages in a fresh KEYX-only startup world. Native
+/// sector runtime flags begin at zero; randomized sampling can demand-load tiles.
+/// Loaded sectors use the compared positioned factory and original indoor grids.
+/// Supported ordinary commands retain complete publication buffers;
+/// unresolved special branches still fail without granting complete campaign upload.</summary>
+public sealed class WorldScriptCreatureWorld : IWorldScriptCreatureWorld, IWorldScriptEquipmentWorld, IWorldScriptCreatureStateWorld, IWorldScriptObjectStateWorld, IWorldScriptCreatureAttributeWorld, IWorldScriptCreatureHealthWorld
+{
+    private readonly WorldScriptCreatureAssets _assets;
+    private readonly WorldScriptCreatureRuntime _runtime;
+    private readonly SacredSectorGrid _grid;
+    private readonly Action<string> _log;
+    private readonly List<WorldScriptCreaturePreparation> _prepared = [];
+    public WorldScriptCreatureWorld(WorldScriptCreatureAssets assets, GoldObjectReferencePool references,
+        WorldObjectAllocationCounter counter, WorldScriptCreatureRuntime runtime, SacredRandomSequence random, Action<string> log)
+    {
+        ArgumentNullException.ThrowIfNull(assets);
+        ArgumentNullException.ThrowIfNull(runtime);
+        ArgumentNullException.ThrowIfNull(runtime.Clock);
+        ArgumentNullException.ThrowIfNull(log);
+        (_assets, _runtime, Random, _log) = (assets, runtime, random, log);
+        _grid = assets.Sectors.CreateGrid();
+        ScriptRegions = new(_grid,assets.Equipment?.Naming?.Resources,runtime.Owner);
+        MapIcons = new(_grid, assets.Equipment?.Naming?.Resources);
+        Factory = new(assets.Results, assets.Construction, references, counter, random, runtime.Owner, runtime.Difficulty);
+        EquipmentFactory = new(references, counter, Factory.Activation, runtime.Owner);
+        StateCommands = new(this, assets, runtime, log);
+        ObjectStateCommands = new(this,log);
+        EquipmentCommands = new(this, assets, runtime, log);
+        if (assets.ReadOutdoorTiles is { } readTiles && !runtime.Owned && runtime.Players == 0)
+            Terrain = new(this,assets,readTiles,log);
+        if (Terrain is { } terrain && assets.Equipment?.Naming?.Resources is { } resources)
+        {
+            Mouseovers = new(name => WorldScriptResourceReference.Resolve("Res:" + name, resources), terrain.MarkMouseover);
+            Hideouts = new(name => WorldScriptResourceReference.Resolve(name,resources),terrain.GetInitialSectorFlags);
+        }
+        ItemResources = new(Resources, assets.Equipment?.Naming?.Resources);
+        Items = new(assets.Objects, EquipmentFactory, runtime, _grid, log);
+        if (assets.FixedEffects is { } effects && runtime.EffectProjection is { } projection)
+            Effects = new(effects,projection,references,counter,Factory.Activation,random,runtime,_grid,log) { MagicPrison = assets.MagicPrison, BubblePrison = assets.BubblePrison };
+        Prepared = _prepared.AsReadOnly();
+    }
+    public WorldScriptRegions ScriptRegions { get; }
+    public WorldScriptObjectStateCommands ObjectStateCommands { get; }
+    public void SetObjectState(WorldScriptExecutionContext context,SacredScriptCommand command)=>ObjectStateCommands.SetObjectState(context,command);
+    public WorldScriptCreatureStateWorld StateCommands { get; }
+    public WorldScriptStartupTerrain? Terrain { get; }
+    public void SetState(WorldScriptExecutionContext context, SacredScriptCommand command) => StateCommands.SetState(context,command);
+    public void SetBaseAttribute(WorldScriptExecutionContext context, SacredScriptCommand command) =>
+        WorldScriptCreatureAttributeCommand.Apply(context, command, this, _assets, _runtime, _log);
+    public void SetHitPoints(WorldScriptExecutionContext context, SacredScriptCommand command) =>
+        WorldScriptCreatureHealthCommand.Apply(context, command, this, _assets, _runtime, _log);
+    internal void UpdateScriptActor(WorldCreatureInitialActor actor)
+    {
+        Factory.Update(actor);
+        var prepared = _prepared.Single(value => value.Actor?.Base.ObjectReference == actor.Base.ObjectReference);
+        prepared.Actor = actor;
+        prepared.CreatureState = WorldCreatureInitialSerialization.Write(actor,prepared.Blueprint.Visuals,EquipmentFactory.Items,_assets.Objects.GetItem);
+    }
+    public Sacred.Core.GameRes.GameResStore? ResourceText => _assets.Equipment?.Naming?.Resources;
+    public byte LocalPlayerSlot => _runtime.Owner;
+    public SacredRandomSequence Random { get; }
+    public WorldCreatureInitialFactory Factory { get; }
+    public WorldEquipmentInitialFactory EquipmentFactory { get; }
+    public WorldScriptEquipmentWorld EquipmentCommands { get; }
+    public void Equip(WorldScriptExecutionContext context, SacredScriptCommand command) => EquipmentCommands.Equip(context, command);
+    public WorldScriptItemResources ItemResources { get; }
+    public WorldScriptItemWorld Items { get; }
+    public IReadOnlyList<WorldScriptCreaturePreparation> Prepared { get; }
+    public WorldScriptCreaturePreparation? Pending { get; private set; }
+    public GoldScriptResourceReplica Resources { get; } = new();
+    public WorldScriptMapIcons MapIcons { get; }
+    public WorldScriptMouseovers? Mouseovers { get; }
+    public WorldScriptHideouts? Hideouts { get; }
+    public WorldScriptEffectWorld? Effects { get; }
+
+    public void Create(WorldScriptExecutionContext context, SacredScriptCommand command)
+    {
+        if (!context.IsExecutingStartup) throw new InvalidDataException("CreateNPC live entry requires its native name/ownership/sector lifecycle.");
+        // This native draw precedes decoding, even with an explicit Facing.
+        var randomFacing = (ushort)(Random.Next() % 361);
+        var blueprint = WorldScriptCreatureBlueprint.Read(context, command, _assets.Objects, _assets.Creatures);
+        var creation = blueprint.Creation;
+        // Gold 0x482E06 gates implicit behavior only for an owned caller.
+        // This initial no-owned profile rejects that caller below; no class exception is needed.
+        var pending = new WorldScriptCreaturePreparation(blueprint, creation.FacingDegrees ?? randomFacing);
+        Pending = pending;
+        var resource = WorldScriptCreatureResourceNames.Resolve(creation.Name, Resources, _assets.Equipment?.Naming?.Resources);
+        if (resource is not (0 or uint.MaxValue) && FindObject(resource, context) is { } existing)
+            throw new InvalidDataException($"CreateNPC named resource {resource} already resolves to object {existing}; native duplicate reuse/teleport requires its lifecycle.");
+        if ((creation.ConstructionFlags & ~0x3Cu) != 0 || (creation.ConstructionFlags != 0 && _assets.Services is null) || creation.Flag2B7Mask08Input == 0)
+            throw new InvalidDataException($"CreateNPC requires native named-resource, special-mode or regional replacement state before initial construction (name '{creation.Name ?? ""}', construction 0x{creation.ConstructionFlags:X}, regional input {creation.Flag2B7Mask08Input}, explicit behavior {creation.HasExplicitBehavior}, behavior 0x{creation.Behavior:X}).");
+        if (_runtime.Difficulty is not (1 or 2))
+            throw new InvalidDataException("CreateNPC requires higher-difficulty actor predicate services.");
+        if (_runtime.Owned)
+            throw new InvalidDataException("CreateNPC owned caller requires its later ownership/group/physical flag effects.");
+        if (!string.IsNullOrEmpty(creation.CallbackName))
+            _ = GoldObjectScriptCallback.Create(GoldReferenceCodec.FirstObjectReference, creation.CallbackName);
+        if (creation.SeeCallbackName is { } seeCallback)
+            _ = GoldObjectScriptCallback.Create(GoldReferenceCodec.FirstObjectReference, SacredScriptObjectCallbackLayout.SeePrefix + seeCallback);
+        var position = WorldScriptCreaturePlacement.Resolve(creation,_grid,_assets.Results.StartupPrecision);
+        if (position is null) { Pending = null; return; }
+        ushort sectorMaximumLevel;
+        if (_assets.Sectors.TryGetSector(position.Value.Sector,out var sector))
+            sectorMaximumLevel=sector.Environment.MonsterMaxLevel;
+        else if (position.Value.Sector==0 && creation.AssignedLevelInput==0 && creation.LevelInput==0)
+            sectorMaximumLevel=0; // Both level handlers return before reading this unused input.
+        else
+            throw new NotSupportedException($"CreateNPC needs its original sector-zero level context or missing KEYX entry: {position.Value.X},{position.Value.Y}, surface {position.Value.Surface}, sector {position.Value.Sector}; source {creation.PlacementInput}.");
+        var loadedPlacement=Terrain?.Tiles.IsLoaded(position.Value.Sector)==true
+            ? Terrain.PreparePlacement(context,position.Value) : null;
+        // 0x62373A initializes fresh sector runtime +30 to zero. KEYX +1CC
+        // is copied into +2E and cannot establish tile-data readiness.
+        var clock = _runtime.Clock();
+        var actor = Factory.Create(blueprint.Template, blueprint.Visuals, clock, clock / 1000d, context.Multiplayer, _runtime.Owned);
+        pending.Actor = actor; pending.Stage = "constructed";
+        _log($"Startup NPC constructed: source 0x{command.FileOffset:X}, ref {actor.Base.ObjectReference}, type {actor.Base.ObjectType}, counter {actor.Base.Byte38}.");
+        actor = loadedPlacement is null ? WorldCreatureScriptPlacement.PlaceDormant(actor,position.Value,Factory.Activation)
+            : Terrain!.Place(actor,loadedPlacement);
+        actor = WorldCreatureScriptPose.Apply(actor, pending.FacingDegrees);
+        Factory.Update(actor); pending.Actor = actor; pending.Stage = "placed";
+        actor = WorldCreatureScriptLevel.Apply(actor, blueprint.Template, creation.AssignedLevelInput, _assets.Results,
+            _assets.Levels, _assets.Progression, _assets.LevelDefinitions, _runtime.Difficulty, _runtime.Owner,
+            context.Multiplayer, sectorMaximumLevel, _runtime.Players);
+        Factory.Update(actor); pending.Actor = actor; pending.Stage = "level initialized";
+        context.ObjectCallbacks.RegisterCreature(actor.Base.ObjectReference, creation.CallbackName);
+        var behavior = creation.Behavior;
+        if (creation.SeeCallbackName is { } seen)
+        {
+            context.ObjectCallbacks.RegisterCreatureSee(actor.Base.ObjectReference, seen, creation.CallbackName);
+            behavior |= 0x400000;
+        }
+        actor = WorldCreatureScriptControl.Apply(actor, behavior, creation.Aggression, creation.Flag2B7Mask08Input);
+        Factory.Update(actor); pending.Actor = actor; pending.Stage = "behavior initialized";
+        if (resource is not (0 or uint.MaxValue))
+        {
+            actor = actor with { Base = WorldScriptCreatureResourceNames.Bind(actor.Base, resource, Resources,
+                key => FindObject(key, context)) };
+            Factory.Update(actor); pending.Actor = actor; pending.Stage = "resource bound";
+        }
+        actor = context.Groups.AssignInitial(actor, creation.Group);
+        Factory.Update(actor); pending.Actor = actor; pending.Stage = "group initialized";
+        actor = WorldCreatureScriptDialog.ApplyInitial(actor, context, creation.DialogSelection);
+        actor = WorldCreatureScriptServices.ApplyInitial(actor, creation.ConstructionFlags, _assets.Services);
+        var spell = new SacredCreatureScriptSpellState(actor.KiMode, actor.SpellSelector, actor.SpellParameter).Apply(creation.PackedSpell);
+        actor = actor with { KiMode = spell.Mode, SpellSelector = spell.Selector, SpellParameter = spell.Parameter };
+        actor = WorldCreatureScriptLevel.ApplyRequested(actor, blueprint.Template, creation.LevelInput, _assets.Results,
+            _assets.Levels, _assets.Progression, _assets.LevelDefinitions, _runtime.Difficulty, _runtime.Owner,
+            context.Multiplayer, sectorMaximumLevel, _runtime.Players);
+        Factory.Update(actor); pending.Actor = actor; pending.Stage = "service initialized";
+        _log($"Startup NPC level/behavior/group initialized: ref {actor.Base.ObjectReference}, level {BinaryPrimitives.ReadUInt16LittleEndian(actor.Component.Values.AsSpan(78))} " +
+            $"(requested {creation.LevelInput}, assigned {creation.AssignedLevelInput}), dialog {actor.DialogIndex}, sector {actor.Base.Sector}, position {actor.Base.X},{actor.Base.Y},{actor.Base.Surface}, " +
+            $"facing {pending.FacingDegrees}, relation {actor.RelationClass}, group {actor.ScriptGroup}; equipment and placed serialization pending.");
+        foreach (var descriptor in blueprint.Equipment)
+        {
+            if (descriptor.ModelDesc.Category is not (SacredItemCategory.Weapon or SacredItemCategory.Shield) ||
+                !_assets.Objects.Equipment.TryGetValue(descriptor.ItemIndex, out var shared))
+                throw new InvalidDataException("CreateNPC requires its equipment category constructor and resolved original shared definition.");
+            // 0x427E80/0x427ED0 select ranged-resource replacement before the
+            // eligibility/factory stage. Those shared usage codes require it.
+            if (!WorldCreatureRangedEquipment.CanRetain(shared.UsageIdentifier,
+                motion => _assets.Motions?.HasMotion(blueprint.Visuals.ModelName, motion) ?? false))
+                throw new InvalidDataException("CreateNPC missing authored ranged motion requires native actor-resource replacement before construction.");
+            // For assigned NPCs both supported categories have an eligible hand
+            // slot (0x54B0E0/0x54ACC0); no player model-slot query is required.
+            var equipment = EquipmentFactory.Create(descriptor, _assets.Objects.GetInstance(descriptor.ItemIndex),
+                _runtime.Clock() / 1000d, context.Multiplayer);
+            pending.AddEquipment(equipment); pending.Stage = "equipment constructed";
+            _log($"Startup NPC equipment constructed: actor {actor.Base.ObjectReference}, item ref {equipment.Physical.Base.ObjectReference}, type {equipment.Physical.Base.ObjectType}, counter {equipment.Physical.Base.Byte38}, node period {equipment.Node.PeriodMilliseconds}; generation/installation pending.");
+            WorldScriptEquipmentGeneration.Apply(equipment, BinaryPrimitives.ReadUInt16LittleEndian(actor.Component.Values.AsSpan(78)),
+                _runtime.Difficulty, _assets.Equipment ?? throw new InvalidDataException("CreateNPC needs original equipment generation/naming definitions."),
+                Random, _assets.Results.StartupPrecision);
+            pending.Stage = "equipment generated";
+            _log($"Startup NPC equipment generation complete: ref {equipment.Physical.Base.ObjectReference}, quality {equipment.Quality}, name '{equipment.Name?.Text}'; installation pending.");
+            actor = WorldCreatureInitialEquipmentInstallation.Apply(actor, equipment, descriptor.ItemIndex, _assets.Equipment,
+                _assets.EquipmentSlots ?? throw new InvalidDataException("CreateNPC needs original equipment slot definitions."), EquipmentFactory.Items, context.Multiplayer);
+            Factory.Update(actor); pending.Actor = actor; pending.Stage = "equipment installed";
+            _log($"Startup NPC equipment installed: actor {actor.Base.ObjectReference}, item ref {equipment.Physical.Base.ObjectReference}, parent {equipment.Physical.AttachmentParent}; actor calculation and placed serialization pending.");
+        }
+        // Native 0x48502F first requires interpreter +0x12 (owned caller).
+        // This supported startup path rejects that caller above; applying the
+        // isolated nonpositive-name block here would incorrectly add mask 0x20.
+        actor = WorldCreatureEquippedResults.Apply(actor, blueprint.Template, _assets.Results,
+            _assets.Equipment ?? throw new InvalidDataException("CreateNPC needs original equipped-result definitions."),
+            EquipmentFactory.Items, _runtime.Difficulty, _runtime.Owner, context.Multiplayer, _runtime.Players);
+        Factory.Update(actor); pending.Actor = actor; pending.Stage = "results initialized";
+        _log($"Startup NPC equipped calculation complete: ref {actor.Base.ObjectReference}, result valid {actor.Component.ResultValid}; placed serialization pending.");
+        pending.CreatureState = WorldCreatureInitialSerialization.Write(actor, blueprint.Visuals, EquipmentFactory.Items, _assets.Objects.GetItem);
+        // 0x449D71 clears the original pending bit while writing the base block.
+        actor = actor with { Base = actor.Base with { Flags = actor.Base.Flags & ~0x10000u } };
+        Factory.Update(actor); pending.Actor = actor; pending.Stage = "creature serialized";
+        _log($"Startup NPC serialization complete: ref {actor.Base.ObjectReference}, {pending.CreatureState.ToPayload().Length} bytes; equipment streams/publication pending.");
+        var publications = WorldCreatureInitialPublication.Prepare(actor, pending.CreatureState, EquipmentFactory.Items, _assets.Objects.GetItem);
+        foreach (var reference in actor.EquipmentReferences.Take(18).Where(value => value != 0))
+        {
+            var physical = EquipmentFactory.Items[reference].Physical;
+            physical.Base = physical.Base with { Flags = physical.Base.Flags & ~0x10000u };
+        }
+        pending.RandomStateAfter = Random.State;
+        pending.Complete(publications); _prepared.Add(pending); Pending = null;
+        _log($"Startup NPC preparation complete: ref {actor.Base.ObjectReference}, {publications.Count} ordered messages retained privately; complete campaign upload still required.");
+    }
+
+    internal uint? FindObject(uint resource, WorldScriptExecutionContext context)
+    {
+        // Native ascending registry scan includes inactive objects and uses the
+        // original descriptor resource when instance +0x3C is zero.
+        var objects = Factory.Actors.Values.Select(value => value.Base)
+            .Concat(EquipmentFactory.Items.Values.Select(value => value.Physical.Base));
+        if (context.ObjectWorld is WorldScriptObjectWorld world)
+            objects = objects.Concat(world.Objects.Select(value => value.BaseState));
+        if (Effects is not null) objects = objects.Concat(Effects.Created.Select(value => value.BaseState));
+        return Resources.FindObject(resource, objects.ToDictionary(value => value.ObjectReference,
+            value => new GoldReplicatedObject(value, null, null)), type => _assets.Objects.GetItem(type).ModelDesc.ResourceId);
+    }
+}

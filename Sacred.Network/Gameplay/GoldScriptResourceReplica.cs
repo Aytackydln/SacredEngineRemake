@@ -41,6 +41,35 @@ public sealed class GoldScriptResourceReplica
     public uint? FindLocalResource(string name) => GoldScriptNames.Equal(name, "hero") || GoldScriptNames.Equal(name, "NON_UNIQUE")
         ? GoldScriptResourceLayout.UnnamedResource : FindName(GoldScriptResourceLayout.LocalResourcePrefix + name)?.ResourceId;
 
+    /// <summary>Gold 0x465070: first existing LRes name, then the first absent map key.
+    /// Fresh rows retain unknown name padding; merely reserving a name does not occupy a map key.</summary>
+    public uint ReserveLocalResource(string name, bool create)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        if (GoldScriptNames.Equal(name,"hero") || GoldScriptNames.Equal(name,"NON_UNIQUE")) return GoldScriptResourceLayout.UnnamedResource;
+        var key = GoldScriptResourceLayout.LocalResourcePrefix + name;
+        _ = GoldScriptNames.Encode(key);
+        var existing = FindName(key);
+        if (existing is not null) return existing.ResourceId;
+        if (!create) return GoldScriptResourceLayout.UnnamedResource;
+        for (var resource = GoldScriptResourceLayout.FirstLocalObjectResource; resource < GoldScriptResourceLayout.LocalObjectResourceLimit; resource++)
+        {
+            if (_bindings.ContainsKey(resource)) continue;
+            _names.Add(GoldScriptNameRecord.CreatePartialLocal(key, resource));
+            Revision++;
+            return resource;
+        }
+        return GoldScriptResourceLayout.UnnamedResource;
+    }
+    /// <summary>CreateObj 0x485F6C..0x485FC9 invalidates every matching local alias,
+    /// preserving old object-map entries and all untouched row bytes.</summary>
+    public void InvalidateLocalName(string name)
+    {
+        var key = GoldScriptResourceLayout.LocalResourcePrefix + name;
+        for (var index = 0; index < _names.Count; index++)
+            if (GoldScriptNames.Equal(_names[index].Name, key)) { _names[index] = _names[index].InvalidateLocal(); Revision++; }
+    }
+
     /// <summary>Native CreateNPC 0x4836EE..0x48370F: assign the resource/object
     /// map entry after lookup. The caller separately sets instance +0x3C.</summary>
     public void BindObject(uint resource, uint reference)

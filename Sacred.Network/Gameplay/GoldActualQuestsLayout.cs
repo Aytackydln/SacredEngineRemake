@@ -1,6 +1,8 @@
 namespace Sacred.Network.Gameplay;
 
-/// <summary>Gold's actual-quest table. The companion word's meaning remains unresolved.</summary>
+/// <summary>Gold's actual-quest table. TriggerQuest entry stores the main journal index
+/// (quest number 1..99) in word zero and the other journal index in word four.
+/// Other packet producers retain their raw-word semantics.</summary>
 public static class GoldActualQuestsLayout
 {
     public const ushort ResetOpcode = 0x1C9;

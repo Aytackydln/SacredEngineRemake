@@ -20,7 +20,8 @@ public enum WorldPathFlags : byte
     /// <summary>Unresolved flag bit. The name preserves its raw hexadecimal byte value.</summary>
     Byte40 = 0x40,
     /// <summary>Sector script-patch marker. Gold 0x49354A and 0x4AB160 set it for
-    /// matching 88-byte patch records. Other uses of this bit remain unmapped.</summary>
+    /// matching 88-byte mouseover records; opcode 94 also writes it directly at 0x4A6DF8.
+    /// Other uses of this bit remain unmapped.</summary>
     Byte80 = 0x80,
 }
 

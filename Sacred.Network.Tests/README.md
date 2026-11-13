@@ -1,12 +1,348 @@
 # Packet tests
 
+13 November [post-startup campaign callback](../docs/game-server/host-startup-campaign-callback.md):
+`PostStartupCallback` adds **10,768 assertions** for original caller gates, name
+selection and actor arguments; `ScriptQuestObjectCompass` adds **3,169** for
+missing-journal deferral, preserving all five scratch words and journal bytes.
+The fresh null-actor continuation completes nine commands; non-null execution
+and existing-journal refresh stay guarded. **1,660 full / 4,851 baseline installed /
+4,857 continuation checks** and Engine/terminal builds pass. No new wire producer
+or full host/Engine acceptance is claimed.
+
+13 November [equipment-pool lifecycle](../docs/game-server/host-startup-equipment-pool-lifecycle.md):
+`EquipmentPoolLifecycle` adds **11,467 assertions** against 16 original clear/load/
+file-mode StartCode/reload cases, including intermediate state and file-only pool
+255. The 252 native append controls also pass. **1,658 full tests / 4,849 installed
+checks** and Engine/terminal builds pass; installed RNG/references are unchanged.
+No new wire producer/format is added. Next: post-startup campaign callback and
+region initialization before complete host upload/readiness.
+
+13 November [regional replacement block](../docs/game-server/host-startup-region-replacement-bank.md):
+`RegionReplacementBank 0x01B1` adds **144 native-result assertions** for original
+reset/wea load, mutation parser/helper, opaque-byte preservation and bank writers,
+including the adjacent 256-row region tail. A host-block/native-reader-envelope
+example extends shared packet/TCP coverage. **1,657 full / 537 focused 0x1B1 /
+4,336 installed checks** and Engine/terminal builds pass. Final region flags,
+equipment-pool initialization order and complete host upload remain unfinished.
+
+13 November [deferred-state ownership and replay](../docs/game-server/host-startup-deferred-state-replay.md):
+`DeferredObjectReplay` adds **4,700 assertions** over original lookup, UInt16 state
+override, swap removal, private save and independent bank-2 callback source.
+`TriggerGapProvenance` adds **252 assertions**, retaining incomplete gap References.
+**1,651 full tests / 4,331 installed checks** and Engine/terminal builds pass.
+Target effects, full banks/readiness and Engine/live acceptance remain unfinished.
+
+13 November [normalized dialog section](../docs/game-server/host-startup-dialog-normalization.md): 128 rows now produce an explicit
+**11,264-byte bank-3 section-5 body**, normalizing only 74 proven nonsemantic
+caller bytes per row. Raw output remains guarded. **108 constructor / 24 lookup /
+four authored-batch controls; 11,805 assertions**. **1,649 full / 529 focused
+0x1B3 / 4,331 installed checks** and Engine/terminal builds pass. Complete banks,
+readiness and Engine/live acceptance remain unfinished.
+
+13 November [established global values](../docs/game-server/host-startup-global-convergence.md): all **150 final values** and the
+original **600-byte interpreter save block** now compare. Complete NPC evidence
+closes 670; three unresolved destinations remain in strict replay, while final
+values provably converge. **192 NPC/variable + 1,050 alternative sequences /
+30,876 assertions**, **1,643 full tests / 4,326 installed checks** and Engine/terminal
+builds pass. Next: 128 incomplete dialog rows. Full banks/readiness and Engine/live
+acceptance remain unfinished.
+
+13 November [mouseover terminator provenance](../docs/game-server/host-startup-mouseover-scratch.md): RNr resolves using a
+known terminating first byte; numeric-zero prefixes remain insufficient.
+**Four destinations remain guarded** (48 of 52 closed). **432 native sequences /
+66,528 assertions**, **1,641 full tests / 4,324 installed checks** and Engine/terminal
+builds pass. Real loaded terrain, complete banks, readiness and host-driven
+Engine acceptance remain unfinished.
+
+13 November [SetTrigger/TriggerPatch scratch](../docs/game-server/host-startup-trigger-scratch.md): two more installed writes
+resolve through full native construction/name registration and bounded patch
+preservation; **five remain guarded** (47 of 52 closed). **192 native sequences /
+30,528 assertions**, **1,639 full tests / 4,324 installed checks** and Engine/terminal
+builds pass. Mouseover padding still requires provenance; full banks, readiness
+and Engine/live acceptance remain unfinished.
+
+13 November [registration and OnMoveOver scratch](../docs/game-server/host-startup-registration-scratch.md): native capacity tracking
+and bounded name clearing resolve seven more destinations; **seven remain guarded**
+(45 of 52 closed). Growth stays pointer-dependent. **162 native sequences + four
+constructor cases / 24,952 assertions**, **1,638 full tests / 4,324 installed checks**
+and Engine/terminal builds pass. Full banks, initial sectors, readiness and
+Engine/live acceptance remain unfinished.
+
+13 November [conservative caller history](../docs/game-server/host-startup-caller-history.md): **38 of 52** short-name global
+indices now resolve from compared consecutive variable calls, bit clears and
+literal DefPos overlap. **14 remain guarded**. **68 native sequences / 520 callers /
+10,676 assertions**, **1,636 full tests / 4,324 installed checks** and Engine/terminal
+builds pass. Optional managed command tracing includes predicates and call paths;
+complete native startup, banks, readiness and Engine/live acceptance remain open.
+
+13 November [variable caller scratch](../docs/game-server/host-startup-variable-scratch.md): **32 native dispatcher sequences /
+320 variable callers / 5,024 assertions** prove history-dependent short-name
+indices. Added per-occurrence name-storage application and rejection guards.
+**1,633 full tests / 4,324 installed checks** and Engine/terminal builds pass.
+The **52 installed destinations remain unresolved** pending complete native
+caller history; full banks, upload/readiness and Engine/live acceptance stay open.
+
+12 November [initial globals](../host-startup-initial-globals.md):
+closed bank 1's **128-byte parameter block** with original reset, authored caller
+and writer parity; all **32 words** are initialized. The separate 150-word global
+baseline and initial regional clear compare in **40 native cases / 383,604 assertions**.
+The **52 short-name global-write indices remain guarded**. **1,632 full / 517 focused
+bank / 4,324 installed tests** and Engine/terminal builds pass (existing NU1903
+warnings). Startup remains complete at **16,457 commands / 466 NPCs**; full
+banks/globals, initial sectors and host entry/readiness remain unfinished.
+
+12 November [SetRG and bank sources](../host-startup-set-rg-and-bank-sources.md):
+selected NetScriptCamp startup bytecode **completes 16,457 commands / 466 NPCs**.
+SetRG/UnSetRG and their private table compare **282 native cases / 290 calls /
+1,418 assertions**. Four keys/eight records serialize to a **288-byte region
+section matching the original bank writer**; a generated 0x1C5 example extends
+wire/TCP tests. **1,626 full / 521 focused region / 4,321 installed checks** and
+Engine/terminal builds pass (existing NU1903 warnings). Full banks/globals,
+initial sectors, upload/readiness and Engine/live acceptance remain unfinished;
+resume with original constructor/reset provenance and the documented source gaps.
+
+12 November [Armor hand lifecycle](../host-startup-armor-hand-lifecycle.md):
+implemented true-predicate Weapon detachment, result recalculation and ordered
+0x11D publication; native does not restore the hand. Wings/Helmet also complete.
+**72 complete native callers + 128 factories / 19,464 assertions**; a generated
+removal extends packet/TCP tests. Startup advances to **16,454 commands / 466 NPCs**,
+stopped at **StartCode +0x8D2D7, opcode 37 (SetRG)**. **1,620 full tests / 575 item /
+610 creature / 515 removal focused / 4,319 installed checks** and Engine/terminal
+builds pass (existing NU1903 warnings). Complete bank/readiness and Engine/live
+acceptance remain open. Native SetRG producer/storage is the next dependency.
+
+12 November [Weapon hand-refresh dependency](../host-startup-hand-refresh.md):
+implemented original usage/resource extraction and exact predicate; **37,779 native
+results / 37,785 assertions**, including all installed profiles and changed
+instruction constants. **1,613 full tests**, **573 item / 608 creature focused**,
+**4,318 installed checks** and Engine/terminal builds pass (existing NU1903 warnings).
+The complete true-predicate detach/restore command remains guarded at
+**StartCode +0x8BD9A / 16,311 commands / 454 NPCs**. The supplied-actor diagnostic
+reaches detachment and 0x11D but its placement/result graph still needs validation;
+no full caller or host-driven Engine acceptance is claimed.
+
+7 November [elevated effects and creature values/health](../docs/game-server/host-startup-elevated-effects-and-health.md):
+192 full native elevated BUBBLEPRISON callers, nine update/render controls, six
+floor-aware readers, 300 SetCV and 192 SetHP callers add **452,066 assertions**
+in four suites. A host-produced elevated 0x16F example extends packet/TCP tests.
+Startup reaches **16,311 commands / 454 NPCs**, stopped at **StartCode +0x8BD9A**,
+Armor EquipNPC needing native true-predicate hand refresh for held Weapon usage 4.
+Exact actor/hand inputs are retained for the next comparison. **1,612 full /
+607 creature-TCP / 4,318 installed checks**, native generators and Engine/terminal
+builds pass (existing NU1903 warnings). Complete banks/readiness, local GUI
+presentation and host-driven Engine/live acceptance remain open.
+
+7 November [compass, dialog reassignment and OnSee continuation](../docs/game-server/host-startup-compass-and-dialog.md):
+literal QuestKompassPos, dialog-only SetNPCState, ordered OnSee callback bytes,
+multiplayer InfoPlayer(5) and absent-hero POPUP compare against original execution.
+Five permanent suites add **431,050 assertions**; new host-produced journal and
+0x11A examples extend packet/TCP contracts. Tutorial OnEnter and its outer
+TriggerQuest now complete. Startup reaches **15,994 commands / 436 NPCs**, stopped
+at **StartCode +0x88B3A**: elevated BUBBLEPRISON, posWillbur **2870/3182/surface 1**.
+Its native placement/projection remains guarded; exact resume inputs are retained.
+**1,603 full / 523 journal-TCP / 598 creature-TCP / 4,315 installed checks** and
+Engine/terminal builds pass (existing NU1903 warnings). One local compass GUI
+submission is retained; presentation delivery, complete banks/readiness and
+host-driven Engine/live acceptance remain open.
+
+6 November [quest entry, journal and Tutorial callback](../docs/game-server/host-startup-quest-entry.md):
+TriggerQuest's actual empty-function return and journal/OnEnter path now compare
+with native execution, along with absent-hero predicates and QuestBook updates.
+Core distinguishes **triggered flag 4** from **solved flag 2**. Three suites add
+**7,155 assertions** and two generated journal examples extend common wire/TCP
+checks. Startup reaches **15,793 commands / 395 NPCs**, guarding
+**FunkCode +0x1A06A4**, QuestKompassPos in QIS_OnEnter1. The partial journal and
+flags remain private, with no completed outer TriggerQuest credit.
+**1,588 full network/host / 513 journal-TCP / 4,312 installed checks** and
+Engine/terminal builds pass (existing NU1903 warnings). A scratch compass probe
+and exact pending effects are recorded for continuation; complete banks/readiness
+and Engine/live acceptance remain open.
+
+6 November [BUBBLEPRISON, Armor chain and late startup](../docs/game-server/host-startup-bubble-and-armor.md):
+96 complete native FX commands, update/render/reader controls, the five-piece
+Shoulder/Chest/Foot/Arm/Belt chain, DoNotClean behavior and multiplayer
+StartPosition now complete. Eleven permanent suites add **82,696 assertions**;
+six generated examples extend wire/TCP coverage. Startup reaches **15,788 commands /
+395 NPCs**, stopping at **StartCode +0x87243**, opcode 20 `TriggerQuest(1)`.
+Its Tutorial callback 11564 has zero byte length; native return/completion logic
+still needs comparison. **1,575 full network/host / 590 creature-TCP / 560 item-TCP /
+4,310 installed checks** and Engine/terminal builds pass (existing NU1903 warnings).
+Supplied actor snapshots, split-interpreter generation and native service boundaries
+are documented. Complete banks/readiness and Engine/live acceptance remain open.
+
+6 November [elevated placement, pending object states and sector zero](../docs/game-server/host-startup-elevated-and-state.md):
+10 native Container reloads, 18 complete elevated blocker NPC callers, 244
+unresolved SetObjState sequences and six complete no-equipment sector-zero
+callers add **26,402 assertions**. Two generated host examples extend creature
+wire/TCP checks. Startup now reaches **14,265 commands / 382 NPCs**, guarding
+named **FX_BUBBLEPRISON** at **StartCode +0x75C4F**. **1,534 full network/host /
+569 focused creature-TCP / 4,303 installed checks** and Engine/terminal builds
+pass (existing NU1903 warnings). Pending-state replay/short-name scratch and
+explicit sector-zero level inputs remain open; native bounds and constructor/
+lookup substitutions are documented. Complete banks/readiness and Engine/live
+acceptance are not claimed.
+
+
+6 November [Armor command and ground-object reload](../docs/game-server/host-startup-ground-equipment.md#armor-command-and-ground-object-reload-delivery-6-november):
+Helmet/ChestArmor EquipItem completes after full caller/hand/publication comparison
+with explicit split-interpreter generation. Sixteen native mixed QuestItem/
+Container sector cases support ordered ground chains. The two permanent suites
+add **140 assertions**, and a generated Armor example adds common wire/TCP checks.
+Startup reaches **14,038 commands / 271 NPCs**, stopping at **StartCode +0x737C4**,
+elevated Container 1801/type 5204/surface 2 in sector 2664. **1,520 full network /
+525 item-TCP / 4,300 installed checks** and Engine/terminal builds pass (existing
+NU1903 warnings). Supplied host actor input is not independent initialization
+proof; complete banks/readiness and Engine/live acceptance remain unfinished.
+
+
+6 November [Armor constructor/installation continuation](../docs/game-server/host-startup-ground-equipment.md#armor-constructor-and-installation-continuation-6-november):
+128 native Helmet/ChestArmor factories and three target-empty installations add
+**18,532 assertions** in two permanent replay suites. Generic construction now
+admits these categories. Full EquipItem remains guarded at **StartCode +0x72CA5**;
+pre-install publication/current-hand refresh and the full actor graph still need
+comparison. **1,513 full network/host tests**, Engine/terminal builds and the two
+native generators pass (existing NU1903 warning). The provisional scratch caller
+suffix is unfinished and excluded from evidence/acceptance.
+
+
+6 November [ground equipment and EquipItem generation](../docs/game-server/host-startup-ground-equipment.md): 72 complete
+native Weapon/Shield commands and 144 actual cache consumers support production;
+144 EquipItem generation cases and 1,004 reverse-level controls compare the next
+helper without admitting its full caller. Startup reaches **13,977 commands /
+256 NPCs**, then guards humanoid Helmet EquipItem at **StartCode +0x72CA5**.
+**1,511 full network / 516 item / 551 creature / 4,299 installed checks** and
+Engine/terminal builds pass (existing NU1903 warnings). Complete banks, readiness
+and Engine/live acceptance remain unfinished.
+
+6 November [named MAGICPRISON producer](../docs/game-server/host-startup-magic-prison-production.md): executable-derived initialization,
+336 native association routes, 36 complete named commands and 27 update/full-render
+controls now support production. Startup reaches **13,924 commands / 240 NPCs**,
+then guards ordinary Weapon CreateObj at **StartCode +0x72310**. **1,499 full
+network / 504 item / 549 creature / 4,298 installed checks** and Engine/terminal
+builds pass (existing NU1903 warnings). Complete banks, readiness, deferred queue
+execution and Engine/live acceptance remain unfinished.
+
+5 November [MAGICPRISON foundations](../docs/game-server/host-startup-magic-prison.md): 20 native name-parser controls,
+72 native factory/unnamed snapshots and nine actual update/full-render comparisons
+now have permanent coverage. Both operand readers preserve the secondary name;
+network decoding retains native size-only particle framing and caller backing.
+**1,491 full network / 501 item / 541 creature / 4,297 installed checks** and
+Engine/terminal builds pass (existing NU1903 warnings). Named association/host
+production remain guarded; startup stays at **13,158 commands / 152 NPCs**.
+
+5 November [owner-provided editor adaptation](../docs/game-server/host-armalion-script-reference.md):
+`ScriptDisassemblerTests` covers readable host failures, Gold trigger-scope width,
+escaped/symbolic operands and raw suffix preservation. The installation check
+traverses 40 original code files / 2,203,256 instructions. All 1,483 tests pass;
+this is inspection coverage, with no additional host startup command credited.
+
+5 November [random-variable continuation](../docs/game-server/host-startup-random-variables.md): opcode 105 and variable equality
+now compare **1,452 native commands, 420 predicates and three combined routes**.
+Startup reaches **13,158 commands / 152 NPCs**, stopping at **FunkCode +0x2CDD1,
+QIS_OnSetUp9512**, two-name FX_MAGICPRISON creation. **1,476 full network /
+491 item / 526 creature / 4,297 installed checks** and Engine/terminal builds pass
+(existing NU1903 warnings). Complete banks, host readiness and Engine acceptance
+remain unfinished.
+
+5 November [literal-1000 NPC continuation](../docs/game-server/host-startup-special-level.md): special health factors now
+integrate at the native stage, with **64 complete NPC commands** and **256 actual
+class queries** compared. Startup reaches **13,142 commands / 140 NPCs**, stopping
+at **FunkCode +0x2CA6A, opcode 105, QIS_OnSetUp9512** (random variable).
+**1,474 full network / 489 item / 524 creature / 4,295 installed checks** and
+Engine/terminal builds pass (existing NU1903 warnings). State remains private and
+invalidated; complete host readiness and Engine acceptance remain unfinished.
+
+5 November [special-health dependency](../docs/game-server/host-startup-health-factors.md): original factor selection and
+startup arithmetic now compare **576 native controls**. Balance fields and
+executable multiplier definitions are decoded. Full health/level-1000 integration
+remains pending; startup stays at **13,095 commands / 109 NPCs**. **1,468 full
+network / 488 item / 518 creature / 4,293 installed checks** and Engine/terminal
+builds pass (existing NU1903 warnings). Host readiness remains unfinished.
+
+5 November [Book/resource/flag-state continuation](../docs/game-server/host-startup-books.md): native-compared Book
+construction, local alias reservation and flag-only SetNPCState now complete.
+Startup reaches **13,095 commands / 109 NPCs**, stopping at **FunkCode +0x2BFBD,
+QIS_OnSetUp9511**, requested level 1000 and special health factors. **1,467 full
+network / 487 item / 517 creature / 4,293 installed checks** and Engine/terminal
+builds pass (existing NU1903 warnings). Partial state remains private/invalidated;
+complete banks, host readiness and Engine acceptance remain unfinished.
+
+5 November [NPC callback/AI continuation](../docs/game-server/host-startup-npc-ai.md): ordered
+callback registration and initial no-hero AI now compare 432 initializer controls,
+16 append controls and 12 complete NPC commands. Startup reaches **12,987 commands /
+102 NPCs**, stopping at **named Book construction, QIS_OnSetUp10254, FunkCode
++0x2869B**. **1,459 network / 514 focused / 4,291 installed checks** and
+Engine/terminal builds pass (existing NU1903 warnings). Full host readiness and
+Engine acceptance remain unfinished.
+
+5 November [quest continuation](../docs/game-server/host-startup-quests.md): original quest table
+loading, activation order/reentry and quest-number function gates now compare
+native behavior (955 assertions). Startup reaches **12,959 commands / 99 NPCs**,
+stopping in **QIS_OnSetUp10251 at FunkCode +0x27016**, CreateNPC callback tag 0x05;
+behavior-bit-1 AI is also pending. **1,452 network / 4,289 installed checks** and
+Engine/terminal builds pass (existing NU1903 warnings). Partial quest state stays
+invalidated/private; full host readiness and Engine acceptance remain unfinished.
+
+5 November [merchant continuation](../docs/game-server/host-startup-merchants.md): combined
+trader/smith/combo services and native unowned implicit-NPC admission now compare
+96 service cases and 30 complete commands. Startup reaches **12,947 commands /
+96 NPCs**, stopping at **quest activation, opcode 21, StartCode +0x678DF**.
+**1,451 network / 506 focused / 4,288 installed checks** pass. Engine/terminal
+builds pass with existing NU1903 warnings; full host readiness remains unfinished.
+
+5 November [healer continuation](../docs/game-server/host-startup-healer.md): CreateNPC now reuses
+shared ECS decoding and binds explicit dialog slots/attachments. Native comparisons
+cover 125 bounded cases and six complete healer commands. Startup reaches **12,891
+commands / 93 NPCs**, stopping at **trader mode 4, StartCode +0x66DED**. All **1,444
+network tests**, **499 focused 0x16F tests** and **4,287 installed checks** pass.
+Engine/terminal builds pass with existing NU1903 warnings. Complete host upload
+and Engine acceptance remain unfinished.
+
+4 November [dialog/pool continuation](../docs/game-server/host-startup-dialog-associations.md): opcode 106
+associations and opcode 114 equipment pools now compare 540 / 252 native cases.
+Startup reaches **12,888 commands**, stopping at **CreateNPC, StartCode +0x66D5A**,
+operand **0x67 (`ECS_HEALING`)**. All **1,437 network tests** and **4,286 installed
+checks** pass; Engine/terminal builds pass with existing NU1903 warnings. New
+association scratch bytes remain unknown and serialization is guarded. Complete
+banks/upload/readiness and Engine acceptance remain unfinished.
+
+4 November [hideout continuation](../docs/game-server/host-startup-hideouts.md): native-compared opcode 140 now
+consumes pool definitions and produces ordered mouseovers with shared CRT RNG.
+Startup reaches **11,685 commands**, stopping at **opcode 106, StartCode +0x60CDA**
+(dialog associations). All **1,435 network tests**, **460 focused 0x1D0 checks** and
+**4,283 installed checks** pass. Builds pass with existing NU1903 package warnings;
+complete banks/upload/readiness and Engine acceptance remain unfinished.
+
+4 November [sector retention continuation](../docs/game-server/host-startup-sector-retention.md): native cache eviction,
+compressed unload/reload with linked actors and stored tile-patch replay now pass.
+Startup reaches **5,444 commands / 232 variables**, stopping at **opcode 140,
+StartCode +0x280B2** (hideout/pool mouseover production). All **1,429 network tests**
+and **4,282 installed checks** pass. Engine/terminal builds pass with existing
+NU1903 package-audit warnings. Full banks/upload/readiness remain unfinished.
+
+4 November [mouseover/terrain continuation](../docs/game-server/host-startup-mouseovers.md): opcode 94 production and
+ordinary opcode 68 variable bits are native-compared. Dormant equipped ground
+reload and unlinked IndoorExit placement also compare. Startup reaches **3,480
+commands / 201 variables**, stopping at **StartCode +0x19A06** when the 96-sector
+tile cache requires native eviction. Elevated/retired Horse reload also compares. All **1,426 network tests**, **450 focused
+0x1D0 checks** and **4,282 installed checks** pass; Engine/terminal builds pass with
+existing NU1903 package-audit warnings. Full upload/readiness and Engine acceptance remain unfinished.
+
+1 November [grave-variable continuation](../docs/game-server/host-startup-grave-variables.md): native-compared literal 0x6E,
+`+Var(...)` destination names and opcode 111 function restart now complete the
+194-iteration grave loop. Installed startup reaches **2,534 commands / 197
+variables**, stopping at **StartCode.bin +0xD419, opcode 94 mouseover registration**
+(the former CreateObj label was incorrect). All **1,418 network tests** and
+**4,280 installed checks** pass; Engine/terminal builds are clean. Full upload,
+readiness and host-driven Engine acceptance remain unfinished.
+
 30 October [Horse dependency continuation](../docs/game-server/host-startup-horse-continuation.md): loaded indoor creation,
 level-only state changes and implicit unnamed Horses now compare with complete
 native commands. Startup reaches **1,755 commands, 92 NPCs and 290 private messages**,
 stopping in `grabsteindialogvars` at FunkCode +0x828D (condition tag 0x6E). The next
 closure also needs native +Var name expansion and opcode 111 loop control. All
-1,417 network tests and 4,279 installed checks pass; Engine/terminal builds are
-clean. Full host upload/readiness and Engine acceptance remain unfinished.
+1,417 network tests and 4,279 installed checks pass; Engine/terminal builds pass with
+existing NU1903 package-audit warnings. Full host upload/readiness and Engine acceptance remain unfinished.
 
 
 The startup continuation adds native name/duplicate/binding comparisons (222

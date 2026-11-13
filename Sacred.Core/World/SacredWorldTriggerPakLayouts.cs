@@ -20,6 +20,9 @@ public readonly struct SacredWorldTriggerPakHeaderLayout
 public readonly struct SacredWorldTriggerRecordLayout
 {
     public const int SerializedSize = 16;
+    /// <summary>Stored reference, distinct from vector slot. Sparse dynamic growth
+    /// (Gold 0x63881E) clears the other 12 bytes but copies caller scratch here;
+    /// an unassigned gap therefore cannot be reconstructed as a complete row.</summary>
     [FieldOffset(0)] public readonly uint Reference;
     /// <summary>Bits 0x04/0x40 select callback activation; 0x80 enables publication.
     /// See Gold 0x415F00/0x416280 and the serialized SacredWorldTriggerLayout.</summary>

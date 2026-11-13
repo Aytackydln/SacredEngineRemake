@@ -11,7 +11,7 @@ public static class SacredScriptObjectCreationReader
         ArgumentNullException.ThrowIfNull(resolvePosition);
         if (command.Opcode != SacredScriptCommandHeaderLayout.CreateObjectOpcode)
             throw new ArgumentException("Expected CreateObj.", nameof(command));
-        string? name = null, trigger = null, take = null, use = null;
+        string? name = null, secondaryName = null, trigger = null, take = null, use = null;
         uint type = 0;
         SacredScriptPosition? tile = null, world = null;
         ushort? facing = null;
@@ -22,8 +22,8 @@ public static class SacredScriptObjectCreationReader
             {
                 case SacredScriptArgumentKind.TypeId: type = unchecked((uint)operand.Integer!.Value); break;
                 case SacredScriptArgumentKind.NullTerminatedString:
-                    if (string.IsNullOrEmpty(name)) name = Text(operand);
-                    else throw new InvalidDataException("Repeated object name requires native resource/association resolution.");
+                    if (string.IsNullOrEmpty(name)) name = operand.Text ?? throw new InvalidDataException("Expected object name.");
+                    else secondaryName = operand.Text ?? throw new InvalidDataException("Expected secondary object name.");
                     break;
                 case SacredScriptArgumentKind.ObjectReference: trigger = (trigger ?? "") + Text(operand); break;
                 case SacredScriptArgumentKind.ObjectTakeScript: take = Text(operand); break;
@@ -42,7 +42,7 @@ public static class SacredScriptObjectCreationReader
         if (tile is not null && world is not null)
             throw new InvalidDataException("Combined tile/world placement requires native offset semantics.");
         return new(name, type, tile, world, height, FacingDegrees: facing, TriggerReference: trigger)
-        { TakeScript = take, UseScript = use };
+        { SecondaryName = secondaryName, TakeScript = take, UseScript = use };
     }
 
     private static string Text(SacredScriptOperand operand)

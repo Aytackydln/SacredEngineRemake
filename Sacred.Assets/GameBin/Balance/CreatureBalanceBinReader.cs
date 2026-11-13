@@ -30,6 +30,10 @@ public static class CreatureBalanceBinReader
             percent[i] = BinaryPrimitives.ReadInt32LittleEndian(globals[(SacredCreatureBalanceLayout.LevelPercentAdditionsOffset + i * 4)..]);
             additions[i] = BinaryPrimitives.ReadInt32LittleEndian(globals[(SacredCreatureBalanceLayout.LevelAdditionsOffset + i * 4)..]);
         }
-        return new(levels, factors, MemoryMarshal.Read<SacredSkillCurveLayout>(globals[SacredCreatureBalanceLayout.VitalityCurveOffset..]), percent, additions);
+        return new(levels, factors, MemoryMarshal.Read<SacredSkillCurveLayout>(globals[SacredCreatureBalanceLayout.VitalityCurveOffset..]), percent, additions)
+        {
+            BehaviorHealthFactor = BinaryPrimitives.ReadSingleLittleEndian(globals[SacredCreatureBalanceLayout.BehaviorHealthFactorOffset..]),
+            StatusHealthFactor = BinaryPrimitives.ReadSingleLittleEndian(globals[SacredCreatureBalanceLayout.StatusHealthFactorOffset..])
+        };
     }
 }

@@ -21,7 +21,7 @@ internal enum CharacterAnimationStateId
 /// <summary>A small immediate-transition state machine for the player character.</summary>
 internal sealed class CharacterAnimationState
 {
-    private static float MinimumPoseIntervalSeconds => 1.0f / GrnCpuPoseRequestAdapter.UpdatesPerSecond;
+    private static float MinimumPoseIntervalSeconds => GrnCpuPoseRequestAdapter.UpdateIntervalSeconds;
 
     private readonly GrnAnimatedMesh? _animatedMesh;
     private readonly EquipmentEffectScene? _equipmentEffects;
@@ -192,6 +192,7 @@ internal sealed class CharacterAnimationState
 
     public void Update(float deltaSeconds, float locomotionPlaybackSpeed = 1.0f)
     {
+        _animatedMesh?.Playback.Cpu.PublishCompleted();
         if (_animatedMesh is null || !float.IsFinite(deltaSeconds) || deltaSeconds <= 0.0f)
             return;
 

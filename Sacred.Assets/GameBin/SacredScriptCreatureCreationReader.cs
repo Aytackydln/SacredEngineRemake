@@ -12,6 +12,10 @@ public static class SacredScriptCreatureCreationReader
         ArgumentNullException.ThrowIfNull(resolvePosition);
         if (command.Opcode != SacredScriptCreateCreature.Opcode) throw new ArgumentException("Expected CreateNPC.", nameof(command));
         string? name = null;
+        string? callback = null;
+        string? seeCallback = null;
+        SacredScriptDialogSelection? dialog = null;
+        uint spell = 0;
         uint type = 0, behavior = 0;
         var equipment = new List<uint>();
         SacredScriptPosition? position = null;
@@ -29,6 +33,18 @@ public static class SacredScriptCreatureCreationReader
         {
             switch (operand.Kind)
             {
+                case SacredScriptArgumentKind.DialogRegistrationName:
+                case SacredScriptArgumentKind.DialogRegistrationNumber:
+                    dialog = new(operand.Text, operand.Integer is { } number ? (ushort)number : null);
+                    break;
+                case SacredScriptArgumentKind.CreatureSpellSelector:
+                    spell = SacredScriptCreatureSpellSelector.Resolve(operand.Text!);
+                    explicitBehavior = true;
+                    break;
+                case SacredScriptArgumentKind.CreatureCallbackName:
+                    callback = operand.Text; explicitBehavior = true; break;
+                case SacredScriptArgumentKind.CreatureSeeCallbackName:
+                    seeCallback = operand.Text; explicitBehavior = true; break;
                 case SacredScriptArgumentKind.TypeId:
                     var resource = unchecked((uint)operand.Integer!.Value);
                     if (type == 0) type = resource; else equipment.Add(resource);
@@ -67,6 +83,8 @@ public static class SacredScriptCreatureCreationReader
                     behavior &= 0xFFFF0000; explicitBehavior = true; break;
                 case SacredScriptArgumentKind.CreatureBehavior2:
                     behavior = (behavior & 0xFFFF0002) | 2; explicitBehavior = true; break;
+                case SacredScriptArgumentKind.CreatureBehavior2000:
+                    behavior |= 0x2000; explicitBehavior = true; break;
                 case SacredScriptArgumentKind.CreatureBehavior4000:
                     behavior = (behavior & 0xFFFF4000) | 0x4000; explicitBehavior = true; break;
                 case SacredScriptArgumentKind.CreatureBehavior10:
@@ -82,6 +100,8 @@ public static class SacredScriptCreatureCreationReader
                 case SacredScriptArgumentKind.CreatureBehavior40:
                 case SacredScriptArgumentKind.CreatureBehavior40Alias:
                     behavior = (behavior & 0xFFFF0040) | 0x40; break;
+                case SacredScriptArgumentKind.CreatureSmith:
+                    constructionFlags |= 0x10; explicitBehavior = true; break;
                 case SacredScriptArgumentKind.CreatureTrader:
                     constructionFlags |= 4; explicitBehavior = true; break;
                 case SacredScriptArgumentKind.CreatureComboMaster:
@@ -98,6 +118,6 @@ public static class SacredScriptCreatureCreationReader
         }
         return new(name, type, equipment.AsReadOnly(), position, facing, group, level, behavior, aggression, explicitBehavior)
             { WorldPosition = worldPosition, PlacementInput = placement, Flag2B7Mask08Input = flag2B7Bit8, ConstructionFlags = constructionFlags,
-                AssignedLevelInput = assignedLevel };
+                CallbackName = callback, SeeCallbackName = seeCallback, AssignedLevelInput = assignedLevel, DialogSelection = dialog, PackedSpell = spell };
     }
 }

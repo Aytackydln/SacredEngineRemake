@@ -11,7 +11,10 @@ public readonly struct SacredScriptRegistrationLayout
 {
     public const ushort Opcode = 40;
     public const int SerializedSize = 80;
-    [FieldOffset(0), BinaryUnknown] public readonly int Word0;
+    /// <summary>Legacy raw alias of RegistrationNumber.</summary>
+    [FieldOffset(0)] public readonly int Word0;
+    /// <summary>Opcode 106's UInt16 number selector matches this full word before resolving the registration slot.</summary>
+    [FieldOffset(0)] public readonly int RegistrationNumber;
     [FieldOffset(4), BinaryString("Name", 64, "ISO-8859-1")] private readonly byte _name;
     /// <summary>Index into the 84-byte FunkStru table. Gold 0x476B07/0x476B28 indexes
     /// it before converting the referenced function to its multiplayer identity.</summary>

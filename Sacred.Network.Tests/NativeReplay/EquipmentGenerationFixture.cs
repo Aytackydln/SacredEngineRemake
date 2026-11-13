@@ -16,6 +16,7 @@ internal static class EquipmentGenerationFixture
     {
         JsonDocument Read(string name) => JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "docs/game-server/evidence/" + name + ".json")));
         using var ordinary = Read("native-equipment-factory");
+        using var refresh = Read("native-weapon-hand-refresh");
         using var names = Read("native-equipment-names");
         using var magic = Read("native-equipment-magic");
         using var variants = Read("native-equipment-variants");
@@ -25,6 +26,7 @@ internal static class EquipmentGenerationFixture
             Convert.FromHexString(chunk.GetProperty("hex").GetString()!).CopyTo(image, chunk.GetProperty("offset").GetInt32());
         return EquipmentGenerationFixture.Read(root, ordinary.RootElement) with { Naming = EquipmentNameChecks.ReadNaming(names.RootElement),
             SingleMagicBonusItem = SacredEquipmentMagicDefinitions.Read(image),
+            HandRefresh = SacredWeaponHandRefreshDefinitions.Read(Convert.FromHexString(refresh.RootElement.GetProperty("variants")[0].GetProperty("definition_hex").GetString()!)),
             EquipmentSources = SacredEquipmentSourceDefinitions.Read(Image(variants.RootElement)),
             EquipmentDefaults = SacredEquipmentDefaultDefinitions.Read(Image(installation.RootElement)) };
 

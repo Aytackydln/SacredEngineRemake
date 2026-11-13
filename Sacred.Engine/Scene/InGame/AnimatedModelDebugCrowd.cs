@@ -12,6 +12,7 @@ internal sealed class AnimatedModelDebugCrowd
     private readonly List<SceneModel> _worldModels = [];
     private GrnAnimatedMesh? _source;
     private float _time;
+    private float _poseElapsed;
     public int Count { get; set; }
 
     public void Update(SceneState scene, float deltaSeconds)
@@ -41,12 +42,18 @@ internal sealed class AnimatedModelDebugCrowd
                 }
         }
         _time += deltaSeconds;
+        _poseElapsed += deltaSeconds;
+        var interval = GrnCpuPoseRequestAdapter.UpdateIntervalSeconds;
+        var poseDue = _poseElapsed >= interval;
+        if (poseDue) _poseElapsed %= interval;
         for (var i = 0; i < _models.Count; i++)
         {
             var model = _models[i];
             var animation = model.Geometry.Animation!;
-            if (!ReferenceEquals(animation.Animation, source!.Animation)) animation.SetAnimation(source.Animation);
-            animation.RequestPose(_time + i * .037f);
+            animation.Playback.Cpu.PublishCompleted();
+            var changed = !ReferenceEquals(animation.Animation, source!.Animation);
+            if (changed) animation.SetAnimation(source.Animation);
+            if (poseDue || changed) animation.RequestPose(_time + i * .037f);
             var offset = new Vector2((i % 8 - 3.5f) * .65f, (i / 8 + 1) * .65f);
             model.SetPose(player.Position + new Vector3(offset, 0), player.Rotation,
                 player.DepthAnchor + offset, player.GroundPlaneZ);

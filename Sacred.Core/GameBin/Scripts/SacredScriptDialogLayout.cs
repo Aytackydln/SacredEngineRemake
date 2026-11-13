@@ -14,14 +14,16 @@ public readonly struct SacredScriptDialogLayout
     public const int FunctionOffset = 68;
     public const int IconOffset = 72;
     public const int AttachedObjectReferenceOffset = 76;
-    /// <summary>Native first word; its role is unresolved. It is not the independent network update slot.</summary>
-    [FieldOffset(0), BinaryUnknown] public readonly int Number;
+    /// <summary>Dialog-registration number. Opcode 106 tag 0x0A searches this word to
+    /// resolve a registration slot (Gold 0x4653E6). Separate from the network update index.</summary>
+    [FieldOffset(0)] public readonly int Number;
     [FieldOffset(NameOffset), BinaryString("Name", NameLength, "ISO-8859-1")] private readonly byte _name;
     /// <summary>Function index in the file; native network import resolves the function reference.</summary>
     [FieldOffset(FunctionOffset)] public readonly uint Function;
     /// <summary>Native overhead selector read by 0x499E90; SetIcon (opcode 86) changes this word.</summary>
     [FieldOffset(IconOffset)] public readonly uint Icon;
     /// <summary>Gold CreateNPC 0x483AD5 stores creature +0x0C here when binding this dialog;
-    /// 0x483AA0 clears the previous dialog attachment. Also present in bank 4 and 0x1C8.</summary>
+    /// 0x483AA0 clears the previous dialog attachment. SetNPCState 0x461DF2..0x461F16
+    /// also detaches and rebinds it, including clearing missing names. Present in bank 4 and 0x1C8.</summary>
     [FieldOffset(AttachedObjectReferenceOffset)] public readonly uint AttachedObjectReference;
 }

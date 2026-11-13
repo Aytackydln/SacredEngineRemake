@@ -12,7 +12,8 @@ public sealed class GoldScriptRegionReplica
         Regions = new ReadOnlyDictionary<uint, IReadOnlyList<GoldScriptRegionRecord>>(_views);
     }
     public IReadOnlyDictionary<uint, IReadOnlyList<GoldScriptRegionRecord>> Regions { get; }
-    internal void Apply(GoldScriptRegionEvent entry)
+    /// <summary>Shared keyed-table mutation for received updates and authoritative script production.</summary>
+    public void Apply(GoldScriptRegionEvent entry)
     {
         var update = GoldScriptRegionCodec.Decode(entry.Message);
         if (update.Mode != 0)

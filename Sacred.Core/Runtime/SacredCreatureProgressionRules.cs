@@ -18,6 +18,21 @@ public static class SacredCreatureProgressionRules
         return value >= 1 && double.IsFinite(value) ? unchecked((uint)(long)value) : 1;
     }
 
+    /// <summary>Startup EquipItem uses the returned reverse-level value at
+    /// x87 PC=24. The wider presentation caller retains its existing arithmetic.</summary>
+    public static uint BaseLevelForDifficulty(uint level, uint difficulty, SacredCreatureBalance balance, SacredX87Precision precision)
+    {
+        if (precision is SacredX87Precision.Double or SacredX87Precision.Extended)
+            return BaseLevelForDifficulty(level, difficulty, balance);
+        var arithmetic = new SacredResultArithmetic(precision);
+        var index = DifficultyIndex(difficulty);
+        var addition = unchecked((uint)balance.LevelAdditions[index]);
+        if (level <= addition) return 1;
+        var divisor = arithmetic.Add(arithmetic.Multiply(balance.LevelPercentAdditions[index], .01f), 1);
+        var value = arithmetic.Add(arithmetic.Divide(level - addition, divisor), .5f);
+        return value >= 1 && double.IsFinite(value) ? unchecked((uint)(long)value) : 1;
+    }
+
     public static uint NormalizeLevel(uint level, uint difficulty, SacredCreatureBalance balance, uint extraPercent = 0)
     {
         var index = DifficultyIndex(difficulty);
