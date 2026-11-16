@@ -10,12 +10,14 @@ public sealed record WorldCreatureLoadedPlacementPlan(GoldObjectPosition Positio
 /// tile insertion, static floor link, trigger identity and inactive-sector node.</summary>
 public static class WorldCreatureLoadedPlacement
 {
-    /// <summary>Explicit elevated blockers bypass native ground-floor probing;
-    /// the complete assigned NPC caller preserves that floor and inserts normally.</summary>
+    /// <summary>Call after the original factory floor search. Elevated blockers
+    /// retain their explicit floor. If the search leaves surface zero, the native
+    /// caller can still insert on the ground blocker; walkability is not a second
+    /// creation veto. Other special tile behaviors remain unsupported.</summary>
     public static bool SupportsTile(WldxTileRecord tile, GoldObjectPosition position, uint floor) =>
         tile.Properties.Behavior == WldxTileBehavior.None ||
-        position.Surface > 0 && floor != 0 && tile.Properties.Behavior is
-            WldxTileBehavior.MovementBlockerA or WldxTileBehavior.MovementBlockerB;
+        (position.Surface == 0 && floor == 0 || position.Surface > 0 && floor != 0) &&
+        tile.Properties.Behavior is WldxTileBehavior.MovementBlockerA or WldxTileBehavior.MovementBlockerB;
 
     public static WorldCreatureInitialActor Place(WorldCreatureInitialActor actor,WorldCreatureLoadedPlacementPlan plan,
         WorldObjectActivationQueue activation)
@@ -26,7 +28,7 @@ public static class WorldCreatureLoadedPlacement
         if ((actor.Base.Flags & 2) == 0 || !actor.Node.Active || actor.EquipmentReferences.Any(value=>value!=0) ||
             (actor.Base.Flags & (0x90000410|GoldPhysicalStateLayout.ModelLoadedFlag)) != 0 ||
             !SupportsTile(plan.Tile,plan.Position,plan.StaticSurfaceReference))
-            throw new NotSupportedException("Positioned factory needs its compared fresh unloaded actor and compared ordinary/elevated-blocker destination tile.");
+            throw new NotSupportedException("Positioned factory needs its compared fresh unloaded actor and compared ordinary/blocker destination after floor resolution.");
         var head = plan.Tile.WorldObjectChainHeadId;
         var placed = actor with
         {

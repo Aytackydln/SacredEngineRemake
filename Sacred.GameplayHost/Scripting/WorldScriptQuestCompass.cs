@@ -6,23 +6,24 @@ namespace Sacred.GameplayHost.Scripting;
 
 /// <summary>Gold 0x49A4B0 literal startup caller. The local GUI event precedes
 /// both real refreshes and journal mutation; startup suppresses only the network
-/// update. Default function quest, named/object targets and live entry stay guarded.</summary>
+/// update. An omitted quest uses the current native function scope; named/object
+/// targets and live entry stay guarded.</summary>
 public static class WorldScriptQuestCompass
 {
     public static void Apply(WorldScriptExecutionContext context, SacredScriptCommand command)
     {
         if (!context.IsExecutingStartup) throw new NotSupportedException("QuestKompassPos live entry requires native journal publication.");
-        var x = -1; var y = -1; int? number = null;
+        var x = -1; var y = -1; int? number = context.CurrentFunctionQuest;
         foreach (var operand in SacredScriptOperandReader.Read(command))
         {
             if (operand.Kind != SacredScriptArgumentKind.Integer || operand.Integer is not { } value)
-                throw new NotSupportedException("QuestKompassPos requires its compared literal coordinate and explicit quest operands.");
+                throw new NotSupportedException("QuestKompassPos requires its compared literal coordinate/quest operands.");
             if (x == -1) x = value;
             else if (y == -1) y = value;
             else number = value;
         }
         if (x < 0 || y < 0) return;
-        if (number is null) throw new NotSupportedException("QuestKompassPos omitted quest requires native function quest save/restore.");
+        if (number is null) throw new NotSupportedException("QuestKompassPos omitted quest requires a proven function quest scope.");
         var quests = context.Quests ?? throw new InvalidDataException("QuestKompassPos requires original journal state.");
         ApplyLiteral(quests, number.Value, (uint)x, (uint)y, 1200, context.LocalPlayerSlot, context.SubmitLocalGuiRequest);
     }

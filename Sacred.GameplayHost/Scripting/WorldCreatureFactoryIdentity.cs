@@ -1,4 +1,5 @@
 using Sacred.Core.Pak.Items;
+using Sacred.Core.Pak.Creature;
 using Sacred.Core.Runtime;
 using Sacred.Network.Gameplay;
 
@@ -17,7 +18,8 @@ public static class WorldCreatureFactoryIdentity
         if (!actor.Node.Active || actor.Base.ObjectReference != 0 || actor.Base.Owner != 0 ||
             (actor.Base.Flags & GoldPhysicalStateLayout.ModelLoadedFlag) != 0 || actor.EquipmentReferences.Any(value => value != 0))
             throw new NotSupportedException("Initial identity requires the activated, unassigned, unloaded empty-equipment NPC.");
-        if (reference <= 16 || owner is < 1 or > 16 || descriptor.ItemIndex != actor.Base.ObjectType ||
+        var localHero = actor.RelationClass == (uint)SacredCreatureClass.Hero && reference == owner && reference is >= 1 and <= 16;
+        if (reference <= 16 && !localHero || owner is < 1 or > 16 || descriptor.ItemIndex != actor.Base.ObjectType ||
             descriptor.ModelDesc.Category != SacredItemCategory.Creature)
             throw new ArgumentException("Expected a reserved NPC reference, valid owner and matching original creature descriptor.");
         var direction = SacredStartupHeading.ToDirection(descriptor.ModelDesc.Angle3D);

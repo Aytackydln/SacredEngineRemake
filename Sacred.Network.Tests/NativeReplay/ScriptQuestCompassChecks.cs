@@ -1,5 +1,7 @@
 using System.Buffers.Binary;
 using System.Text.Json;
+using System.Text;
+using Sacred.Assets.GameBin;
 using Sacred.Core.GameBin.Scripts;
 using Sacred.GameplayHost.Scripting;
 
@@ -8,18 +10,21 @@ internal static class ScriptQuestCompassChecks
     public static int Run(string root)
     {
         using var fixture = Read(root); var checks = 0;
-        foreach (var row in fixture.RootElement.GetProperty("cases").EnumerateArray())
+        foreach (var row in fixture.RootElement.GetProperty("cases").EnumerateArray().Concat(fixture.RootElement.GetProperty("default_cases").EnumerateArray()))
         {
             var quests = Restore(row);
-            var context = new WorldScriptExecutionContext(new(), [], ReadOnlyMemory<byte>.Empty, true)
-                { Quests = quests, LocalPlayerSlot = row.GetProperty("owner").GetUInt32() };
-            new WorldScriptExecutor(context).ExecuteStartup(Bytes(row, "command_hex"));
+            var body = Bytes(row, "command_hex");
+            var defaults = row.TryGetProperty("function_quest", out var functionQuest);
+            SacredScriptFunction[] functions = defaults ? [new("", 0, 0, -1, 0, 0), new("compass", 0, body.Length, functionQuest.GetInt32(), 0, 0)] : [];
+            var context = new WorldScriptExecutionContext(new(), functions, defaults ? body : ReadOnlyMemory<byte>.Empty, true)
+                { Quests = quests, LocalPlayerSlot = row.GetProperty("owner").GetUInt32(), QuestActive = _ => true };
+            new WorldScriptExecutor(context).ExecuteStartup(defaults ? new byte[] { 22, 0, 13, 0, 1 }.Concat(Encoding.ASCII.GetBytes("compass\0")).ToArray() : body);
             Check(Journal(quests).AsSpan().SequenceEqual(Bytes(row, "after_hex")), "all journal bytes, first match, zero-target refresh and radius");
             Check(quests.Journal.GetIndices().AsSpan().SequenceEqual(Bytes(row, "indices_hex")), "all sixteen untouched main/other index pairs");
             Check(quests.Scratch!.SequenceEqual(Words(row, "scratch")), "missing journal preserves middle scratch words; existing row leaves scratch unchanged");
             var events = row.GetProperty("steps").EnumerateArray().Where(step => step.GetProperty("kind").GetString() == "gui").ToArray();
             Check(context.LocalGuiRequests.SequenceEqual(events.Select(Request)), "raw controller slot, selected other/main quest and unchanged-target GUI suppression");
-            Check(context.StartupCompleted && context.ExecutedCommands == 1, "complete startup command with retained local events and suppressed network publication");
+            Check(context.StartupCompleted && context.ExecutedCommands == (defaults ? 2 : 1) && context.CurrentFunctionQuest is null, "complete command with retained local events, suppressed publication and restored function scope");
             var parsed = Words(row, "parsed");
             if (unchecked((int)parsed[0]) < 0 || unchecked((int)parsed[1]) < 0) continue;
             // Observe the production submission boundary before either refresh or mutation.

@@ -10,7 +10,7 @@ public static class WorldScriptEmptyFunctionResult
         if (index == 0 || (uint)index >= context.Functions.Count) return false;
         var function = context.Functions[index];
         if (unchecked((byte)function.Deleted) != 0 ||
-            Prefix("InitRg") && (function.Name.Contains("Pools",StringComparison.Ordinal) || function.Name.Contains("_DQ_Quest_",StringComparison.Ordinal)) ||
+            Prefix("InitRg") && (function.Name.Contains("Pools",StringComparison.Ordinal) || function.Name.Contains("(DQ_Quest)",StringComparison.Ordinal)) ||
             Prefix("DQTrgRegion") || Prefix("DQStartRegion")) return false;
         if (function.Quest >= 0)
         {

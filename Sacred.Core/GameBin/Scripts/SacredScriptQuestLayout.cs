@@ -17,6 +17,10 @@ public readonly struct SacredScriptQuestLayout
     /// <summary>Invoked by quest entry 0x46CB94, after flag 4 and journal append.</summary>
     public const int EnterFunctionOffset = 0x110;
     public const int SetupFunctionOffset = 0x114;
+    /// <summary>Additional function-index words converted to name hashes by
+    /// normal activation 0x46DC9C..0x46DD41, alongside the three named callbacks.</summary>
+    [FieldOffset(0x118)] public readonly int CallbackFunction118;
+    [FieldOffset(0x11C)] public readonly int CallbackFunction11C;
     /// <summary>Invoked by activation and by TriggerQuest (Gold 0x48F1EB).
     /// TriggerQuest resolves QIS_Trigger%d when zero, then branches on the
     /// function dispatch result before quest entry.</summary>

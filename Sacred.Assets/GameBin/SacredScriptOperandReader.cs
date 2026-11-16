@@ -115,7 +115,17 @@ public static class SacredScriptOperandReader
                 case SacredScriptArgumentKind.CreatureNpcBehavior:
                 case SacredScriptArgumentKind.CreatureHorseMerchant:
                 case SacredScriptArgumentKind.CreatureStationary:
+                case SacredScriptArgumentKind.CreatureQuestObject:
+                case SacredScriptArgumentKind.CreatureQuestObjectFlag20:
+                case SacredScriptArgumentKind.CreatureQuestObjectFlag40:
+                case SacredScriptArgumentKind.CreatureQuestObjectFlag80:
                     result.Add(new(kind, start));
+                    break;
+                case SacredScriptArgumentKind.CreatureOwnership:
+                case SacredScriptArgumentKind.CreatureHeroOwnership:
+                    if(offset==data.Length)throw new InvalidDataException($"Truncated creature ownership selector at +0x{start:X}.");
+                    var ownershipSelector=data[offset++];
+                    result.Add(new(kind,start,Integer:ownershipSelector,Text:ownershipSelector==1?ReadString(data,ref offset):null));
                     break;
                 case SacredScriptArgumentKind.TilePosition:
                 case SacredScriptArgumentKind.TriggerFirstCorner:

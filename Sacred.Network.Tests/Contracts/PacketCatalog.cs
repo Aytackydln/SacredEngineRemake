@@ -23,6 +23,89 @@ internal static class PacketCatalog
         void Add<T>(string name, ushort opcode, Func<byte[]> bytes, PayloadRule rule = PayloadRule.Exact,
             Action<GoldGameEvent>? verify = null, byte sender = 0, bool owns = false, int[]? shorter = null) where T : GoldGameEvent =>
             rows.Add(new(name, opcode, typeof(T), bytes, rule, verify, sender, owns, shorter));
+        Add<GoldWorldRegionFlagsEvent>("native initialization flag before callback", 0x185,
+            () => RegionInitializationChecks.WireExample(RepositoryFiles.Root), verify: entry =>
+            {
+                var flags = (GoldWorldRegionFlagsEvent)entry;
+                Assert.AreEqual(1u, flags.Region); Assert.AreEqual(1u, flags.Mask); Assert.IsTrue(flags.Set);
+            }, sender: 1);
+        Add<GoldQuestUpdateEvent>("native normal region quest activation", 0x1BA,
+            () => RegionQuestChecks.WireExample(RepositoryFiles.Root), PayloadRule.RetainedSuffix, verify: entry =>
+            {
+                var quest = (GoldQuestUpdateEvent)entry;
+                Assert.AreEqual(1u, quest.Index);
+                Assert.AreEqual(292, quest.Record.Data.Length);
+            }, sender: 1);
+        Add<GoldCreatureUpdateEvent>("native normal region NPC dialog notification", 0x11A,
+            () => StartupNpcSeeCommandChecks.RegionDialogWireExample(RepositoryFiles.Root), verify: entry =>
+                Assert.AreEqual(65u, ((GoldCreatureUpdateEvent)entry).ObjectReference), sender: 1);
+        Add<GoldAdmissionEvent>("native host replacement-name admission", 0x11,
+            () => AdmissionStagingLiveChecks.WireExample(RepositoryFiles.Root), verify: e =>
+            {
+                var value = (GoldAdmissionEvent)e;
+                Assert.AreEqual((byte)9, value.Flags);
+                Assert.AreEqual((byte)16, value.PlayerSlot);
+                Assert.AreEqual(0u, value.HostedServerWindow);
+            });
+        Add<GoldPlayerRosterEvent>("native live roster profile and bandwidth gates", 0x1B,
+            () => RosterLiveChecks.WireExample(RepositoryFiles.Root), verify: e =>
+            {
+                var player = ((GoldPlayerRosterEvent)e).Roster.GetEntry(2);
+                Assert.AreEqual("P2", player.Name);
+                Assert.IsTrue(player.IsPresent);
+                Assert.AreEqual(1u, player.ConnectionSpeed);
+                Assert.AreEqual(1u, System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(player.Profile[4..]));
+            }, shorter: [834]);
+        Add<GoldAdmissionEvent>("native admission with both start notice flags", 0x11,
+            () => AdmissionLiveChecks.WireExample(RepositoryFiles.Root), verify: e =>
+            {
+                var value = (GoldAdmissionEvent)e;
+                Assert.AreEqual((byte)6, value.Flags);
+                Assert.AreEqual((byte)16, value.PlayerSlot);
+                Assert.AreEqual(0xdeadbeefu, value.HostedServerWindow);
+            });
+        Add<GoldAdmissionEvent>("native admission without hosted-server window", 0x11,
+            () => Controller117Checks.AdmissionWireExample(RepositoryFiles.Root), verify: e =>
+            {
+                var value = (GoldAdmissionEvent)e;
+                Assert.AreEqual(0u, value.HostedServerWindow);
+                Assert.AreEqual((byte)1, value.PlayerSlot);
+            });
+        Add<GoldPlayerRosterEvent>("native formatted roster display names", 0x1B,
+            () => RosterIdentifierChecks.WireExample(RepositoryFiles.Root), verify: e =>
+            {
+                var player = ((GoldPlayerRosterEvent)e).Roster.GetEntry(1);
+                Assert.AreEqual("AAAAAAAAAAAA\\w", player.Name);
+                Assert.IsTrue(player.IsPresent);
+            }, shorter: [834]);
+        Add<GoldPlayerRosterEvent>("native roster presence independent of character type", 0x1B,
+            () => RosterConsumerChecks.WireExample(RepositoryFiles.Root), verify: e =>
+            {
+                var player=((GoldPlayerRosterEvent)e).Roster.GetEntry(2);
+                Assert.IsTrue(player.IsPresent);
+                Assert.AreEqual((byte)0,player.CharacterType);
+            }, shorter:[834]);
+        Add<GoldPlayerRosterEvent>("native accepted admission roster stage", 0x1B,
+            () => AdmissionRosterChecks.WireExample(RepositoryFiles.Root), verify: e =>
+            {
+                var player = ((GoldPlayerRosterEvent)e).Roster.GetEntry(16);
+                Assert.AreEqual(0x76543210u, player.SessionWord0);
+                Assert.AreEqual(0x76543210u, player.NetworkAddressWord0);
+                Assert.AreEqual(-1, player.LobbyIdentity);
+                Assert.AreEqual((byte)0x5a, player.Profile[0]);
+                Assert.IsFalse(player.IsPresent);
+            }, shorter: [834]);
+        Add<GoldAdmissionEvent>("native admission controller prefix", 0x11,
+            () => AdmissionControllerChecks.WireExample(RepositoryFiles.Root), verify: e =>
+            {
+                var value = (GoldAdmissionEvent)e;
+                Assert.AreEqual((byte)5, value.Flags);
+                Assert.AreEqual((byte)16, value.PlayerSlot);
+                Assert.AreEqual(0xdeadbeefu, value.HostToken);
+            });
+        Add<GoldPlayerStatisticsEvent>("native automatic-level elapsed counter",0x14F,
+            ()=>AutomaticCreatureLevelChecks.WireExample(RepositoryFiles.Root),PayloadRule.Exact,
+            e=>Assert.AreEqual(uint.MaxValue,((GoldPlayerStatisticsEvent)e).State.AutomaticLevelElapsedMilliseconds));
         Add<GoldObjectEvent>("native complete startup callback AI NPC", 0x16F, () => StartupNpcAiCommandChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
             verify: e => { var value = (GoldObjectEvent)e; Assert.AreEqual(119u,value.BaseState.ObjectType);
                 Assert.AreEqual(1u,value.CreatureState!.Word1F4 & 1u); },
@@ -34,6 +117,10 @@ internal static class PacketCatalog
         Add<GoldObjectEvent>("native complete startup healer", 0x16F, () => StartupHealerCommandChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
             verify: e => { var value = (GoldObjectEvent)e; Assert.AreEqual(654u,value.BaseState.ObjectType);
                 Assert.AreEqual(7,value.CreatureState!.Byte2B6); Assert.AreEqual(1u,value.CreatureState.Word245); },
+            shorter: [65,66,67,68,145,146,147,148,469,470,471,472]);
+        Add<GoldObjectEvent>("native live-blocker ground NPC", 0x16F, () => LoadedBlockedNpcChecks.GroundWireExample(RepositoryFiles.Root), PayloadRule.Structured,
+            verify: e => { var value = (GoldObjectEvent)e; Assert.AreEqual(696u, value.BaseState.ObjectType);
+                Assert.AreEqual((byte)0, value.BaseState.Surface); Assert.AreEqual((ushort)2217, value.BaseState.Sector); },
             shorter: [65,66,67,68,145,146,147,148,469,470,471,472]);
         Add<GoldObjectEvent>("native complete startup Horse", 0x16F, () => StartupHorseChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
             verify: e => { var value = (GoldObjectEvent)e; Assert.AreEqual(65u, value.BaseState.ObjectReference);

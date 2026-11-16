@@ -13,21 +13,29 @@ public static class WorldScriptQuestObjectCompass
     public static void Apply(WorldScriptExecutionContext context, SacredScriptCommand command)
     {
         if (!context.IsExecutingStartup) throw new NotSupportedException("QuestKompassObj live journal/publication effects are unresolved.");
-        ApplyDeferred(context.Quests ?? throw new InvalidDataException("QuestKompassObj requires original quest/journal state."), command,
+        ApplyDeferredCore(context.Quests ?? throw new InvalidDataException("QuestKompassObj requires original quest/journal state."), command,
             name => name.StartsWith("Res:", StringComparison.OrdinalIgnoreCase)
                 ? WorldScriptResourceReference.Resolve(name, context.ResourceText ?? throw new InvalidDataException("QuestKompassObj requires original resource text."))
                 : World(context).Resources.FindLocalResource(name) ?? throw new NotSupportedException("QuestKompassObj local name requires native registration."),
-            resource => World(context).FindObject(resource, context), name => DecodeName(context, name));
+            resource => World(context).FindObject(resource, context), name => DecodeName(context, name), context.CurrentFunctionQuest);
     }
 
     public static void ApplyDeferred(WorldScriptQuests quests, SacredScriptCommand command,
         Func<string, uint> resolveResource, Func<uint, uint?> findObject, Func<string, string>? decodeName = null)
+        => ApplyDeferredCore(quests, command, resolveResource, findObject, decodeName, null);
+
+    public static void ApplyDeferred(WorldScriptQuests quests, SacredScriptCommand command, int functionQuest,
+        Func<string, uint> resolveResource, Func<uint, uint?> findObject, Func<string, string>? decodeName = null)
+        => ApplyDeferredCore(quests, command, resolveResource, findObject, decodeName, functionQuest);
+
+    private static void ApplyDeferredCore(WorldScriptQuests quests, SacredScriptCommand command,
+        Func<string, uint> resolveResource, Func<uint, uint?> findObject, Func<string, string>? decodeName, int? functionQuest)
     {
         if (command.Opcode != SacredScriptExecutionOpcodes.QuestCompassObject)
             throw new ArgumentException("Expected QuestKompassObj.", nameof(command));
         string? name = null;
         string? decodedName = null;
-        int? number = null;
+        int? number = functionQuest;
         var radius = SacredScriptJournalLayout.DefaultTargetRadius;
         foreach (var operand in SacredScriptOperandReader.Read(command))
         {
@@ -48,7 +56,7 @@ public static class WorldScriptQuestObjectCompass
         if (string.IsNullOrEmpty(decodedName)) return;
         var resource = resolveResource(name!);
         if (resource == uint.MaxValue) return; // Original -1 selector is the sole excluded Int32 resource.
-        if (number is null) throw new NotSupportedException("QuestKompassObj omitted quest requires function quest save/restore.");
+        if (number is null) throw new NotSupportedException("QuestKompassObj omitted quest requires a proven function quest scope.");
         if (quests.Journal.FindQuest(number.Value) >= 0)
             throw new NotSupportedException("QuestKompassObj existing journal requires native object refresh and GUI before mutation.");
         quests.SetPendingObjectCompass(resource, radius, findObject(resource));

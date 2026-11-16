@@ -21,6 +21,9 @@ public sealed class SacredCreatureConstructionDefinitions
     /// Applying the aggregated flags here changes native calculation ordering.</summary>
     public SacredCreatureConstructionFlags EarlyFlags(uint type) => _earlyFlags.GetValueOrDefault(type);
     public ushort EquipmentSelector(uint type) => unchecked((ushort)_switch.Read(_equipment, type));
+    /// <summary>Gold factory's admitted-hero script resource base, extracted
+    /// from its add instruction. Absent in bounded non-hero evidence images.</summary>
+    public uint? HeroScriptResourceBase { get; private init; }
     public static SacredCreatureConstructionDefinitions Load(string directory)
     {
         Exception? failure = null;
@@ -57,7 +60,12 @@ public sealed class SacredCreatureConstructionDefinitions
         cursor = Group(cursor + 5, ref mask);
         _ = Group(cursor, ref mask);
         _ = getter.Read(equipment, 0); // Validate the constant-return default branch before exposing this reader.
-        return new(flags, earlyFlags, getter, equipment);
+        ReadOnlySpan<byte> heroIdentity = [0x8B,0x4E,0x0C,0x88,0x9C,0x24,0xD4,0,0,0,0x81,0xC1];
+        var heroOffset = image.AsSpan().IndexOf(heroIdentity);
+        return new(flags, earlyFlags, getter, equipment)
+        {
+            HeroScriptResourceBase = heroOffset < 0 ? null : BinaryPrimitives.ReadUInt32LittleEndian(image.AsSpan(heroOffset + heroIdentity.Length))
+        };
 
         int Group(int start, ref uint currentMask)
         {

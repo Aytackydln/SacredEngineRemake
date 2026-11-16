@@ -81,6 +81,12 @@ public sealed class WorldScriptExecutionContext
     /// <summary>Gold function dispatch requires an active quest when FunkStru.Quest is nonnegative.
     /// Missing quest state is an unresolved execution dependency.</summary>
     public Func<int, bool?>? QuestActive { get; init; }
+    /// <summary>Gold interpreter +0x18 while an eligible function runs. Null
+    /// outside a proven dispatcher scope; restored across nested calls/failures.</summary>
+    public int? CurrentFunctionQuest { get; internal set; }
+    /// <summary>Associated creature identity in a compared invocation scope.
+    /// Independent of the active-hero getter and interpreter +0x12.</summary>
+    public uint AssociatedCreatureReference { get; internal set; }
     public WorldScriptQuests? Quests { get; init; }
     /// <summary>Creates/stores the native trigger and registers its name using world-trigger grants.
     /// An absent factory is required world work, not a successful declaration.</summary>
@@ -99,6 +105,7 @@ public sealed class WorldScriptExecutionContext
     public Action<WorldScriptCommandTrace>? TraceCommand { get; init; }
     public WorldScriptSectorEnvironment? CurrentSector { get; internal set; }
     public bool IsInitializingSector { get; internal set; }
+    public bool IsInitializingRegion { get; internal set; }
     public bool IsEnteringSector { get; internal set; }
     public bool IsExecutingStartup { get; internal set; }
     public IReadOnlyList<SacredBaseTriggerDefinition> Triggers { get; }

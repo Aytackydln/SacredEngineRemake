@@ -24,6 +24,14 @@ public sealed class GoldObjectReferencePool
     }
 
     public bool TryAllocate(out uint reference) => _available.TryDequeue(out reference);
+    /// <summary>Inspect a prospective character allocation without consuming it.
+    /// The complete import validates before Consume commits this same prefix.</summary>
+    public uint[] PeekAvailable(int count)
+    {
+        if (count < 0) throw new ArgumentOutOfRangeException(nameof(count));
+        if (count > Available) throw new InvalidDataException($"Character import needs {count} actual object references; only {Available} are available.");
+        return _available.Take(count).ToArray();
+    }
     /// <summary>Consume an already validated saved-character plan in native grant order.
     /// Validation precedes mutation so an inconsistent plan cannot partly drain the pool.</summary>
     public void Consume(ReadOnlySpan<uint> references)

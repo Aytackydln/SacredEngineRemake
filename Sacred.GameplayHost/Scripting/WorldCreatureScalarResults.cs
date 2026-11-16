@@ -21,7 +21,7 @@ public static class WorldCreatureScalarResults
         if (context.Precision is not (SacredX87Precision.Single or SacredX87Precision.Extended))
             throw new NotSupportedException("Composed scalar results require a compared 24-bit or 64-bit x87 mode.");
         var constructor = context.Reference == 0 && equipment.Count == 0 && template is not null &&
-            template.Class != SacredCreatureClass.Hero && context.Resource == template.ItemType;
+            context.Resource == template.ItemType;
         if (context.Reference <= 16 && !constructor || context.Reference == context.LocalReference)
             throw new NotSupportedException("Scalar calculation requires a nonlocal assigned NPC or its empty unassigned constructor state.");
         if (template?.Class == SacredCreatureClass.Horse && equipment.Count != 0)
@@ -52,7 +52,8 @@ public static class WorldCreatureScalarResults
             }
         var values = (byte[])inputs.Clone();
         var profile = combat.Profile(context.CombatProfile);
-        var regeneration = WorldCreatureResultInitialization.Apply(values, context.Resource, context.Reference,
+        var physicalResource = context.ActorTypeAssigned ? context.Resource : 0;
+        var regeneration = WorldCreatureResultInitialization.Apply(values, physicalResource, context.Reference,
             context.Difficulty, context.DifficultyBoostApplies, template, initialization) ?? context.Regeneration;
         if (context.ActorTypeAssigned && template?.Class == SacredCreatureClass.Horse)
         {
@@ -87,7 +88,7 @@ public static class WorldCreatureScalarResults
         SacredCreatureCombatAdjustments.ApplyUnarmedFallback(context.Precision, values, unarmed);
         regeneration = SacredCreaturePassiveSkills.Apply(context.Precision, values, regeneration, 0, context.Skills, skillBalance);
         SacredCreatureResultFinalization.Apply(context.Precision, values, context.ActorFlags, context.ComponentFlags, context.ActorTypeAssigned && template?.Class == SacredCreatureClass.Horse,
-            finalization.UsesSlowSpeedFloor(context.Resource), finalization.SharesCombatArtRegeneration(context.Resource), armorMovement);
+            finalization.UsesSlowSpeedFloor(physicalResource), finalization.SharesCombatArtRegeneration(physicalResource), armorMovement);
         return new(values, regeneration, equipmentFlags);
     }
 

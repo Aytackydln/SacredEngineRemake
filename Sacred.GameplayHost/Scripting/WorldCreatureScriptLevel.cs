@@ -12,12 +12,21 @@ namespace Sacred.GameplayHost.Scripting;
 /// low byte at values +80. Initial empty-equipment, KI-zero NPCs only.</summary>
 public static class WorldCreatureScriptLevel
 {
+    /// <summary>Automatic caller 0x48475B: always apply the selected UInt16
+    /// request with difficulty adjustment disabled, without an assigned marker.</summary>
+    public static WorldCreatureInitialActor ApplyAutomaticRequested(WorldCreatureInitialActor actor,SacredCreatureTemplate template,
+        ushort input,WorldCreatureScalarResultAssets results,SacredCreatureLevelBalance levels,
+        SacredCreatureBalance progression,SacredCreatureLevelDefinitions definitions,uint difficulty,uint localReference,
+        bool networking,ushort sectorMaximumLevel,uint players)
+        =>Initialize(actor,template,input,results,levels,progression,definitions,difficulty,localReference,
+            networking,sectorMaximumLevel,players,assigned:false,automatic:true);
+
     public static WorldCreatureInitialActor Apply(WorldCreatureInitialActor actor, SacredCreatureTemplate template,
         int input, WorldCreatureScalarResultAssets results, SacredCreatureLevelBalance levels,
         SacredCreatureBalance progression, SacredCreatureLevelDefinitions definitions,
         uint difficulty, uint localReference, bool networking, ushort sectorMaximumLevel, uint players)
         => Initialize(actor, template, input, results, levels, progression, definitions, difficulty, localReference,
-            networking, sectorMaximumLevel, players, assigned: true);
+            networking, sectorMaximumLevel, players, assigned: true, automatic: false);
 
     /// <summary>Gold 0x4843F1/0x48475A: positive 0x1F requests call SetLevel
     /// with ordinary difficulty/multiplayer adjustment, including lower levels.
@@ -27,15 +36,17 @@ public static class WorldCreatureScriptLevel
         SacredCreatureBalance progression, SacredCreatureLevelDefinitions definitions,
         uint difficulty, uint localReference, bool networking, ushort sectorMaximumLevel, uint players)
         => Initialize(actor, template, input, results, levels, progression, definitions, difficulty, localReference,
-            networking, sectorMaximumLevel, players, assigned: false);
+            networking, sectorMaximumLevel, players, assigned: false, automatic: false);
 
-    private static WorldCreatureInitialActor Initialize(WorldCreatureInitialActor actor, SacredCreatureTemplate template,
+    private static WorldCreatureInitialActor Initialize(WorldCreatureInitialActor actor,
+        SacredCreatureTemplate template,
         int input, WorldCreatureScalarResultAssets results, SacredCreatureLevelBalance levels,
         SacredCreatureBalance progression, SacredCreatureLevelDefinitions definitions,
-        uint difficulty, uint localReference, bool networking, ushort sectorMaximumLevel, uint players, bool assigned)
+        uint difficulty, uint localReference, bool networking, ushort sectorMaximumLevel, uint players, bool assigned,
+        bool automatic)
     {
-        if (input == 0) return actor;
-        var special = !assigned && input == 1000;
+        if (input == 0 && !automatic) return actor;
+        var special = !assigned && !automatic && input == 1000;
         if (special)
         {
             input = 1; // Gold 0x4843C2 -> 0x549500(1,0) -> SetLevel(1,1,0).
@@ -54,7 +65,7 @@ public static class WorldCreatureScriptLevel
         {
             var selection = WorldCreatureLevel.Resolve(unchecked((ushort)input), template,
                 new(actor.Base.ObjectReference, difficulty, networking, behavior, 0, sectorMaximumLevel, 0,
-                    SkipDifficultyAdjustment: assigned || special, TypeMaximumOverride: definitions.MaximumOverride(template.ItemType)), levels, progression);
+                    SkipDifficultyAdjustment: assigned || special || automatic, TypeMaximumOverride: definitions.MaximumOverride(template.ItemType)), levels, progression);
             BinaryPrimitives.WriteUInt16LittleEndian(values.AsSpan(78), selection.Level);
             var experience = selection.Level < 2 ? 0 : results.StartupPrecision == SacredX87Precision.Single
                 ? SacredStartupExperience.AtLevel(unchecked((ushort)(selection.CalculatedLevel - 1))) : selection.Experience;

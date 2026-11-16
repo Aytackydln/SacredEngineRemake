@@ -4,6 +4,9 @@ using System.Net.Sockets;
 using Sacred.Network.Connection;
 using Sacred.Network.Protocol;
 using Sacred.Network.TinCat;
+using Sacred.Network.Admission;
+using Sacred.Network.Gameplay;
+using Sacred.GameplayHost.Networking;
 
 namespace Sacred.Network.Tests.Infrastructure;
 
@@ -15,6 +18,7 @@ internal sealed class GoldLoopbackPeer : IAsyncDisposable
     private readonly TaskCompletionSource<NetworkStream> _stream = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private Task _server = Task.CompletedTask;
     public GoldGameConnection Connection { get; } = new();
+    public WorldHostInitializationSession? HostSession { get; private set; }
     public CancellationToken Token => _stop.Token;
 
     public static async Task<GoldLoopbackPeer> StartAsync()
@@ -30,6 +34,45 @@ internal sealed class GoldLoopbackPeer : IAsyncDisposable
             return peer;
         }
         catch { await peer.DisposeAsync(); throw; }
+    }
+    public static async Task<GoldLoopbackPeer> StartHostAsync(WorldHostSavedCharacterSource? source,
+        CancellationToken token = default,
+        Func<GoldSessionState, IPEndPoint, CancellationToken, Task>? seed = null)
+    {
+        var peer = new GoldLoopbackPeer();
+        try
+        {
+            peer._listener.Start(); peer._server = peer.AcceptAsync();
+            var bytes = new byte[GoldFirstContactLayout.Size];
+            if (source is not null) source.Records.Profile.CopyTo(bytes.AsSpan(GoldFirstContactLayout.ProfileOffset));
+            var contact = GoldFirstContact.FromPayload(bytes);
+            var port = ((IPEndPoint)peer._listener.LocalEndpoint).Port;
+            seed ??= (state, _, _) => state.GameFlags is null ? Task.FromException(new InvalidDataException("No actual flags received.")) : Task.CompletedTask;
+            peer.HostSession = source is null
+                ? WorldHostInitializationSession.Start(peer.Connection, "127.0.0.1", port, contact, 2268, seed, _ => { }, token)
+                : WorldHostInitializationSession.StartSavedCharacter(source, peer.Connection, "127.0.0.1", port, contact, 2268, seed, _ => { }, token);
+            await peer._stream.Task.WaitAsync(peer.Token);
+            return peer;
+        }
+        catch { await peer.DisposeAsync(); throw; }
+    }
+
+    public static Task<GoldLoopbackPeer> StartHostAsync(CancellationToken token = default,
+        Func<GoldSessionState, IPEndPoint, CancellationToken, Task>? seed = null)
+        => StartHostAsync(null, token, seed);
+
+    public void AllowLongPreparation() => _stop.CancelAfter(TimeSpan.FromMinutes(2));
+
+    public async Task<IReadOnlyList<GoldMessage>> ReadClientBatchAsync()
+    {
+        var stream = await _stream.Task.WaitAsync(Token);
+        while (true)
+        {
+            var frame = await TinCatStream.ReadAsync(stream, Token);
+            if (frame.Type != TinCatLogin.CustomData) continue;
+            var custom = TinCatCustomData.Decode(frame.Payload, TinCatLogin.GameModule, 0);
+            return GoldMessageCodec.DecodeBatch(GoldEnvelopeCodec.Decode(custom));
+        }
     }
     private async Task AcceptAsync()
     {
@@ -71,6 +114,7 @@ internal sealed class GoldLoopbackPeer : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _stop.Cancel(); _listener.Stop();
+        if (HostSession is not null) await HostSession.DisposeAsync();
         await Connection.DisposeAsync();
         try { await _server; } finally { _stop.Dispose(); }
     }

@@ -43,6 +43,20 @@ public static class SacredCreatureProgressionRules
         return unchecked((uint)(long)Math.Max(1d, result));
     }
 
+    /// <summary>The automatic script caller uses the startup x87 precision for
+    /// every 0x552230 arithmetic instruction, including its final rounding bias.</summary>
+    public static uint NormalizeLevel(uint level, uint difficulty, SacredCreatureBalance balance,
+        SacredX87Precision precision, uint extraPercent = 0)
+    {
+        var fp = new SacredResultArithmetic(precision);
+        var index = DifficultyIndex(difficulty);
+        var percent = unchecked((uint)balance.LevelPercentAdditions[index] + extraPercent);
+        var multiplier = fp.Add(fp.Multiply(percent, .01f), 1);
+        var scaled = fp.Multiply(multiplier, unchecked((int)level));
+        var result = fp.Add(fp.Add(scaled, balance.LevelAdditions[index]), .5f);
+        return unchecked((uint)(long)Math.Max(1, result));
+    }
+
     public static uint ExperienceAtLevel(ushort level)
     {
         // Native's first pow is 1^level, hence its contribution is constant 110.

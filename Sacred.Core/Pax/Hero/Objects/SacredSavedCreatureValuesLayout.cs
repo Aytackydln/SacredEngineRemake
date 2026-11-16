@@ -17,7 +17,10 @@ public static class SacredSavedCreatureValuesLayout
     public const int GoldOffset = Block08Offset + 62;
     public const int LevelOffset = Block08Offset + 78;
     public const int Count22Offset = 266;
-    public const int Record22Size = 22;
+    /// <summary>Gold 585514 reads acquired art entries using the same packed
+    /// layout as runtime sSpellEntry. The local-hero 585C2C -> 5796A0 pass then
+    /// recalculates TimerMaximum; the serialized value is not authoritative.</summary>
+    public const int Record22Size = Sacred.Core.CombatArts.SacredCombatArtRuntimeLayout.Size;
     public const int Record38Size = 38;
     /// <summary>Third counted list: active status modifiers, not learned arts or equipment bonuses.</summary>
     public const int Record28Size = SacredSavedStatusModifierLayout.Size;

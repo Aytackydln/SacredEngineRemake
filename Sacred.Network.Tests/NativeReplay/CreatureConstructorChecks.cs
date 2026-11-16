@@ -10,6 +10,7 @@ internal static class CreatureConstructorChecks
 {
     public static int Run(string root) => Run(root, "native-creature-constructor");
     public static int RunHorse(string root) => Run(root, "native-horse-constructor");
+    public static int RunHero(string root) => Run(root, "native-hero-constructor");
 
     private static int Run(string root, string fixtureName)
     {

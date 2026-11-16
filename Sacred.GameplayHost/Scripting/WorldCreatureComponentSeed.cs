@@ -4,15 +4,13 @@ using Sacred.Core.Runtime;
 
 namespace Sacred.GameplayHost.Scripting;
 
-/// <summary>Non-hero component's explicitly seeded value inputs (Gold 0x55E1B0 /
+/// <summary>Component's explicitly seeded value inputs (Gold 0x55E1B0 /
 /// 0x586C00). The result block still requires CalcResults; this buffer is not a
 /// completed actor or a full-values publication.</summary>
 public static class WorldCreatureComponentSeed
 {
     public static byte[] Create(uint type, SacredCreatureTemplate? template)
     {
-        if (template?.Class == SacredCreatureClass.Hero)
-            throw new ArgumentException("Hero construction requires native learned combat arts and hero initialization.", nameof(template));
         var values = new byte[SacredActorValuesLayout.Size];
         BinaryPrimitives.WriteUInt32LittleEndian(values, type);
         // Seed copies Basis in archive order. Current attributes use a different
@@ -27,7 +25,9 @@ public static class WorldCreatureComponentSeed
             byte[] current = [template.Strength, template.Endurance, template.Dexterity,
                 template.PhysicalRegeneration, template.MentalRegeneration, template.Charisma];
             for (var i = 0; i < current.Length; i++) WriteWord(8 + i * 2, current[i]);
-            for (var i = 0; i < 8; i++)
+            // Hero seed copies only the two starting skills; the available
+            // skills are a choice catalogue, not six already learned skills.
+            for (var i = 0; i < (template.Class == SacredCreatureClass.Hero ? 2 : 8); i++)
             {
                 var skill = i < 2 ? template.StartingSkills[i] : template.AvailableSkills[i - 2];
                 values[28 + i] = skill;

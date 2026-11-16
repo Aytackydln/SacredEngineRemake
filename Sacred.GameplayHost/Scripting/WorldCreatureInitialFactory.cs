@@ -7,7 +7,7 @@ using Sacred.Network.Gameplay;
 
 namespace Sacred.GameplayHost.Scripting;
 
-/// <summary>Gold 0x5FB530 fresh non-hero creature construction through unpublished
+/// <summary>Gold 0x5FB530 fresh creature construction, including the guarded admitted hero, through unpublished
 /// registration. Input resource/template are already resolved. Owns the initial
 /// registry, preserving Node identity across immutable actor updates. Caller
 /// placement, assigned level/KI/equipment and serialization remain separate.</summary>
@@ -42,6 +42,37 @@ public sealed class WorldCreatureInitialFactory
     public WorldObjectActivationQueue Activation { get; } = new();
     public IReadOnlyList<uint> GraphicObjects => _registration.GraphicObjects;
 
+    /// <summary>Original constructor first seeds the admitted local slot through
+    /// 600F80 before receiving ordinary object grants. This slot is not a 153 ID.
+    /// Registration/activation precede identity. Saved import/placement still follow.</summary>
+    public WorldCreatureInitialActor CreateHero(SacredCreatureTemplate template, ItemsPakEntry descriptor,
+        uint clock, double schedulerClock, SacredEquipmentDefaultDefinitions defaults)
+    {
+        if (template.Class != SacredCreatureClass.Hero || descriptor.ItemIndex != template.ItemType ||
+            descriptor.ModelDesc.Category != SacredItemCategory.Creature || _actors.ContainsKey(_owner))
+            throw new InvalidOperationException("Admitted hero factory requires a matching original hero and an unused local slot.");
+        // The native constructor detaches all initial slots. Some classes create
+        // original default items during that operation, before hero registration.
+        // Do not accept the empty-descriptor failure profile as real equipment.
+        for (ushort slot = 0; slot < 19; slot++)
+            if (defaults.Resource(template.ItemType, slot) != 0)
+                throw new NotSupportedException("Hero construction requires its original default-item factory before registration.");
+        var scriptBase = _definitions.HeroScriptResourceBase ?? throw new InvalidDataException("Original hero factory identity operand unavailable.");
+        _ = SacredStartupHeading.ToDirection(descriptor.ModelDesc.Angle3D);
+        if (!double.IsFinite(schedulerClock) || schedulerClock < 0) throw new ArgumentOutOfRangeException(nameof(schedulerClock));
+        _counter.BeginAllocation();
+        var actor = WorldCreatureConstructor.Create(template, _results, _definitions, _random,
+            new(_owner, clock, _difficulty, _owner));
+        actor = actor with { Base = actor.Base with { Byte38 = _counter.Value } };
+        _actors.Add(_owner, actor);
+        Activation.ActivateInitial(actor, schedulerClock);
+        actor = WorldCreatureFactoryIdentity.Assign(actor, descriptor, _owner, _owner, actor.Base.Byte38, owned: false);
+        actor = actor with { Base = actor.Base with { Word3C = checked(scriptBase + _owner) } };
+        actor = _registration.CompleteUnpublished(actor, descriptor, networking: true, newReference: true);
+        Update(actor);
+        return actor;
+    }
+
     public WorldCreatureInitialActor Create(SacredCreatureTemplate template, ItemsPakEntry descriptor,
         uint clock, double schedulerClock, bool networking, bool owned)
     {
@@ -73,5 +104,12 @@ public sealed class WorldCreatureInitialFactory
         if (!_actors.TryGetValue(reference, out var current) || !ReferenceEquals(current.Node, actor.Node))
             throw new InvalidOperationException("Actor update does not belong to this initial registry lifetime.");
         _actors[reference] = actor;
+    }
+
+    internal void DiscardInitialHero(WorldCreatureInitialActor actor)
+    {
+        if (!_actors.TryGetValue(actor.Base.ObjectReference, out var current) || !ReferenceEquals(current.Node, actor.Node)) return;
+        Activation.DeactivateInitial(actor.Node);
+        _actors.Remove(actor.Base.ObjectReference);
     }
 }

@@ -34,6 +34,9 @@ catch (ArgumentException exception)
 
 using var logging = new RendererLog(options.Verbose);
 
+if (options.InitializeNetworkHostProfile is { } hostProfile)
+    return await HostInitializationConsole.RunAsync(options, hostProfile);
+
 if (options.ProbeNetworkStartupProfile is { } probeProfile)
 {
     try

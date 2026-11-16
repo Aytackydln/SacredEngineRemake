@@ -1,4 +1,5 @@
 using Sacred.Core.Pax.Hero.Statistics;
+using Sacred.Core.Runtime;
 
 namespace Sacred.Network.Gameplay;
 
@@ -7,7 +8,7 @@ public static class GoldPlayerStatisticsLayout
 {
     public const ushort Opcode = 0x14F;
     public const int PrimaryOffset = 0;
-    public const int PrimarySize = 0x2670;
+    public const int PrimarySize = SacredHeroStatisticsPrimaryLayout.Size;
     public const int ExtensionOffset = PrimarySize;
     public const int ExtensionSize = SacredHeroStatisticsExtensionLayout.Size;
     public const int Size = PrimarySize + ExtensionSize;

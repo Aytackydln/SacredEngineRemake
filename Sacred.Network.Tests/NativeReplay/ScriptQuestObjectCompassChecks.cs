@@ -16,7 +16,7 @@ internal static class ScriptQuestObjectCompassChecks
             var journal = WorldScriptQuestJournal.FromRuntime(Bytes(sample, "before_hex"), Enumerable.Repeat((byte)255, 128).ToArray());
             var quests = WorldScriptQuests.FromRuntime([], journal, sample.GetProperty("before_scratch").EnumerateArray().Select(value => value.GetUInt32()).ToArray());
             var lookups = new List<uint>();
-            WorldScriptQuestObjectCompass.ApplyDeferred(quests, new(0, Bytes(sample, "command_hex")),
+            WorldScriptQuestObjectCompass.ApplyDeferred(quests, new(0, Bytes(sample, "command_hex")), sample.GetProperty("function_quest").GetInt32(),
                 name => uint.Parse(name.AsSpan(4), NumberStyles.None, CultureInfo.InvariantCulture), resource =>
                 {
                     lookups.Add(resource);

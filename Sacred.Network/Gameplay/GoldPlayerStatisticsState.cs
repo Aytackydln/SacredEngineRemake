@@ -1,8 +1,11 @@
 using Sacred.Core.Pax.Hero.Statistics;
+using System.Buffers.Binary;
+using Sacred.Core.Runtime;
 
 namespace Sacred.Network.Gameplay;
 
-/// <summary>Immutable native statistics snapshot. Counters and gameplay calculations remain uninterpreted.</summary>
+/// <summary>Immutable native statistics snapshot. The automatic-level elapsed
+/// counter is mapped; other counters and their wider lifecycle remain separate.</summary>
 public sealed class GoldPlayerStatisticsState
 {
     private readonly byte[] _payload;
@@ -14,6 +17,8 @@ public sealed class GoldPlayerStatisticsState
     /// <summary>Native +0x30A4..+0x5713 bytes, kept without naming unverified counters.</summary>
     public ReadOnlySpan<byte> PrimaryData => _payload.AsSpan(GoldPlayerStatisticsLayout.PrimaryOffset, GoldPlayerStatisticsLayout.PrimarySize);
     public SacredHeroStatisticsExtension Extension { get; }
+    public uint AutomaticLevelElapsedMilliseconds => BinaryPrimitives.ReadUInt32LittleEndian(
+        PrimaryData[SacredHeroStatisticsPrimaryLayout.AutomaticLevelElapsedMillisecondsOffset..]);
 
     public static GoldPlayerStatisticsState FromPayload(ReadOnlySpan<byte> payload)
     {

@@ -34,7 +34,8 @@ public static class WorldCreatureScriptDialog
     {
         var selected = Resolve(context.Registrations, operand);
         if (selected <= 0) return actor;
-        if (!context.IsExecutingStartup) throw new NotSupportedException("Live dialog binding requires its notification lifecycle.");
+        if (!context.IsExecutingStartup && !context.IsInitializingRegion)
+            throw new NotSupportedException("Live dialog binding requires its notification lifecycle.");
         return BindInitial(actor, context.Registrations, selected);
     }
 

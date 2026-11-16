@@ -11,7 +11,7 @@ public enum WorldCreatureConstructionStep { PhysicalLevelEvent, ComponentInitial
 public sealed record WorldCreatureConstructionObservation(WorldCreatureConstructionStep Step, uint Behavior,
     byte[] Values, byte[] Health, byte CombatProfile, byte ResultValid);
 
-/// <summary>Gold 0x52DE40 non-hero creature logical constructor. Real component
+/// <summary>Gold 0x52DE40 creature logical constructor, including the empty hero scalar path. Real component
 /// initialization precedes actor defaults; SetLevel and the explicit final pass
 /// calculate again after the template overlay. Equipment/model creation,
 /// registration, placement and publication are later factory obligations.</summary>
@@ -26,8 +26,8 @@ public static class WorldCreatureConstructor
         ArgumentNullException.ThrowIfNull(results);
         ArgumentNullException.ThrowIfNull(definitions);
         ArgumentNullException.ThrowIfNull(random);
-        if (template.Class == SacredCreatureClass.Hero || context.LocalReference is 0 or > 16)
-            throw new NotSupportedException("Ordinary construction requires a non-hero template and an initialized local controller.");
+        if (context.LocalReference is 0 or > 16)
+            throw new NotSupportedException("Construction requires an initialized local controller.");
         var scalarContext = new WorldCreatureScalarResultContext(template.ItemType, 0, context.Difficulty, false,
             0, 0, 0, 0, 0, 0, false, default, context.LocalReference, results.StartupPrecision);
         uint behavior = 0;
@@ -64,7 +64,11 @@ public static class WorldCreatureConstructor
         var second = context.Clock / 1000;
         return new(new GoldObjectBaseState(0, template.ItemType, 2 | flags.ObjectFlags, 0, 0, 0, 0, 0, 0, 0, 0, 0),
             component, (uint)template.Class, behavior, definitions.EquipmentSelector(template.ItemType), tail,
-            elapsed, second > 1 ? second - 1 : 0, context.Argument < 16 ? new byte[100] : []);
+            elapsed, second > 1 ? second - 1 : 0, context.Argument < 16 ? new byte[100] : [])
+        {
+            RuntimeFlags = template.Class == SacredCreatureClass.Hero && context.Argument is > 0 and <= 16 ? 0x80040u : 0,
+            ThinkInterval = template.Class == SacredCreatureClass.Hero && context.Argument is > 0 and <= 16 ? 0.3f : 5
+        };
 
         void Recalculate()
         {

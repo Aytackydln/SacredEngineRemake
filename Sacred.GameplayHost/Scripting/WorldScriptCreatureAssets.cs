@@ -24,6 +24,7 @@ public sealed record WorldScriptCreatureAssets(SacredObjectTemplateArchive Objec
     public SacredHorseOwnerDefinitions? HorseOwner { get; init; }
     public SacredHorseValueBalance? HorseValues { get; init; }
     public SacredCreatureScriptServiceDefinitions? Services { get; init; }
+    public SacredCreatureAutomaticLevelDefinitions? AutomaticLevelDefinitions { get; init; }
     public Func<uint, KeyxSectorRecord, byte[]>? ReadOutdoorTiles { get; init; }
     public Func<uint, KeyxSectorRecord, Sacred.World.WldxSectorPayload>? ReadSectorTiles { get; init; }
     public Func<uint, StaticObjectRecord?>? ReadStaticObject { get; init; }
@@ -38,7 +39,8 @@ public sealed record WorldScriptCreatureAssets(SacredObjectTemplateArchive Objec
                 Motions = ModelsMotionAvailability.Load(installation), FixedEffects = SacredFixedEffectDefinitions.Load(installation),
                 MagicPrison = SacredMagicPrisonDefinitions.Load(installation), BubblePrison = SacredBubblePrisonDefinitions.Load(installation),
                 HorseOwner = SacredHorseOwnerDefinitions.Load(installation), HorseValues = HorseValueBalanceBinReader.Read(balance),
-                Services = SacredCreatureScriptServiceDefinitions.Load(installation), ReadOutdoorTiles = (id,entry) =>
+                Services = SacredCreatureScriptServiceDefinitions.Load(installation),
+                AutomaticLevelDefinitions=SacredCreatureAutomaticLevelDefinitions.Load(installation), ReadOutdoorTiles = (id,entry) =>
                 {
                     using var loader = new Sacred.World.WldxLoader(new FileStream(Path.Combine(installation,"World/sectors.wldx"),FileMode.Open,FileAccess.Read,FileShare.ReadWrite));
                     return loader.LoadSector(id,entry).OutdoorTiles;

@@ -10,6 +10,7 @@ public sealed class WorldScriptExecutor
     private readonly WorldScriptExecutionContext _context;
     private readonly Func<WorldScriptExecutionContext, SacredScriptCommand, bool>? _worldHandler;
     private readonly List<string> _calls = [];
+    private WorldScriptFunctionFrame? _functionFrame;
     private int _remaining;
     public WorldScriptExecutor(WorldScriptExecutionContext context,
         Func<WorldScriptExecutionContext, SacredScriptCommand, bool>? worldHandler = null, int instructionBudget = 1_000_000)
@@ -43,23 +44,72 @@ public sealed class WorldScriptExecutor
             cancellationToken.ThrowIfCancellationRequested();
         }
         if (functionIndex == 0) return;
-        var function = _context.RequireFunction(functionIndex);
-        // Gold 0x46BA90 reserves index zero and tests only the deleted flag's low byte.
-        if (unchecked((byte)function.Deleted) != 0) return;
-        // Native dispatcher excludes these pool/dynamic-quest entry points from ordinary invocation.
-        if (HasPrefix(function.Name, "InitRg") && (function.Name.Contains("Pools", StringComparison.Ordinal) ||
-            function.Name.Contains("_DQ_Quest_", StringComparison.Ordinal)) || HasPrefix(function.Name, "DQTrgRegion") ||
-            HasPrefix(function.Name, "DQStartRegion")) return;
-        if (function.Quest >= 0)
+        var previousFrame = _functionFrame;
+        var frame = new WorldScriptFunctionFrame(_context.CurrentFunctionQuest);
+        _functionFrame = frame;
+        var firstEntry = true;
+        try
         {
-            var active = _context.QuestActive?.Invoke(function.Quest) ?? _context.Quests?.IsActive(function.Quest);
-            if (active is null) throw new InvalidDataException($"Function '{function.Name}' requires active quest state for {function.Quest}.");
-            if (!active.Value) return;
+            while (true)
+            {
+                var function = _context.RequireFunction(functionIndex);
+                // Restart reloads the definition, then checks deleted and quest gates.
+                // It enters after the name-prefix checks at Gold 0x46BC21.
+                if (unchecked((byte)function.Deleted) != 0) return;
+                if (firstEntry && (HasPrefix(function.Name, "InitRg") && (function.Name.Contains("Pools", StringComparison.Ordinal) ||
+                    function.Name.Contains("(DQ_Quest)", StringComparison.Ordinal)) || HasPrefix(function.Name, "DQTrgRegion") ||
+                    HasPrefix(function.Name, "DQStartRegion"))) return;
+                if (function.Quest >= 0)
+                {
+                    var active = _context.QuestActive?.Invoke(function.Quest) ?? _context.Quests?.IsActive(function.Quest);
+                    if (active is null) throw new InvalidDataException($"Function '{function.Name}' requires active quest state for {function.Quest}.");
+                    if (!active.Value) return;
+                }
+                if (_calls.Count >= 128) throw new InvalidDataException("Script call depth exceeds the managed execution limit.");
+                _context.CurrentFunctionQuest = function.Quest;
+                _calls.Add(function.Name);
+                try { Execute("FunkCode.bin", _context.FunctionCode.Slice(function.Start, function.ByteLength), function.Start, cancellationToken); }
+                finally { _calls.RemoveAt(_calls.Count - 1); }
+                if (!frame.RestartRequested) return;
+                frame.RestartRequested = false;
+                // Native reuses the same saved-quest local on restart. Even a
+                // failed restart gate leaves the previous function quest active.
+                frame.RestoreQuest = _context.CurrentFunctionQuest;
+                firstEntry = false;
+            }
         }
-        if (_calls.Count >= 128) throw new InvalidDataException("Script call depth exceeds the managed execution limit.");
-        _calls.Add(function.Name);
-        try { Execute("FunkCode.bin", _context.FunctionCode.Slice(function.Start, function.ByteLength), function.Start, cancellationToken); }
-        finally { _calls.RemoveAt(_calls.Count - 1); }
+        finally
+        {
+            _context.CurrentFunctionQuest = frame.RestoreQuest;
+            _functionFrame = previousFrame;
+        }
+    }
+
+    /// <summary>Compared creature-caller scope for supported campaign handler
+    /// profiles. Other commands/predicates fail before dispatch.
+    /// This does not bind an active hero or complete post-startup readiness.</summary>
+    public void InvokeAssociatedCreature(int functionIndex, uint creatureReference, CancellationToken cancellationToken = default)
+    {
+        RequireValid();
+        if (creatureReference is 0 or >= Sacred.Network.Gameplay.GoldReferenceCodec.ReferenceLimit)
+            throw new ArgumentOutOfRangeException(nameof(creatureReference));
+        var previous = _context.AssociatedCreatureReference;
+        _context.AssociatedCreatureReference = creatureReference;
+        try { Invoke(functionIndex, cancellationToken); }
+        finally { _context.AssociatedCreatureReference = previous; }
+    }
+
+    /// <summary>Native region initialization supplies a null associated actor.
+    /// Retains ordinary callback notification behavior after completed startup.</summary>
+    public void InvokeRegion(int functionIndex, CancellationToken cancellationToken = default)
+    {
+        RequireValid();
+        if (!_context.StartupCompleted || _context.AssociatedCreatureReference != 0)
+            throw new InvalidOperationException("Region callbacks require completed startup and the native null actor scope.");
+        var previous = _context.IsInitializingRegion;
+        _context.IsInitializingRegion = true;
+        try { Invoke(functionIndex, cancellationToken); }
+        finally { _context.IsInitializingRegion = previous; }
     }
 
     /// <summary>Sector/region callback lookup permits absent names. A present function still
@@ -91,11 +141,11 @@ public sealed class WorldScriptExecutor
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Restart:
             foreach (var relative in SacredScriptControlFlowReader.Read(code, Predicate))
             {
                 current = relative with { FileOffset = fileOffset + relative.FileOffset };
                 CheckBudget();
+                WorldScriptAssociatedCreatureCommands.RequireSupported(_context, current);
                 if (!WorldScriptVariableCallerEffects.Preserves(_context, current))
                     _context.VariableCallerIndex = null;
                 Trace(current, false);
@@ -105,7 +155,8 @@ public sealed class WorldScriptExecutor
                     case SacredScriptControlOpcodes.Nop: break;
                     case SacredScriptExecutionOpcodes.RestartFunction when script == "FunkCode.bin":
                         _context.Record(current.Opcode);
-                        goto Restart;
+                        (_functionFrame ?? throw new InvalidDataException("Restart requires a function dispatcher frame.")).RestartRequested = true;
+                        return;
                     case SacredScriptCommandHeaderLayout.CreateObjectOpcode when _context.ObjectWorld is not null:
                         _context.ObjectWorld.Create(_context, current);
                         break;
@@ -150,7 +201,22 @@ public sealed class WorldScriptExecutor
                         break;
                     case SacredScriptExecutionOpcodes.ActivateQuest:
                         if (_context.Quests is null) throw new InvalidDataException("Quest activation requires the original quest table.");
-                        _context.Quests.Execute(current, _context.IsExecutingStartup, index => Invoke(index, cancellationToken));
+                        if (_context.IsInitializingRegion)
+                        {
+                            _context.Quests.ExecuteRegion(current, _context, index =>
+                            {
+                                // Native false returns for zero/out-of-range
+                                // callbacks are ignored by quest activation.
+                                if (index != 0 && (uint)index < _context.Functions.Count) Invoke(index, cancellationToken);
+                            });
+                            break;
+                        }
+                        _context.Quests.ExecuteAssociated(current, _context.IsExecutingStartup, _context.AssociatedCreatureReference,
+                            (index, reference) =>
+                            {
+                                if (reference == 0) Invoke(index, cancellationToken);
+                                else InvokeAssociatedCreature(index, reference, cancellationToken);
+                            });
                         break;
                     case SacredScriptExecutionOpcodes.CallFunction:
                         Call(current);
@@ -183,6 +249,7 @@ public sealed class WorldScriptExecutor
         {
             current = relative with { FileOffset = fileOffset + relative.FileOffset };
             CheckBudget();
+            WorldScriptAssociatedCreatureCommands.RequireSupported(_context, current);
             _context.VariableCallerIndex = null;
             Trace(current, true);
             var value = SacredScriptConditionReader.Evaluate(current, _context.Multiplayer, _context.Variables.Find) ??

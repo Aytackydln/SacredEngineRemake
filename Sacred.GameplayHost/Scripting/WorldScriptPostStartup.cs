@@ -4,8 +4,8 @@ using Sacred.Network.Gameplay;
 namespace Sacred.GameplayHost.Scripting;
 
 /// <summary>Original post-StartCode campaign callback selection and supported
-/// null-actor execution. Non-null actor binding stays pending before any effects;
-/// current startup factories implement only the independently compared unbound caller.</summary>
+/// null-actor execution. Non-null execution stays pending before any effects;
+/// real local-actor/snapshot binding and the complete campaign profile remain pending.</summary>
 public sealed class WorldScriptPostStartup(WorldScriptExecutionContext context)
 {
     public const string CampaignCallback = "MultiCampaign";

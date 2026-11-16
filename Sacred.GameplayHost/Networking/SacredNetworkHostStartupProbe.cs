@@ -15,8 +15,6 @@ namespace Sacred.GameplayHost.Networking;
 /// It never uploads a partial world or sends host finish.</summary>
 public static class SacredNetworkHostStartupProbe
 {
-    // Both original first-host captures request 2,000 IDs using the authored trigger-table bound.
-    private const uint InitialTriggerGrantCount = 2000;
     public static Task<SacredNetworkHostStartupProbeResult> RunSavedCharacterAsync(string installation,
         SacredCampaignFiles campaign, int selection, string host, int port, Action<string> log, CancellationToken cancellationToken = default)
     {
@@ -34,78 +32,17 @@ public static class SacredNetworkHostStartupProbe
         ArgumentNullException.ThrowIfNull(contact);
         cancellationToken.ThrowIfCancellationRequested();
         var source = SacredWorldTriggerArchive.Load(Path.Combine(installation, "World", "Triggers.PAK"));
-        var replicas = new GoldWorldReplica();
-        var references = new GoldObjectReferencePool();
-        await using var connection = new GoldGameConnection();
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         limit.CancelAfter(TimeSpan.FromSeconds(15));
-        var requested = false;
-        log($"Host startup probe: connecting to {host}:{port}, script set {campaign.Name}.");
-        cancellationToken.ThrowIfCancellationRequested();
-        connection.Start(host, port, contact);
-        try
-        {
-            await foreach (var entry in connection.Events.ReadAllAsync(limit.Token).ConfigureAwait(false))
-            {
-                if (entry is GoldConnectionClosed closed) throw new IOException($"Host startup probe closed: {closed.Reason}");
-                if (entry is GoldMessagesReceived received)
-                    GoldGameDispatcher.Dispatch(received.Messages, message =>
-                    {
-                        replicas.Apply(message);
-                        if (message is GoldReferenceBatchEvent batch)
-                        {
-                            references.Apply(batch.Batch);
-                            log($"Host startup probe: received {batch.Batch.Count} object IDs; total {references.Issued}.");
-                        }
-                    });
-                var admission = connection.Admission;
-                if (admission.Phase == GoldAdmissionPhase.Rejected)
-                    throw new InvalidDataException($"Host startup probe rejected: reason {admission.RejectionReason}, mismatch 0x{admission.DataMismatchMask:X8}.");
-                if (admission.Phase != GoldAdmissionPhase.SlotAssigned) continue;
-                if (!admission.WorldStartup.AssignedClientHost || admission.WorldStartup.HostWorldAvailable || admission.WorldStartup.ParticipantStartApproved)
-                    throw new InvalidOperationException($"Host startup probe requires a first-client host assignment on an empty server (slot {admission.PlayerSlot}, flags 0x{admission.Flags:X2}).");
-                await WorldHostStartupDiscovery.SeedAsync(installation,
-                    connection.RemoteEndpoint ?? throw new IOException("Admitted host has no TCP endpoint."), contact.Version,
-                    replicas.Session, log, limit.Token).ConfigureAwait(false);
-                if (!requested)
-                {
-                    log($"Host startup probe: slot {admission.PlayerSlot}, flags 0x{admission.Flags:X2}; requesting separate trigger/object IDs.");
-                    await connection.SendAsync(GoldReferenceCodec.CreateTriggerRangeRequest(source.Header.TriggerCount, InitialTriggerGrantCount, admission.PlayerSlot), limit.Token).ConfigureAwait(false);
-                    await connection.SendAsync(GoldReferenceCodec.CreateRequest(64, admission.PlayerSlot), limit.Token).ConfigureAwait(false);
-                    requested = true;
-                }
-                if (!replicas.TriggerReferences.HasGrant || references.Available == 0) continue;
-                var sectorIndex = SacredSectorIndex.Read(Path.Combine(installation, "World", "sectors.keyx"));
-                var sectors = sectorIndex.CreateGrid();
-                var triggers = new WorldScriptTriggerRegistry(source, replicas.TriggerReferences, sectors);
-                var templates = SacredObjectTemplateArchive.Load(installation);
-                var objects = new WorldScriptObjectWorld(templates, references,
-                    sectors, triggers, admission.PlayerSlot, 0, hasActiveHero: false);
-                objects.Creatures = new(WorldScriptCreatureAssets.Load(installation, templates, sectorIndex), references,
-                    objects.AllocationCounter, new(admission.PlayerSlot, replicas.Session.Difficulty, false, 0, () => unchecked((uint)Environment.TickCount))
-                        { EffectProjection = WorldStartupEffectProjection.ComparedGold },
-                    new SacredRandomSequence(unchecked((uint)Environment.TickCount)), log);
-                var scripts = WorldCampaignScripts.Load(campaign);
-                var state = WorldScriptStartupInspection.Run(scripts, log, limit.Token, triggers, objects);
-                var pendingCreature = WorldScriptStartupDependencies.InspectCreature(installation, scripts, state, templates, log);
-                // The returned state is diagnostic only; its reservations expire on disconnect.
-                state.IsInvalidated = true;
-                foreach (var obj in objects.Objects)
-                {
-                    var row = obj.BaseState;
-                    log($"Host startup object: ref {row.ObjectReference}, type {row.ObjectType}, sector {row.Sector}, position {row.X},{row.Y},{row.Surface}, trigger {row.TriggerReference}.");
-                }
-                return new(admission.PlayerSlot, references.Issued, references.Available, state, triggers, objects)
-                    { PendingCreature = pendingCreature, CreaturePreparation = objects.Creatures.Pending };
-            }
-            throw new IOException("Host startup connection ended before reservation preparation completed.");
-        }
-        finally
-        {
-            connection.Stop();
-            await connection.Completion.ConfigureAwait(false);
-            replicas.Clear(); references.Clear();
-            log("Host startup probe: disconnected and cleared reservation/session state.");
-        }
+        await using var session = WorldHostInitializationSession.Start(new(), host, port, contact, source.Header.TriggerCount,
+            (state, endpoint, token) => WorldHostStartupDiscovery.SeedAsync(installation, endpoint, contact.Version, state, log, token), log, limit.Token);
+        var startup = await session.InitializeAsync(installation, campaign, limit.Token).ConfigureAwait(false);
+        var result = new SacredNetworkHostStartupProbeResult(session.Admission.PlayerSlot, session.References.Issued,
+            session.References.Available, startup.Execution, startup.Triggers, startup.Objects)
+            { PendingCreature = startup.PendingCreature, CreaturePreparation = startup.Objects.Creatures!.Pending };
+        // The diagnostic intentionally disposes the persistent owner on return.
+        // Its execution is invalidated; a production caller retains the session.
+        log("Host startup probe: disconnecting diagnostic session; reservations and generated state expire.");
+        return result;
     }
 }

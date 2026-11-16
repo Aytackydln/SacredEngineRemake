@@ -2,7 +2,7 @@ using Sacred.Network.Gameplay;
 
 namespace Sacred.GameplayHost.Scripting;
 
-/// <summary>Non-hero creature state from construction through initial script preparation.
+/// <summary>Creature logical state from construction through initial script preparation.
 /// Native pointers, allocator metadata and untouched backing bytes are excluded.
 /// Unplaced serialization can zero-canonicalize its discarded bone-vector bytes;
 /// ordinary placed NPCs also ignore that cache in their position consumer.

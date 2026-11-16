@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using Sacred.Assets.GameBin;
 using Sacred.Core.GameBin.Scripts;
+using Sacred.Network.Protocol;
 
 namespace Sacred.GameplayHost.Scripting;
 
@@ -9,6 +10,9 @@ namespace Sacred.GameplayHost.Scripting;
 public sealed class WorldScriptQuests
 {
     private readonly List<byte[]> _rows;
+    private readonly List<GoldMessage> _activationPublications = [];
+    private Action<int, SacredScriptQuestDefinition>? _activationPublisher;
+    public IReadOnlyList<GoldMessage> ActivationPublications => _activationPublications.AsReadOnly();
     public WorldScriptQuests(IEnumerable<SacredScriptQuestDefinition> definitions) => _rows = definitions.Select(row => row.ToPayload()).ToList();
     public WorldScriptQuestJournal Journal { get; init; } = new();
     /// <summary>Restore explicitly supplied native runtime inputs, without inferring scratch defaults.</summary>
@@ -36,6 +40,13 @@ public sealed class WorldScriptQuests
         Scratch = Array.AsReadOnly(words);
     }
     public int Count => _rows.Count;
+    /// <summary>Private bank-3 section-1 rows; the outer count/header and final
+    /// world-initialization completeness remain the upload owner's responsibility.</summary>
+    public byte[] WriteBankSection(WorldScriptExecutionContext context)
+    {
+        if (!ReferenceEquals(context.Quests, this)) throw new InvalidDataException("Quest source belongs to another script context.");
+        return WorldScriptRegionQuestActivation.WriteBankSection(context);
+    }
     public IReadOnlyList<uint>? Scratch { get; private set; }
     public SacredScriptQuestDefinition Get(int index) => SacredScriptQuestDefinition.FromPayload(_rows[index]);
     public bool IsActive(int number)
@@ -44,9 +55,16 @@ public sealed class WorldScriptQuests
         // Native 0x46BC68 reserves slot zero, even if an opcode-21 missing ID activated it.
         return slot > 0 && (Get(slot).Flags & SacredScriptQuestLayout.ActiveFlag) != 0;
     }
+    /// <summary>Gold 0x48F7F0 -> 0x46DB20 forwards the supplied creature to both
+    /// function callbacks, including controlled reentry. Active hero is separate.</summary>
+    public void ExecuteAssociated(SacredScriptCommand command, bool startup, uint creatureReference, Action<int,uint> invoke)
+    {
+        ArgumentNullException.ThrowIfNull(invoke);
+        Execute(command,startup,index=>invoke(index,creatureReference));
+    }
     public void Execute(SacredScriptCommand command, bool startup, Action<int> invoke)
     {
-        if (!startup) throw new NotSupportedException("Quest activation live entry requires its native notification lifecycle.");
+        if (!startup && _activationPublisher is null) throw new NotSupportedException("Quest activation live entry requires its native notification lifecycle.");
         Scratch = Array.AsReadOnly(new uint[5]); // Native clears 0xAB782C..0xAB783C at command entry.
         foreach (var operand in SacredScriptOperandReader.Read(command))
         {
@@ -66,6 +84,16 @@ public sealed class WorldScriptQuests
             Activate(slot, invoke);
         }
     }
+    internal void ExecuteRegion(SacredScriptCommand command, WorldScriptExecutionContext context, Action<int> invoke)
+    {
+        if (!context.IsInitializingRegion || context.IsExecutingStartup || context.AssociatedCreatureReference != 0 ||
+            !WorldScriptRegionQuestActivation.Supports(context, command))
+            throw new NotSupportedException("Region quest activation requires its compared null-actor/empty-callback profile.");
+        var previous = _activationPublisher;
+        _activationPublisher = (index, row) => _activationPublications.Add(WorldScriptRegionQuestActivation.Create(context, index, row));
+        try { Execute(command, false, invoke); }
+        finally { _activationPublisher = previous; }
+    }
     internal int FindNumber(int number) => _rows.FindIndex(row => BinaryPrimitives.ReadInt32LittleEndian(row) == number);
     private void Activate(int slot, Action<int> invoke)
     {
@@ -77,6 +105,7 @@ public sealed class WorldScriptQuests
         Write(slot, SacredScriptQuestLayout.SetupFunctionOffset, 0);
         invoke(Get(slot).ActivationFunction);
         Write(slot, SacredScriptQuestLayout.FlagsOffset, Get(slot).Flags & ~SacredScriptQuestLayout.ActivatingFlag);
+        _activationPublisher?.Invoke(slot, Get(slot));
     }
     internal void WriteWord(int slot, int offset, uint value) => Write(slot,offset,value);
     private void Write(int slot, int offset, uint value) => BinaryPrimitives.WriteUInt32LittleEndian(_rows[slot].AsSpan(offset), value);

@@ -15,6 +15,7 @@ internal static class StartupDialogStateChecks
     {
         JsonDocument Read(string name)=>JsonDocument.Parse(File.ReadAllText(Path.Combine(root,"docs/game-server/evidence/"+name+".json")));
         using var fixture=Read("native-startup-dialog-state");using var owners=Read("native-startup-owner");
+        using var associated=Read("native-startup-associated-dialog");
         using var constructor=Read("native-horse-constructor");using var basis=Read("native-creature-base-results");
         using var initialization=Read("native-creature-result-initialization");using var finalization=Read("native-creature-result-finalization");
         using var precision=Read("native-startup-floating-point");using var levels=Read("native-creature-level-selection");
@@ -25,7 +26,7 @@ internal static class StartupDialogStateChecks
         var archive=new byte[256+CreatureGoldRecordLayout.Size*2];BinaryPrimitives.WriteUInt32LittleEndian(archive,0x00464943);BinaryPrimitives.WriteUInt32LittleEndian(archive.AsSpan(4),2);
         Bytes(owners.RootElement.GetProperty("templates"),"555").CopyTo(archive,256+CreatureGoldRecordLayout.Size);
         var template=CreaturePakArchive.Parse(archive).Entries[1];var data=EquipmentGenerationFixture.ReadStartup(root);var checks=0;
-        foreach(var row in fixture.RootElement.GetProperty("cases").EnumerateArray())
+        foreach(var row in fixture.RootElement.GetProperty("cases").EnumerateArray().Concat(associated.RootElement.GetProperty("cases").EnumerateArray()))
         {
             var before=Actor(Bytes(row,"before_hex"));
             var table=new WorldScriptRegistrationTable();table.Import(Bytes(row,"before_table_hex").Chunk(80).Select(bytes=>Sacred.Core.GameBin.Scripts.SacredScriptDialog.FromPayload(bytes)));
@@ -33,7 +34,21 @@ internal static class StartupDialogStateChecks
             var operands=Sacred.Assets.GameBin.SacredScriptOperandReader.Read(command);var operand=operands[1];
             var selection=new Sacred.Core.GameBin.Scripts.SacredScriptDialogSelection(operand.Text,
                 operand.Kind==Sacred.Core.GameBin.Scripts.SacredScriptArgumentKind.DialogRegistrationNumber?checked((ushort)operand.Integer!.Value):null);
-            var next=WorldCreatureScriptDialogState.Apply(before,table,selection);
+            WorldCreatureInitialActor next=null!;
+            var reference=row.TryGetProperty("actor_reference",out var actorReference)?actorReference.GetUInt32():0;
+            if(reference==0)next=WorldCreatureScriptDialogState.Apply(before,table,selection);
+            else
+            {
+                var bytes=Bytes(row,"command_hex");
+                var context=new Sacred.GameplayHost.Scripting.WorldScriptExecutionContext(new(),
+                    [new("",0,0,-1,0,0),new("dialog",0,bytes.Length,-1,0,0)],bytes,true);
+                new WorldScriptExecutor(context,(scope,_)=>
+                {
+                    Check(scope.AssociatedCreatureReference==reference,"native explicit target with retained associated caller");
+                    next=WorldCreatureScriptDialogState.Apply(before,table,selection);return true;
+                }).InvokeAssociatedCreature(1,reference);
+                Check(context.AssociatedCreatureReference==0&&!context.IsInvalidated,"named dialog invocation restores caller scope");
+            }
             var expected=Bytes(row,"after_hex");
             Block(Enumerable.Range(0,table.Count).SelectMany(table.GetRecord).ToArray(),Bytes(row,"table_hex"),"all native registration bytes / duplicate first match / prior detach");
             Check(next.Base.Flags==Word(expected,20)&&next.DialogIndex==Word(expected,0x245)&&next.KiMode==Short(expected,0x25f),"native dialog flag/slot, missing-name clear and preserved KI mode");

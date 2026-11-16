@@ -19,8 +19,12 @@ public sealed record GoldReferenceRangeEvent(GoldMessage Message, uint Start, ui
     public uint EndExclusive => unchecked(Start + Count);
 }
 
-/// <summary>FIRSTCONTACT response at 0x4EBDE6: flags, Sacred slot, opaque native host token.</summary>
-public sealed record GoldAdmissionEvent(GoldMessage Message, byte Flags, byte PlayerSlot, uint HostToken) : GoldGameEvent(Message);
+/// <summary>FIRSTCONTACT response at 0x4EBDE6: flags, Sacred slot and the native
+/// hosted-server window token. Local controller 0x117 uses its stored +0x24 value.</summary>
+public sealed record GoldAdmissionEvent(GoldMessage Message, byte Flags, byte PlayerSlot, uint HostToken) : GoldGameEvent(Message)
+{
+    public uint HostedServerWindow => HostToken;
+}
 public sealed record GoldRejectionEvent(GoldMessage Message, uint Reason, uint DataMismatchMask) : GoldGameEvent(Message);
 
 /// <summary>Gold start/update prefix: reference, packed +0x174 control, current X/Y, surface and sector.</summary>

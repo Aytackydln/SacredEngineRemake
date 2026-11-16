@@ -40,6 +40,21 @@ public sealed class WorldScriptTriggerRegistry : IWorldScriptTriggerRegistry
     public IReadOnlyList<(ushort Sector, SacredScriptPosition Position)> PendingPositions { get; }
     public uint? Find(string name) => _names.TryGetValue(name, out var reference) ? reference : null;
 
+    /// <summary>Only bank 1 section 6, in runtime slot order. Gold 0x63C910
+    /// writes every slot, including opaque Reference values from original data.
+    /// Missing growth slots cannot be filled from unproven caller scratch.</summary>
+    public byte[] WriteBankSection()
+    {
+        if (UnknownSlotCount != 0)
+            throw new InvalidDataException($"Trigger bank section has {UnknownSlotCount} slots without native Reference provenance.");
+        if (Count > int.MaxValue / SacredWorldTriggerLayout.SerializedSize)
+            throw new InvalidDataException("Trigger bank section exceeds managed storage bounds.");
+        var bytes = new byte[checked((int)Count * SacredWorldTriggerLayout.SerializedSize)];
+        for (uint slot = 0; slot < Count; slot++)
+            _records[slot].ToPayload().CopyTo(bytes, checked((int)slot * SacredWorldTriggerLayout.SerializedSize));
+        return bytes;
+    }
+
     /// <summary>Gold CreateObj links the named trigger to the new object. It keeps the trigger
     /// name/reference and replaces its referent; repeated attachments therefore target the latest object.</summary>
     internal uint AttachObject(string suffix, uint objectReference)

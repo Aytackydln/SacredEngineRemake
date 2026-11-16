@@ -1,4 +1,6 @@
 using System.Buffers.Binary;
+using System.Runtime.InteropServices;
+using Sacred.Core.CombatArts;
 
 namespace Sacred.Core.Pax.Hero.Objects;
 
@@ -24,6 +26,7 @@ public sealed class SacredSavedCreatureValues
     public ushort Level => BinaryPrimitives.ReadUInt16LittleEndian(_payload.AsSpan(SacredSavedCreatureValuesLayout.LevelOffset));
     public ushort RemainingSkillPoints => BinaryPrimitives.ReadUInt16LittleEndian(_payload.AsSpan(SacredSavedCreatureValuesLayout.RemainingSkillPointsOffset));
     public ReadOnlySpan<byte> GetRecord22(int index) => SacredSavedStreamBounds.Record(_payload, index, Count22, 268, 22);
+    public SacredCombatArtRuntimeLayout GetCombatArt(int index) => MemoryMarshal.Read<SacredCombatArtRuntimeLayout>(GetRecord22(index));
     public ReadOnlySpan<byte> GetRecord38(int index) => SacredSavedStreamBounds.Record(_payload, index, Count38, _records38Offset, 38);
     public ReadOnlySpan<byte> GetRecord28(int index) => SacredSavedStreamBounds.Record(_payload, index, Count28, _records28Offset, 28);
     public byte[] ToPayload() => _payload.ToArray();

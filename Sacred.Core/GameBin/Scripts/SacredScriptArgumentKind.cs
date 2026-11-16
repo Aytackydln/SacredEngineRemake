@@ -118,6 +118,26 @@ public enum SacredScriptArgumentKind : byte
     /// explicit behavior, raises level before behavior/services, then retains
     /// the low input byte at values +80. Separate from requested level 0x1F.</summary>
     CreatureAssignedLevel = 0x90,
+    /// <summary>CreateNPC: OR quest-object construction flag 1 and mark explicit
+    /// behavior (Gold 0x482C3C). No payload; association execution is separate.</summary>
+    CreatureQuestObject = 0x1A,
+    /// <summary>CreateNPC: OR ownership construction flag 0x100, without marking
+    /// explicit behavior (Gold 0x482C5B). Shared decoder consumes a selector byte;
+    /// selector 1 additionally carries a NUL-terminated name (0x474C4F).</summary>
+    CreatureOwnership = 0x37,
+    /// <summary>CreateNPC: OR flags 0x300 and mark explicit behavior. The later
+    /// ownership branch uses the active hero (Gold 0x482C4B). Shared decoder
+    /// consumes a selector byte; selector 1 adds a NUL-terminated name.</summary>
+    CreatureHeroOwnership = 0x4B,
+    /// <summary>CreateNPC: OR construction flag 0x400, selecting quest-object
+    /// record flag 0x20; mark explicit behavior (Gold 0x482C95). No payload.</summary>
+    CreatureQuestObjectFlag20 = 0x70,
+    /// <summary>CreateNPC: OR construction flag 0x800, selecting quest-object
+    /// record flag 0x40; mark explicit behavior (Gold 0x482CA5). No payload.</summary>
+    CreatureQuestObjectFlag40 = 0x71,
+    /// <summary>CreateNPC: OR construction flag 0x1000, selecting quest-object
+    /// record flag 0x80; mark explicit behavior (Gold 0x482CB5). No payload.</summary>
+    CreatureQuestObjectFlag80 = 0x72,
     /// <summary>NUL-terminated ECS_ selector, decoded by Gold 0x472BC0.
     /// CreateNPC copies its low byte to +0x2B6 and high word to +0x261;
     /// FFFFFFFF instead clears +0x25F. Also used by spawn-equipment rules.</summary>

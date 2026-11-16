@@ -3,7 +3,8 @@ using System.Runtime.InteropServices;
 namespace Sacred.Core.CombatArts;
 
 /// <summary>Native sSpellEntry (Demo and Gold): acquired rank and equipment rank are distinct bytes.
-/// This maps runtime state; it does not establish a save-file wrapper.</summary>
+/// Gold 585514 also reads this packed layout in the saved creature values'
+/// 22-byte art list. Local-hero load recalculates TimerMaximum afterward.</summary>
 [StructLayout(LayoutKind.Explicit, Pack = 1, Size = Size)]
 public readonly struct SacredCombatArtRuntimeLayout
 {

@@ -313,9 +313,10 @@ public static class GoldGameEventDecoder
                     return new GoldPlayerRosterEvent(message, GoldPlayerRoster.FromPayload(payload));
                 return new GoldPlayerDataEvent(message, GoldPlayerData.FromPayload(payload));
             case 0x11:
-                RequireExact(payload, 6, message.Opcode);
-                if (payload[1] is < 1 or > 16) throw new InvalidDataException("Invalid Sacred player slot.");
-                return new GoldAdmissionEvent(message, payload[0], payload[1], Word(payload, 2));
+                RequireExact(payload, GoldAdmissionResponseLayout.Size, message.Opcode);
+                if (payload[GoldAdmissionResponseLayout.PlayerSlotOffset] is < 1 or > 16) throw new InvalidDataException("Invalid Sacred player slot.");
+                return new GoldAdmissionEvent(message, payload[GoldAdmissionResponseLayout.FlagsOffset], payload[GoldAdmissionResponseLayout.PlayerSlotOffset],
+                    Word(payload, GoldAdmissionResponseLayout.HostedServerWindowOffset));
             case 0x3F:
                 RequireExact(payload, 8, message.Opcode);
                 return new GoldRejectionEvent(message, Word(payload, 0), Word(payload, 4));

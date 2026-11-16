@@ -9,8 +9,13 @@ public sealed class GoldPlayerData
 
     private GoldPlayerData(ReadOnlySpan<byte> payload) => _payload = payload.ToArray();
 
+    public uint SessionWord0 => BinaryPrimitives.ReadUInt32LittleEndian(_payload.AsSpan(GoldPlayerDataLayout.SessionWord0Offset));
+    /// <summary>Verified local admission producer's selected IPv4 word. The
+    /// compatibility SessionWord0 name retains the identical raw UInt32.</summary>
+    public uint NetworkAddressWord0 => SessionWord0;
     public byte CharacterType => _payload[GoldPlayerDataLayout.CharacterTypeOffset];
     public byte ProfileByte5 => _payload[GoldPlayerDataLayout.ProfileByte5Offset];
+    public bool IsPresent => _payload[GoldPlayerDataLayout.PresenceByteOffset] != 0;
     public uint ConnectionSpeed => BinaryPrimitives.ReadUInt32LittleEndian(_payload.AsSpan(GoldPlayerDataLayout.ConnectionSpeedOffset));
     public ushort Version => BinaryPrimitives.ReadUInt16LittleEndian(_payload.AsSpan(GoldPlayerDataLayout.VersionOffset));
     public int LobbyIdentity => BinaryPrimitives.ReadInt32LittleEndian(_payload.AsSpan(GoldPlayerDataLayout.LobbyIdentityOffset));

@@ -17,6 +17,7 @@ internal sealed record RendererOptions(
     public bool MapOnly { get; init; }
     public bool CheckNetworkStartup { get; init; }
     public int? ProbeNetworkStartupProfile { get; init; }
+    public int? InitializeNetworkHostProfile { get; init; }
     public string NetworkProbeHost { get; init; } = "127.0.0.1";
     public int NetworkProbePort { get; init; } = 2006;
     public bool MapNpcs { get; init; } = true;
@@ -50,6 +51,7 @@ internal sealed record RendererOptions(
         var mapOnly = false;
         var checkNetworkStartup = false;
         int? probeNetworkProfile = null;
+        int? initializeNetworkHostProfile = null;
         var networkProbeHost = "127.0.0.1";
         var networkProbePort = 2006;
         var mapNpcs = true;
@@ -90,6 +92,10 @@ internal sealed record RendererOptions(
                 case "--probe-network-startup":
                     probeNetworkProfile = ParsePositiveInt(Read(args, ref index, argument), argument);
                     if (probeNetworkProfile > 8) throw new ArgumentException("--probe-network-startup requires a saved profile selection 1..8.");
+                    break;
+                case "--initialize-network-host":
+                    initializeNetworkHostProfile = ParsePositiveInt(Read(args, ref index, argument), argument);
+                    if (initializeNetworkHostProfile > 8) throw new ArgumentException("--initialize-network-host requires a saved profile selection 1..8.");
                     break;
                 case "--network-host": networkProbeHost = Read(args, ref index, argument); break;
                 case "--network-port":
@@ -146,6 +152,8 @@ internal sealed record RendererOptions(
             }
         }
 
+        if ((checkNetworkStartup ? 1 : 0) + (probeNetworkProfile.HasValue ? 1 : 0) + (initializeNetworkHostProfile.HasValue ? 1 : 0) > 1)
+            throw new ArgumentException("Select one of isolated startup, live startup probe or persistent host initialization.");
         if (sectorX.HasValue != sectorY.HasValue)
             throw new ArgumentException("Pass both --sector-x and --sector-y.");
         if (allSectors && sectorX.HasValue)
@@ -175,6 +183,7 @@ internal sealed record RendererOptions(
         {
             Map = map, MapOnly = mapOnly, MapNpcs = mapNpcs, CheckNetworkStartup = checkNetworkStartup,
             ProbeNetworkStartupProfile = probeNetworkProfile, NetworkProbeHost = networkProbeHost, NetworkProbePort = networkProbePort,
+            InitializeNetworkHostProfile = initializeNetworkHostProfile,
             OpenDoors = openDoors, IndoorLevel = indoorLevel, AllSectors = allSectors,
             CampaignScriptsDirectory = campaign,
             SectorX = sectorX, SectorY = sectorY, Format = format, ParticleSeconds = particleSeconds,
@@ -188,6 +197,7 @@ internal sealed record RendererOptions(
         "  --campaign <name|path> Script directory under bin, or absolute path (default: NetScriptCamp)\n" +
         "  --check-network-startup Execute isolated multiplayer startup; exit 3 if a required handler is missing\n" +
         "  --probe-network-startup <1..8> Saved profile for live first-host startup inspection; empty server required\n" +
+        "  --initialize-network-host <1..8> Retain host startup; empty server required; status/banks/region <sector>/quit commands\n" +
         "  --network-host <host> Probe endpoint (default: 127.0.0.1)\n" +
         "  --network-port <port> Probe port (default: 2006)\n" +
         "  --output <directory>  Image destination (default: ./world-debug-images)\n" +

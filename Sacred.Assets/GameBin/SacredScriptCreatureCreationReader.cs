@@ -102,6 +102,18 @@ public static class SacredScriptCreatureCreationReader
                     behavior = (behavior & 0xFFFF0040) | 0x40; break;
                 case SacredScriptArgumentKind.CreatureSmith:
                     constructionFlags |= 0x10; explicitBehavior = true; break;
+                case SacredScriptArgumentKind.CreatureQuestObject:
+                    constructionFlags |= SacredScriptCreatureAssociationFlags.QuestObject; explicitBehavior = true; break;
+                case SacredScriptArgumentKind.CreatureOwnership:
+                    constructionFlags |= SacredScriptCreatureAssociationFlags.Ownership; break;
+                case SacredScriptArgumentKind.CreatureHeroOwnership:
+                    constructionFlags |= SacredScriptCreatureAssociationFlags.HeroOwnership; explicitBehavior = true; break;
+                case SacredScriptArgumentKind.CreatureQuestObjectFlag20:
+                    constructionFlags |= SacredScriptCreatureAssociationFlags.QuestObjectFlag20; explicitBehavior = true; break;
+                case SacredScriptArgumentKind.CreatureQuestObjectFlag40:
+                    constructionFlags |= SacredScriptCreatureAssociationFlags.QuestObjectFlag40; explicitBehavior = true; break;
+                case SacredScriptArgumentKind.CreatureQuestObjectFlag80:
+                    constructionFlags |= SacredScriptCreatureAssociationFlags.QuestObjectFlag80; explicitBehavior = true; break;
                 case SacredScriptArgumentKind.CreatureTrader:
                     constructionFlags |= 4; explicitBehavior = true; break;
                 case SacredScriptArgumentKind.CreatureComboMaster:

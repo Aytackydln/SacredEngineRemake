@@ -5,6 +5,9 @@ public static class SacredSavedPhysicalLayout
 {
     public const int Size = 247;
     public const int Word64Offset = 55;
+    /// <summary>Animation selector passed to the creature's animation method at
+    /// Gold 45010F, after successful activation. Zero skips both calls.</summary>
+    public const int AnimationSelectionOffset = Word64Offset;
     /// <summary>Native +0xF0: sampled ground height, refreshed by Reset3DPosition (Gold 0x44D520).</summary>
     public const int WordF0Offset = 59;
     public const int Word60Offset = 63;
@@ -45,6 +48,20 @@ public static class SacredSavedPhysicalLayout
     public const int WordB0Offset = 155;
     public const int ReservedWordsOffset = 159;
     public const int AnimationDoublesOffset = 175;
+    /// <summary>4500FE narrows this saved double to the first floating argument.
+    /// 5930B0/44A6C0 send it to Granny control parameter 3 (loop count), capped
+    /// at 10000 by 44A83A. It is not a duration in seconds.</summary>
+    public const int AnimationFirstArgumentDoubleOffset = AnimationDoublesOffset + 8;
+    public const int AnimationLoopCountDoubleOffset = AnimationFirstArgumentDoubleOffset;
+    /// <summary>4500EE narrows this double to the second argument; 5930B0
+    /// multiplies by the creature animation-speed factor, then 413610 applies
+    /// metadata/global factors and sends Granny control parameter 2 (speed).</summary>
+    public const int AnimationSecondArgumentDoubleOffset = AnimationDoublesOffset;
+    public const int AnimationSpeedDoubleOffset = AnimationSecondArgumentDoubleOffset;
+    /// <summary>The reader sends this third double directly to Granny control
+    /// parameter 0 before activation creates a new animation control. It is
+    /// not forwarded as one of the subsequent animation method's arguments.</summary>
+    public const int AnimationControlTimeDoubleOffset = AnimationDoublesOffset + 16;
     public const int BoneVectorOffset = 199;
     public const int BoneBlockOffset = 211;
 }

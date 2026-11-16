@@ -16,8 +16,10 @@ public sealed class WorldCreatureFactoryRegistration
         ItemsPakEntry descriptor, bool networking, bool newReference)
     {
         ArgumentNullException.ThrowIfNull(actor);
-        if (!actor.Node.Active || actor.Base.ObjectReference <= 16 || (actor.Base.Flags & 2) == 0 ||
-            actor.RelationClass == (uint)SacredCreatureClass.Hero || descriptor.ItemIndex != actor.Base.ObjectType ||
+        var hero = actor.RelationClass == (uint)SacredCreatureClass.Hero;
+        var localHero = hero && actor.Base.ObjectReference == actor.Base.Owner && actor.Base.ObjectReference is >= 1 and <= 16 && actor.Base.ScriptResourceId != 0;
+        if (!actor.Node.Active || actor.Base.ObjectReference <= 16 && !localHero || (actor.Base.Flags & 2) == 0 ||
+            hero && !localHero || descriptor.ItemIndex != actor.Base.ObjectType ||
             descriptor.ModelDesc.Category != SacredItemCategory.Creature)
             throw new NotSupportedException("Factory continuation requires an assigned, unplaced ordinary NPC.");
         if (descriptor.ModelDesc.RequiresGraphicObjectRegistration)
