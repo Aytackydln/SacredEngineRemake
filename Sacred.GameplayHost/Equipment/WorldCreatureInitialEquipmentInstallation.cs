@@ -2,6 +2,7 @@ using Sacred.Assets.Equipment;
 using Sacred.Assets.Executable;
 using Sacred.Core.Pak.Weapon;
 using Sacred.Core.Runtime;
+using Sacred.GameplayHost.Runtime;
 using Sacred.GameplayHost.Scripting;
 using Sacred.Network.Gameplay;
 

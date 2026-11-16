@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Numerics;
 using Sacred.Assets.Executable;
+using Sacred.GameplayHost.Runtime;
 using Sacred.Network.Gameplay;
 
 namespace Sacred.GameplayHost.Scripting;
@@ -17,7 +18,7 @@ public static class WorldBubblePrisonEffectSerialization
             identity.Owner is < 1 or > 16 || !float.IsFinite(projectedPosition.X) ||
             !float.IsFinite(projectedPosition.Y) || !float.IsFinite(projectedPosition.Z))
             throw new NotSupportedException("Initial BUBBLEPRISON needs its original family, reserved identity and finite projection.");
-        var rings = Sacred.Core.Runtime.SacredBubblePrisonInitialization.Create(definitions.Parameters, random);
+        var rings = SacredBubblePrisonInitialization.Create(definitions.Parameters, random);
         var body = new byte[GoldObjectFxStateLayout.MinimumSize + 8 +
             GoldBubblePrisonParticleLayout.DerivedSize + GoldParticleBaseStateLayout.Size];
         (identity with { Flags = identity.Flags & ~0x10002u }).ToPayload().CopyTo(body, 0);

@@ -6,7 +6,7 @@ namespace Sacred.Core.Runtime;
 /// PC=24 rounds every arithmetic instruction, retaining the wider exponent.
 /// Residuals preserve the direction at a 24-bit midpoint instead of introducing
 /// a double rounding through the CLR's 53-bit intermediate. Loads stay exact.</summary>
-internal readonly struct SacredResultArithmetic
+public readonly struct SacredResultArithmetic
 {
     private readonly bool _single;
 

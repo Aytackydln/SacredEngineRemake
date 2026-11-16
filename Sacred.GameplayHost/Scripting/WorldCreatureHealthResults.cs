@@ -3,6 +3,7 @@ using Sacred.Core.GameBin.Balance;
 using Sacred.Core.Runtime;
 using Sacred.Network.Gameplay;
 using Sacred.Core.Pak.Creature;
+using Sacred.GameplayHost.Runtime;
 
 namespace Sacred.GameplayHost.Scripting;
 

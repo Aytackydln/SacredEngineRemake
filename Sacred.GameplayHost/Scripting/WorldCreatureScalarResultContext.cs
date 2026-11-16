@@ -1,5 +1,6 @@
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Runtime;
+using Sacred.GameplayHost.Runtime;
 
 namespace Sacred.GameplayHost.Scripting;
 

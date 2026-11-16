@@ -6,6 +6,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sacred.Assets.Executable;
 using Sacred.Core.Runtime;
 using Sacred.GameplayHost.Networking;
+using Sacred.GameplayHost.Runtime;
 using Sacred.Network.Tests.Infrastructure;
 
 namespace Sacred.Network.Tests;

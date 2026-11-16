@@ -2,6 +2,7 @@ using System.Text.Json;
 using Sacred.Assets.Executable;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Runtime;
+using Sacred.GameplayHost.Runtime;
 
 internal static class CreatureEquipmentResultChecks
 {

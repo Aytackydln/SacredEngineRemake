@@ -6,6 +6,7 @@ using Sacred.Assets.Paks.Creature;
 using Sacred.Core.Pak.Creature;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Runtime;
+using Sacred.GameplayHost.Runtime;
 using Sacred.GameplayHost.Scripting;
 
 internal static class CreatureScalarResultChecks

@@ -3,6 +3,7 @@ using System.Text.Json;
 using Sacred.Assets.GameBin;
 using Sacred.Core.GameBin.Scripts;
 using Sacred.Core.Runtime;
+using Sacred.GameplayHost.Runtime;
 using Sacred.GameplayHost.Scripting;
 using Sacred.Network.Gameplay;
 

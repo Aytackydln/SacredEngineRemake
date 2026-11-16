@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Sacred.Core.Pak.Creature;
 using Sacred.Core.Runtime;
+using Sacred.GameplayHost.Runtime;
 
 internal static class CreatureInnateBonusChecks
 {

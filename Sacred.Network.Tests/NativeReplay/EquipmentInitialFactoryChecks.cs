@@ -4,6 +4,7 @@ using System.Text.Json;
 using Sacred.Core.Pak.Items;
 using Sacred.Core.Runtime;
 using Sacred.GameplayHost.Equipment;
+using Sacred.GameplayHost.Runtime;
 using Sacred.GameplayHost.Scripting;
 using Sacred.Network.Gameplay;
 

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Sacred.Assets.GameBin.Balance;
 using Sacred.Core.Runtime;
+using Sacred.GameplayHost.Runtime;
 
 internal static class CreaturePassiveSkillChecks
 {
