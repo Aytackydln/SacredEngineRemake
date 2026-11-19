@@ -33,12 +33,23 @@ internal sealed class NetworkCreatureDeathConsumer
                 EngineLog.WriteLine($"Network corpse hidden: ref {creature.BaseState.ObjectReference}; elapsed {state.Age:0.###}; quality {quality}; reference retained.");
             }
     }
+    private readonly HashSet<uint> _dead = [];
+    private readonly List<uint> _stale = [];
+
     public void Update(IEnumerable<GoldReplicatedObject> creatures,
+        IReadOnlyDictionary<uint, (string Key, NetworkActorPresentation Actor)> actors, float seconds) =>
+        UpdateCore(creatures is IReadOnlyList<GoldReplicatedObject> list ? ReadOnlyListSpan.Of(list) : creatures.ToArray(),
+            actors, seconds);
+
+    // Runs every frame: no LINQ, no per-frame set or array, and the creature span is walked without an enumerator.
+    private void UpdateCore(ReadOnlySpan<GoldReplicatedObject> creatures,
         IReadOnlyDictionary<uint, (string Key, NetworkActorPresentation Actor)> actors, float seconds)
     {
-        var dead = new HashSet<uint>();
-        foreach (var creature in creatures.Where(c => c.IsDead))
+        var dead = _dead;
+        dead.Clear();
+        foreach (var creature in creatures)
         {
+            if (!creature.IsDead) continue;
             var reference = creature.BaseState.ObjectReference; dead.Add(reference);
             if (!_states.TryGetValue(reference, out var state) || state.Instance != creature.InstanceVersion ||
                 state.Version != creature.DeathVersion)
@@ -52,7 +63,11 @@ internal sealed class NetworkCreatureDeathConsumer
             }
             state.Age += seconds;
         }
-        foreach (var reference in _states.Keys.Where(r => !dead.Contains(r)).ToArray()) _states.Remove(reference);
+        var stale = _stale;
+        stale.Clear();
+        foreach (var reference in _states.Keys)
+            if (!dead.Contains(reference)) stale.Add(reference);
+        foreach (var reference in stale) _states.Remove(reference);
     }
 
     private sealed class State(long instance, long version)
