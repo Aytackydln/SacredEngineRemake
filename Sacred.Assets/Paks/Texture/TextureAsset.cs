@@ -90,8 +90,16 @@ public sealed class StaticSpriteAsset
     public byte[] Rgba => Volatile.Read(ref _rgba);
     public int FrameCount { get; }
     public float FrameDurationSeconds { get; }
-    public int AtlasColumns => TextureFrameAtlasLayout.CalculateColumns(Width, Height, FrameCount);
-    public int AtlasRows => TextureFrameAtlasLayout.CalculateRows(FrameCount, AtlasColumns);
+    // The layout is a pure function of immutable fields but sits on the per-sprite render path (sqrt + argument
+    // checks per read), so compute it once. Invalid inputs still throw on every read, as before.
+    private int _atlasColumns;
+    private int _atlasRows;
+    public int AtlasColumns => _atlasColumns != 0
+        ? _atlasColumns
+        : _atlasColumns = TextureFrameAtlasLayout.CalculateColumns(Width, Height, FrameCount);
+    public int AtlasRows => _atlasRows != 0
+        ? _atlasRows
+        : _atlasRows = TextureFrameAtlasLayout.CalculateRows(FrameCount, AtlasColumns);
     public int AtlasWidth => checked(Width * AtlasColumns);
     public int AtlasHeight => checked(Height * AtlasRows);
     public float AnimationPeriodSeconds => FrameDurationSeconds * FrameCount;
@@ -142,8 +150,14 @@ public sealed class TextureFrameSequenceAsset
     public int FrameHeight { get; }
     public int FrameCount { get; }
     public byte[] Rgba8FrameAtlas => Volatile.Read(ref _rgba8FrameAtlas);
-    public int AtlasColumns => TextureFrameAtlasLayout.CalculateColumns(FrameWidth, FrameHeight, FrameCount);
-    public int AtlasRows => TextureFrameAtlasLayout.CalculateRows(FrameCount, AtlasColumns);
+    private int _atlasColumns;
+    private int _atlasRows;
+    public int AtlasColumns => _atlasColumns != 0
+        ? _atlasColumns
+        : _atlasColumns = TextureFrameAtlasLayout.CalculateColumns(FrameWidth, FrameHeight, FrameCount);
+    public int AtlasRows => _atlasRows != 0
+        ? _atlasRows
+        : _atlasRows = TextureFrameAtlasLayout.CalculateRows(FrameCount, AtlasColumns);
     public int AtlasWidth => checked(FrameWidth * AtlasColumns);
     public int AtlasHeight => checked(FrameHeight * AtlasRows);
 
