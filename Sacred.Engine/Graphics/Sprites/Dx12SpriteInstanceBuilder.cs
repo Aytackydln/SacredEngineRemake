@@ -195,8 +195,10 @@ internal sealed class Dx12SpriteInstanceBuilder
         var staticStartInstance = instanceCount;
         int? highlightedStaticInstance = null;
         var highlightedStaticIsUnlit = false;
-        var staticRanges = new List<StaticSpriteDrawRange>();
-        var submissions = new List<StaticSpriteSubmission>();
+        var staticRanges = state.StaticRanges;
+        var submissions = state.Submissions;
+        staticRanges.Clear();
+        submissions.Clear();
         var staticRangeStart = -1;
         var staticRangeIsUnlit = false;
         var staticRangeRequiresAlphaBlend = false;
