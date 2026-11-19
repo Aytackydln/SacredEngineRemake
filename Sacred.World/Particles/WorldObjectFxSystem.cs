@@ -12,6 +12,7 @@ namespace Sacred.World.Particles;
 public sealed class WorldObjectFxSystem
 {
     private readonly Dictionary<uint, Playback> _playing = [];
+    private readonly List<uint> _staleReferences = [];
     private readonly HashSet<uint> _visible = [];
     private readonly Dictionary<uint, string> _pending = [];
     public long ReloadCount { get; private set; }
@@ -51,7 +52,11 @@ public sealed class WorldObjectFxSystem
             current.GroundHeight = groundHeight?.Invoke(obj.BaseState) ?? 0;
             current.Position = new Vector2(obj.BaseState.X, obj.BaseState.Y) / SacredNetworkPosition.NativeUnitsPerTile;
         }
-        foreach (var reference in _playing.Keys.Where(id => !_visible.Contains(id)).ToArray())
+        var stale = _staleReferences;
+        stale.Clear();
+        foreach (var reference in _playing.Keys)
+            if (!_visible.Contains(reference)) stale.Add(reference);
+        foreach (var reference in stale)
         { _playing.Remove(reference); _pending.Remove(reference); }
     }
 
