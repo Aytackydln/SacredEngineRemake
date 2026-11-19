@@ -124,13 +124,18 @@ internal sealed class Dx12SpriteInstanceBuilder
         var shadowInstances = staticSprites.Count > 0
             ? (StaticSpriteShadowInstance*)frame.StaticShadowInstanceBufferMapped
             : null;
+        // Hot loops below: iterate spans (no interface calls) and read each loop-invariant member once.
+        var liquidSpan = ReadOnlyListSpan.Of(liquidSprites);
+        var staticSpan = ReadOnlyListSpan.Of(staticSprites);
+        var textureCache = _textureCache;
+        var cutouts = textureCache.Cutouts;
         var instanceCount = 0;
         var rangeStart = 0;
         SectorCoord? rangeSector = null;
 
-        for (var index = 0; index < liquidSprites.Count; index++)
+        for (var index = 0; index < liquidSpan.Length; index++)
         {
-            var sprite = liquidSprites[index];
+            ref readonly var sprite = ref liquidSpan[index];
             if (rangeSector != sprite.SectorCoord)
             {
                 if (rangeSector is not null && instanceCount > rangeStart)
@@ -145,7 +150,8 @@ internal sealed class Dx12SpriteInstanceBuilder
                 rangeStart = instanceCount;
             }
 
-            if (!_textureCache.TryGetLiquidSlot(sprite.Animation, out var textureSlot))
+            var animation = sprite.Animation;
+            if (!textureCache.TryGetLiquidSlot(animation, out var textureSlot))
                 continue;
 
             var drawPosition = screenTransform.ToScreen(sprite.IsoX, sprite.IsoY);
@@ -169,7 +175,7 @@ internal sealed class Dx12SpriteInstanceBuilder
                 drawHeight,
                 1.0f,
                 textureSlot,
-                (uint)sprite.Animation.FrameCount,
+                (uint)animation.FrameCount,
                 sprite.TextureVariant,
                 0,
                 0,
@@ -180,8 +186,8 @@ internal sealed class Dx12SpriteInstanceBuilder
                 sprite.AlphaTop / 255.0f,
                 sprite.AlphaRight / 255.0f,
                 sprite.AlphaBottom / 255.0f,
-                (uint)sprite.Animation.AtlasColumns,
-                (uint)sprite.Animation.AtlasRows);
+                (uint)animation.AtlasColumns,
+                (uint)animation.AtlasRows);
         }
 
         if (rangeSector is not null && instanceCount > rangeStart)
@@ -219,18 +225,19 @@ internal sealed class Dx12SpriteInstanceBuilder
         var quadPixels = 0.0;
         var originalQuadPixels = 0.0;
 
-        for (var index = 0; index < staticSprites.Count; index++)
+        for (var index = 0; index < staticSpan.Length; index++)
         {
-            var sprite = staticSprites[index];
+            ref readonly var sprite = ref staticSpan[index];
+            var asset = sprite.Sprite;
             var textureSlot = 0u;
             if (!sprite.IsEmbeddedInTerrain)
             {
                 // Runs of sprites share an atlas; a resident asset's slot cannot change inside one build.
-                if (ReferenceEquals(sprite.Sprite, slotAsset))
+                if (ReferenceEquals(asset, slotAsset))
                     textureSlot = slotAssetSlot;
-                else if (_textureCache.TryGetStaticSlot(sprite.Sprite, out textureSlot))
+                else if (textureCache.TryGetStaticSlot(asset, out textureSlot))
                 {
-                    slotAsset = sprite.Sprite;
+                    slotAsset = asset;
                     slotAssetSlot = textureSlot;
                 }
                 else
@@ -260,7 +267,7 @@ internal sealed class Dx12SpriteInstanceBuilder
                 if (shadowAtlas is null)
                 {
                     shadowAtlas = candidateShadow.Atlas;
-                    shadowTextureReady = _textureCache.TryGetStaticSlot(
+                    shadowTextureReady = textureCache.TryGetStaticSlot(
                         shadowAtlas,
                         out shadowTextureSlot);
                     if (shadowTextureReady)
@@ -312,7 +319,7 @@ internal sealed class Dx12SpriteInstanceBuilder
             if (spriteVisible)
             {
                 originalQuadPixels += StaticCutoutBinding.VisibleArea(drawPosition, drawWidth, drawHeight, renderWidth, renderHeight);
-                if (_textureCache.Cutouts.TryGet(sprite, drawWidth, drawHeight, out var cutout))
+                if (cutouts.TryGet(sprite, drawWidth, drawHeight, out var cutout))
                 {
                     var rectangle = cutout.Rectangle;
                     drawPosition += new Vector2(drawWidth * rectangle.X, drawHeight * rectangle.Y);
@@ -325,7 +332,7 @@ internal sealed class Dx12SpriteInstanceBuilder
                 var requiresAlphaBlend = sprite.RequiresAlphaBlend;
                 var isPostModel = sprite.RequiresPostModelPass;
                 SacredTextureChannelEncoding? particleEncoding = sprite.IsParticleSprite && !sprite.IsGroundDecal && !sprite.IsPortalBillboard
-                    ? sprite.Sprite.ChannelEncoding
+                    ? asset.ChannelEncoding
                     : null;
                 if (staticRangeStart < 0)
                 {
@@ -374,19 +381,19 @@ internal sealed class Dx12SpriteInstanceBuilder
                     drawHeight,
                     CalculateSceneDepth(camera, sprite),
                     textureSlot,
-                    (uint)sprite.Sprite.FrameCount,
+                    (uint)asset.FrameCount,
                     (uint)sprite.ParticleAtlasCell,
                     sprite.TransposeTexture ? 1u : 0u,
                     sprite.IsMixedLightEmitter ? 1u : 0u,
                     sprite.IsParticleSprite ? 1u | sprite.ParticleBlendFlags : 0u,
                     sprite.AllowsPlayerOcclusionFade ? 1u : 0u,
-                    sprite.Sprite.AnimationPeriodSeconds,
+                    asset.AnimationPeriodSeconds,
                     sprite.IsParticleSprite ? ((sprite.ParticleColor >> 16) & 255) / 255.0f : sprite.Opacity,
                     sprite.IsParticleSprite ? ((sprite.ParticleColor >> 8) & 255) / 255.0f : sprite.Opacity,
                     sprite.IsParticleSprite ? (sprite.ParticleColor & 255) / 255.0f : sprite.Opacity,
                     sprite.Opacity,
-                    (uint)sprite.Sprite.AtlasColumns,
-                    (uint)sprite.Sprite.AtlasRows) { ParticleRotation = sprite.ParticleRotation,
+                    (uint)asset.AtlasColumns,
+                    (uint)asset.AtlasRows) { ParticleRotation = sprite.ParticleRotation,
                         DepthSpan = sprite.UsesSpriteDepth || (sprite.ParticleBlendFlags & 8192u) != 0
                             ? -sprite.RenderHeight / (24f * 4096f) : 0f,
                         CornerColor0 = sprite.ParticleCorners?.Color0 ?? 0,
