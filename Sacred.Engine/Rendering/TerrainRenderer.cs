@@ -33,6 +33,8 @@ public sealed class TerrainRenderer : IDisposable
     private readonly List<TerrainSectorComposition> _visibleSectorImages = new(9);
     private readonly List<Sector> _candidateSectors = new(9);
     private readonly List<TerrainStaticSprite> _visibleWorldSprites = new(1536);
+    // Length of the static prefix inside _visibleWorldSprites; negative until the first build.
+    private int _staticSpriteCount = -1;
     private readonly HashSet<SectorCoord> _neededSectorCoords = new();
     private readonly List<SectorCoord> _sectorCoordsToRemove = new(9);
     private readonly List<SectorCoord> _completedSectorBuilds = new(9);
@@ -186,18 +188,31 @@ public sealed class TerrainRenderer : IDisposable
             _preparedParticleRevision = particleRevision;
         }
 
-        _visibleWorldSprites.Clear();
-        _visibleWorldSprites.AddRange(preparation.Sprites);
-        // Prefetched/retained plans remember which authored sprites were excluded from baking.
-        for (var index = 0; index < _visibleWorldSprites.Count; index++)
+        // The authored (static) sprites only change with the world, promotions or sector compositions. Live particles
+        // revise this list every frame, so keep the static prefix and rebuild just the dynamic suffix; redoing the
+        // thousands of static entries (and their per-sprite promoted-id lookups) each frame was the dominant cost.
+        var staticChanged = preparation.Changed || preparation.PromotionsChanged ||
+                            _sectorCompositionsChangedThisFrame || _staticSpriteCount < 0;
+        if (staticChanged)
         {
-            var sprite = _visibleWorldSprites[index];
-            if (!sprite.IsEmbeddedInTerrain) continue;
-            var coord = new SectorCoord((int)MathF.Floor(sprite.TileWorldX / (float)Sector.TileCount),
-                (int)MathF.Floor(sprite.TileWorldY / (float)Sector.TileCount));
-            if (_sectorCache.TryGetValue(coord, out var composition) && composition.PromotedEmbeddedObjectIds.Contains(sprite.StaticObjectId))
-                _visibleWorldSprites[index] = sprite with { IsEmbeddedInTerrain = false };
+            _visibleWorldSprites.Clear();
+            _visibleWorldSprites.AddRange(preparation.Sprites);
+            // Prefetched/retained plans remember which authored sprites were excluded from baking.
+            var worldSprites = System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_visibleWorldSprites);
+            var sectorCache = _sectorCache;
+            for (var index = 0; index < worldSprites.Length; index++)
+            {
+                ref var sprite = ref worldSprites[index];
+                if (!sprite.IsEmbeddedInTerrain) continue;
+                var coord = new SectorCoord((int)MathF.Floor(sprite.TileWorldX / (float)Sector.TileCount),
+                    (int)MathF.Floor(sprite.TileWorldY / (float)Sector.TileCount));
+                if (sectorCache.TryGetValue(coord, out var composition) && composition.PromotedEmbeddedObjectIds.Contains(sprite.StaticObjectId))
+                    sprite = sprite with { IsEmbeddedInTerrain = false };
+            }
+            _staticSpriteCount = _visibleWorldSprites.Count;
         }
+        else
+            _visibleWorldSprites.RemoveRange(_staticSpriteCount, _visibleWorldSprites.Count - _staticSpriteCount);
         _visibleWorldSprites.AddRange(_particleSpriteBuilder.Sprites);
         _visibleWorldSprites.AddRange(FootprintSprites);
         _visibleWorldSprites.AddRange(_portalSpriteBuilder.Sprites);
