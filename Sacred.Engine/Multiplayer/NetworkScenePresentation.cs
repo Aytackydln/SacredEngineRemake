@@ -47,8 +47,10 @@ internal sealed class NetworkScenePresentation : IDisposable
         _hoveredCreature = DebugHealthHoverEnabled ? DebugHealthHover : null;
         if (DebugHealthHoverEnabled || !enabled) return;
         var best = float.PositiveInfinity;
+        var playerSlot = World.PlayerSlot;
+        var objects = World.Replicas.Objects;
         foreach (var (reference, entry) in _actors)
-              if (reference != World.PlayerSlot && World.Replicas.Objects.TryGetValue(reference, out var current) &&
+              if (reference != playerSlot && objects.TryGetValue(reference, out var current) &&
                   current.InstanceVersion == entry.Actor.InstanceVersion && !current.IsDead && !_deaths.IsHidden(current) &&
                   (current.BaseState.Flags & GoldObjectLifecycleLayout.InactiveFlag) == 0 &&
                 WorldModelFocusPicker.TryScore(entry.Actor.Model, camera, pointer, width, height, out var score) && score < best)
@@ -61,6 +63,17 @@ internal sealed class NetworkScenePresentation : IDisposable
     private readonly Dictionary<uint, string> _failed = [];
     private readonly CancellationTokenSource _stop = new();
     private SceneModel[] _published = [];
+    // Per-frame scratch, cleared and refilled in Update: nothing here is retained across frames except as a cache.
+    private readonly List<GoldReplicatedObject> _creatures = [];
+    private readonly HashSet<uint> _creatureReferences = [];
+    private readonly HashSet<uint> _visible = [];
+    private readonly List<uint> _stale = [];
+    private readonly List<KeyValuePair<uint, (string Key, Task<NetworkActorPresentation> Load)>> _completedPending = [];
+    private readonly List<NpcOverheadActor> _overheads = [];
+    private NpcOverheadActor[] _publishedOverheads = [];
+    private readonly List<WorldCreatureMarkerActor> _markerActors = [];
+    private readonly List<(uint Reference, SceneModel Model)> _modelOrder = [];
+    private readonly List<SceneModel> _nextModels = [];
     private bool _localReported;
     private bool _disposed;
     public NetworkScenePresentation(SacredNetworkWorldBinding world, AssetManager assets, SceneState scene)
@@ -128,18 +141,18 @@ internal sealed class NetworkScenePresentation : IDisposable
         GameplayObjects.Advance(deltaSeconds);
         Conversations?.Update(deltaSeconds);
         _characterUi.Update(World.Replicas);
-        var creatures = GameplayObjects.Objects.Values.Select(obj => obj.Replica).OfType<GoldReplicatedObject>()
-            .Concat(DeathEffects?.AwaitingActors.Where(snapshot => World.Replicas.Objects.TryGetValue(
-                snapshot.BaseState.ObjectReference, out var current) && current.InstanceVersion == snapshot.InstanceVersion)
-                .Select(snapshot => snapshot with { BaseState = snapshot.BaseState with
-                    { Flags = snapshot.BaseState.Flags | GoldObjectLifecycleLayout.InactiveFlag } }) ?? [])
-            .DistinctBy(obj => obj.BaseState.ObjectReference)
-            .Where(obj => obj.Creature is not null && obj.BaseState.Surface == 0)
-            .OrderBy(obj => obj.BaseState.ObjectReference == World.PlayerSlot ? 0 : 1).ToArray();
-        var visible = creatures.Select(obj => obj.BaseState.ObjectReference).ToHashSet();
-        var overheads = new List<NpcOverheadActor>();
-        foreach (var reference in _actors.Keys.Where(id => !visible.Contains(id)).ToArray()) _actors.Remove(reference);
-        foreach (var pair in _pending.Where(entry => entry.Value.Load.IsCompleted).ToArray())
+        var creatures = GatherCreatures();
+        var visible = _visible;
+        visible.Clear();
+        foreach (var creature in creatures) visible.Add(creature.BaseState.ObjectReference);
+        var overheads = _overheads;
+        overheads.Clear();
+        PruneActors(visible);
+        var completed = _completedPending;
+        completed.Clear();
+        foreach (var entry in _pending)
+            if (entry.Value.Load.IsCompleted) completed.Add(entry);
+        foreach (var pair in completed)
         {
             _pending.Remove(pair.Key);
             try
@@ -215,14 +228,14 @@ internal sealed class NetworkScenePresentation : IDisposable
             {
                 var template = _assets.CreatureTemplates?.ResolveTemplate(overheadItem);
                 var overhead = Conversations?.OverheadState(creature, World.LocalHero) ?? SacredNetworkNpcPresentation.OverheadState(creature, World.LocalHero);
-                overheads.Add(new(reference, entry.Actor.Model, overhead, overheadItem.ModelDesc.HasNpcDialogMarker,
-                    template?.Class == SacredCreatureClass.Animal));
+                AddOverhead(overheads, reference, entry.Actor.Model, overhead, overheadItem.ModelDesc.HasNpcDialogMarker,
+                    template?.Class == SacredCreatureClass.Animal);
                 if (!conversationFacing && !entry.Actor.Moving && creature.Values is { CurrentHitPoints: > 0 } &&
                     SacredNpcClientRules.FacesLocalHero(reference, overhead, template?.Class == SacredCreatureClass.Horse))
                     entry.Actor.FaceLocalHero(World.LocalPosition);
             }
         }
-        _scene.NpcOverheads.Actors = overheads.ToArray();
+        PublishOverheads(overheads);
         if (DeathEffects is { } corpseEffects)
             _deaths.CollectDisappearance(creatures, World.PlayerSlot, ParticleQuality, FxActor, corpseEffects);
         _combat.Update(World.Replicas, _scene, _actors, deltaSeconds);
@@ -230,28 +243,133 @@ internal sealed class NetworkScenePresentation : IDisposable
         _hudNotices.Update(World.Replicas, _assets.Resources, _scene, deltaSeconds);
         _projectiles.Update(World, GameplayObjects.BowProjectiles, _actors, deltaSeconds);
         if (_assets.CreatureMarkerBalance is { } markerTuning && _assets.CreatureBalance is { } levelTuning)
-            _markers.Update(World.Replicas, World.PlayerSlot, _actors.Select(entry =>
-            {
-                var current = World.Replicas.Objects.GetValueOrDefault(entry.Key);
-                if (current is null || current.InstanceVersion != entry.Value.Actor.InstanceVersion ||
-                    _assets.GetItem(current.BaseState.ObjectType) is not { } item) return null;
-                var model = entry.Value.Actor.Model;
-                return new WorldCreatureMarkerActor(current,
-                    GameplayProjectileCoordinates.ToTiles(GameplayProjectileCoordinates.FromScene(model.RenderPosition)),
-                    // Match the interpolated actor's ground height, rather than the packet's path endpoint.
-                    GameplayProjectileCoordinates.FromScene(new(0, 0, model.GroundPlaneZ)).Z,
-                    item.ModelDesc.BlockRadius, _hoveredCreature == entry.Key);
-            }).OfType<WorldCreatureMarkerActor>(), markerTuning, levelTuning, World.Replicas.Session.Difficulty, deltaSeconds);
-        var next = _actors.Where(entry => entry.Key != World.PlayerSlot && World.Replicas.Objects.TryGetValue(entry.Key, out var actor) &&
-                (actor.BaseState.Flags & GoldObjectLifecycleLayout.InactiveFlag) == 0 && !_deaths.IsHidden(actor))
-            .OrderBy(entry => entry.Key).Select(entry => entry.Value.Actor.Model)
-            .Concat(_projectiles.Models).ToArray();
-        if (!_published.SequenceEqual(next)) { _published = next; _scene.SetReplicatedModels(next); }
+            _markers.Update(World.Replicas, World.PlayerSlot, CollectMarkerActors(),
+                markerTuning, levelTuning, World.Replicas.Session.Difficulty, deltaSeconds);
+        CollectPublishedModels();
         if (!_localReported && LocalModelReady)
         {
             _localReported = true;
             EngineLog.WriteLine($"Network local model bound: player {World.PlayerSlot}, resource {World.LocalHero.BaseState.ObjectType}, tile {World.LocalPosition.X:0.###}/{World.LocalPosition.Y:0.###}; equipped actor animation ready.");
         }
+    }
+
+    /// <summary>Creatures to present this frame: first occurrence per reference, creatures on surface 0 only,
+    /// local player first, otherwise in replica order.</summary>
+    private List<GoldReplicatedObject> GatherCreatures()
+    {
+        var creatures = _creatures;
+        var seen = _creatureReferences;
+        creatures.Clear();
+        seen.Clear();
+        foreach (var pair in GameplayObjects.Objects)
+            if (pair.Value.Replica is { } replica) AddCreature(creatures, seen, replica);
+        if (DeathEffects is { } effects)
+        {
+            var replicas = World.Replicas;
+            foreach (var snapshot in effects.AwaitingActors)
+            {
+                if (!replicas.Objects.TryGetValue(snapshot.BaseState.ObjectReference, out var current) ||
+                    current.InstanceVersion != snapshot.InstanceVersion) continue;
+                AddCreature(creatures, seen, snapshot with { BaseState = snapshot.BaseState with
+                    { Flags = snapshot.BaseState.Flags | GoldObjectLifecycleLayout.InactiveFlag } });
+            }
+        }
+        var playerSlot = World.PlayerSlot;
+        for (var index = 1; index < creatures.Count; index++)
+        {
+            if (creatures[index].BaseState.ObjectReference != playerSlot) continue;
+            var player = creatures[index];
+            creatures.RemoveAt(index);
+            creatures.Insert(0, player);
+            break;
+        }
+        return creatures;
+    }
+
+    private static void AddCreature(List<GoldReplicatedObject> creatures, HashSet<uint> seen, GoldReplicatedObject candidate)
+    {
+        // The reference is claimed even when the candidate is filtered out, as DistinctBy before Where did.
+        if (!seen.Add(candidate.BaseState.ObjectReference)) return;
+        if (candidate.Creature is not null && candidate.BaseState.Surface == 0) creatures.Add(candidate);
+    }
+
+    private void PruneActors(HashSet<uint> visible)
+    {
+        var stale = _stale;
+        stale.Clear();
+        foreach (var reference in _actors.Keys)
+            if (!visible.Contains(reference)) stale.Add(reference);
+        foreach (var reference in stale) _actors.Remove(reference);
+    }
+
+    private void AddOverhead(List<NpcOverheadActor> overheads, uint reference, SceneModel model,
+        SacredNpcOverheadState state, bool templateDialog, bool animal)
+    {
+        var position = overheads.Count;
+        var previous = _publishedOverheads;
+        if (position < previous.Length && previous[position] is { } last && last.Reference == reference &&
+            ReferenceEquals(last.Model, model) && last.State.Equals(state) && last.TemplateDialog == templateDialog &&
+            last.Animal == animal)
+            overheads.Add(last);
+        else overheads.Add(new(reference, model, state, templateDialog, animal));
+    }
+
+    private void PublishOverheads(List<NpcOverheadActor> overheads)
+    {
+        var previous = _publishedOverheads;
+        var same = previous.Length == overheads.Count;
+        for (var index = 0; same && index < previous.Length; index++)
+            same = ReferenceEquals(previous[index], overheads[index]);
+        if (!same) _publishedOverheads = overheads.ToArray();
+        _scene.NpcOverheads.Actors = _publishedOverheads;
+    }
+
+    private List<WorldCreatureMarkerActor> CollectMarkerActors()
+    {
+        var result = _markerActors;
+        result.Clear();
+        var replicas = World.Replicas;
+        foreach (var entry in _actors)
+        {
+            var current = replicas.Objects.GetValueOrDefault(entry.Key);
+            if (current is null || current.InstanceVersion != entry.Value.Actor.InstanceVersion ||
+                _assets.GetItem(current.BaseState.ObjectType) is not { } item) continue;
+            var model = entry.Value.Actor.Model;
+            result.Add(new WorldCreatureMarkerActor(current,
+                GameplayProjectileCoordinates.ToTiles(GameplayProjectileCoordinates.FromScene(model.RenderPosition)),
+                // Match the interpolated actor's ground height, rather than the packet's path endpoint.
+                GameplayProjectileCoordinates.FromScene(new(0, 0, model.GroundPlaneZ)).Z,
+                item.ModelDesc.BlockRadius, _hoveredCreature == entry.Key));
+        }
+        return result;
+    }
+
+    /// <summary>Models of every presented actor except the local player (ascending reference), then projectiles.
+    /// The published array is replaced, and the scene notified, only when that set actually changes.</summary>
+    private void CollectPublishedModels()
+    {
+        var order = _modelOrder;
+        order.Clear();
+        var replicas = World.Replicas;
+        var playerSlot = World.PlayerSlot;
+        foreach (var entry in _actors)
+        {
+            if (entry.Key == playerSlot || !replicas.Objects.TryGetValue(entry.Key, out var actor) ||
+                (actor.BaseState.Flags & GoldObjectLifecycleLayout.InactiveFlag) != 0 || _deaths.IsHidden(actor)) continue;
+            order.Add((entry.Key, entry.Value.Actor.Model));
+        }
+        order.Sort(static (left, right) => left.Reference.CompareTo(right.Reference));
+        var next = _nextModels;
+        next.Clear();
+        foreach (var item in order) next.Add(item.Model);
+        foreach (var model in _projectiles.Models) next.Add(model);
+        var published = _published;
+        var same = published.Length == next.Count;
+        for (var index = 0; same && index < published.Length; index++)
+            same = EqualityComparer<SceneModel>.Default.Equals(published[index], next[index]);
+        if (same) return;
+        _published = next.ToArray();
+        _scene.SetReplicatedModels(_published);
     }
 
     public string DescribeNearbyActors()
