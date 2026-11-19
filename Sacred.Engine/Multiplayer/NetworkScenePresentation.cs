@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Numerics;
 using System.Threading;
@@ -74,6 +75,8 @@ internal sealed class NetworkScenePresentation : IDisposable
     private readonly List<WorldCreatureMarkerActor> _markerActors = [];
     private readonly List<(uint Reference, SceneModel Model)> _modelOrder = [];
     private readonly List<SceneModel> _nextModels = [];
+    private readonly Dictionary<uint, string> _appearanceKeys = [];
+    private char[] _keyBuffer = new char[128];
     private bool _localReported;
     private bool _disposed;
     public NetworkScenePresentation(SacredNetworkWorldBinding world, AssetManager assets, SceneState scene)
@@ -175,7 +178,7 @@ internal sealed class NetworkScenePresentation : IDisposable
         foreach (var creature in creatures)
         {
             var reference = creature.BaseState.ObjectReference;
-            var key = NetworkActorAppearance.Key(creature, World.Replicas);
+            var key = AppearanceKey(creature);
             if ((!_actors.TryGetValue(reference, out var entry) || entry.Key != key) && _pending.Count < 4 &&
                 !_pending.ContainsKey(reference) && _failed.GetValueOrDefault(reference) != key && _assets.GetItem(creature.BaseState.ObjectType) is { } item)
             {
@@ -300,6 +303,67 @@ internal sealed class NetworkScenePresentation : IDisposable
         foreach (var reference in _actors.Keys)
             if (!visible.Contains(reference)) stale.Add(reference);
         foreach (var reference in stale) _actors.Remove(reference);
+        stale.Clear();
+        foreach (var reference in _appearanceKeys.Keys)
+            if (!visible.Contains(reference)) stale.Add(reference);
+        foreach (var reference in stale) _appearanceKeys.Remove(reference);
+    }
+
+    /// <summary>Same text as <see cref="NetworkActorAppearance.Key"/>, formatted into a reusable buffer. The previous
+    /// string instance is returned while nothing changed, so steady state allocates nothing.</summary>
+    private string AppearanceKey(GoldReplicatedObject creature)
+    {
+        var replicas = World.Replicas;
+        var reference = creature.BaseState.ObjectReference;
+        while (true)
+        {
+            var buffer = _keyBuffer;
+            if (TryFormatAppearanceKey(creature, replicas, buffer, out var length))
+            {
+                var written = new ReadOnlySpan<char>(buffer, 0, length);
+                if (_appearanceKeys.TryGetValue(reference, out var cached) && written.SequenceEqual(cached)) return cached;
+                var key = new string(written);
+                _appearanceKeys[reference] = key;
+                return key;
+            }
+            _keyBuffer = new char[buffer.Length * 2];
+        }
+    }
+
+    private static bool TryFormatAppearanceKey(GoldReplicatedObject creature, GoldWorldReplica replicas, Span<char> destination, out int length)
+    {
+        length = 0;
+        if (!Append(destination, ref length, creature.BaseState.ObjectType)) return false;
+        var equipment = creature.Creature!.EquipmentReferences;
+        var objects = replicas.Objects;
+        for (var index = 0; index < equipment.Length; index++)
+        {
+            var reference = equipment[index];
+            if (!Append(destination, ref length, ':') || !Append(destination, ref length, reference) ||
+                !Append(destination, ref length, '/')) return false;
+            if (objects.TryGetValue(reference, out var item) &&
+                (item.BaseState.Flags & GoldObjectLifecycleLayout.InactiveFlag) == 0 && item.Item is not null)
+            {
+                if (!Append(destination, ref length, item.BaseState.ObjectType) || !Append(destination, ref length, '/') ||
+                    !Append(destination, ref length, item.ItemValuesVersion)) return false;
+            }
+            else if (!Append(destination, ref length, '0')) return false;
+        }
+        return true;
+    }
+
+    private static bool Append(Span<char> destination, ref int length, char value)
+    {
+        if (length >= destination.Length) return false;
+        destination[length++] = value;
+        return true;
+    }
+
+    private static bool Append<T>(Span<char> destination, ref int length, T value) where T : ISpanFormattable
+    {
+        if (!value.TryFormat(destination[length..], out var written, default, CultureInfo.InvariantCulture)) return false;
+        length += written;
+        return true;
     }
 
     private void AddOverhead(List<NpcOverheadActor> overheads, uint reference, SceneModel model,
