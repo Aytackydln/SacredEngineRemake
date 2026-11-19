@@ -145,7 +145,7 @@ internal sealed class Dx12SpriteInstanceBuilder
                 rangeStart = instanceCount;
             }
 
-            if (!_textureCache.TryGetLiquidSlot(sprite.Animation.Name, out var textureSlot))
+            if (!_textureCache.TryGetLiquidSlot(sprite.Animation, out var textureSlot))
                 continue;
 
             var drawPosition = screenTransform.ToScreen(sprite.IsoX, sprite.IsoY);
@@ -199,6 +199,8 @@ internal sealed class Dx12SpriteInstanceBuilder
         var submissions = state.Submissions;
         staticRanges.Clear();
         submissions.Clear();
+        StaticSpriteAsset? slotAsset = null;
+        var slotAssetSlot = 0u;
         var staticRangeStart = -1;
         var staticRangeIsUnlit = false;
         var staticRangeRequiresAlphaBlend = false;
@@ -221,10 +223,18 @@ internal sealed class Dx12SpriteInstanceBuilder
         {
             var sprite = staticSprites[index];
             var textureSlot = 0u;
-            if (!sprite.IsEmbeddedInTerrain &&
-                !_textureCache.TryGetStaticSlot(sprite.Sprite, out textureSlot))
+            if (!sprite.IsEmbeddedInTerrain)
             {
-                continue;
+                // Runs of sprites share an atlas; a resident asset's slot cannot change inside one build.
+                if (ReferenceEquals(sprite.Sprite, slotAsset))
+                    textureSlot = slotAssetSlot;
+                else if (_textureCache.TryGetStaticSlot(sprite.Sprite, out textureSlot))
+                {
+                    slotAsset = sprite.Sprite;
+                    slotAssetSlot = textureSlot;
+                }
+                else
+                    continue;
             }
 
             var drawPosition = screenTransform.ToScreen(sprite.IsoX, sprite.IsoY);

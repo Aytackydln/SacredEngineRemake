@@ -22,6 +22,7 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
     private readonly Stack<int> _freeSrvSlots = new(MaximumTextureCount);
     private readonly Dictionary<StaticSpriteAsset, SpriteTexture> _staticTextures = new(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<string, SpriteTexture> _liquidTextures = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<TextureFrameSequenceAsset, uint> _liquidSlotByAsset = new(ReferenceEqualityComparer.Instance);
     private readonly HashSet<StaticSpriteAsset> _failedStaticUploads = new(ReferenceEqualityComparer.Instance);
     private readonly HashSet<string> _failedLiquidUploads = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<StaticSpriteAsset> _pendingStatic = new(ReferenceEqualityComparer.Instance);
@@ -204,6 +205,18 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
     }
     private ID3D12Resource? FindStaticResource(StaticSpriteAsset source) =>
         _staticTextures.TryGetValue(source, out var texture) ? texture.Resource : null;
+    /// <summary>Per-sprite lookup by asset instance. Resident liquid textures keep their slot until disposal, so the
+    /// first name lookup is remembered and later reads skip hashing the name (case-insensitively) for every sprite.</summary>
+    public bool TryGetLiquidSlot(TextureFrameSequenceAsset animation, out uint slot)
+    {
+        if (_liquidSlotByAsset.TryGetValue(animation, out slot))
+            return true;
+        if (!TryGetLiquidSlot(animation.Name, out slot))
+            return false;
+        _liquidSlotByAsset[animation] = slot;
+        return true;
+    }
+
     public bool TryGetLiquidSlot(string name, out uint slot)
     {
         var found = _liquidTextures.TryGetValue(name, out var texture);
@@ -221,6 +234,7 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
         foreach (var texture in _liquidTextures.Values) texture.Resource.Dispose();
         _staticTextures.Clear();
         _liquidTextures.Clear();
+        _liquidSlotByAsset.Clear();
     }
     private sealed record SpriteTexture(ID3D12Resource Resource, int SrvSlot);
     private sealed record PendingSpriteUpload(StaticSpriteAsset? StaticSource, string? LiquidName, TextureUploadTicket Ticket, int Slot);
