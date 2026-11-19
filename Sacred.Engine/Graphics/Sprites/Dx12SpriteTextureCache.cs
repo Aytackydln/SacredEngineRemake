@@ -83,10 +83,15 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
         var timer = Stopwatch.StartNew();
         // Keep the cursor across frames. Restarting a timed scan at zero can permanently
         // starve its tail on slower CPUs, even when every texture in the prefix is resident.
-        while (_nextLiquid < liquids.Count)
+        var scanned = 0;
+        TextureFrameSequenceAsset? lastLiquid = null;
+        var liquidSpan = ReadOnlyListSpan.Of(liquids);
+        var nextLiquid = _nextLiquid;
+        while (nextLiquid < liquidSpan.Length)
         {
-            var source = liquids[_nextLiquid++].Animation;
-            if (!_liquidTextures.ContainsKey(source.Name) && !_failedLiquidUploads.Contains(source.Name) &&
+            var source = liquidSpan[nextLiquid++].Animation;
+            // A repeat of the previous asset cannot change the outcome: it is resident, failed, or already pending.
+            if (!ReferenceEquals(source, lastLiquid) && !_liquidTextures.ContainsKey(source.Name) && !_failedLiquidUploads.Contains(source.Name) &&
                 (_freeSrvSlots.Count > 0 || _pendingLiquid.Contains(source.Name)))
             {
                 _scanReady = false;
@@ -108,15 +113,47 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
                     }
                 }
             }
-            if (timer.Elapsed.TotalMilliseconds >= 0.5) return;
+            lastLiquid = source;
+            if ((++scanned & 31) == 0 && timer.Elapsed.TotalMilliseconds >= 0.5)
+            {
+                _nextLiquid = nextLiquid;
+                return;
+            }
         }
-        while (_nextStatic < statics.Count)
+        _nextLiquid = nextLiquid;
+        var staticSpan = ReadOnlyListSpan.Of(statics);
+        var nextStatic = _nextStatic;
+        StaticSpriteAsset? lastSprite = null, lastShadow = null;
+        var lastSpriteReady = true;
+        var lastShadowReady = true;
+        while (nextStatic < staticSpan.Length)
         {
-            var sprite = statics[_nextStatic++];
-            if (!sprite.IsEmbeddedInTerrain) _scanReady &= RequestStatic(sprite.Sprite);
-            if (sprite.Shadow is { } shadow) _scanReady &= RequestStatic(shadow.Atlas);
-            if (timer.Elapsed.TotalMilliseconds >= 0.5) return;
+            ref readonly var sprite = ref staticSpan[nextStatic++];
+            if (!sprite.IsEmbeddedInTerrain)
+            {
+                if (!ReferenceEquals(sprite.Sprite, lastSprite))
+                {
+                    lastSprite = sprite.Sprite;
+                    lastSpriteReady = RequestStatic(lastSprite);
+                }
+                _scanReady &= lastSpriteReady;
+            }
+            if (sprite.Shadow is { } shadow)
+            {
+                if (!ReferenceEquals(shadow.Atlas, lastShadow))
+                {
+                    lastShadow = shadow.Atlas;
+                    lastShadowReady = RequestStatic(lastShadow);
+                }
+                _scanReady &= lastShadowReady;
+            }
+            if ((++scanned & 31) == 0 && timer.Elapsed.TotalMilliseconds >= 0.5)
+            {
+                _nextStatic = nextStatic;
+                return;
+            }
         }
+        _nextStatic = nextStatic;
         if (_scanReady)
         {
             _preparedSpriteRevision = revision;
