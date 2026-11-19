@@ -18,6 +18,21 @@ internal sealed class GrnAsyncPoseEvaluator
     {
         _bindMesh = bindMesh;
         _evaluator = new(data, animation);
+        _work = Evaluate;
+    }
+
+    private readonly Func<GrnPose> _work;
+
+    private GrnPose Evaluate()
+    {
+        ref readonly var work = ref _request;
+        if (!ReferenceEquals(_evaluator.Animation, work.Animation)) _evaluator.SetAnimation(work.Animation);
+        var pose = work.Blend is { } blend ? _evaluator.EvaluateBlended(work.TimeSeconds, work.TimeMode, blend)
+            : work.TimeMode == GrnPoseTimeMode.Clamp ? _evaluator.EvaluateClamped(work.TimeSeconds)
+            : _evaluator.Evaluate(work.TimeSeconds);
+        if (work.MaterializeCpuVertices)
+            GrnCpuSkinner.Materialize(pose, _skinned ??= _bindMesh.CreateInstance());
+        return pose;
     }
 
     public static int UpdatesPerSecond
@@ -43,18 +58,9 @@ internal sealed class GrnAsyncPoseEvaluator
             return request.Sequence;
         }
         _request = request;
-        // Copy the value request: workers never access mutable playback/renderer state.
-        var work = request;
-        _pending = Task.Run(() =>
-        {
-            if (!ReferenceEquals(_evaluator.Animation, work.Animation)) _evaluator.SetAnimation(work.Animation);
-            var pose = work.Blend is { } blend ? _evaluator.EvaluateBlended(work.TimeSeconds, work.TimeMode, blend)
-                : work.TimeMode == GrnPoseTimeMode.Clamp ? _evaluator.EvaluateClamped(work.TimeSeconds)
-                : _evaluator.Evaluate(work.TimeSeconds);
-            if (work.MaterializeCpuVertices)
-                GrnCpuSkinner.Materialize(pose, _skinned ??= _bindMesh.CreateInstance());
-            return pose;
-        });
+        // _request is only replaced while nothing is pending (see above), so the worker may read it
+        // directly. A cached delegate avoids a closure and a request copy per update.
+        _pending = Task.Run(_work);
         return evaluatedSequence;
     }
 

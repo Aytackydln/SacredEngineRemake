@@ -9,3 +9,6 @@ riderModule.iml
 /fullBlockedTiles.json
 /flyableBlockedTiles.json
 /Sacred.Core/Executable/Layouts/
+
+# BenchmarkDotNet output
+BenchmarkDotNet.Artifacts/

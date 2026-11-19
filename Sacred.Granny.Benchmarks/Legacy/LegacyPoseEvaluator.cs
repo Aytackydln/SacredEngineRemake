@@ -1,0 +1,105 @@
+// Verbatim copy of the pre-optimisation implementation (git HEAD~ of the optimisation commit), renamed, as a benchmark baseline.
+using System.Numerics;
+using Sacred.Granny.Diagnostics;
+
+namespace Sacred.Granny.Benchmarks.Legacy;
+using Sacred.Granny.Animation;
+
+/// <summary>Samples clips and evaluates hierarchy/palettes without reading or modifying mesh vertices.</summary>
+public sealed class LegacyPoseEvaluator
+{
+    private readonly GrnSkinningData _data;
+    private readonly int[] _animationBoneBySkinBone;
+    private readonly GrnPoseHierarchy.Step[] _hierarchy;
+    private Matrix4x4[] _animationLocals = [];
+    private bool _needsEvaluation = true;
+    private GrnPoseBlend? _blend;
+
+    public LegacyPoseEvaluator(GrnSkinningData data, GrnAnimationClip animation)
+    {
+        _data = data;
+        Pose = new GrnPose(data);
+        _animationBoneBySkinBone = new int[data.Bones.Length];
+        _hierarchy = data.Hierarchy;
+        SetAnimation(animation);
+    }
+
+    public GrnPose Pose { get; }
+    internal void InvalidateSample() => _needsEvaluation = true;
+    public GrnAnimationClip Animation { get; private set; } = null!;
+
+    public void SetAnimation(GrnAnimationClip animation)
+    {
+        ArgumentNullException.ThrowIfNull(animation);
+        Animation = animation;
+        if (_animationLocals.Length != animation.Skeleton.Bones.Length)
+            _animationLocals = new Matrix4x4[animation.Skeleton.Bones.Length];
+        Array.Fill(_animationBoneBySkinBone, -1);
+        for (var i = 0; i < _data.Bones.Length; i++)
+        {
+            var name = _data.Bones[i].Name;
+            if (!string.IsNullOrWhiteSpace(name) && animation.Skeleton.TryFindBone(name, out var index))
+                _animationBoneBySkinBone[i] = index;
+        }
+        _needsEvaluation = true;
+    }
+
+    public GrnPose Evaluate(float timeSeconds) => EvaluateSampled(LegacySampler.WrapTime(timeSeconds, Animation.DurationSeconds));
+    public GrnPose EvaluateClamped(float timeSeconds) => EvaluateSampled(Math.Clamp(timeSeconds, 0.0f, MathF.Max(0, Animation.DurationSeconds)));
+    public GrnPose EvaluateBlended(float seconds, GrnPoseTimeMode mode, GrnPoseBlend blend)
+    {
+        _blend = blend;
+        _needsEvaluation = true;
+        try { return mode == GrnPoseTimeMode.Clamp ? EvaluateClamped(seconds) : Evaluate(seconds); }
+        finally { _blend = null; _needsEvaluation = true; }
+    }
+
+    private GrnPose EvaluateSampled(float time)
+    {
+        if (!_needsEvaluation && Pose.SampleTimeSeconds == time) return Pose;
+        // Blending samples both clips directly in skin-bone order. Sampling the
+        // destination skeleton here as well would discard an entire pose's work.
+        if (_blend is null)
+            using (AnimationPerformance.Measure(AnimationCpuStage.Sampling)) SampleAnimationLocals(time);
+        using (AnimationPerformance.Measure(AnimationCpuStage.Palettes))
+        {
+            Pose.SampleTimeSeconds = time;
+            foreach (var step in _hierarchy)
+            {
+                var i = step.Bone;
+                var bone = _data.Bones[i];
+                if (step.RestWorld) { Pose.WorldTransforms[i] = bone.RestWorld; continue; }
+                var animationBone = _animationBoneBySkinBone[i];
+                var local = _blend is { } blend ? LegacyBlender.Local(bone, Animation, time, blend)
+                    : animationBone >= 0 ? _animationLocals[animationBone] : bone.RestLocal;
+                Pose.WorldTransforms[i] = bone.ParentIndex == i ? local : local * Pose.WorldTransforms[bone.ParentIndex];
+            }
+            for (var i = 0; i < Pose.RegularTransforms.Length; i++)
+            {
+                Pose.RegularTransforms[i] = _data.GetInverseBindTransform(i) * Pose.WorldTransforms[i];
+                Pose.RigidTransforms[i] = _data.GetInverseRigidBindTransform(i) * LegacyRigid.CreateOrOriginal(Pose.WorldTransforms[i]);
+            }
+        }
+        Pose.SampleTimeSeconds = time;
+        Pose.Animation = Animation;
+        Pose.Revision++;
+        _needsEvaluation = false;
+        return Pose;
+    }
+
+    private void SampleAnimationLocals(float timeSeconds)
+    {
+        var bones = Animation.Skeleton.Bones;
+        for (var boneIndex = 0; boneIndex < bones.Length; boneIndex++)
+        {
+            var bone = bones[boneIndex];
+            var track = boneIndex < Animation.Tracks.Length ? Animation.Tracks[boneIndex] : null;
+            if (track is null) { _animationLocals[boneIndex] = bone.RestLocal; continue; }
+            var translation = LegacySampler.SampleVector3(track.TranslationTimes, track.Translations, timeSeconds, bone.RestTranslation);
+            var rotation = LegacySampler.SampleQuaternion(track.RotationTimes, track.Rotations, timeSeconds, bone.RestRotation);
+            var scaleShear = LegacySampler.SampleMatrix(track.ScaleShearTimes, track.ScaleShears, timeSeconds, bone.RestScaleShear);
+            _animationLocals[boneIndex] = LegacySampler.CreateTransform(translation, rotation, scaleShear);
+        }
+    }
+
+}

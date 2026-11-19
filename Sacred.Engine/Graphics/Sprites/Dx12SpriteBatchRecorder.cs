@@ -15,6 +15,7 @@ internal sealed class Dx12SpriteBatchRecorder
     public Dx12GpuAnimationTimings? GpuTimings { get; set; }
     public bool IsLiquid { get; set; }
     public float? AnimationTimeOverride { get; set; }
+    public FrameTimeSource? FrameTime { get; set; }
     public float ParticleColorMultiplier { get; set; } = 1.0f;
     private const float AlphaCutoff = 64.0f / 255.0f;
     private const float PlayerOccluderOpacity = 0.48f;
@@ -25,7 +26,6 @@ internal sealed class Dx12SpriteBatchRecorder
     private readonly GpuDescriptorHandle _surfaceLightMap;
     private readonly GpuDescriptorHandle _playerOcclusionMap;
     private readonly StaticSpriteShaderConstantsUpdater _shaderConstants = new();
-    private readonly long _startTimestamp = Stopwatch.GetTimestamp();
     private ID3D12RootSignature? _rootSignature;
 
     public Dx12SpriteBatchRecorder(
@@ -70,7 +70,7 @@ internal sealed class Dx12SpriteBatchRecorder
                 ambientColour,
                 paperWhiteNits,
                 unlitWhiteNits,
-                AnimationTimeOverride ?? (float)Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds,
+                AnimationTimeOverride ?? (float)(FrameTime?.Current.Seconds ?? 0.0),
                 PlayerOccluderOpacity,
                 playerOcclusion.SceneDepth) { ParticleColorMultiplier = ParticleColorMultiplier });
 

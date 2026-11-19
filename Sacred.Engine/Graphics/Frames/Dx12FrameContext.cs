@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
+using Sacred.Engine.Graphics.Memory;
 using Vortice.Direct3D12;
-using Vortice.DXGI;
 
 namespace Sacred.Engine.Graphics.Frames;
 
@@ -15,35 +15,41 @@ internal sealed class Dx12FrameContext : IDisposable
     private readonly List<int> _retiredModelSrvSlots = new(8);
     private readonly List<Action> _retirementActions = new(8);
 
-    private ID3D12Resource? _spriteInstanceBuffer;
+    private readonly Dx12MemoryAllocator _memory;
+    private Dx12GpuResource? _spriteInstanceBuffer;
     private nint _spriteInstanceBufferMapped;
     private int _spriteInstanceCapacity;
-    private ID3D12Resource? _staticShadowInstanceBuffer;
+    private Dx12GpuResource? _staticShadowInstanceBuffer;
     private nint _staticShadowInstanceBufferMapped;
     private int _staticShadowInstanceCapacity;
-    private ID3D12Resource? _lightHaloInstanceBuffer;
+    private Dx12GpuResource? _lightHaloInstanceBuffer;
     private nint _lightHaloInstanceBufferMapped;
     private int _lightHaloInstanceCapacity;
 
-    public Dx12FrameContext(int index, ID3D12CommandAllocator commandAllocator)
+    public Dx12FrameContext(int index, ID3D12CommandAllocator commandAllocator, Dx12MemoryAllocator memory)
     {
         Index = index;
         CommandAllocator = commandAllocator;
+        _memory = memory;
+        Uploads = new Dx12FrameUploadArena(memory);
     }
+
+    /// <summary>Transient per-frame upload memory. Rewound when this frame slot retires; never create a buffer per frame instead.</summary>
+    public Dx12FrameUploadArena Uploads { get; }
 
     public int Index { get; }
     public ID3D12CommandAllocator CommandAllocator { get; }
     public ulong FenceValue { get; set; }
     public List<ID3D12Resource> TransientResources => _retiredResources;
     public ID3D12Resource SpriteInstanceBuffer =>
-        _spriteInstanceBuffer ?? throw new InvalidOperationException("The sprite instance buffer has not been created.");
+        _spriteInstanceBuffer?.Resource ?? throw new InvalidOperationException("The sprite instance buffer has not been created.");
     public nint SpriteInstanceBufferMapped => _spriteInstanceBufferMapped;
     public ID3D12Resource StaticShadowInstanceBuffer =>
-        _staticShadowInstanceBuffer ??
+        _staticShadowInstanceBuffer?.Resource ??
         throw new InvalidOperationException("The static-shadow instance buffer has not been created.");
     public nint StaticShadowInstanceBufferMapped => _staticShadowInstanceBufferMapped;
     public ID3D12Resource LightHaloInstanceBuffer =>
-        _lightHaloInstanceBuffer ?? throw new InvalidOperationException("The light-halo instance buffer has not been created.");
+        _lightHaloInstanceBuffer?.Resource ?? throw new InvalidOperationException("The light-halo instance buffer has not been created.");
     public nint LightHaloInstanceBufferMapped => _lightHaloInstanceBufferMapped;
 
     public void RetireResource(ID3D12Resource resource) => _retiredResources.Add(resource);
@@ -60,6 +66,7 @@ internal sealed class Dx12FrameContext : IDisposable
         foreach (var resource in _retiredResources)
             resource.Dispose();
         _retiredResources.Clear();
+        Uploads.Reset();
 
         var releasedSectorSlotCount = _retiredSectorSrvSlots.Count;
         foreach (var slot in _retiredSectorSrvSlots)
@@ -74,12 +81,10 @@ internal sealed class Dx12FrameContext : IDisposable
     }
 
     public unsafe void EnsureSpriteInstanceCapacity(
-        ID3D12Device device,
         int instanceStride,
         int requiredCapacity)
     {
         EnsureInstanceCapacity(
-            device,
             instanceStride,
             requiredCapacity,
             ref _spriteInstanceBuffer,
@@ -88,12 +93,10 @@ internal sealed class Dx12FrameContext : IDisposable
     }
 
     public unsafe void EnsureLightHaloInstanceCapacity(
-        ID3D12Device device,
         int instanceStride,
         int requiredCapacity)
     {
         EnsureInstanceCapacity(
-            device,
             instanceStride,
             requiredCapacity,
             ref _lightHaloInstanceBuffer,
@@ -102,12 +105,10 @@ internal sealed class Dx12FrameContext : IDisposable
     }
 
     public unsafe void EnsureStaticShadowInstanceCapacity(
-        ID3D12Device device,
         int instanceStride,
         int requiredCapacity)
     {
         EnsureInstanceCapacity(
-            device,
             instanceStride,
             requiredCapacity,
             ref _staticShadowInstanceBuffer,
@@ -115,44 +116,22 @@ internal sealed class Dx12FrameContext : IDisposable
             ref _staticShadowInstanceCapacity);
     }
 
-    private static unsafe void EnsureInstanceCapacity(
-        ID3D12Device device,
+    private void EnsureInstanceCapacity(
         int instanceStride,
         int requiredCapacity,
-        ref ID3D12Resource? buffer,
+        ref Dx12GpuResource? buffer,
         ref nint mappedAddress,
         ref int capacity)
     {
         if (buffer is not null && capacity >= requiredCapacity)
             return;
 
+        // Growth only: capacity doubles, so this runs a handful of times per run, from pooled heap memory.
         DisposeInstanceBuffer(ref buffer, ref mappedAddress, ref capacity);
 
         capacity = Math.Max(256, RoundUpToPowerOfTwo(requiredCapacity));
-        var bufferBytes = checked((ulong)(capacity * instanceStride));
-        var description = new ResourceDescription(
-            ResourceDimension.Buffer,
-            0,
-            bufferBytes,
-            1,
-            1,
-            1,
-            Format.Unknown,
-            1,
-            0,
-            TextureLayout.RowMajor,
-            ResourceFlags.None);
-
-        buffer = device.CreateCommittedResource(
-            new HeapProperties(HeapType.Upload, 0, 0),
-            HeapFlags.None,
-            description,
-            ResourceStates.GenericRead,
-            null);
-
-        void* mapped;
-        buffer.Map(0, null, &mapped).CheckError();
-        mappedAddress = (nint)mapped;
+        buffer = _memory.CreateBuffer(HeapType.Upload, checked((ulong)capacity * (ulong)instanceStride));
+        mappedAddress = buffer.Map();
     }
 
     public void Dispose()
@@ -172,6 +151,7 @@ internal sealed class Dx12FrameContext : IDisposable
             resource.Dispose();
         _retiredResources.Clear();
 
+        Uploads.Dispose();
         CommandAllocator.Dispose();
     }
 
@@ -190,14 +170,13 @@ internal sealed class Dx12FrameContext : IDisposable
     }
 
     private static void DisposeInstanceBuffer(
-        ref ID3D12Resource? buffer,
+        ref Dx12GpuResource? buffer,
         ref nint mappedAddress,
         ref int capacity)
     {
         if (buffer is null)
             return;
 
-        buffer.Unmap(0, null);
         buffer.Dispose();
         buffer = null;
         mappedAddress = 0;

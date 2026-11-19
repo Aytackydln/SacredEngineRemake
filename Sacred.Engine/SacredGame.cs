@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Sacred.Core;
+using Sacred.Engine.Diagnostics;
 using Sacred.Engine.Graphics;
 using Sacred.Engine.Latency;
 using Sacred.Engine.Platform;
@@ -103,14 +104,20 @@ public sealed class SacredGame : IDisposable
         while (!cancellationToken.IsCancellationRequested)
         {
             var waitStart = _renderer.FrameTiming.Enabled ? Stopwatch.GetTimestamp() : 0;
+            var intervalStart = FrameProfiler.Begin();
             WaitForFrameStart(frameId, cancellationToken);
             var frameStartTimestamp = Stopwatch.GetTimestamp();
-            if (!_window.ProcessMessages())
+            var messagesStart = FrameProfiler.Begin();
+            var keepRunning = _window.ProcessMessages();
+            FrameProfiler.End(FrameStage.WindowMessages, messagesStart);
+            if (!keepRunning)
                 break;
 
-            await Update(frameId, cancellationToken);
+            await Update(frameId, frameStartTimestamp, cancellationToken);
             _lastCompletedFrameTimeMilliseconds =
                 Stopwatch.GetElapsedTime(frameStartTimestamp).TotalMilliseconds;
+            FrameProfiler.AddMilliseconds(FrameStage.Active, _lastCompletedFrameTimeMilliseconds);
+            FrameProfiler.EndFrame(intervalStart == 0 ? 0 : Stopwatch.GetElapsedTime(intervalStart).TotalMilliseconds);
             if (waitStart != 0 && _renderer.FrameTiming.Enabled)
                 _renderer.FrameTiming.Record(
                     (frameStartTimestamp - waitStart) * 1000.0 / Stopwatch.Frequency,
@@ -124,23 +131,30 @@ public sealed class SacredGame : IDisposable
         }
     }
 
-    private async ValueTask Update(ulong frameId, CancellationToken cancellationToken)
+    private async ValueTask Update(ulong frameId, long frameStartTimestamp, CancellationToken cancellationToken)
     {
         var deltaSeconds = _framePacing.Tick();
+        _renderer.BeginFrameTime(frameId, frameStartTimestamp, deltaSeconds);
+        var imguiStart = FrameProfiler.Begin();
         _renderer.BeginDebugUiFrame(deltaSeconds, _lastCompletedFrameTimeMilliseconds);
+        FrameProfiler.End(FrameStage.DebugUiBegin, imguiStart);
         _latency.Mark(LatencyMarker.SimulationStart, frameId);
         if (_window.Input.HasPendingLeftClick)
             _latency.Mark(LatencyMarker.LeftMouseButtonClick, frameId);
 
+        var updateStart = FrameProfiler.Begin();
         _runtime.Update(deltaSeconds);
+        FrameProfiler.End(FrameStage.RuntimeUpdate, updateStart);
         _latency.Mark(LatencyMarker.SimulationEnd, frameId);
 
+        var renderStart = FrameProfiler.Begin();
         await _scenes.ActiveScene.RenderAsync(new SceneRenderContext(
             _renderer,
             _framePacing.VerticalSyncEnabled,
             _framePacing.Status,
             frameId,
             cancellationToken));
+        FrameProfiler.End(FrameStage.Render, renderStart);
     }
 
     private void WaitForFrameStart(ulong frameId, CancellationToken cancellationToken)

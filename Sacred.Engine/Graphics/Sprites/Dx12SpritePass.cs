@@ -98,6 +98,7 @@ internal sealed class Dx12SpritePass : IDisposable
         $"{_instances.OriginalQuadPixels:F0} original; {_preparation.Status}; {StaticSpriteCompositionStatistics.Status}";
     public void ResetStatistics() => _preparation.Reset();
     public Dx12GpuAnimationTimings? GpuTimings { set { Cutouts.GpuTimings = value; _batchRecorder.GpuTimings = value; } }
+    public FrameTimeSource? FrameTime { set => _batchRecorder.FrameTime = value; }
 
     public void SetPipeline(Dx12CreatedPipelineGroup pipeline, bool hdrOutput)
     {
@@ -309,7 +310,7 @@ internal sealed class Dx12SpritePass : IDisposable
         var pendingStart = -1;
         var pendingCount = 0;
         ID3D12PipelineState? pendingPipeline = null;
-        foreach (var range in batch.StaticRanges)
+        foreach (var range in ReadOnlyListSpan.Of(batch.StaticRanges))
         {
             if (range.IsPostModel != postModel)
                 continue;

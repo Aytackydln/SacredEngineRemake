@@ -16,6 +16,7 @@ public sealed class SacredNetworkObjectWorld : IGameplayObjectWorld
     private readonly GameplayNetworkInteractions _interactions;
     private readonly Dictionary<uint, GameplayWorldObject> _objects = [];
     private readonly HashSet<SectorCoord> _visibleSectors = [];
+    private readonly HashSet<SectorCoord> _currentSectors = []; // Per-frame scratch for the change check below.
     private long _replicaRevision = -1;
     private readonly GameplayDroppedItems _drops = new();
     public SacredNetworkObjectWorld(SacredNetworkWorldBinding world, IGameplayResourceCatalog resources,
@@ -55,10 +56,17 @@ public sealed class SacredNetworkObjectWorld : IGameplayObjectWorld
             if (_objects.Count != 0) { _objects.Clear(); _drops.Clear(); Revision++; }
             return;
         }
-        var sectors = _world.VisibleWorld.Sectors.Select(sector => sector.Coord).ToArray();
-        if (_replicaRevision == _world.Replicas.Revision && _visibleSectors.SetEquals(sectors)) return;
-        _replicaRevision = _world.Replicas.Revision;
-        _visibleSectors.Clear(); _visibleSectors.UnionWith(sectors);
+        // Runs every frame: compare the sector set without allocating (reused set, hoisted list and count).
+        var visibleSectors = _world.VisibleWorld.Sectors;
+        var sectorCount = visibleSectors.Count;
+        var current = _currentSectors;
+        current.Clear();
+        for (var index = 0; index < sectorCount; index++)
+            current.Add(visibleSectors[index].Coord);
+        var revision = _world.Replicas.Revision;
+        if (_replicaRevision == revision && _visibleSectors.SetEquals(current)) return;
+        _replicaRevision = revision;
+        _visibleSectors.Clear(); _visibleSectors.UnionWith(current);
         _objects.Clear();
         foreach (var obj in _world.WorldObjects)
             if (_resources.GetItem(obj.BaseState.ObjectType) is { } item)

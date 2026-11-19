@@ -114,6 +114,7 @@ internal sealed class Dx12WorldCommandRecorder
         _commandList.ClearRenderTargetView(renderTarget, new Color4(0.0f, 0.0f, 0.0f, 1.0f));
         _commandList.SetDescriptorHeaps(1, shaderVisibleDescriptorHeaps);
 
+        var stageStart = FrameProfiler.Begin();
         var spriteBatch = _sprites.PrepareInstances(
             camera,
             scene.Models.Count > 0 ? scene.Models[0] : null,
@@ -124,6 +125,8 @@ internal sealed class Dx12WorldCommandRecorder
             renderWidth,
             renderHeight,
             worldSpriteRevision);
+        FrameProfiler.End(FrameStage.SpriteInstances, stageStart);
+        stageStart = FrameProfiler.Begin();
         var frameWorldLights = PrepareFrameWorldLights(worldLights, camera, scene.Lighting);
         var lightHaloInstanceCount = _lightHalos.PrepareInstances(
             camera,
@@ -134,6 +137,7 @@ internal sealed class Dx12WorldCommandRecorder
             renderWidth,
             renderHeight,
             worldSpriteRevision);
+        FrameProfiler.End(FrameStage.LightInstances, stageStart);
         _worldPainter.HasSpriteEffect = _lightHalos.HasSource;
         _worldPainter.BeforeSprite = source =>
         {
@@ -145,6 +149,7 @@ internal sealed class Dx12WorldCommandRecorder
         };
         _sprites.SetParticleColorMultiplier(displayProfile.ParticleColorMultiplier);
         var surfaceLightCount = _lightHalos.SurfaceLightCount;
+        stageStart = FrameProfiler.Begin();
         _surfaceLights.Record(
             surfaceLightCount,
             scene.Lighting.NightBlend,
@@ -152,6 +157,7 @@ internal sealed class Dx12WorldCommandRecorder
             renderWidth,
             renderHeight);
         _playerOcclusionMap.Record(spriteBatch.PlayerOcclusion, renderWidth, renderHeight);
+        FrameProfiler.End(FrameStage.LightMaps, stageStart);
         _commandList.OMSetRenderTargets(renderTarget, null);
 
         // Terrain and sprites use this exact transform for the whole frame. Independently
@@ -163,6 +169,7 @@ internal sealed class Dx12WorldCommandRecorder
             renderHeight);
 
         var constants = stackalloc float[WorldQuadShaderLayout.RootConstantsCount];
+        stageStart = FrameProfiler.Begin();
         foreach (var image in sectorImages)
         {
             if (!_sectorTextures.TryGet(image.Coord, out var texture))
@@ -227,11 +234,16 @@ internal sealed class Dx12WorldCommandRecorder
             }
         }
 
+        FrameProfiler.End(FrameStage.RecordTerrain, stageStart);
+
         // Native Floor sprites precede the Shadows queue; Floor2 and Objects follow it.
+        stageStart = FrameProfiler.Begin();
         _commandList.OMSetRenderTargets(renderTarget, depthStencil);
         _commandList.ClearDepthStencilView(depthStencil, ClearFlags.Depth, 1.0f, 0, 0, []);
         _worldPainter.RecordFloor(spriteBatch, camera, scene, displayProfile, frame, renderWidth, renderHeight);
+        FrameProfiler.End(FrameStage.RecordFloor, stageStart);
 
+        stageStart = FrameProfiler.Begin();
         _shadowMap.Begin(renderWidth, renderHeight);
         _sprites.RecordStaticShadows(
             spriteBatch,
@@ -249,6 +261,7 @@ internal sealed class Dx12WorldCommandRecorder
             constants,
             renderWidth,
             renderHeight);
+        FrameProfiler.End(FrameStage.RecordShadows, stageStart);
         _commandList.OMSetRenderTargets(renderTarget, depthStencil);
         _commandList.ClearDepthStencilView(depthStencil, ClearFlags.Depth, 1.0f, 0, 0, []);
         // Sprites and models share the native tile traversal below. Ordinary
@@ -275,14 +288,19 @@ internal sealed class Dx12WorldCommandRecorder
             _commandList.ClearDepthStencilView(depthStencil, ClearFlags.Depth, 1.0f, 0, 0, []);
         }
 
+        stageStart = FrameProfiler.Begin();
         _worldPainter.Record(spriteBatch, camera, scene, displayProfile, frame, renderWidth, renderHeight);
         _worldPainter.RecordFront(spriteBatch, scene, displayProfile, frame, renderWidth, renderHeight);
+        FrameProfiler.End(FrameStage.RecordObjects, stageStart);
 
         // GPU particles use the same depth-tested pipeline as CPU particle sprites.
+        stageStart = FrameProfiler.Begin();
         _commandList.OMSetRenderTargets(renderTarget, depthStencil);
         GpuParticles?.Draw(_commandList,displayProfile,renderWidth,renderHeight,_models.GpuTimings!);
+        FrameProfiler.End(FrameStage.RecordParticles, stageStart);
 
         // Effects without a visible source sprite retain their overlay fallback.
+        stageStart = FrameProfiler.Begin();
         _commandList.OMSetRenderTargets(renderTarget, null);
         _lightHalos.Record(
             lightHaloInstanceCount,
@@ -291,7 +309,9 @@ internal sealed class Dx12WorldCommandRecorder
             frame,
             renderWidth,
             renderHeight);
+        FrameProfiler.End(FrameStage.RecordLightHalos, stageStart);
 
+        stageStart = FrameProfiler.Begin();
         if (spriteBatch.HighlightedStaticInstance is not null)
         {
             _commandList.SetGraphicsRootSignature(rootSignature);
@@ -316,9 +336,12 @@ internal sealed class Dx12WorldCommandRecorder
                 renderWidth,
                 renderHeight);
         }
+        FrameProfiler.End(FrameStage.RecordHighlight, stageStart);
 
+        stageStart = FrameProfiler.Begin();
         _commandList.OMSetRenderTargets(renderTarget, null);
         Weather?.Record(_commandList, scene.Weather, camera, sceneColor.Description.Format, renderWidth, renderHeight, frame);
+        FrameProfiler.End(FrameStage.RecordWeather, stageStart);
         Dx12TextureUploader.Transition(
             _commandList,
             sceneColor,

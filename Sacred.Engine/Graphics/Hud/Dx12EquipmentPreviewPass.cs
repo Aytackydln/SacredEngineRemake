@@ -30,7 +30,6 @@ internal sealed class Dx12EquipmentPreviewPass : IDisposable
     private readonly ID3D12DescriptorHeap _rtv;
     private readonly ID3D12DescriptorHeap _dsv;
     private readonly ModelShaderConstantsUpdater _constants = new();
-    private readonly long _started = Stopwatch.GetTimestamp();
     private Dx12CreatedPipelineGroup? _pipeline;
     private Task<EquipmentPreviewAsset?[]>? _loading;
     private SacredEquipment[] _requested = [];
@@ -154,7 +153,7 @@ internal sealed class Dx12EquipmentPreviewPass : IDisposable
         var scene = stackalloc float[ModelShaderLayout.SceneConstantsCount];
         _constants.WriteSceneConstants(scene, Vector3.Normalize(new(-0.35f, 1.8f, 0.85f)), 0.10f,
             new(0, 600, 0), 16, new(1, 1, 1, 0.38f), new(1, 0.96f, 0.88f, 0.82f),
-            new(203, 0, 300, 80), (float)Stopwatch.GetElapsedTime(_started).TotalSeconds);
+            new(203, 0, 300, 80), (float)_graphics.FrameTime.Current.Seconds);
         commands.SetGraphicsRoot32BitConstants(ModelShaderLayout.SceneConstantsRootParameter,
             ModelShaderLayout.SceneConstantsCount, scene, 0);
         commands.SetGraphicsRootDescriptorTable(ModelShaderLayout.SurfaceLightMapRootParameter, Gpu(FirstSlot + 1));

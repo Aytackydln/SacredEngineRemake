@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Threading;
+using Sacred.Engine.Diagnostics;
 using Sacred.Engine.Graphics;
 using Sacred.Engine.Latency;
 
@@ -55,9 +56,13 @@ internal sealed class FramePacingController : IDisposable
         // Do not consume DXGI's presentation slot while the CPU limiter is still waiting.
         // If the two waits drift out of phase, doing that can serialize them and halve throughput.
         var started = _renderer.FrameTiming.Enabled ? Stopwatch.GetTimestamp() : 0;
+        var pacingStart = FrameProfiler.Begin();
         _clock.WaitForFrameStart(UsesCpuLimiter, cancellationToken);
+        FrameProfiler.End(FrameStage.PacingWait, pacingStart);
         LastCpuWaitMilliseconds = started == 0 ? 0 : Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        var acquireStart = FrameProfiler.Begin();
         _renderer.PrepareFrame(cancellationToken);
+        FrameProfiler.End(FrameStage.AcquireFrame, acquireStart);
     }
 
     internal double LastCpuWaitMilliseconds { get; private set; }
@@ -68,8 +73,10 @@ internal sealed class FramePacingController : IDisposable
     public void BeginLatencyFrame(ulong frameId)
     {
         var started = _renderer.FrameTiming.Enabled ? Stopwatch.GetTimestamp() : 0;
+        var latencyStart = FrameProfiler.Begin();
         _latency.BeginFrame(frameId);
         _latency.SleepBeforeInput(frameId);
+        FrameProfiler.End(FrameStage.LatencyWait, latencyStart);
         LastLatencyWaitMilliseconds = started == 0 ? 0 : Stopwatch.GetElapsedTime(started).TotalMilliseconds;
     }
 

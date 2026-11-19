@@ -114,7 +114,7 @@ internal sealed class Dx12LightHaloPass : IDisposable
                              lighting.PlayerLightOpacity > 0.0f;
         CandidateCount = lights.Count + (hasPlayerLight ? 1 : 0);
         // Pixel shaders require a valid root SRV even when the authored scene has no lights.
-        frame.EnsureLightHaloInstanceCapacity(_device, InstanceStride, Math.Max(1, CandidateCount));
+        frame.EnsureLightHaloInstanceCapacity(InstanceStride, Math.Max(1, CandidateCount));
         if (state.Matches(
                 spriteRevision,
                 camera.ViewCenter,

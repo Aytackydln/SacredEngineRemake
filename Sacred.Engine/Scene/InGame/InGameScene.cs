@@ -461,33 +461,47 @@ internal sealed partial class InGameScene : IGameScene
             if (_scene.EquipmentUi.IsOpen && input.ConsumePressed(VirtualKey.Escape))
                 _scene.EquipmentUi.SetOpen(false);
         }
-        if (_escapeMenu.Update()) { UpdatePausedNetworkMovement(deltaSeconds); return; }
+        var stageStart = FrameProfiler.Begin();
+        if (_escapeMenu.Update()) { FrameProfiler.End(FrameStage.UiInput, stageStart); UpdatePausedNetworkMovement(deltaSeconds); return; }
         input.HudWantsMouse = false;
         _inventoryInput.Update();
         _hudInput.Update();
         _portraitInput.Update();
+        FrameProfiler.End(FrameStage.UiInput, stageStart);
         if (_scene.EscapeMenu!.IsOpen) { UpdatePausedNetworkMovement(deltaSeconds); return; }
         UpdateNetworkBinding(deltaSeconds);
         if (_networkPresentation is null)
         {
+            stageStart = FrameProfiler.Begin();
             _inputController.Update(deltaSeconds);
+            FrameProfiler.End(FrameStage.PlayerInput, stageStart);
+            stageStart = FrameProfiler.Begin();
             _combatActions.Update(_player.CombatContext, deltaSeconds);
+            FrameProfiler.End(FrameStage.Combat, stageStart);
         }
         else _combatActions.Reset();
         _scene.Hud!.DayFraction = _worldLighting.DayFraction;
+        stageStart = FrameProfiler.Begin();
         _footprints.Update(deltaSeconds, _camera);
+        FrameProfiler.End(FrameStage.Footprints, stageStart);
         Renderer.UpdateAutoRenderResolution(_camera.Zoom);
+        stageStart = FrameProfiler.Begin();
         _doors.Update(PresentedWorld, _camera.WorldCenter, deltaSeconds, _scene.Indoor.ActiveGroup);
         _particles.ObjectSparkles.SetObjects(_doors.DroppedItemSparkles);
         _debugCrowd.Update(_scene, deltaSeconds);
+        FrameProfiler.End(FrameStage.Doors, stageStart);
         if (_networkPresentation is null) _playerParticles.Update();
+        stageStart = FrameProfiler.Begin();
         using (AnimationPerformance.Measure(AnimationCpuStage.Particles))
         _particles.Update(deltaSeconds, PresentedWorld, _scene.Indoor.ActiveGroup,
             _camera.WorldCenter, _playerParticles.SelfHeight);
+        FrameProfiler.End(FrameStage.ParticleUpdate, stageStart);
         _scene.GpuParticlesEnabled = _particles.GpuEmissionEnabled || _particles.SelectedSimulationMode is ParticleSimulationMode.Gpu or ParticleSimulationMode.GpuOnly;
         _scene.GpuWorldEmitters = _particles.GpuEmitters;
         _scene.GpuParticleBatches = _particles.GpuBatches;
+        stageStart = FrameProfiler.Begin();
         UpdateWeather(deltaSeconds);
+        FrameProfiler.End(FrameStage.Weather, stageStart);
         UpdateRegionDisplayName();
     }
 

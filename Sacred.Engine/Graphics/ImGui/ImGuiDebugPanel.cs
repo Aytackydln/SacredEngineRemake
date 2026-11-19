@@ -185,6 +185,11 @@ internal sealed class ImGuiDebugPanel(
         DearImGui.Text($"Frame rate      {fps:0.0} FPS");
         DearImGui.Text($"Frame time      {stats.FrameTimeMilliseconds:0.00} ms");
         DearImGui.Text($"Pacing          {stats.FramePacingStatus}");
+        if (DearImGui.TreeNodeEx("Frame timings", ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            ImGuiFrameTimingsPanel.Draw();
+            DearImGui.TreePop();
+        }
     }
 
     private static void DrawWorld(SacredCamera camera, VisibleWorld world, SceneState scene)

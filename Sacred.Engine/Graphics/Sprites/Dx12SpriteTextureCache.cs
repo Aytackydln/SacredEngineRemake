@@ -22,6 +22,7 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
     private readonly Stack<int> _freeSrvSlots = new(MaximumTextureCount);
     private readonly Dictionary<StaticSpriteAsset, SpriteTexture> _staticTextures = new(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<string, SpriteTexture> _liquidTextures = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<TextureFrameSequenceAsset, uint> _liquidSlotByAsset = new(ReferenceEqualityComparer.Instance);
     private readonly HashSet<StaticSpriteAsset> _failedStaticUploads = new(ReferenceEqualityComparer.Instance);
     private readonly HashSet<string> _failedLiquidUploads = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<StaticSpriteAsset> _pendingStatic = new(ReferenceEqualityComparer.Instance);
@@ -55,6 +56,12 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
         Cutouts = new(device, commandList, uploader, _freeSrvSlots, _srvHeapStart, descriptorSize, firstSrvSlot);
     }
 
+    /// <summary>Sprites examined per residency pass (liquid and static share it). Each visit is a few dictionary probes,
+    /// so this bounds a pass to a fraction of a millisecond on any CPU, deterministically.</summary>
+    private const int MaximumScannedSpritesPerPass = 4096;
+    /// <summary>Finished uploads turned into shader views per frame.</summary>
+    private const int MaximumPublishedTexturesPerFrame = 16;
+
     public ulong ResidencyRevision => _residencyRevision + Cutouts.Revision;
     public bool IsPrepared(ulong revision) => _preparedSpriteRevision == revision;
 
@@ -79,13 +86,18 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
             // cannot certify that the entire new revision is ready.
             _scanReady = false;
         }
-        var timer = Stopwatch.StartNew();
-        // Keep the cursor across frames. Restarting a timed scan at zero can permanently
-        // starve its tail on slower CPUs, even when every texture in the prefix is resident.
-        while (_nextLiquid < liquids.Count)
+        // Keep the cursor across frames so a long list is covered over several passes. The budget is a number of
+        // sprites, not elapsed time: a clock cutoff made the covered prefix depend on CPU speed and load, so which
+        // textures were requested first, and when the scan completed, was not reproducible.
+        var scanned = 0;
+        TextureFrameSequenceAsset? lastLiquid = null;
+        var liquidSpan = ReadOnlyListSpan.Of(liquids);
+        var nextLiquid = _nextLiquid;
+        while (nextLiquid < liquidSpan.Length)
         {
-            var source = liquids[_nextLiquid++].Animation;
-            if (!_liquidTextures.ContainsKey(source.Name) && !_failedLiquidUploads.Contains(source.Name) &&
+            var source = liquidSpan[nextLiquid++].Animation;
+            // A repeat of the previous asset cannot change the outcome: it is resident, failed, or already pending.
+            if (!ReferenceEquals(source, lastLiquid) && !_liquidTextures.ContainsKey(source.Name) && !_failedLiquidUploads.Contains(source.Name) &&
                 (_freeSrvSlots.Count > 0 || _pendingLiquid.Contains(source.Name)))
             {
                 _scanReady = false;
@@ -107,15 +119,47 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
                     }
                 }
             }
-            if (timer.Elapsed.TotalMilliseconds >= 0.5) return;
+            lastLiquid = source;
+            if (++scanned >= MaximumScannedSpritesPerPass)
+            {
+                _nextLiquid = nextLiquid;
+                return;
+            }
         }
-        while (_nextStatic < statics.Count)
+        _nextLiquid = nextLiquid;
+        var staticSpan = ReadOnlyListSpan.Of(statics);
+        var nextStatic = _nextStatic;
+        StaticSpriteAsset? lastSprite = null, lastShadow = null;
+        var lastSpriteReady = true;
+        var lastShadowReady = true;
+        while (nextStatic < staticSpan.Length)
         {
-            var sprite = statics[_nextStatic++];
-            if (!sprite.IsEmbeddedInTerrain) _scanReady &= RequestStatic(sprite.Sprite);
-            if (sprite.Shadow is { } shadow) _scanReady &= RequestStatic(shadow.Atlas);
-            if (timer.Elapsed.TotalMilliseconds >= 0.5) return;
+            ref readonly var sprite = ref staticSpan[nextStatic++];
+            if (!sprite.IsEmbeddedInTerrain)
+            {
+                if (!ReferenceEquals(sprite.Sprite, lastSprite))
+                {
+                    lastSprite = sprite.Sprite;
+                    lastSpriteReady = RequestStatic(lastSprite);
+                }
+                _scanReady &= lastSpriteReady;
+            }
+            if (sprite.Shadow is { } shadow)
+            {
+                if (!ReferenceEquals(shadow.Atlas, lastShadow))
+                {
+                    lastShadow = shadow.Atlas;
+                    lastShadowReady = RequestStatic(lastShadow);
+                }
+                _scanReady &= lastShadowReady;
+            }
+            if (++scanned >= MaximumScannedSpritesPerPass)
+            {
+                _nextStatic = nextStatic;
+                return;
+            }
         }
+        _nextStatic = nextStatic;
         if (_scanReady)
         {
             _preparedSpriteRevision = revision;
@@ -164,9 +208,8 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
 
     private void CollectCompleted()
     {
-        var timer = Stopwatch.StartNew();
         var published = 0;
-        for (var index = _pending.Count - 1; index >= 0 && timer.Elapsed.TotalMilliseconds < 0.5; index--)
+        for (var index = _pending.Count - 1; index >= 0 && published < MaximumPublishedTexturesPerFrame; index--)
         {
             var pending = _pending[index];
             if (!pending.Ticket.TryTake(out var resource, out var error)) continue;
@@ -204,6 +247,18 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
     }
     private ID3D12Resource? FindStaticResource(StaticSpriteAsset source) =>
         _staticTextures.TryGetValue(source, out var texture) ? texture.Resource : null;
+    /// <summary>Per-sprite lookup by asset instance. Resident liquid textures keep their slot until disposal, so the
+    /// first name lookup is remembered and later reads skip hashing the name (case-insensitively) for every sprite.</summary>
+    public bool TryGetLiquidSlot(TextureFrameSequenceAsset animation, out uint slot)
+    {
+        if (_liquidSlotByAsset.TryGetValue(animation, out slot))
+            return true;
+        if (!TryGetLiquidSlot(animation.Name, out slot))
+            return false;
+        _liquidSlotByAsset[animation] = slot;
+        return true;
+    }
+
     public bool TryGetLiquidSlot(string name, out uint slot)
     {
         var found = _liquidTextures.TryGetValue(name, out var texture);
@@ -221,6 +276,7 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
         foreach (var texture in _liquidTextures.Values) texture.Resource.Dispose();
         _staticTextures.Clear();
         _liquidTextures.Clear();
+        _liquidSlotByAsset.Clear();
     }
     private sealed record SpriteTexture(ID3D12Resource Resource, int SrvSlot);
     private sealed record PendingSpriteUpload(StaticSpriteAsset? StaticSource, string? LiquidName, TextureUploadTicket Ticket, int Slot);

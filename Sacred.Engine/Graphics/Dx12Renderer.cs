@@ -289,8 +289,13 @@ public sealed partial class Dx12Renderer : IDisposable
     {
         UpdateAutoRenderResolution(camera.Zoom);
         var worldPass = GetWorldPass();
+        var prepareStart = FrameProfiler.Begin();
         var prepared = worldPass.Prepare(camera, world, scene, particles, particleRevision);
+        FrameProfiler.End(FrameStage.PrepareWorld, prepareStart);
+        var beginStart = FrameProfiler.Begin();
         _graphics.BeginRenderSubmission(_terrainPipeline);
+        FrameProfiler.End(FrameStage.BeginSubmission, beginStart);
+        var recordStart = FrameProfiler.Begin();
         worldPass.UploadAndRecord(
             camera,
             world,
@@ -301,11 +306,16 @@ public sealed partial class Dx12Renderer : IDisposable
             _terrainPipeline,
             _terrainLiquidCoverPipeline,
             _shadowOverlayPipeline);
+        FrameProfiler.End(FrameStage.UploadAndRecord, recordStart);
+        var upscaleStart = FrameProfiler.Begin();
         if (_graphics.UsesRenderScaling)
             RecordUpscalePass(camera);
         else
             _fsr2History.Reset();
+        FrameProfiler.End(FrameStage.Upscale, upscaleStart);
+        var uiStart = FrameProfiler.Begin();
         worldPass.RecordUi(scene, _rootSignature, _terrainPipeline);
+        FrameProfiler.End(FrameStage.RecordUi, uiStart);
         SubmitAndPresent(verticalSyncEnabled, frameId);
         _previousCameraCenter = camera.ViewCenter;
         _previousCameraViewportZoom = camera.GetViewportZoom(_graphics.OutputHeight);
@@ -316,9 +326,13 @@ public sealed partial class Dx12Renderer : IDisposable
     {
         if (!_graphics.IsOffscreen) UpdateRenderResolution();
         ReloadShadersIfRequested();
-        _graphics.MeasureFrameWaits = FrameTiming.Enabled;
+        _graphics.MeasureFrameWaits = FrameTiming.Enabled || FrameProfiler.Enabled;
         _graphics.AcquireFrame(cancellationToken, _releaseRetiredResources);
     }
+
+    /// <summary>Captures the frame's time once; every pass reads it instead of the clock.</summary>
+    internal void BeginFrameTime(ulong frameId, long timestamp, float deltaSeconds) =>
+        _graphics.FrameTime.Begin(frameId, timestamp, deltaSeconds);
 
     internal void BeginDebugUiFrame(float deltaSeconds, double lastCompletedFrameTimeMilliseconds) =>
         _worldPass?.BeginDebugUiFrame(deltaSeconds, lastCompletedFrameTimeMilliseconds);
@@ -354,14 +368,17 @@ public sealed partial class Dx12Renderer : IDisposable
     {
         var captureScreenshot = _pendingScreenshotLabels.Count > 0;
         var label = captureScreenshot ? _pendingScreenshotLabels.Dequeue() : null;
+        var submitStart = FrameProfiler.Begin();
         var screenshot = _graphics.SubmitAndPresent(
             verticalSyncEnabled,
             frameId,
             captureScreenshot);
-        var dispatchStart = FrameTiming.Enabled ? Stopwatch.GetTimestamp() : 0;
+        FrameProfiler.End(FrameStage.SubmitPresent, submitStart);
+        var dispatchStart = FrameTiming.Enabled || FrameProfiler.Enabled ? Stopwatch.GetTimestamp() : 0;
         _worldPass?.OnForegroundFrameSubmitted();
         LastStreamingDispatchMilliseconds = dispatchStart == 0 ? 0 :
             Stopwatch.GetElapsedTime(dispatchStart).TotalMilliseconds;
+        FrameProfiler.AddMilliseconds(FrameStage.StreamingDispatch, LastStreamingDispatchMilliseconds);
         if (screenshot is null)
             return;
 

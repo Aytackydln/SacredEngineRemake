@@ -9,16 +9,21 @@ namespace Sacred.Engine.Graphics.Skinning;
 internal sealed class GpuPoseBackendSelection
 {
     private readonly Dictionary<GrnPosePlayback, string> _reported = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<GrnPosePlayback, string?> _reasons = new(ReferenceEqualityComparer.Instance);
+    private readonly List<GrnPosePlayback> _removed = [];
     public bool Enabled { get; set; }
     public int GpuCount { get; private set; }
     public int CpuCount { get; private set; }
     public void Apply(SceneState scene, bool pipelinesReady, string? failure, bool skinningEnabled)
     {
         GpuCount = CpuCount = 0;
-        var reasons = new Dictionary<GrnPosePlayback, string?>(ReferenceEqualityComparer.Instance);
-        for (var i = 0; i < scene.Models.Count; i++)
+        var reasons = _reasons;
+        reasons.Clear();
+        var sceneModels = scene.Models;
+        var modelCount = sceneModels.Count;
+        for (var i = 0; i < modelCount; i++)
         {
-            var model = scene.Models[i];
+            var model = sceneModels[i];
             if (model.Geometry.Animation is not { } animation) continue;
             var playback = animation.Playback;
             var reason = !Enabled ? "explicit CPU pose selection" :
@@ -51,9 +56,9 @@ internal sealed class GpuPoseBackendSelection
             if (!_reported.TryGetValue(playback, out var prior) || prior != status)
             { _reported[playback] = status; EngineLog.WriteLine($"Pose backend: {model.Name}: {status}."); }
         }
-        var removed = new List<GrnPosePlayback>();
-        foreach (var owner in _reported.Keys) if (!reasons.ContainsKey(owner)) removed.Add(owner);
-        foreach (var owner in removed) _reported.Remove(owner);
+        _removed.Clear();
+        foreach (var owner in _reported.Keys) if (!reasons.ContainsKey(owner)) _removed.Add(owner);
+        foreach (var owner in _removed) _reported.Remove(owner);
     }
     private static bool HasSweep(SceneModel model)
     {

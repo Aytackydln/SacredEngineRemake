@@ -8,6 +8,7 @@ using Sacred.Engine.Latency;
 using Sacred.Engine.Platform;
 using Sacred.Shaders;
 using Vortice.Direct3D;
+using Sacred.Engine.Graphics.Memory;
 using Vortice.Direct3D12;
 using Vortice.DXGI;
 using static Vortice.Direct3D12.D3D12;
@@ -176,8 +177,10 @@ internal sealed partial class Dx12DeviceContext : IDisposable
         var waitStarted = MeasureFrameWaits ? Stopwatch.GetTimestamp() : 0;
         if (_window is not null) _swapChain.WaitForPresentSlot(cancellationToken);
         LastSlotWaitMilliseconds = waitStarted == 0 ? 0 : Stopwatch.GetElapsedTime(waitStarted).TotalMilliseconds;
+        FrameProfiler.AddMilliseconds(FrameStage.AcquireSlotWait, LastSlotWaitMilliseconds);
         waitStarted = MeasureFrameWaits ? Stopwatch.GetTimestamp() : 0;
 
+        Memory.BeginFrame();
         var frame = _frames[BackBufferIndex];
         var fenceValue = frame.FenceValue;
         if (fenceValue != 0 && _fence.CompletedValue < fenceValue)
@@ -187,6 +190,7 @@ internal sealed partial class Dx12DeviceContext : IDisposable
         }
 
         LastFenceWaitMilliseconds = waitStarted == 0 ? 0 : Stopwatch.GetElapsedTime(waitStarted).TotalMilliseconds;
+        FrameProfiler.AddMilliseconds(FrameStage.AcquireFenceWait, LastFenceWaitMilliseconds);
         _device.DeviceRemovedReason.CheckError();
         GpuAnimationTimings.ReadCompletedFrame(frame.Index);
         releaseRetiredResources(frame);
@@ -240,6 +244,7 @@ internal sealed partial class Dx12DeviceContext : IDisposable
         else _swapChain.Present(verticalSyncEnabled, _allowTearing);
         _latency.Mark(LatencyMarker.PresentEnd, frameId);
         LastPresentMilliseconds = Stopwatch.GetElapsedTime(presentStart).TotalMilliseconds;
+        FrameProfiler.AddMilliseconds(FrameStage.Present, LastPresentMilliseconds);
         // Present can enqueue work on the same queue. Include it in frame retirement.
         var fenceValue = ++_fenceValue;
         _commandQueue.Signal(_fence, fenceValue).CheckError();
@@ -305,6 +310,7 @@ internal sealed partial class Dx12DeviceContext : IDisposable
         _commandList?.Dispose();
         foreach (var frame in _frames ?? [])
             frame?.Dispose();
+        Memory?.Dispose();
         _srvHeap?.Dispose();
         _dsvHeap?.Dispose();
         _rtvHeap?.Dispose();
@@ -336,9 +342,18 @@ internal sealed partial class Dx12DeviceContext : IDisposable
         _device = D3D12CreateDevice<ID3D12Device>(null, MinimumFeatureLevel);
         Dx12ShaderRequirements.Validate(_device, directlyIndexedTextures: true);
         EngineLog.WriteLine("Direct3D 12 ready: DXC/DXIL, Shader Model 6.6, directly indexed textures.");
+        using (var factory4 = _factory.QueryInterface<IDXGIFactory4>())
+        using (var adapter = factory4.EnumAdapterByLuid<IDXGIAdapter>(new Vortice.Luid((uint)(_device.AdapterLuid & 0xFFFFFFFFL), (int)(_device.AdapterLuid >> 32))))
+            Memory = new Dx12MemoryAllocator(_device, adapter);
         _commandQueue = _device.CreateCommandQueue(CommandListType.Direct);
         _latency.AttachD3D12(_device.NativePointer, _commandQueue.NativePointer);
     }
+
+    /// <summary>Device-wide placed-resource allocator (D3D12MA). Create long-lived resources here rather than as committed resources.</summary>
+    internal Dx12MemoryAllocator Memory { get; private set; } = null!;
+
+    /// <summary>The current frame's time. The frame loop begins it once per frame; passes only read it.</summary>
+    internal FrameTimeSource FrameTime { get; } = new();
 
     private void CreateSwapChain()
     {
@@ -412,7 +427,7 @@ internal sealed partial class Dx12DeviceContext : IDisposable
     {
         _frames = new Dx12FrameContext[FrameCount];
         for (var index = 0; index < _frames.Length; index++)
-            _frames[index] = new Dx12FrameContext(index, _device.CreateCommandAllocator(CommandListType.Direct));
+            _frames[index] = new Dx12FrameContext(index, _device.CreateCommandAllocator(CommandListType.Direct), Memory);
 
         _commandList = _device.CreateCommandList<ID3D12GraphicsCommandList>(
             CommandListType.Direct,

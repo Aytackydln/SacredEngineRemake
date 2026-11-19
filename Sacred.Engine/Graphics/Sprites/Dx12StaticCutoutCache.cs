@@ -158,7 +158,6 @@ internal sealed class Dx12StaticCutoutCache(
                 }
                 else if (_failed.Contains(source)) _requests.RemoveAt(_cursor);
                 else _cursor++;
-                if (Stopwatch.GetElapsedTime(start).TotalMilliseconds >= 0.5) break;
             }
             if (copied > 0) EngineLog.WriteLine($"Static cutout copies recorded: {copied}; {_entries.Count} cached, {_committedBytes} committed bytes.");
         }

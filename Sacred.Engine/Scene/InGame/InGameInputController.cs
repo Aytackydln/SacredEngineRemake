@@ -254,7 +254,9 @@ internal sealed partial class InGameInputController
                 deltaSeconds,
                 _worldStreamer.VisibleWorld.LoadingSectors == 0) == true)
             _elevationTrace = null;
+        var streamingStart = FrameProfiler.Begin();
         _worldStreamer.Update(_camera.WorldCenter, _camera.CameraSpeedUnitVector);
+        FrameProfiler.End(FrameStage.WorldStreaming, streamingStart);
         var mouseWorld = GameActorElevation.ScreenToWorldOnSurface(
             _camera,
             _elevation,

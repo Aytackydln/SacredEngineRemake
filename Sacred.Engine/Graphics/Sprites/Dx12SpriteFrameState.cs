@@ -20,6 +20,11 @@ internal sealed class Dx12SpriteFrameState
     private bool _valid;
 
     public List<LiquidSpriteDrawRange> LiquidRanges { get; } = new(9);
+    // Rebuilt in place (cleared, capacity kept) instead of allocating and regrowing two lists per rebuild.
+    // Safe because a batch is only consumed while recording the frame that built it, and this state is
+    // rebuilt no sooner than the next use of the same frame slot.
+    public List<StaticSpriteDrawRange> StaticRanges { get; } = new(16);
+    public List<StaticSpriteSubmission> Submissions { get; } = new(1024);
     public WorldSpriteBatch Batch { get; private set; }
     public int LiquidInstanceCount { get; private set; }
 

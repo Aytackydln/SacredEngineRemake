@@ -28,7 +28,6 @@ internal sealed class Dx12NpcOverheadPass : IDisposable
     private readonly List<ID3D12Resource> _textures = [];
     private SacredNpcIconDefinitions? _definitions;
     private bool _definitionFailure;
-    private readonly long _started = Stopwatch.GetTimestamp();
 
     public Dx12NpcOverheadPass(AssetManager assets, string gameDirectory, Dx12DeviceContext graphics, Dx12TextureUploader uploader)
     {
@@ -42,7 +41,7 @@ internal sealed class Dx12NpcOverheadPass : IDisposable
         state.DrawnIcons = 0;
         state.DrawnGoldenIcons = 0;
         state.DrawnGlowLayers = 0;
-        state.AnimationMilliseconds = state.AnimationMillisecondsOverride ?? unchecked((uint)(long)Stopwatch.GetElapsedTime(_started).TotalMilliseconds);
+        state.AnimationMilliseconds = state.AnimationMillisecondsOverride ?? _graphics.FrameTime.Current.Milliseconds;
         if (_definitions is null && !_definitionFailure && _loading.IsCompleted)
         {
             try
