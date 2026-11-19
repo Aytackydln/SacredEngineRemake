@@ -128,9 +128,21 @@ internal sealed partial class DoorSceneController
         if (removed) PublishModels();
     }
 
+    private readonly List<uint> _completedLoadIds = [];
+
     private void StartMissingLoads(Vector2 focus)
     {
         var available = MaximumConcurrentModelLoads - _loads.Count;
+        if (available <= 0) return;
+        // Runs every frame: only sort by distance when something is actually missing.
+        var anyMissing = false;
+        foreach (var id in _desiredModels.Keys)
+        {
+            if (_models.ContainsKey(id) || _loads.ContainsKey(id) || _failedLoads.Contains(id)) continue;
+            anyMissing = true;
+            break;
+        }
+        if (!anyMissing) return;
         foreach (var (id, placement) in _desiredModels.OrderBy(pair => Vector2.DistanceSquared(WorldModelPose.TilePosition(pair.Value.StaticObject), focus)))
         {
             if (available <= 0) break;
@@ -143,8 +155,13 @@ internal sealed partial class DoorSceneController
     private void ApplyCompletedLoads()
     {
         var changed = false;
-        foreach (var (id, load) in _loads.Where(pair => pair.Value.IsCompleted).ToArray())
+        var completedIds = _completedLoadIds;
+        completedIds.Clear();
+        foreach (var pair in _loads)
+            if (pair.Value.IsCompleted) completedIds.Add(pair.Key);
+        foreach (var id in completedIds)
         {
+            var load = _loads[id];
             _loads.Remove(id);
             if (!_desiredModels.TryGetValue(id, out var placement)) continue;
             if (load.Status != TaskStatus.RanToCompletion || load.GetAwaiter().GetResult() is not { Model.Mesh: { } mesh } asset)
