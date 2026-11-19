@@ -309,7 +309,7 @@ internal sealed class Dx12SpritePass : IDisposable
         var pendingStart = -1;
         var pendingCount = 0;
         ID3D12PipelineState? pendingPipeline = null;
-        foreach (var range in batch.StaticRanges)
+        foreach (var range in ReadOnlyListSpan.Of(batch.StaticRanges))
         {
             if (range.IsPostModel != postModel)
                 continue;
