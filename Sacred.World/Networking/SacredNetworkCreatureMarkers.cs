@@ -13,6 +13,9 @@ public sealed record WorldCreatureMarkerActor(GoldReplicatedObject Replica, Vect
 public sealed class SacredNetworkCreatureMarkers
 {
     private readonly Dictionary<uint, (long Instance, float Remaining)> _visible = [];
+    private readonly List<KeyValuePair<uint, (long Instance, float Remaining)>> _timerScratch = [];
+    private readonly List<WorldCreatureMarker>[] _results = [[], []];
+    private int _resultIndex;
     private long _session = -1;
     public IReadOnlyList<WorldCreatureMarker> Markers { get; private set; } = [];
 
@@ -21,13 +24,19 @@ public sealed class SacredNetworkCreatureMarkers
     {
         if (!float.IsFinite(seconds) || seconds < 0) throw new ArgumentOutOfRangeException(nameof(seconds));
         if (_session != world.Consumers.Session) { _visible.Clear(); _session = world.Consumers.Session; }
-        foreach (var (reference, timer) in _visible.ToArray())
+        var timers = _timerScratch;
+        timers.Clear();
+        foreach (var entry in _visible) timers.Add(entry);
+        foreach (var (reference, timer) in timers)
         {
             var remaining = SacredCreatureHealthDisplay.Advance(timer.Remaining, seconds);
             if (remaining <= 0) _visible.Remove(reference);
             else _visible[reference] = (timer.Instance, remaining);
         }
-        var result = new List<WorldCreatureMarker>();
+        // Two lists alternate: consumers read last frame's list while this frame's is rebuilt, and nothing allocates.
+        _resultIndex ^= 1;
+        var result = _results[_resultIndex];
+        result.Clear();
         var hero = world.Objects.GetValueOrDefault(localReference);
         var heroLevel = hero?.Values?.Level ?? 1;
         foreach (var actor in actors)
