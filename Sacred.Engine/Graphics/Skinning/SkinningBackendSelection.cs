@@ -22,9 +22,11 @@ internal sealed class SkinningBackendSelection
     {
         _active.Clear();
         GpuModelCount = CpuModelCount = SkippedModelCount = 0;
-        for (var i = 0; i < scene.Models.Count; i++)
+        var sceneModels = scene.Models;
+        var modelCount = sceneModels.Count;
+        for (var i = 0; i < modelCount; i++)
         {
-            var geometry = scene.Models[i].Geometry;
+            var geometry = sceneModels[i].Geometry;
             if (geometry.Animation is not { } animation) continue;
             _active.Add(animation.Pose);
             var reason = Mode == SkinningMode.Cpu ? "explicit CPU selection" :
