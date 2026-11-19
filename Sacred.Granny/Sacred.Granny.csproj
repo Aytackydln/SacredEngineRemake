@@ -6,4 +6,8 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
+    <ItemGroup>
+        <InternalsVisibleTo Include="Sacred.Granny.Benchmarks" />
+    </ItemGroup>
+
 </Project>

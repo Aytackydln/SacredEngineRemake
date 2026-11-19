@@ -46,6 +46,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AssetViewer.Tests", "AssetV
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AssetViewer.WebGpu.Generator", "AssetViewer.WebGpu.Generator\AssetViewer.WebGpu.Generator.csproj", "{BA442733-E434-4E0B-986F-BA3DE53A555B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sacred.Granny.Benchmarks", "Sacred.Granny.Benchmarks\Sacred.Granny.Benchmarks.csproj", "{20568656-9627-4815-A24A-5A1D9A9D2FA2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -308,6 +310,18 @@ Global
 		{BA442733-E434-4E0B-986F-BA3DE53A555B}.Release|x64.Build.0 = Release|Any CPU
 		{BA442733-E434-4E0B-986F-BA3DE53A555B}.Release|x86.ActiveCfg = Release|Any CPU
 		{BA442733-E434-4E0B-986F-BA3DE53A555B}.Release|x86.Build.0 = Release|Any CPU
+		{20568656-9627-4815-A24A-5A1D9A9D2FA2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{20568656-9627-4815-A24A-5A1D9A9D2FA2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{20568656-9627-4815-A24A-5A1D9A9D2FA2}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{20568656-9627-4815-A24A-5A1D9A9D2FA2}.Debug|x64.Build.0 = Debug|Any CPU
+		{20568656-9627-4815-A24A-5A1D9A9D2FA2}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{20568656-9627-4815-A24A-5A1D9A9D2FA2}.Debug|x86.Build.0 = Debug|Any CPU
+		{20568656-9627-4815-A24A-5A1D9A9D2FA2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{20568656-9627-4815-A24A-5A1D9A9D2FA2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{20568656-9627-4815-A24A-5A1D9A9D2FA2}.Release|x64.ActiveCfg = Release|Any CPU
+		{20568656-9627-4815-A24A-5A1D9A9D2FA2}.Release|x64.Build.0 = Release|Any CPU
+		{20568656-9627-4815-A24A-5A1D9A9D2FA2}.Release|x86.ActiveCfg = Release|Any CPU
+		{20568656-9627-4815-A24A-5A1D9A9D2FA2}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

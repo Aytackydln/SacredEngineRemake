@@ -11,26 +11,42 @@ public readonly record struct GrnPoseBlend(GrnAnimationClip Source, float Source
 
 internal static class GrnPoseBlender
 {
-    public static Matrix4x4 Local(GrnBone skinBone, GrnAnimationClip target, float targetTime, GrnPoseBlend blend)
+    public static float SourceTime(in GrnPoseBlend blend) => blend.SourceMode == GrnPoseTimeMode.Clamp
+        ? Math.Clamp(blend.SourceSeconds, 0, MathF.Max(0, blend.Source.DurationSeconds))
+        : GrnAnimationSampler.WrapTime(blend.SourceSeconds, blend.Source.DurationSeconds);
+
+    /// <summary>Bone indices are resolved once per clip pair by the evaluator (-1 = bone absent from that clip).</summary>
+    public static Matrix4x4 Local(in GrnBone skinBone, GrnAnimationClip target, int targetIndex, float targetTime,
+        GrnAnimationClip source, int sourceIndex, float sourceTime, float weight)
     {
-        var sourceTime = blend.SourceMode == GrnPoseTimeMode.Clamp
-            ? Math.Clamp(blend.SourceSeconds, 0, MathF.Max(0, blend.Source.DurationSeconds))
-            : GrnAnimationSampler.WrapTime(blend.SourceSeconds, blend.Source.DurationSeconds);
-        var source = Sample(blend.Source, skinBone, sourceTime);
-        var destination = Sample(target, skinBone, targetTime);
-        var weight = Math.Clamp(blend.TargetWeight, 0, 1);
-        return GrnAnimationSampler.CreateTransform(Vector3.Lerp(source.Position, destination.Position, weight),
-            Quaternion.Lerp(source.Rotation, destination.Rotation, weight), Matrix4x4.Lerp(source.Scale, destination.Scale, weight));
+        Sample(source, sourceIndex, skinBone, sourceTime, out var sourcePosition, out var sourceRotation, out var sourceScale);
+        Sample(target, targetIndex, skinBone, targetTime, out var targetPosition, out var targetRotation, out var targetScale);
+        return GrnAnimationSampler.CreateTransform(Vector3.Lerp(sourcePosition, targetPosition, weight),
+            Quaternion.Lerp(sourceRotation, targetRotation, weight), Matrix4x4.Lerp(sourceScale, targetScale, weight));
     }
 
-    private static (Vector3 Position, Quaternion Rotation, Matrix4x4 Scale) Sample(GrnAnimationClip clip, GrnBone fallback, float time)
+    private static void Sample(GrnAnimationClip clip, int index, in GrnBone fallback, float time,
+        out Vector3 position, out Quaternion rotation, out Matrix4x4 scale)
     {
-        if (!clip.Skeleton.TryFindBone(fallback.Name, out var index))
-            return (fallback.RestTranslation, fallback.RestRotation, fallback.RestScaleShear);
-        var bone = clip.Skeleton.Bones[index];
+        if (index < 0)
+        {
+            position = fallback.RestTranslation;
+            rotation = fallback.RestRotation;
+            scale = fallback.RestScaleShear;
+            return;
+        }
+        ref readonly var bone = ref clip.Skeleton.Bones[index];
         var track = index < clip.Tracks.Length ? clip.Tracks[index] : null;
-        return (GrnAnimationSampler.SampleVector3(track?.TranslationTimes ?? [], track?.Translations ?? [], time, bone.RestTranslation),
-            GrnAnimationSampler.SampleQuaternion(track?.RotationTimes ?? [], track?.Rotations ?? [], time, bone.RestRotation),
-            GrnAnimationSampler.SampleMatrix(track?.ScaleShearTimes ?? [], track?.ScaleShears ?? [], time, bone.RestScaleShear));
+        if (track is null)
+        {
+            position = GrnAnimationSampler.SampleVector3([], [], time, bone.RestTranslation);
+            rotation = GrnAnimationSampler.SampleQuaternion([], [], time, bone.RestRotation);
+            scale = GrnAnimationSampler.SampleMatrix([], [], time, bone.RestScaleShear);
+            return;
+        }
+        position = GrnAnimationSampler.SampleVector3(track.TranslationTimes, track.Translations, time, bone.RestTranslation);
+        var rotationHint = 0;
+        rotation = GrnAnimationSampler.SampleNormalizedQuaternion(track.RotationTimes, track.NormalizedRotations, time, bone.RestRotation, ref rotationHint);
+        scale = GrnAnimationSampler.SampleMatrix(track.ScaleShearTimes, track.ScaleShears, time, bone.RestScaleShear);
     }
 }
