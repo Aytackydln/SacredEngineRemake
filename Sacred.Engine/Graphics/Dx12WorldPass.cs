@@ -179,6 +179,8 @@ internal sealed class Dx12WorldPass : IDisposable
             Dx12DescriptorLayout.SurfaceLightMap);
         _models.GpuTimings = graphics.GpuAnimationTimings;
         _sprites.GpuTimings = graphics.GpuAnimationTimings;
+        _models.FrameTime = graphics.FrameTime;
+        _sprites.FrameTime = graphics.FrameTime;
         _models.SkinDraw = _skinDraw;
         _debugOverlay = new Dx12DebugOverlay(
             graphics.CommandList,

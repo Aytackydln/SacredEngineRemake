@@ -98,6 +98,7 @@ internal sealed class Dx12SpritePass : IDisposable
         $"{_instances.OriginalQuadPixels:F0} original; {_preparation.Status}; {StaticSpriteCompositionStatistics.Status}";
     public void ResetStatistics() => _preparation.Reset();
     public Dx12GpuAnimationTimings? GpuTimings { set { Cutouts.GpuTimings = value; _batchRecorder.GpuTimings = value; } }
+    public FrameTimeSource? FrameTime { set => _batchRecorder.FrameTime = value; }
 
     public void SetPipeline(Dx12CreatedPipelineGroup pipeline, bool hdrOutput)
     {

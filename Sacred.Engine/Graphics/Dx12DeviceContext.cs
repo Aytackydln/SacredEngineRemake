@@ -352,6 +352,9 @@ internal sealed partial class Dx12DeviceContext : IDisposable
     /// <summary>Device-wide placed-resource allocator (D3D12MA). Create long-lived resources here rather than as committed resources.</summary>
     internal Dx12MemoryAllocator Memory { get; private set; } = null!;
 
+    /// <summary>The current frame's time. The frame loop begins it once per frame; passes only read it.</summary>
+    internal FrameTimeSource FrameTime { get; } = new();
+
     private void CreateSwapChain()
     {
         if (_window is null) return;

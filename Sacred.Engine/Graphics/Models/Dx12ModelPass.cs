@@ -21,6 +21,7 @@ internal sealed class Dx12ModelPass
     public Dx12GpuAnimationTimings? GpuTimings { get; set; }
     public Dx12SkinDrawBindings? SkinDraw { get; set; }
     public float? AnimationTimeOverride { get; set; }
+    public FrameTimeSource? FrameTime { get; set; }
     private const float PainterDepthScale = 1.0f / 4096.0f;
     private readonly ID3D12GraphicsCommandList _commandList;
     private readonly Dx12ModelGeometryCache _geometryCache;
@@ -29,7 +30,6 @@ internal sealed class Dx12ModelPass
     private readonly int _descriptorSize;
     private readonly int _fallbackTextureSlot;
     private readonly int _surfaceLightMapSlot;
-    private readonly long _startTimestamp = Stopwatch.GetTimestamp();
     private readonly ModelRootConstantsUpdater _rootConstants = new(ModelShaderLayout.RootParameterCount);
     private readonly ModelDescriptorTableUpdater _descriptorTables = new(ModelShaderLayout.RootParameterCount);
     private readonly ModelShaderConstantsUpdater _shaderConstants = new();
@@ -141,7 +141,7 @@ internal sealed class Dx12ModelPass
             ModelShaderLayout.SurfaceLightMapRootParameter,
             SrvGpuHandle(_surfaceLightMapSlot));
 
-        var elapsedSeconds = AnimationTimeOverride ?? (float)Stopwatch.GetElapsedTime(_startTimestamp).TotalSeconds;
+        var elapsedSeconds = AnimationTimeOverride ?? (float)(FrameTime?.Current.Seconds ?? 0.0);
         var sceneConstants = stackalloc float[ModelShaderLayout.SceneConstantsCount];
         WriteLighting(camera, lighting, display, elapsedSeconds, sceneConstants);
         SetRootConstantsIfChanged(

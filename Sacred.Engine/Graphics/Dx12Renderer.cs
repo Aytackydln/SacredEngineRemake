@@ -330,6 +330,10 @@ public sealed partial class Dx12Renderer : IDisposable
         _graphics.AcquireFrame(cancellationToken, _releaseRetiredResources);
     }
 
+    /// <summary>Captures the frame's time once; every pass reads it instead of the clock.</summary>
+    internal void BeginFrameTime(ulong frameId, long timestamp, float deltaSeconds) =>
+        _graphics.FrameTime.Begin(frameId, timestamp, deltaSeconds);
+
     internal void BeginDebugUiFrame(float deltaSeconds, double lastCompletedFrameTimeMilliseconds) =>
         _worldPass?.BeginDebugUiFrame(deltaSeconds, lastCompletedFrameTimeMilliseconds);
 

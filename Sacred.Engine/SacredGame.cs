@@ -113,7 +113,7 @@ public sealed class SacredGame : IDisposable
             if (!keepRunning)
                 break;
 
-            await Update(frameId, cancellationToken);
+            await Update(frameId, frameStartTimestamp, cancellationToken);
             _lastCompletedFrameTimeMilliseconds =
                 Stopwatch.GetElapsedTime(frameStartTimestamp).TotalMilliseconds;
             FrameProfiler.AddMilliseconds(FrameStage.Active, _lastCompletedFrameTimeMilliseconds);
@@ -131,9 +131,10 @@ public sealed class SacredGame : IDisposable
         }
     }
 
-    private async ValueTask Update(ulong frameId, CancellationToken cancellationToken)
+    private async ValueTask Update(ulong frameId, long frameStartTimestamp, CancellationToken cancellationToken)
     {
         var deltaSeconds = _framePacing.Tick();
+        _renderer.BeginFrameTime(frameId, frameStartTimestamp, deltaSeconds);
         var imguiStart = FrameProfiler.Begin();
         _renderer.BeginDebugUiFrame(deltaSeconds, _lastCompletedFrameTimeMilliseconds);
         FrameProfiler.End(FrameStage.DebugUiBegin, imguiStart);
