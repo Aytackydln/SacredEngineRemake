@@ -56,6 +56,12 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
         Cutouts = new(device, commandList, uploader, _freeSrvSlots, _srvHeapStart, descriptorSize, firstSrvSlot);
     }
 
+    /// <summary>Sprites examined per residency pass (liquid and static share it). Each visit is a few dictionary probes,
+    /// so this bounds a pass to a fraction of a millisecond on any CPU, deterministically.</summary>
+    private const int MaximumScannedSpritesPerPass = 4096;
+    /// <summary>Finished uploads turned into shader views per frame.</summary>
+    private const int MaximumPublishedTexturesPerFrame = 16;
+
     public ulong ResidencyRevision => _residencyRevision + Cutouts.Revision;
     public bool IsPrepared(ulong revision) => _preparedSpriteRevision == revision;
 
@@ -80,9 +86,9 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
             // cannot certify that the entire new revision is ready.
             _scanReady = false;
         }
-        var timer = Stopwatch.StartNew();
-        // Keep the cursor across frames. Restarting a timed scan at zero can permanently
-        // starve its tail on slower CPUs, even when every texture in the prefix is resident.
+        // Keep the cursor across frames so a long list is covered over several passes. The budget is a number of
+        // sprites, not elapsed time: a clock cutoff made the covered prefix depend on CPU speed and load, so which
+        // textures were requested first, and when the scan completed, was not reproducible.
         var scanned = 0;
         TextureFrameSequenceAsset? lastLiquid = null;
         var liquidSpan = ReadOnlyListSpan.Of(liquids);
@@ -114,7 +120,7 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
                 }
             }
             lastLiquid = source;
-            if ((++scanned & 31) == 0 && timer.Elapsed.TotalMilliseconds >= 0.5)
+            if (++scanned >= MaximumScannedSpritesPerPass)
             {
                 _nextLiquid = nextLiquid;
                 return;
@@ -147,7 +153,7 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
                 }
                 _scanReady &= lastShadowReady;
             }
-            if ((++scanned & 31) == 0 && timer.Elapsed.TotalMilliseconds >= 0.5)
+            if (++scanned >= MaximumScannedSpritesPerPass)
             {
                 _nextStatic = nextStatic;
                 return;
@@ -202,9 +208,8 @@ internal sealed class Dx12SpriteTextureCache : IDisposable
 
     private void CollectCompleted()
     {
-        var timer = Stopwatch.StartNew();
         var published = 0;
-        for (var index = _pending.Count - 1; index >= 0 && timer.Elapsed.TotalMilliseconds < 0.5; index--)
+        for (var index = _pending.Count - 1; index >= 0 && published < MaximumPublishedTexturesPerFrame; index--)
         {
             var pending = _pending[index];
             if (!pending.Ticket.TryTake(out var resource, out var error)) continue;
