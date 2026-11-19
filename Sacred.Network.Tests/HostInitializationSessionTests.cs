@@ -83,6 +83,68 @@ public sealed class HostInitializationSessionTests
     }
 
     [TestMethod]
+    public async Task AvailabilityWithoutHostFinishCannotApproveOrRetainTheHost()
+    {
+        await using var peer = await GoldLoopbackPeer.StartHostAsync();
+        var owner = peer.HostSession!;
+        await peer.SendAsync(Admission(), Words(0x1e, 0x100), Words(0x153, 500), Words(0x154, 2269, 2000));
+        await owner.WaitForReservationsAsync(peer.Token);
+
+        await peer.SendAsync(new GoldMessage(0x18, 0, 1, 0, []));
+        await owner.Completion.WaitAsync(peer.Token);
+
+        Assert.IsFalse(peer.Connection.HostUploadApproved);
+        Assert.IsFalse(owner.IsCurrent);
+        StringAssert.Contains(owner.Failure!, "empty server");
+    }
+
+    [TestMethod, DataRow((byte)1), DataRow((byte)2)]
+    public async Task HostFinishApprovalMustNameTheAssignedSlot(byte availableHost)
+    {
+        await using var peer = await GoldLoopbackPeer.StartHostAsync();
+        var owner = peer.HostSession!;
+        await peer.SendAsync(Admission(), Words(0x1e, 0x100), Words(0x153, 500), Words(0x154, 2269, 2000));
+        await owner.WaitForReservationsAsync(peer.Token);
+        var receipt = owner.AdmissionReceipt!;
+
+        // Exercise the transport handoff independently of the world producer.
+        peer.Connection.ClaimWorldUpload(1, host: true);
+        await peer.Connection.SendWorldUploadAsync(
+            [GoldWorldEntryCodec.CreateHostUpload(1), GoldWorldEntryCodec.CreateHostStart(1, 2)], peer.Token);
+        Assert.IsFalse(peer.Connection.HostUploadApproved);
+        while (!(await peer.ReadClientBatchAsync()).Any(message => message.Opcode == GoldWorldEntryCodec.HostStartOpcode)) { }
+        using var canceledWait = new CancellationTokenSource();
+        var abandoned = peer.Connection.WaitForHostUploadApprovalAsync(canceledWait.Token);
+        Assert.IsFalse(abandoned.IsCompleted);
+        canceledWait.Cancel();
+        await Assert.ThrowsExceptionAsync<TaskCanceledException>(() => abandoned);
+        var approval = peer.Connection.WaitForHostUploadApprovalAsync(peer.Token);
+        await peer.SendAsync(new GoldMessage(0x18, 0, availableHost, 0, []));
+
+        if (availableHost == 1)
+        {
+            await approval;
+            await peer.SendAsync(Words(0x153, 501));
+            while (owner.References.Issued < 2 && !owner.Completion.IsCompleted) await Task.Delay(5, peer.Token);
+            Assert.IsTrue(peer.Connection.HostUploadApproved);
+            Assert.IsTrue(owner.IsCurrent);
+            Assert.AreSame(receipt, owner.AdmissionReceipt);
+            Assert.IsFalse(receipt.DeliveryComplete);
+            await peer.Connection.WaitForHostUploadApprovalAsync(peer.Token);
+            await owner.DisposeAsync();
+            await Assert.ThrowsExceptionAsync<IOException>(() => peer.Connection.WaitForHostUploadApprovalAsync(peer.Token));
+        }
+        else
+        {
+            await Assert.ThrowsExceptionAsync<IOException>(() => approval);
+            await owner.Completion.WaitAsync(peer.Token);
+            Assert.IsFalse(owner.IsCurrent);
+            StringAssert.Contains(owner.Failure!, "empty server");
+        }
+        Assert.IsFalse(peer.Connection.HostUploadApproved);
+    }
+
+    [TestMethod]
     public async Task UnsolicitedObjectGrantIsRetainedWithoutAnotherObjectRequest()
     {
         await using var peer = await GoldLoopbackPeer.StartHostAsync(source: null, connectionSetting: 0);

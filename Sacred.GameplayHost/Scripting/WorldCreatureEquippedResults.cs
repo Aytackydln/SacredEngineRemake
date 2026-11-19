@@ -29,7 +29,7 @@ public static class WorldCreatureEquippedResults
         {
             var reference = actor.EquipmentReferences[slot];
             if (reference == 0) continue;
-            if (slot >= 18 || !registry.TryGetValue(reference, out var item) || !item.Generated ||
+            if (slot >= 18 || !registry.TryGetValue(reference, out var item) || !item.InitialValuesPrepared ||
                 item.Physical.AttachmentParent != actor.Base.ObjectReference || item.Physical.Link != actor.Base.ObjectReference)
                 throw new NotSupportedException("Initial result equipment must resolve to its registered installed item.");
             if (!data.Templates.TryGetSharedTemplate(item.Physical.Base.ObjectType, out var shared))

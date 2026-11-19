@@ -32,6 +32,18 @@ internal static class HostEnteredNpcGateChecks
             Check(row.GetProperty("draws").GetInt32() == 1 && random.State == row.GetProperty("rng_after").GetUInt32(),
                 "one predecode facing draw precedes the first factory, without claiming completed construction");
         }
+        using var equipment = HostSectorInitializationChecks.Read(root,"native-host-entered-npc-equipment-gate");
+        foreach (var row in equipment.RootElement.GetProperty("cases").EnumerateArray())
+        {
+            var call = row.GetProperty("equipment_factory");
+            var arguments = call.GetProperty("arguments");
+            Check(call.GetProperty("entry").GetString() == "0x5fb530" && arguments[0].GetUInt32() == creation.EquipmentTypes[0] &&
+                arguments.EnumerateArray().Skip(1).All(value => value.GetUInt32() == 0),
+                "first authored Shield factory has zero placement/publication/owned arguments despite its owned parent NPC");
+            Check(row.GetProperty("publications").GetArrayLength() == 0 && row.GetProperty("players").GetUInt32() == 1 &&
+                row.GetProperty("hero_queries").GetInt32() == 4,
+                "current level completes with actual supplied hero/player inputs before equipment construction or publication");
+        }
         return checks;
         void Check(bool value,string reason) { if (!value) throw new Exception("Entered NPC gate: " + reason); checks++; }
     }

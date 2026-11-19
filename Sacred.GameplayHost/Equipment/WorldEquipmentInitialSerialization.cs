@@ -13,7 +13,7 @@ public static class WorldEquipmentInitialSerialization
     {
         var physical = item.Physical;
         if (descriptor.ItemIndex != physical.Base.ObjectType || descriptor.ModelDesc.Category is not (SacredItemCategory.Weapon or SacredItemCategory.Shield) ||
-            !item.Generated || !physical.Item || !physical.Physical || physical.AttachmentParent <= 16 ||
+            !item.InitialValuesPrepared || !physical.Item || !physical.Physical || physical.AttachmentParent <= 16 ||
             (physical.Base.Flags & (2 | GoldPhysicalStateLayout.ModelLoadedFlag | GoldPhysicalStateLayout.VectorCCFlag)) != 2)
             throw new NotSupportedException("Initial equipment serialization requires its generated unloaded unplaced weapon/shield attached to the NPC.");
         var bytes = GoldPhysicalConstructionWriter.Write(physical.Base, physical.Direction).ToPayload();

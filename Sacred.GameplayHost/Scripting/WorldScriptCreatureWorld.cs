@@ -263,11 +263,11 @@ public sealed class WorldScriptCreatureWorld : IWorldScriptCreatureWorld, IWorld
                 _runtime.Clock() / 1000d, context.Multiplayer);
             pending.AddEquipment(equipment); pending.Stage = "equipment constructed";
             _log($"Startup NPC equipment constructed: actor {actor.Base.ObjectReference}, item ref {equipment.Physical.Base.ObjectReference}, type {equipment.Physical.Base.ObjectType}, counter {equipment.Physical.Base.Byte38}, node period {equipment.Node.PeriodMilliseconds}; generation/installation pending.");
-            WorldScriptEquipmentGeneration.Apply(equipment, BinaryPrimitives.ReadUInt16LittleEndian(actor.Component.Values.AsSpan(78)),
+            WorldScriptCreatureEquipmentValues.Apply(equipment, BinaryPrimitives.ReadUInt16LittleEndian(actor.Component.Values.AsSpan(78)),
                 _runtime.Difficulty, _assets.Equipment ?? throw new InvalidDataException("CreateNPC needs original equipment generation/naming definitions."),
                 Random, _assets.Results.StartupPrecision);
-            pending.Stage = "equipment generated";
-            _log($"Startup NPC equipment generation complete: ref {equipment.Physical.Base.ObjectReference}, quality {equipment.Quality}, name '{equipment.Name?.Text}'; installation pending.");
+            pending.Stage = "equipment values prepared";
+            _log($"Startup NPC equipment values prepared: ref {equipment.Physical.Base.ObjectReference}, generated {equipment.Generated}, quality {equipment.Quality}, name '{equipment.Name?.Text}'; installation pending.");
             actor = WorldCreatureInitialEquipmentInstallation.Apply(actor, equipment, descriptor.ItemIndex, _assets.Equipment,
                 _assets.EquipmentSlots ?? throw new InvalidDataException("CreateNPC needs original equipment slot definitions."), EquipmentFactory.Items, context.Multiplayer);
             Factory.Update(actor); pending.Actor = actor; pending.Stage = "equipment installed";

@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Sacred.Core/Sacred.Core.csproj" />
+    <InternalsVisibleTo Include="Sacred.Network.Tests" />
   </ItemGroup>
 </Project>

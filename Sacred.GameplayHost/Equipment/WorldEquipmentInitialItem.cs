@@ -16,6 +16,10 @@ public sealed class WorldEquipmentInitialItem(WorldEquipmentObject physical, byt
     public SacredItemCategory? ResourceCategory { get; internal init; }
     public byte[] Values { get; internal set; } = values;
     public bool Generated { get; internal set; }
+    internal bool OriginalScriptValuesPrepared { get; set; }
+    /// <summary>Compared initial NPC own values, generated or retained from the
+    /// original Shield template. Does not grant serialization/network readiness.</summary>
+    public bool InitialValuesPrepared => Generated || OriginalScriptValuesPrepared;
     public uint? Quality { get; internal set; }
     public uint? LegacyGenerationSelector { get; internal set; }
     public SacredEquipmentNameResult? Name { get; internal set; }

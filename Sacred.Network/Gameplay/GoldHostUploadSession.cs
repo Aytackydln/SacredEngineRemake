@@ -1,4 +1,3 @@
-using Sacred.Network.Admission;
 using Sacred.Network.Connection;
 
 namespace Sacred.Network.Gameplay;
@@ -8,14 +7,18 @@ namespace Sacred.Network.Gameplay;
 public sealed class GoldHostUploadSession
 {
     private readonly GoldGameConnection _connection;
-    private readonly byte _slot;
-    private GoldHostUploadSession(GoldGameConnection connection, byte slot, Task completion)
-        => (_connection, _slot, Completion) = (connection, slot, completion);
+    private GoldHostUploadSession(GoldGameConnection connection, Task completion)
+        => (_connection, Completion) = (connection, completion);
     public Task Completion { get; }
-    public bool NativeApproved => Completion.IsCompletedSuccessfully && !_connection.IsStopping && !_connection.Completion.IsCompleted &&
-        _connection.Admission is { Phase: GoldAdmissionPhase.SlotAssigned } admission && admission.PlayerSlot == _slot &&
-        admission.WorldStartup.AssignedClientHost && admission.WorldStartup.HostWorldAvailable &&
-        admission.WorldStartup.AvailableHostSlot == _slot;
+    public bool NativeApproved => Completion.IsCompletedSuccessfully && _connection.HostUploadApproved;
+
+    /// <summary>Wait for successful transmission and server approval on this
+    /// connection. Canceling the wait leaves the upload lifetime with its owner.</summary>
+    public async Task WaitForApprovalAsync(CancellationToken cancellationToken = default)
+    {
+        await Completion.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await _connection.WaitForHostUploadApprovalAsync(cancellationToken).ConfigureAwait(false);
+    }
 
     public static GoldHostUploadSession Start(GoldGameConnection connection, GoldHostWorldUpload upload,
         CancellationToken cancellationToken = default)
@@ -26,6 +29,6 @@ public sealed class GoldHostUploadSession
         var messages = upload.CreateMessages().Prepend(GoldWorldEntryCodec.CreateHostUpload(upload.PlayerSlot))
             .Append(GoldWorldEntryCodec.CreateHostStart(upload.PlayerSlot, upload.SectorTableSize)).ToArray();
         connection.ClaimWorldUpload(upload.PlayerSlot, host: true);
-        return new(connection, upload.PlayerSlot, connection.SendWorldUploadAsync(messages, cancellationToken));
+        return new(connection, connection.SendWorldUploadAsync(messages, cancellationToken));
     }
 }

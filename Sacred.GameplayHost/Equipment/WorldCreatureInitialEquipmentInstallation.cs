@@ -24,7 +24,7 @@ public static class WorldCreatureInitialEquipmentInstallation
         ArgumentNullException.ThrowIfNull(registry);
         if (actor.Base.ObjectReference <= 16 || actor.KiMode != 0 || actor.EiMode != 0 ||
             (actor.Base.Flags & GoldPhysicalStateLayout.ModelLoadedFlag) != 0 ||
-            !item.Generated || (item.Physical.Base.Flags & (2 | GoldPhysicalStateLayout.ModelLoadedFlag)) != 2 ||
+            !item.InitialValuesPrepared || (item.Physical.Base.Flags & (2 | GoldPhysicalStateLayout.ModelLoadedFlag)) != 2 ||
             item.Physical.AttachmentParent != 0 || !registry.TryGetValue(item.Physical.Base.ObjectReference, out var current) || !ReferenceEquals(current, item))
             throw new NotSupportedException("Initial installation requires an assigned KI-zero unloaded NPC and its fresh generated registered item.");
         if (data.EquipmentSources is null || data.EquipmentDefaults is null)

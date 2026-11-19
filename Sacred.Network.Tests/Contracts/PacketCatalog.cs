@@ -26,6 +26,8 @@ internal static class PacketCatalog
         void Add<T>(string name, ushort opcode, Func<byte[]> bytes, PayloadRule rule = PayloadRule.Exact,
             Action<GoldGameEvent>? verify = null, byte sender = 0, bool owns = false, int[]? shorter = null) where T : GoldGameEvent =>
             rows.Add(new(name, opcode, typeof(T), bytes, rule, verify, sender, owns, shorter));
+        Add<GoldHostWorldAvailableEvent>("server host world availability", GoldWorldEntryCodec.HostStartOpcode,
+            () => [], verify: entry => Assert.AreEqual((byte)1, entry.Message.Origin));
         Add<GoldWorldRegionFlagsEvent>("native initialization flag before callback", 0x185,
             () => RegionInitializationChecks.WireExample(RepositoryFiles.Root), verify: entry =>
             {

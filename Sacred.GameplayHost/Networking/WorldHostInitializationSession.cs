@@ -330,7 +330,8 @@ public sealed class WorldHostInitializationSession : IAsyncDisposable
                     var world = admission.WorldStartup;
                     if (AdmissionReceipt is not { IsCurrent: true } receipt || receipt.PlayerSlot != admission.PlayerSlot)
                         throw new InvalidOperationException($"Host initialization lost its current admission receipt after {Describe(entry)}.");
-                    if (!world.AssignedClientHost || world.HostWorldAvailable || world.ParticipantStartApproved)
+                    if (!world.AssignedClientHost || world.ParticipantStartApproved ||
+                        (world.HostWorldAvailable && !_connection.HostUploadApproved))
                         throw new InvalidOperationException($"Host initialization requires an empty server first-host assignment (slot {admission.PlayerSlot}, flags 0x{admission.Flags:X2}).");
                     if (!_requested)
                     {

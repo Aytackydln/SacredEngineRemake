@@ -201,9 +201,8 @@ internal static class CreatureInitialFactoryChecks
         if (context.IsInvalidated || context.ExecutedCommands != 1 || !context.StartupCompleted || world.Pending is not null)
             throw new Exception("Compared initial NPC command did not complete its private construction/publication effects.");
         var pending = world.Prepared.Single();
-        using var equipped = Read("native-startup-equipped-results");
-        var nativeEquipped = Bytes(equipped.RootElement.GetProperty("cases").EnumerateArray().First(row =>
-            U(row, "level") == 6 && U(row, "difficulty") == 1 && U(row, "hands") == 3), "after_hex");
+        using var equipped = Read("native-startup-raw-shield-results");
+        var nativeEquipped = Bytes(equipped.RootElement, "after_hex");
         if (pending.Actor is not { } prepared || pending.Stage != "prepared" || !pending.PacketReady || pending.CreatureState is null || pending.Publications.Count != 3 ||
             prepared.Base.ObjectReference != 26 || sharedCounter.Value != 12 || sharedReferences.Available != 0 || prepared.Node.Active ||
             !ReferenceEquals(world.Factory.Actors[26], prepared) || pending.FacingDegrees != original.GetProperty("result").GetProperty("facing").GetUInt16() ||
@@ -225,14 +224,12 @@ internal static class CreatureInitialFactoryChecks
         var firstGeneration = generation.RootElement.GetProperty("cases").EnumerateArray().First(row => U(row, "seed") == expectedRandom.State &&
             U(row, "type") == pending.Equipment[0].Physical.Base.ObjectType).GetProperty("outputs")[0];
         expectedRandom = new(U(firstGeneration, "rng_after"));
-        var nativeGeneration = generation.RootElement.GetProperty("cases").EnumerateArray().First(row => U(row, "seed") == expectedRandom.State &&
-            U(row, "type") == equipmentItem.Physical.Base.ObjectType).GetProperty("outputs")[0];
-        if (sharedRandom.State != U(nativeGeneration, "rng_after") || !equipmentItem.Generated ||
-            !equipmentItem.Values.AsSpan().SequenceEqual(Bytes(nativeGeneration, "result_hex")) ||
-            equipmentItem.Name?.NativeReference != U(nativeGeneration, "name_reference") ||
-            equipmentItem.Physical.Base.Word3C != U(nativeGeneration, "name_reference") ||
-            equipmentItem.Quality != U(nativeGeneration, "quality") || equipmentItem.LegacyGenerationSelector != U(nativeGeneration, "legacy_selector"))
-            throw new Exception("Initial script equipment generation/naming differs from original PC=24 caller, including pre-decode/constructor RNG order.");
+        var nativeShield = equipmentFixture.RootElement.GetProperty("cases").EnumerateArray().First(row =>
+            U(row,"type") == equipmentItem.Physical.Base.ObjectType);
+        if (sharedRandom.State != expectedRandom.State || equipmentItem.Generated || !equipmentItem.InitialValuesPrepared ||
+            !equipmentItem.Values.AsSpan().SequenceEqual(Bytes(nativeShield,"initial_values_hex")) || equipmentItem.Name is not null ||
+            equipmentItem.Physical.Base.Word3C != 0 || equipmentItem.Quality is not null || equipmentItem.LegacyGenerationSelector is not null)
+            throw new Exception("CreateNPC Shield must retain original values/name and consume no generation RNG after the Weapon.");
         if (!pending.Publications.Select(message => GoldObjectBaseState.FromPayload(message.Payload.AsSpan(message.Opcode == 0x16f ? 24 : 8)).ObjectReference).SequenceEqual(new uint[] { 26, 28, 27 }) ||
             !pending.Publications.Select(message => message.Opcode).SequenceEqual(new ushort[] { 0x16f, 0x16e, 0x16e }) ||
             (prepared.Base.Flags & 0x10000) != 0 || pending.Equipment.Any(item => (item.Physical.Base.Flags & 0x10000) != 0))

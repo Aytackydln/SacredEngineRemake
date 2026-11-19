@@ -141,7 +141,9 @@ public readonly struct ItemsPakEntryModelDescLayout
 
     /// <summary>Item family used by Sacred.exe gameplay, inventory and equipment attachment.
     /// Demo 0x401A10 / Gold 0x401AE0 use Ring (8) to choose the equipped slot's Finger31
-    /// bone and Amulet (20) for the neck lookup. The slot decides rigid versus wearable binding.</summary>
+    /// bone and Amulet (20) for the neck lookup. The slot decides rigid versus wearable binding.
+    /// Gold CreateNPC 0x427A40 generates explicit equipment only for category 5;
+    /// Shield (13) retains its original copied own values without generation draws.</summary>
     [FieldOffset(46)]
     // Native inventory slot predicates also read this family (Demo 0x4277A0,
     // Gold 0x43EFC0). It determines shield/armor/jewelry roles even when the

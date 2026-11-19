@@ -1,4 +1,5 @@
 using Sacred.Network.Admission;
+using Sacred.Network.Gameplay;
 using Sacred.Network.Protocol;
 
 namespace Sacred.Network.Connection;
@@ -6,6 +7,31 @@ namespace Sacred.Network.Connection;
 public sealed partial class GoldGameConnection
 {
     private bool _worldUploadClaimed;
+    private int _hostUploadFinishSlot;
+    private readonly TaskCompletionSource _hostUploadApproval = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    internal async Task WaitForHostUploadApprovalAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await Task.WhenAny(_hostUploadApproval.Task, Completion).WaitAsync(cancellationToken).ConfigureAwait(false);
+        if (!HostUploadApproved)
+            throw new IOException("The connection ended before host upload approval could be retained.");
+    }
+
+    /// <summary>Server approval for this connection's host finish. Actor and sector
+    /// readiness are tracked by the caller.</summary>
+    public bool HostUploadApproved
+    {
+        get
+        {
+            var slot = Volatile.Read(ref _hostUploadFinishSlot);
+            var admission = Admission;
+            return slot != 0 && !IsStopping && !Completion.IsCompleted &&
+                admission.Phase == GoldAdmissionPhase.SlotAssigned && admission.PlayerSlot == slot &&
+                admission.WorldStartup is { AssignedClientHost: true, HostWorldAvailable: true,
+                    ParticipantStartApproved: false } startup && startup.AvailableHostSlot == slot;
+        }
+    }
 
     /// <summary>One startup transaction per transport lifetime, including while approval is pending.
     /// A partial transaction is never retried on the same server slot.</summary>
@@ -39,8 +65,22 @@ public sealed partial class GoldGameConnection
             {
                 // Retain the gate across begin, data and finish. Ordinary sends, time replies and
                 // keepalive frames cannot split the prepared transaction's wire ordering.
-                foreach (var message in messages)
+                for (var index = 0; index < messages.Count; index++)
+                {
+                    var message = messages[index];
+                    // The peer can reply before the local async write returns.
+                    if (index == messages.Count - 1 && message.Opcode == GoldWorldEntryCodec.HostStartOpcode)
+                    {
+                        linked.Token.ThrowIfCancellationRequested();
+                        lock (_lifetimeGate)
+                        {
+                            if (Admission.WorldStartup.HostWorldAvailable)
+                                throw new InvalidOperationException("Host world availability arrived before this connection's finish.");
+                            Volatile.Write(ref _hostUploadFinishSlot, message.Sender);
+                        }
+                    }
                     await WriteGoldMessageAsync(message, linked.Token).ConfigureAwait(false);
+                }
             }
             finally { _sendGate.Release(); }
         }

@@ -223,7 +223,9 @@ public sealed partial class GoldGameConnection : IAsyncDisposable
                             .FirstOrDefault(entry => entry.DisconnectsClient);
                         if (_firstContact is not null)
                         {
-                            _admission.ProcessBatch(messages);
+                            lock (_lifetimeGate) _admission.ProcessBatch(messages);
+                            if (kick is null && sessionEnd is null && HostUploadApproved)
+                                _hostUploadApproval.TrySetResult();
                             if (Admission.Phase != GoldAdmissionPhase.WaitingForResponse)
                                 admissionLimit.CancelAfter(Timeout.InfiniteTimeSpan);
                             if (kick is null && sessionEnd is null && Admission.Phase == GoldAdmissionPhase.SlotAssigned)
