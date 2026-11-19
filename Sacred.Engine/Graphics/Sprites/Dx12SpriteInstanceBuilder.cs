@@ -111,13 +111,11 @@ internal sealed class Dx12SpriteInstanceBuilder
             renderWidth,
             renderHeight);
         frame.EnsureSpriteInstanceCapacity(
-            _device,
             SpriteInstanceStride,
             liquidSprites.Count + staticSprites.Count);
         if (staticSprites.Count > 0)
         {
             frame.EnsureStaticShadowInstanceCapacity(
-                _device,
                 ShadowInstanceStride,
                 staticSprites.Count);
         }

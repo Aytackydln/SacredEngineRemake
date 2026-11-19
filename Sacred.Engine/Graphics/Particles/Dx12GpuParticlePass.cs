@@ -133,30 +133,27 @@ internal sealed class Dx12GpuParticlePass : IParticleGpuBackend, IDisposable
         if(inputs.Count>0)
         {
             var bytes=MemoryMarshal.AsBytes(CollectionsMarshal.AsSpan(inputs));
-            var upload=_uploader.CreateUploadBuffer(bytes); frame.RetireResource(upload);
+            var upload=frame.Uploads.Allocate(bytes);
             AnimationPerformance.RecordParticleUpload(bytes.Length);
-            commands.SetComputeRootShaderResourceView(5,upload.GPUVirtualAddress);
+            commands.SetComputeRootShaderResourceView(5,upload.GpuAddress);
             Dx12ParticleKernels.UInt(c,37,(uint)inputs.Count);
             _kernels.Dispatch(commands,"copy_cpu_draws",c,inputs.Count); Dx12ParticleKernels.Barrier(commands,_output);
         }
         var offset=inputs.Count;
         var before=_kernels.UploadedBytes;
-        // One fence-retained birth upload for the frame, rather than one committed resource per emission.
+        // One birth upload per frame, carved from the frame's upload arena: no resource is created in the frame.
         var operations=groups.Select(g=>g.Batch.TakePending()).ToArray();
         var births=new List<ParticleGpuSpawn>();
         foreach(var plan in operations)
         foreach(var operation in plan)
         foreach(var birth in operation.Births) births.Add(new(birth.Slot,birth.State));
-        ID3D12Resource? birthUpload=null;
-        if(births.Count>0)
-        {
-            birthUpload=_uploader.CreateUploadBuffer(MemoryMarshal.AsBytes(CollectionsMarshal.AsSpan(births)));
-            frame.RetireResource(birthUpload);
-        }
+        var birthUpload=births.Count>0
+            ? frame.Uploads.Allocate(MemoryMarshal.AsBytes(CollectionsMarshal.AsSpan(births)))
+            : default;
         var birthOffset=0;
         ulong BirthAddress(ParticleGpuSpawn[] packet)
         {
-            var address=birthUpload!.GPUVirtualAddress+(ulong)(birthOffset*Marshal.SizeOf<ParticleGpuSpawn>());
+            var address=birthUpload.GpuAddress+(ulong)(birthOffset*Marshal.SizeOf<ParticleGpuSpawn>());
             birthOffset+=packet.Length;
             return address;
         }

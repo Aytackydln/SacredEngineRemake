@@ -98,8 +98,7 @@ internal sealed class Dx12TerrainDebugPass(ID3D12Device device, Dx12TextureUploa
         foreach (var batch in _batches)
             EnsureGuide(commands, batch.Texture, frame);
 
-        var buffer = uploader.CreateUploadBuffer(MemoryMarshal.AsBytes(CollectionsMarshal.AsSpan(_instances)));
-        frame.RetireResource(buffer);
+        var buffer = frame.Uploads.Allocate(MemoryMarshal.AsBytes(CollectionsMarshal.AsSpan(_instances)));
         commands.SetDescriptorHeaps(1, [_srvHeap]);
         commands.SetGraphicsRootSignature(_pipeline.RootSignature);
         commands.SetPipelineState(_pipeline.Pipeline);
@@ -110,7 +109,7 @@ internal sealed class Dx12TerrainDebugPass(ID3D12Device device, Dx12TextureUploa
         foreach (var batch in _batches)
         {
             commands.SetGraphicsRootDescriptorTable(2, _guides[batch.Texture].Handle);
-            commands.SetGraphicsRootShaderResourceView(1, buffer.GPUVirtualAddress + (ulong)(batch.First * stride));
+            commands.SetGraphicsRootShaderResourceView(1, buffer.GpuAddress + (ulong)(batch.First * stride));
             commands.DrawInstanced(6, (uint)batch.Count, 0, 0);
         }
     }

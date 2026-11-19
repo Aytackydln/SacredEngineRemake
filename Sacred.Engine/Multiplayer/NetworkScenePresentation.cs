@@ -196,7 +196,9 @@ internal sealed class NetworkScenePresentation : IDisposable
                 presentation.QueueAnimation(_animationBatch);
             }
         }
+        var animationStart = FrameProfiler.Begin();
         _animationBatch.Run(deltaSeconds);
+        FrameProfiler.End(FrameStage.CharacterAnimation, animationStart);
         foreach (var creature in creatures)
         {
             var reference = creature.BaseState.ObjectReference;

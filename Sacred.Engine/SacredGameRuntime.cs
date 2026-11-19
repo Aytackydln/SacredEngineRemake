@@ -94,17 +94,21 @@ internal sealed partial class SacredGameRuntime : IDisposable
         _gamepad.Poll(_window.Input);
         UpdateCheatTerminal();
         _cheats.Update(ExecuteCheat);
+        var networkStart = FrameProfiler.Begin();
         _gameServer.Update();
         _gameServerFiles.Update();
         UpdateServerJoin();
         _gameServer.AdvanceGameplay(deltaSeconds);
+        FrameProfiler.End(FrameStage.ServerNetwork, networkStart);
         _serverWalk?.Update(deltaSeconds);
         if (_inGameScene is { } networkScene) networkScene.NetworkConsoleWalkActive = _serverWalk is { IsComplete: false };
         if (_window.Input.ConsumePressed(VirtualKey.F12))
             CaptureScreenshot(null);
         if (!_debugUiControls.Terminal.IsOpen)
             _engineInput.Update();
+        var sceneStart = FrameProfiler.Begin();
         _scenes.Update(deltaSeconds);
+        FrameProfiler.End(FrameStage.SceneUpdate, sceneStart);
         UpdateGameServerDebugUi();
         ApplyWorldMapRequest();
         SynchronizeDebugUiControls();

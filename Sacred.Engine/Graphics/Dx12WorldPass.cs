@@ -288,19 +288,28 @@ internal sealed class Dx12WorldPass : IDisposable
         scene.CpuParticleInputs = particles ?? Array.Empty<WorldParticle>();
         _terrain.FootprintSprites = scene.FootprintSprites;
         _terrain.FootprintRevision = scene.FootprintRevision;
-        var prepared = new Dx12PreparedWorldFrame(
-            _terrain.PrepareVisibleWorld(world, scene.Indoor.ActiveGroup),
-            _terrain.PrepareVisibleLiquidSprites(),
-            _terrain.PrepareVisibleStaticSprites(scene.GpuParticlesEnabled
-                ? scene.CpuParticleInputs.Where(p => p.GroundDecal).ToArray() : particles, particleRevision),
-            _terrain.VisibleWorldLights);
+        var cullStart = FrameProfiler.Begin();
+        var sectorImages = _terrain.PrepareVisibleWorld(world, scene.Indoor.ActiveGroup);
+        FrameProfiler.End(FrameStage.CullTerrain, cullStart);
+        cullStart = FrameProfiler.Begin();
+        var liquidSprites = _terrain.PrepareVisibleLiquidSprites();
+        FrameProfiler.End(FrameStage.CullLiquid, cullStart);
+        cullStart = FrameProfiler.Begin();
+        var staticSprites = _terrain.PrepareVisibleStaticSprites(scene.GpuParticlesEnabled
+            ? scene.CpuParticleInputs.Where(p => p.GroundDecal).ToArray() : particles, particleRevision);
+        FrameProfiler.End(FrameStage.CullStatic, cullStart);
+        var prepared = new Dx12PreparedWorldFrame(sectorImages, liquidSprites, staticSprites, _terrain.VisibleWorldLights);
+        cullStart = FrameProfiler.Begin();
         _terrain.PreparePreloadedWorld(world);
+        FrameProfiler.End(FrameStage.PreloadWorld, cullStart);
+        cullStart = FrameProfiler.Begin();
         _sectorTextures.PrepareFrame(
             prepared.SectorImages,
             _terrain.PreloadedSectorImages,
             camera.WorldCenter,
             camera.CameraSpeedUnitVector,
             _graphics.CurrentFrame);
+        FrameProfiler.End(FrameStage.SectorTextures, cullStart);
         return prepared;
     }
 
@@ -333,18 +342,29 @@ internal sealed class Dx12WorldPass : IDisposable
         ID3D12PipelineState liquidCoverPipeline,
         ID3D12PipelineState shadowOverlayPipeline)
     {
+        var stageStart = FrameProfiler.Begin();
         var modelGeometryReady = PrepareModels(scene);
+        FrameProfiler.End(FrameStage.ModelPrepare, stageStart);
+        stageStart = FrameProfiler.Begin();
         _modelTextures.PrepareFrame(scene, _graphics.CurrentFrame);
+        FrameProfiler.End(FrameStage.ModelTextures, stageStart);
+        stageStart = FrameProfiler.Begin();
         _sprites.Cutouts.SetView(camera, _graphics.RenderWidth, _graphics.RenderHeight);
         _sprites.PrepareTextures(
             prepared.LiquidSprites,
             prepared.StaticSprites,
             _graphics.CurrentFrame,
             _terrain.WorldSpriteRevision);
+        FrameProfiler.End(FrameStage.SpriteTextures, stageStart);
+        stageStart = FrameProfiler.Begin();
         _lightHalos.PrepareTexture(prepared.WorldLights, _graphics.CurrentFrame);
+        FrameProfiler.End(FrameStage.LightHaloTextures, stageStart);
+        stageStart = FrameProfiler.Begin();
         _gpuParticles.WorldEmitters=scene.GpuWorldEmitters;
         _gpuParticles.Prepare(_graphics.CommandList,scene.GpuParticleBatches,scene.CpuParticleInputs,scene.GpuParticlesEnabled,
             camera,_graphics.CurrentFrame,_graphics.RenderWidth,_graphics.RenderHeight,_graphics.GpuAnimationTimings);
+        FrameProfiler.End(FrameStage.GpuParticlePrepare, stageStart);
+        stageStart = FrameProfiler.Begin();
         if (scene.Minimap.IsVisible)
             _minimap.Prepare(
                 camera.WorldCenter,
@@ -353,6 +373,7 @@ internal sealed class Dx12WorldPass : IDisposable
                 _graphics.RenderWidth,
                 _graphics.RenderHeight,
                 _graphics.CurrentFrame);
+        FrameProfiler.End(FrameStage.MinimapPrepare, stageStart);
 
         var modelStats = _modelTextures.Stats;
         UpdatePreparationStatus(world, prepared.SectorImages,
@@ -375,7 +396,10 @@ internal sealed class Dx12WorldPass : IDisposable
             _lightHalos.SurfaceLightCount,
             _lastCompletedFrameTimeMilliseconds,
             framePacingStatus);
+        stageStart = FrameProfiler.Begin();
         _worldUi.UpdateDebug(camera, world, scene, prepared, debugStats);
+        FrameProfiler.End(FrameStage.DebugUiBuild, stageStart);
+        stageStart = FrameProfiler.Begin();
         _commandRecorder.Record(
             camera,
             prepared.SectorImages,
@@ -398,6 +422,7 @@ internal sealed class Dx12WorldPass : IDisposable
             _graphics.DisplayProfile,
             _graphics.RenderWidth,
             _graphics.RenderHeight);
+        FrameProfiler.End(FrameStage.RecordWorld, stageStart);
     }
 
     public void PrepareWorldMap(WorldMapFrame map) => _worldUi.PrepareWorldMap(map);
