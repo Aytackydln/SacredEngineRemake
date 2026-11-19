@@ -7,7 +7,8 @@ using Sacred.GameplayHost.Runtime;
 
 namespace Sacred.GameplayHost.Scripting;
 
-/// <summary>Composed NPC scalar calculation through Gold 0x57D1F9, before health
+/// <summary>Composed NPC and compared local pre-inventory hero scalar calculation
+/// through Gold 0x57D1F9, before health
 /// and notification. Reject unsupported runtime states before changing inputs.
 /// This returns private values; it does not allocate, publish or finish startup.</summary>
 public static class WorldCreatureScalarResults
@@ -23,11 +24,17 @@ public static class WorldCreatureScalarResults
             throw new NotSupportedException("Composed scalar results require a compared 24-bit or 64-bit x87 mode.");
         var constructor = context.Reference == 0 && equipment.Count == 0 && template is not null &&
             context.Resource == template.ItemType;
-        if (context.Reference <= 16 && !constructor || context.Reference == context.LocalReference)
+        var savedHero = context.SavedHeroArts is { } savedArts && savedArts.Count == context.LearnedCombatArtCount &&
+            context.Reference is > 0 and <= 16 && context.Reference == context.LocalReference && template?.Class == SacredCreatureClass.Hero &&
+            context.Resource == template.ItemType && equipment.Count == 0 && context.ActiveEffectCount == 0 && !context.Mounted;
+        if (context.SavedHeroArts is not null && (!savedHero || context.Precision != SacredX87Precision.Single ||
+            context.ComponentFlags != 0 || !context.ActorTypeAssigned || context.Difficulty > 2))
+            throw new NotSupportedException("Saved hero arts require their compared local pre-inventory scalar context.");
+        if ((context.Reference <= 16 && !constructor || context.Reference == context.LocalReference) && !savedHero)
             throw new NotSupportedException("Scalar calculation requires a nonlocal assigned NPC or its empty unassigned constructor state.");
         if (template?.Class == SacredCreatureClass.Horse && equipment.Count != 0)
             throw new NotSupportedException("Horse equipment requires its native slot/result comparison.");
-        if (context.Mounted || context.LearnedCombatArtCount != 0 || context.ActiveEffectCount != 0)
+        if (context.Mounted || context.LearnedCombatArtCount != 0 && !savedHero || context.ActiveEffectCount != 0)
             throw new NotSupportedException("Mounted actors, learned combat arts and active effects require their native result bodies.");
         if (template?.InnateBonuses.Any(row => row.CreatureClass == 0 && row.SourceOperation is >= 23 and <= 36) == true)
             throw new NotSupportedException("Active innate powers require the original legacy calculation.");
@@ -87,10 +94,12 @@ public static class WorldCreatureScalarResults
         SacredCreatureCombatAdjustments.ApplyActorFlags(values, context.ActorFlags);
         if (template is not null) SacredCreatureInnateBonuses.Apply(context.Precision, values, template.InnateBonuses, unarmed, context.Skills.Skill7Weapon);
         SacredCreatureCombatAdjustments.ApplyUnarmedFallback(context.Precision, values, unarmed);
-        regeneration = SacredCreaturePassiveSkills.Apply(context.Precision, values, regeneration, 0, context.Skills, skillBalance);
+        var arts = savedHero ? context.SavedHeroArts!.CreateCalculation() : null;
+        regeneration = SacredCreaturePassiveSkills.Apply(context.Precision, values, regeneration, context.LearnedCombatArtCount,
+            context.Skills with { ArtTimers = arts }, skillBalance);
         SacredCreatureResultFinalization.Apply(context.Precision, values, context.ActorFlags, context.ComponentFlags, context.ActorTypeAssigned && template?.Class == SacredCreatureClass.Horse,
             finalization.UsesSlowSpeedFloor(physicalResource), finalization.SharesCombatArtRegeneration(physicalResource), armorMovement);
-        return new(values, regeneration, equipmentFlags);
+        return new(values, regeneration, equipmentFlags) { CombatArts = arts?.Records };
     }
 
     private static bool IsArmor(WorldCreatureScalarEquipmentRecord record) => (int)record.Category is 6 or 13 or 17 or 18 or 19 or 21 or 22 or 23 or 24 or 25;

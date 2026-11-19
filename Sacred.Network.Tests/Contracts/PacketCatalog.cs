@@ -20,6 +20,9 @@ internal static class PacketCatalog
     private static IReadOnlyList<PacketCase> Create()
     {
         var rows = new List<PacketCase>();
+        rows.Add(new("native health count uses roster address instead of presence", 0x1B, typeof(GoldPlayerRosterEvent),
+            () => HostPlayerCountChecks.WireExample(RepositoryFiles.Root), Verify: entry =>
+            { var roster=((GoldPlayerRosterEvent)entry).Roster; Assert.IsFalse(roster.GetEntry(1).IsPresent); Assert.AreNotEqual(0u,roster.GetEntry(1).NetworkAddressWord0); Assert.IsTrue(roster.GetEntry(2).IsPresent); }, ValidShorterLengths: [834]));
         void Add<T>(string name, ushort opcode, Func<byte[]> bytes, PayloadRule rule = PayloadRule.Exact,
             Action<GoldGameEvent>? verify = null, byte sender = 0, bool owns = false, int[]? shorter = null) where T : GoldGameEvent =>
             rows.Add(new(name, opcode, typeof(T), bytes, rule, verify, sender, owns, shorter));
@@ -29,6 +32,18 @@ internal static class PacketCatalog
                 var flags = (GoldWorldRegionFlagsEvent)entry;
                 Assert.AreEqual(1u, flags.Region); Assert.AreEqual(1u, flags.Mask); Assert.IsTrue(flags.Set);
             }, sender: 1);
+        Add<GoldScriptVariableEvent>("native EnterRegion clear-bit indexed publication", 0x1C7,
+            () => HostRegionEntryBodyChecks.WireExample(RepositoryFiles.Root), sender: 1);
+        Add<GoldObjectEvent>("native actual host ambient positioned factory", 0x16F,
+            () => HostAmbientFactoryChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
+            verify: entry => Assert.AreEqual(0x10000000u, ((GoldObjectEvent)entry).BaseState.Flags & 0x90000000u), sender: 1,
+            shorter: [65,66,67,68,145,146,147,148,469,470,471,472]);
+        Add<GoldSectorInterestEvent>("native first-host interest request",0x148,
+            ()=>HostSectorInitializationChecks.InterestWireExample(RepositoryFiles.Root,false),
+            verify:e=>{var request=((GoldSectorInterestEvent)e).Request;Assert.AreEqual((ushort)1,request.CurrentSector);Assert.AreEqual(768u,request.FreeReferenceCount);},sender:1);
+        Add<GoldSectorEntryEvent>("controlled first-host initialization instructions",0x148,
+            ()=>HostSectorInitializationChecks.InterestWireExample(RepositoryFiles.Root,true),
+            verify:e=>{var slot=((GoldSectorEntryEvent)e).Entry.GetSlot(0);Assert.AreEqual((ushort)2,slot.Sector);Assert.IsTrue(slot.RequestsInitialization && slot.RequestsScripts);});
         Add<GoldQuestUpdateEvent>("native normal region quest activation", 0x1BA,
             () => RegionQuestChecks.WireExample(RepositoryFiles.Root), PayloadRule.RetainedSuffix, verify: entry =>
             {
@@ -399,6 +414,17 @@ internal static class PacketCatalog
         foreach (var op in new ushort[] { 0x169, 0x16b, 0x16f, 0x16c, 0x16e })
             Add<GoldObjectEvent>("base object", op, () => ObjectPayload(op), PayloadRule.Structured,
                 e => Assert.AreEqual(500u, ((GoldObjectEvent)e).BaseState.ObjectReference));
+        Add<GoldObjectEvent>("native current entered host hero", 0x169,
+            () => HostCurrentPublicationChecks.HeroWireExample(RepositoryFiles.Root), PayloadRule.Structured,
+            e => { var value=((GoldObjectEvent)e).BaseState; Assert.AreEqual(1u,value.ObjectReference); Assert.AreEqual((ushort)2581,value.Sector); Assert.AreEqual(180343,value.X); }, sender:1,
+            shorter:[65,66,67,68,145,146,147,148,469,470,471,472]);
+        Add<GoldObjectEvent>("native current saved host item",0x16E,
+            () => HostCurrentPublicationChecks.ItemWireExample(RepositoryFiles.Root),PayloadRule.Structured,
+            e=>Assert.AreEqual(17u,((GoldObjectEvent)e).BaseState.ObjectReference),sender:1,
+            shorter:[49,50,51,52,129,130,131,132,273,274,275,276]);
+        Add<GoldInventoryEvent>("native current host primary inventory",0x122,
+            () => HostCurrentPublicationChecks.InventoryWireExample(RepositoryFiles.Root),PayloadRule.Structured,
+            e=>{var value=(GoldInventoryEvent)e;Assert.AreEqual(1u,value.InventoryId);Assert.AreEqual(0,value.Inventory.QuestCount);},sender:1);
         Add<GoldUnknownEvent>("unknown packet", 0xffff, () => [], PayloadRule.RetainedSuffix);
         foreach (var op in new ushort[] { 0x173, 0x175 })
             Add<GoldObjectQuestEvent>("quest tag", op, () => Words(500, 0x1234ffff), verify: e => Assert.AreEqual((short)-1, ((GoldObjectQuestEvent)e).Value), owns: true);
@@ -471,6 +497,12 @@ internal static class PacketCatalog
         Add<GoldTriggerPatchEvent>("trigger patch batch", 0x1ce,
             () => [..Words(2, 500, 10, 20, uint.MaxValue, 11, 20, 256), ..new byte[98*12]], PayloadRule.RetainedSuffix,
             e => { var patch = (GoldTriggerPatchEvent)e; Assert.AreEqual(2, patch.ActiveCount); Assert.AreEqual(100, patch.Cells.Count); Assert.AreEqual(-1, patch.Cells[0].Surface); }, owns: true);
+        Add<GoldWorldTriggerEvent>("native initial-sector trigger creation producer",0x1AE,
+            () => HostSectorInitializationChecks.WireExample(RepositoryFiles.Root,0x1AE).Payload,PayloadRule.RetainedSuffix,
+            e => { var trigger=(GoldWorldTriggerEvent)e; Assert.AreEqual(4214u,trigger.Reference); Assert.AreEqual("Trg756",trigger.Name); });
+        Add<GoldTriggerPatchEvent>("native initial-sector normalized trigger patch producer",0x1CE,
+            () => HostSectorInitializationChecks.WireExample(RepositoryFiles.Root,0x1CE).Payload,PayloadRule.RetainedSuffix,
+            e => { var patch=(GoldTriggerPatchEvent)e; Assert.AreEqual(1,patch.ActiveCount); Assert.AreEqual(3378,patch.Cells[0].X); });
         foreach (var op in new ushort[] { 0x019, 0x01a })
             Add<GoldSessionLockEvent>("session lock notification", op, () => [], PayloadRule.RetainedSuffix,
                 e => Assert.AreEqual(op == 0x01a, ((GoldSessionLockEvent)e).IsLocked), owns: true);
@@ -515,6 +547,11 @@ internal static class PacketCatalog
             e => { var fx = GoldObjectFxState.FromPayload(((GoldObjectEvent)e).ObjectState);
                 Assert.AreEqual(34u, fx.FxType); Assert.AreEqual(802u, GoldParticleSnapshot.FromPayload(fx.ParticleState.Span).Resource); },
             shorter: new[] { 65, 66, 67, 68 }.Concat(Enumerable.Range(251, 224)).ToArray());
+        Add<GoldObjectEvent>("native entered-sector owned fixed FX", 0x16F,
+            () => HostEnteredEffectChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
+            e => { var fx = GoldObjectFxState.FromPayload(((GoldObjectEvent)e).ObjectState);
+                Assert.AreEqual(0x10000000u,fx.BaseState.Flags); Assert.AreEqual((ushort)2503,fx.BaseState.Sector); },
+            sender: 1, shorter: new[] { 65, 66, 67, 68 }.Concat(Enumerable.Range(251, 224)).ToArray());
         Add<GoldObjectEvent>("native complete startup special level NPC", 0x16F, () => StartupSpecialLevelChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
             verify: e => { var value=(GoldObjectEvent)e; Assert.AreEqual(355u,value.BaseState.ObjectType);
                 Assert.AreEqual(0x80000u,value.CreatureState!.Word1F4 & 0x80000u); },
@@ -583,6 +620,10 @@ internal static class PacketCatalog
             () => DialogAssociationNormalizationChecks.BankThreeWireExample(RepositoryFiles.Root),PayloadRule.RetainedSuffix,
             e => { var bank=((GoldWorldBankEvent)e).Snapshot;
                 Assert.AreEqual(1,bank.Sections[5].Count); Assert.AreEqual(88,bank.Sections[5].ElementSize); });
+        Add<GoldWorldBankEvent>("verified host trigger-cell patch section fixture",0x1B3,
+            () => TriggerPatchBankSourceChecks.BankThreeWireExample(RepositoryFiles.Root).Payload,PayloadRule.RetainedSuffix,
+            e => { var bank=((GoldWorldBankEvent)e).Snapshot;
+                Assert.AreEqual(5,bank.Sections[2].Count); Assert.AreEqual(8,bank.Sections[2].ElementSize); });
         Add<GoldWorldBankEvent>("native bank-one reader fixture",0x1B1,
             () => RemainingWorldBankChecks.BankOneWireExample(RepositoryFiles.Root),PayloadRule.RetainedSuffix,
             e => { var bank=((GoldWorldBankEvent)e).Snapshot;

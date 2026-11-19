@@ -28,7 +28,7 @@ internal static class TriggerBankSourceChecks
             var replica = new GoldWorldReplica();
             replica.Apply(new GoldReferenceRangeEvent(GoldReferenceCodec.CreateTriggerRangeRequest(0, 20, 1) with { Sender = 0 }, reference, 20));
             registry = new(Archive(raw.AsSpan(0, initialCount * 16).ToArray()), replica.TriggerReferences);
-            registry.Create(new("Trgnew", 0, 0x8001, 0));
+            registry.Create(new("Trgnew", 0, 0x8001, 0), null);
             if (registry.UnknownSlotCount != 0)
             {
                 try { registry.WriteBankSection(); throw new Exception("Unknown trigger slots were silently serialized."); }

@@ -7,6 +7,7 @@ using Sacred.Core.Pak.Items;
 using Sacred.GameplayHost.Equipment;
 using System.Buffers.Binary;
 using Sacred.GameplayHost.Runtime;
+using Sacred.GameplayHost.Networking;
 
 namespace Sacred.GameplayHost.Scripting;
 
@@ -21,24 +22,32 @@ public sealed class WorldScriptCreatureWorld : IWorldScriptCreatureWorld, IWorld
     private readonly WorldScriptCreatureRuntime _runtime;
     private readonly SacredSectorGrid _grid;
     private readonly Action<string> _log;
+    private readonly WorldHostActiveHeroBinding? _activeHero;
     private readonly List<WorldScriptCreaturePreparation> _prepared = [];
     public WorldScriptCreatureWorld(WorldScriptCreatureAssets assets, GoldObjectReferencePool references,
         WorldObjectAllocationCounter counter, WorldScriptCreatureRuntime runtime, SacredRandomSequence random, Action<string> log)
+        : this(assets, references, counter, runtime, random, log, null) { }
+
+    internal WorldScriptCreatureWorld(WorldScriptCreatureAssets assets, GoldObjectReferencePool references,
+        WorldObjectAllocationCounter counter, WorldScriptCreatureRuntime runtime, SacredRandomSequence random, Action<string> log,
+        WorldHostActiveHeroBinding? activeHero)
     {
         ArgumentNullException.ThrowIfNull(assets);
         ArgumentNullException.ThrowIfNull(runtime);
         ArgumentNullException.ThrowIfNull(runtime.Clock);
         ArgumentNullException.ThrowIfNull(log);
         (_assets, _runtime, Random, _log) = (assets, runtime, random, log);
+        _activeHero = activeHero;
         _grid = assets.Sectors.CreateGrid();
         ScriptRegions = new(_grid,assets.Equipment?.Naming?.Resources,runtime.Owner);
         MapIcons = new(_grid, assets.Equipment?.Naming?.Resources);
-        Factory = new(assets.Results, assets.Construction, references, counter, random, runtime.Owner, runtime.Difficulty);
-        EquipmentFactory = new(references, counter, Factory.Activation, runtime.Owner);
+        Factory = activeHero?.Factory ?? new(assets.Results, assets.Construction, references, counter, random, runtime.Owner, runtime.Difficulty);
+        EquipmentFactory = activeHero?.EquipmentFactory ?? new(references, counter, Factory.Activation, runtime.Owner);
         StateCommands = new(this, assets, runtime, log);
         ObjectStateCommands = new(this,log);
         EquipmentCommands = new(this, assets, runtime, log);
-        if (assets.ReadOutdoorTiles is { } readTiles && !runtime.Owned && runtime.Players == 0)
+        if (activeHero is not null) Terrain = activeHero.Terrain.BeginStartup(this, assets, log);
+        else if (assets.ReadOutdoorTiles is { } readTiles && !runtime.Owned && runtime.Players == 0)
             Terrain = new(this,assets,readTiles,log);
         if (Terrain is { } terrain && assets.Equipment?.Naming?.Resources is { } resources)
         {
@@ -46,7 +55,9 @@ public sealed class WorldScriptCreatureWorld : IWorldScriptCreatureWorld, IWorld
             Hideouts = new(name => WorldScriptResourceReference.Resolve(name,resources),terrain.GetInitialSectorFlags);
         }
         ItemResources = new(Resources, assets.Equipment?.Naming?.Resources);
-        Items = new(assets.Objects, EquipmentFactory, runtime, _grid, log);
+        Items = new(assets.Objects, EquipmentFactory, runtime, _grid, log)
+            { PrepareCurrentValues = activeHero is null ? null : PrepareObjectValues,
+                PrepareWeaponValues = activeHero is null ? null : PrepareInitialWeapon };
         if (assets.FixedEffects is { } effects && runtime.EffectProjection is { } projection)
             Effects = new(effects,projection,references,counter,Factory.Activation,random,runtime,_grid,log) { MagicPrison = assets.MagicPrison, BubblePrison = assets.BubblePrison };
         Prepared = _prepared.AsReadOnly();
@@ -63,6 +74,11 @@ public sealed class WorldScriptCreatureWorld : IWorldScriptCreatureWorld, IWorld
         WorldScriptCreatureHealthCommand.Apply(context, command, this, _assets, _runtime, _log);
     internal void UpdateScriptActor(WorldCreatureInitialActor actor)
     {
+        if (_activeHero is not null && actor.Base.ObjectReference == _runtime.Owner)
+        {
+            _activeHero.UpdateActor(actor);
+            return;
+        }
         Factory.Update(actor);
         var prepared = _prepared.Single(value => value.Actor?.Base.ObjectReference == actor.Base.ObjectReference);
         prepared.Actor = actor;
@@ -70,7 +86,55 @@ public sealed class WorldScriptCreatureWorld : IWorldScriptCreatureWorld, IWorld
     }
     public Sacred.Core.GameRes.GameResStore? ResourceText => _assets.Equipment?.Naming?.Resources;
     public byte LocalPlayerSlot => _runtime.Owner;
+    internal byte[] PrepareObjectValues(uint resource, byte[] original)
+    {
+        var hero = _activeHero?.Actor ?? throw new NotSupportedException("CreateObj values require the actual entered local hero binding.");
+        return WorldScriptObjectValues.Prepare(resource, original, hero.Base.ObjectType,
+            _assets.Equipment ?? throw new InvalidDataException("CreateObj requires original equipment data."),
+            _assets.ObjectValues ?? throw new InvalidDataException("CreateObj requires original item-value exclusion definitions."), Random);
+    }
     public SacredRandomSequence Random { get; }
+    internal bool IsEnteredHeroReference(uint reference) => _activeHero is { } hero &&
+        reference == hero.Actor.Base.ObjectReference && Factory.Actors.TryGetValue(reference, out var actor) && ReferenceEquals(actor, hero.Actor);
+    internal void EnterHeroPopup(WorldScriptExecutionContext context, int selected)
+    {
+        if (!context.IsExecutingStartup || !context.Multiplayer)
+            throw new NotSupportedException("Entered hero POPUP requires its current multiplayer startup scope.");
+        var hero = _activeHero ?? throw new NotSupportedException("POPUP requires the actual entered hero binding.");
+        hero.RequireCurrent();
+        var result = WorldScriptEnteredPopup.Prepare(hero.Actor, context.Registrations, selected);
+        var state = WorldCreatureHostSerialization.Write(result.Dialog, EquipmentFactory.Items, _assets.Objects.GetItem, 0);
+        StateCommands.RetainPublication(GoldCreatureUpdateCodec.CreateState(_runtime.Owner,
+            result.Dialog.Base.ObjectReference, result.Dialog.Base.ObjectType, GoldCreatureUpdateState.FromCreature(state)));
+        hero.UpdateActor(result.Pending);
+    }
+    internal bool? MatchEnteredHero(string name)
+    {
+        if (_activeHero is not { } hero || !name.StartsWith("TYPE_", StringComparison.OrdinalIgnoreCase)) return null;
+        var lookup = _assets.Equipment?.ResourceName ?? throw new NotSupportedException("IsHero needs the original symbolic type table.");
+        var resolved = _assets.Objects.Items.Keys.FirstOrDefault(type => string.Equals(lookup(type), name, StringComparison.OrdinalIgnoreCase));
+        return WorldScriptHeroPredicates.Matches(hero.Actor.Base.ObjectType, resolved);
+    }
+    internal void PrepareEnteredQuestHero(int number)
+    {
+        var hero = _activeHero ?? throw new NotSupportedException("Present-hero quest entry requires the actual entered host binding.");
+        hero.RequireCurrent();
+        var flags = _runtime.SessionGameFlags ?? throw new NotSupportedException("Quest entry requires received session game flags.");
+        hero.UpdateActor(WorldScriptEnteredQuestHero.Prepare(hero.Actor, number, flags, connected: true));
+    }
+    private void PrepareInitialWeapon(Sacred.GameplayHost.Equipment.WorldEquipmentInitialItem item, GoldObjectPosition position)
+    {
+        var hero = _activeHero ?? throw new NotSupportedException("CreateObj weapon needs its actual entered hero.");
+        hero.RequireCurrent();
+        if (_assets.Sectors.TryGetSector(position.Sector, out var sector) && sector.Environment.MonsterMaxLevel != 0)
+            throw new NotSupportedException("CreateObj weapon with nonzero sector maximum requires current level-bound/addition inputs.");
+        // 487C1B/487C2D skips every sector adjustment and the runtime addition
+        // when the actual current sector has no maximum. Startup has not run
+        // sector callbacks; their mutable environment lifecycle remains separate.
+        WorldScriptInitialWeaponValues.Apply(item, hero.Actor.Base.ObjectType, hero.Level, _runtime.Difficulty,
+            _assets.Equipment ?? throw new InvalidDataException("CreateObj weapon needs original generation data."), Random);
+    }
+    internal double SchedulerClock => _runtime.Clock() / 1000d;
     public WorldCreatureInitialFactory Factory { get; }
     public WorldEquipmentInitialFactory EquipmentFactory { get; }
     public WorldScriptEquipmentWorld EquipmentCommands { get; }
@@ -79,6 +143,8 @@ public sealed class WorldScriptCreatureWorld : IWorldScriptCreatureWorld, IWorld
     public WorldScriptItemWorld Items { get; }
     public IReadOnlyList<WorldScriptCreaturePreparation> Prepared { get; }
     public WorldScriptCreaturePreparation? Pending { get; private set; }
+    public int SkippedEntryCreatures { get; private set; }
+    internal WorldHostAmbientCreatureFactory AmbientFactory(WorldScriptExecutionContext context) => new(this, _assets, _runtime, context);
     public GoldScriptResourceReplica Resources { get; } = new();
     public WorldScriptMapIcons MapIcons { get; }
     public WorldScriptMouseovers? Mouseovers { get; }
@@ -87,6 +153,16 @@ public sealed class WorldScriptCreatureWorld : IWorldScriptCreatureWorld, IWorld
 
     public void Create(WorldScriptExecutionContext context, SacredScriptCommand command)
     {
+        if (context.IsEnteringSector)
+        {
+            // This draw precedes native decoding, including an early return.
+            _ = Random.Next();
+            if (context.Multiplayer && context.LocalNetworkSpeedSettings is { } setting &&
+                WorldScriptEnteredCreatureGate.CanSkip(context, command, setting, Resources, ResourceText))
+            { SkippedEntryCreatures++; return; }
+            throw new NotSupportedException("Entry NPC needs its remaining ordinary constructor, current level and publication services.");
+        }
+        if (context.HasActiveHero == true) _ = _runtime.RequirePlayerCount();
         if (!context.IsExecutingStartup && !(context.IsInitializingRegion && context.Multiplayer && context.HasActiveHero == false))
             throw new InvalidDataException("CreateNPC requires its compared startup or absent-hero region callback scope.");
         // This native draw precedes decoding, even with an explicit Facing.
@@ -138,7 +214,7 @@ public sealed class WorldScriptCreatureWorld : IWorldScriptCreatureWorld, IWorld
         Factory.Update(actor); pending.Actor = actor; pending.Stage = "placed";
         actor = WorldCreatureScriptLevel.Apply(actor, blueprint.Template, creation.AssignedLevelInput, _assets.Results,
             _assets.Levels, _assets.Progression, _assets.LevelDefinitions, _runtime.Difficulty, _runtime.Owner,
-            context.Multiplayer, sectorMaximumLevel, _runtime.Players);
+            context.Multiplayer, sectorMaximumLevel, _runtime.RequirePlayerCount());
         Factory.Update(actor); pending.Actor = actor; pending.Stage = "level initialized";
         context.ObjectCallbacks.RegisterCreature(actor.Base.ObjectReference, creation.CallbackName);
         var behavior = creation.Behavior;
@@ -202,7 +278,7 @@ public sealed class WorldScriptCreatureWorld : IWorldScriptCreatureWorld, IWorld
         // isolated nonpositive-name block here would incorrectly add mask 0x20.
         actor = WorldCreatureEquippedResults.Apply(actor, blueprint.Template, _assets.Results,
             _assets.Equipment ?? throw new InvalidDataException("CreateNPC needs original equipped-result definitions."),
-            EquipmentFactory.Items, _runtime.Difficulty, _runtime.Owner, context.Multiplayer, _runtime.Players);
+            EquipmentFactory.Items, _runtime.Difficulty, _runtime.Owner, context.Multiplayer, _runtime.RequirePlayerCount());
         Factory.Update(actor); pending.Actor = actor; pending.Stage = "results initialized";
         _log($"Startup NPC equipped calculation complete: ref {actor.Base.ObjectReference}, result valid {actor.Component.ResultValid}; placed serialization pending.");
         pending.CreatureState = WorldCreatureInitialSerialization.Write(actor, blueprint.Visuals, EquipmentFactory.Items, _assets.Objects.GetItem);

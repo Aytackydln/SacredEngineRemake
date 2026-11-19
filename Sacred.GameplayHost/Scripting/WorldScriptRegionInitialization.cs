@@ -17,6 +17,13 @@ public sealed class WorldScriptRegionInitialization
         Records = new ReadOnlyDictionary<uint, (uint Value, uint Tag)>(_records);
     }
     public IReadOnlyDictionary<uint, (uint Value, uint Tag)> Records { get; }
+    /// <summary>492C90's record+5 byte, in the high byte of the existing tag.
+    /// This is distinct from the world-region singleton's initialized flag.</summary>
+    internal void MarkEntered(uint region)
+    {
+        var row=_records[region];
+        _records[region]=(row.Value,(row.Tag & ~0xff00u)|0x100u);
+    }
     /// <summary>Native current script-region global 0x94E084. Nested callbacks
     /// may change it before the final lifecycle insertion; early exits retain it.</summary>
     public uint CurrentRegion { get; set; } = uint.MaxValue;

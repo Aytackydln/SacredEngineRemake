@@ -50,11 +50,13 @@ public static class WorldScriptQuestTrigger
     {
         if ((quests.Get(slot).Flags & SacredScriptQuestLayout.TriggeredFlag) == 0)
         {
-            if (hasActiveHero != false) throw new NotSupportedException("Quest entry requires its compared absent-hero startup state.");
+            if (hasActiveHero != false && (hasActiveHero != true || quests.PrepareEnteredHero is null))
+                throw new NotSupportedException("Quest entry requires its actual entered hero effects or explicit absent-hero startup state.");
             if (quests.Scratch is null || quests.Scratch.Any(value=>value!=0))
                 throw new NotSupportedException("Quest entry requires established zero pending compass scratch or its native compass/UI lifecycle.");
             if (localPlayerSlot is not { } owner) throw new InvalidDataException("Quest entry needs the local controller slot.");
             quests.Journal.AppendTriggerEntry(quests.Get(slot).Number,owner);
+            if (hasActiveHero == true) quests.PrepareEnteredHero!(quests.Get(slot).Number);
             quests.WriteWord(slot,SacredScriptQuestLayout.FlagsOffset,quests.Get(slot).Flags | SacredScriptQuestLayout.TriggeredFlag);
             invoke(quests.Get(slot).EnterFunction);
         }

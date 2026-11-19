@@ -16,15 +16,17 @@ public sealed class WorldScriptStartupTerrain
     private readonly Action<string> _log;
     private WorldScriptExecutionContext? _context;
     private readonly Dictionary<uint,WorldScriptCreatedObject> _groundObjects = [];
-    private readonly Dictionary<uint,WldxSectorPayload> _payloads = [];
+    private readonly Dictionary<uint,WldxSectorPayload> _payloads;
     public WorldScriptIndoorSurfaces? Surfaces { get; }
-    public WorldCreatureSectorMembership Membership { get; } = new();
+    public WorldCreatureSectorMembership Membership { get; }
     public WorldScriptPositionTiles Tiles { get; }
 
     public WorldScriptStartupTerrain(WorldScriptCreatureWorld world, WorldScriptCreatureAssets assets,
         Func<uint, KeyxSectorRecord, byte[]> read, Action<string> log)
     {
         (_world, _assets, _log) = (world, assets, log);
+        _payloads = [];
+        Membership = new();
         _grid=assets.Sectors.CreateGrid();
         Tiles = new(assets.Sectors,(id,entry)=>
         {
@@ -34,6 +36,15 @@ public sealed class WorldScriptStartupTerrain
         Tiles.Evicted += id => { _payloads.Remove(id); _log($"Startup sector tiles evicted: sector {id}; actors retained for re-placement."); };
         if (assets.ReadSectorTiles is not null && assets.ReadStaticObject is { } readStatic)
             Surfaces = new(Tiles.GetTile,GetPayload,readStatic);
+    }
+
+    internal WorldScriptStartupTerrain(WorldScriptCreatureWorld world, WorldScriptCreatureAssets assets,
+        WorldScriptPositionTiles tiles, WorldScriptIndoorSurfaces surfaces, WorldCreatureSectorMembership membership,
+        Dictionary<uint,WldxSectorPayload> payloads, Action<string> log)
+    {
+        (_world, _assets, _log) = (world, assets, log);
+        _grid = assets.Sectors.CreateGrid();
+        (Tiles, Surfaces, Membership, _payloads) = (tiles, surfaces, membership, payloads);
     }
 
     private WldxSectorPayload GetPayload(uint sector)
@@ -79,6 +90,34 @@ public sealed class WorldScriptStartupTerrain
         return placed;
     }
 
+    internal void RegisterCreatedContainer(WorldScriptCreatedObject value) =>
+        _groundObjects.Add(value.BaseState.ObjectReference, value);
+
+    internal WorldCreatureLoadedPlacementPlan PrepareContainerPlacement(WorldScriptExecutionContext context, GoldObjectPosition position)
+    {
+        _context = context;
+        var x = SacredWorldCoordinates.WorldToTile(position.X);
+        var y = SacredWorldCoordinates.WorldToTile(position.Y);
+        var surfaces = Surfaces ?? throw new NotSupportedException("Loaded Container requires original static/floor records.");
+        var parent = position.Surface == 0 ? 0 : surfaces.FindParent(x, y);
+        var floor = position.Surface == 0 ? 0 : surfaces.Child(parent, checked((ushort)position.Surface));
+        if (position.Surface != 0 && (surfaces.GetStatic(floor) is not { } child || child.ContainerId != parent || child.HeightLevelId == 0))
+            throw new NotSupportedException("Loaded Container requires its resolved original indoor floor.");
+        var tile = surfaces.GetTile(x, y, floor) ?? throw new InvalidDataException("Loaded Container destination has no original cell.");
+        var trigger = surfaces.GetStatic(parent)?.TriggerId ?? 0;
+        if (trigger == 0 || context.WorldTriggers?.Records.ContainsKey(trigger) != true) trigger = 0;
+        Action<uint> commit;
+        if (floor == 0) commit = reference => Tiles.SetHead(x, y, reference);
+        else
+        {
+            var cell = surfaces.IndoorCell(x, y, floor)!.Value;
+            commit = reference => BinaryPrimitives.WriteUInt32LittleEndian(cell.Bytes.AsSpan(cell.Offset + 8), reference);
+        }
+        var plan = new WorldCreatureLoadedPlacementPlan(position, floor, trigger, tile, commit);
+        WorldScriptContainerPlacement.Require(plan);
+        return plan;
+    }
+
     private void MarkTile(int x,int y,ushort surface,byte flag)
     {
         (byte[] Bytes,int Offset)? cell;
@@ -91,6 +130,30 @@ public sealed class WorldScriptStartupTerrain
             cell=surfaces.GetStatic(floor)?.HeightLevelId==0 ? Tiles.GetCell(x,y) : surfaces.IndoorCell(x,y,floor);
         }
         if (cell is { } target) target.Bytes[target.Offset+0x1E] |= flag;
+    }
+
+    internal void MarkInitializingTrigger(WorldScriptExecutionContext context, Sacred.Core.GameBin.Scripts.SacredScriptPosition cell)
+    {
+        if (!context.IsInitializingSector || context.CurrentSector is not { } sector || cell.Z != 0 ||
+            _grid.GetSector(cell.X,cell.Y) != sector.Sector || !Tiles.IsLoaded(sector.Sector))
+            throw new NotSupportedException("Initial-sector trigger marking needs its real loaded outdoor cell and callback scope.");
+        _context = context;
+        _ = Tiles.GetCell(cell.X,cell.Y) ?? throw new InvalidDataException("Initial-sector trigger tile is missing.");
+        MarkTile(cell.X,cell.Y,0,4);
+    }
+
+    /// <summary>493440 after completed EnterSector restoration, on the SAME
+    /// loaded outdoor/indoor cells and pending mouseover/trigger sources used
+    /// during startup reload. Registration retains the existing active registry.</summary>
+    internal void ApplyEnteredPatches(WorldScriptExecutionContext context, WorldScriptSectorEnvironment sector)
+    {
+        if (!Tiles.IsLoaded(sector.Sector)) throw new InvalidOperationException("Final sector patches require the actual loaded terrain.");
+        var mouseovers = context.Mouseovers ?? throw new NotSupportedException("Final sector patches require the actual pending mouseover source and active registry.");
+        var triggers = context.WorldTriggers ?? throw new NotSupportedException("Final sector patches require the actual pending trigger positions.");
+        _context = context;
+        WorldScriptSectorTilePatches.Apply(sector.Coordinate.X, sector.Coordinate.Y, mouseovers.Pending,
+            triggers.PendingPositions.Select(value => (value.Position.X, value.Position.Y, unchecked((byte)value.Position.Z))),
+            MarkTile, mouseovers.Active.Register);
     }
 
     /// <summary>This initial no-player profile has no entered/initialized script-sector flags.
@@ -126,7 +189,7 @@ public sealed class WorldScriptStartupTerrain
         });
     }
 
-    private void Initialize(uint sector, byte[] tiles)
+    internal void Initialize(uint sector, byte[] tiles)
     {
         var context = _context ?? throw new InvalidOperationException("No startup tile query is active.");
 
@@ -135,7 +198,7 @@ public sealed class WorldScriptStartupTerrain
             _assets.Objects.GetItem(item.Physical.Base.ObjectType).ModelDesc.Category==Sacred.Core.Pak.Items.SacredItemCategory.QuestItem)
             .ToDictionary(item=>item.Physical.Base.ObjectReference);
         var containers = ((context.ObjectWorld as WorldScriptObjectWorld)?.Objects ?? [])
-            .Where(value=>value.BaseState.Sector==sector && value.BaseState.Flags==0x201)
+            .Where(value=>value.BaseState.Sector==sector && (value.BaseState.Flags & ~0x10000u)==0x201)
             .ToDictionary(value=>value.BaseState.ObjectReference);
         var others = (context.ObjectWorld as WorldScriptObjectWorld)?.Objects.Select(value => value.BaseState)
             ?? Enumerable.Empty<Sacred.Network.Gameplay.GoldObjectBaseState>();
@@ -203,7 +266,14 @@ public sealed class WorldScriptStartupTerrain
             if (actor.Base.Surface == 0)
             {
                 var at = (y*64+x)*32; var tile = WldxTileRecord.FromBytes(tiles.AsSpan(at));
-                result = WorldCreatureSectorReload.Reinsert(actor,tile,tile.WorldObjectChainHeadId);
+                if (actor.Base.ObjectReference == _world.LocalPlayerSlot && actor.CampaignEntryPlaced)
+                {
+                    var detached = actor with { Base = actor.Base with { Flags = actor.Base.Flags | 2u, Sector = 0 }, NextOnTile = 0 };
+                    var placed = WorldCreatureHostGroundPlacement.Place(detached,
+                        new(actor.Base.X, actor.Base.Y, 0, actor.Base.Sector), tile, tile.WorldObjectChainHeadId);
+                    result = new(placed, placed.Base.ObjectReference, true);
+                }
+                else result = WorldCreatureSectorReload.Reinsert(actor,tile,tile.WorldObjectChainHeadId);
                 BinaryPrimitives.WriteUInt32LittleEndian(tiles.AsSpan(at+8),result.TileHead);
             }
             else

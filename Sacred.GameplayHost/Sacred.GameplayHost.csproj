@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Sacred.Network.Tests" />
     <ProjectReference Include="..\Sacred.Core\Sacred.Core.csproj" />
     <ProjectReference Include="..\Sacred.Assets\Sacred.Assets.csproj" />
     <ProjectReference Include="..\Sacred.Network\Sacred.Network.csproj" />

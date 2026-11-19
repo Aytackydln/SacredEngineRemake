@@ -31,6 +31,8 @@ public sealed class WorldScriptPositionTiles
 
     public bool IsLoaded(uint sector) => _loaded.ContainsKey(sector);
 
+    internal void Invalidate() { _invalidated = true; _loaded.Clear(); _retained.Clear(); }
+
     public void SetHead(int x,int y,uint reference)
     {
         if (GetTile(x,y) is null) throw new InvalidDataException("Cannot link an NPC outside the original sector grid.");

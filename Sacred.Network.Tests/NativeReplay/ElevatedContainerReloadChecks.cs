@@ -12,12 +12,14 @@ internal static class ElevatedContainerReloadChecks
 {
     public static int Run(string root)
     {
-        using var fixture=JsonDocument.Parse(File.ReadAllText(Path.Combine(root,"docs/game-server/evidence/native-startup-elevated-container.json")));
+        var checks=0;
+        foreach (var name in new[] { "native-startup-elevated-container.json", "native-host-pending-elevated-container.json" })
+        {
+        using var fixture=JsonDocument.Parse(File.ReadAllText(Path.Combine(root,"docs/game-server/evidence",name)));
         var data=fixture.RootElement;var entry=KeyxSectorRecord.FromBytes(Bytes(data,"keyx_hex"));
         using var stream=new ZLibStream(new MemoryStream(Bytes(data,"compressed_hex")),CompressionMode.Decompress);
         using var output=new MemoryStream();stream.CopyTo(output);var original=output.ToArray();
         var statics=data.GetProperty("statics").EnumerateArray().ToDictionary(row=>row.GetProperty("reference").GetUInt32(),row=>MemoryMarshal.Read<StaticObjectRecord>(Bytes(row,"hex")));
-        var checks=0;
         foreach (var row in data.GetProperty("cases").EnumerateArray())
         {
             var outdoor=original.AsSpan(entry.TilesRelativeOffset,131072).ToArray();var groups=new List<WldxIndoorGroupPayload>();
@@ -44,6 +46,7 @@ internal static class ElevatedContainerReloadChecks
             }
             Check(Hash(outdoor).Equals(row.GetProperty("outdoor_sha256").GetString(),StringComparison.OrdinalIgnoreCase),"complete outdoor terrain");
             for (var i=0;i<groups.Count;i++) Check(Hash(groups[i].Tiles).Equals(row.GetProperty("indoor_sha256")[i].GetString(),StringComparison.OrdinalIgnoreCase),"complete indoor terrain and ordered chain insertion");
+        }
         }
         return checks;
         void Check(bool pass,string why) { if (!pass) throw new Exception("Native elevated Container reload: "+why);checks++; }

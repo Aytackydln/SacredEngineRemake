@@ -24,6 +24,8 @@ public sealed class WorldHostInitializationSession : IAsyncDisposable
     private bool _requested;
     private bool _admissionObserved;
     private bool _startupAttempted;
+    private bool _characterPublicationStarted;
+    private bool _characterPublicationSent;
     private Task? _dispose;
     private readonly object _disposeGate = new();
     public SacredGameplayReplicaSession WorldSession { get; } = new();
@@ -31,10 +33,14 @@ public sealed class WorldHostInitializationSession : IAsyncDisposable
     public WorldAdmissionReceipt? AdmissionReceipt => WorldSession.Admission.Current;
     public GoldObjectReferencePool References { get; } = new();
     public GoldAdmissionStatus Admission => _connection.Admission;
+    public byte NetworkSpeedSettings { get; private init; }
     public WorldHostInitializationPhase Phase { get; private set; } = WorldHostInitializationPhase.Connecting;
     public WorldHostStartupState? Startup { get; private set; }
     public WorldHostSavedCharacterSource? SelectedCharacter { get; private set; }
     public WorldHostCharacterPreparation? Character { get; private set; }
+    public WorldHostActiveHeroBinding? ActiveHero { get; private set; }
+    public WorldHostStartupRequest? StartupRequest { get; private set; }
+    public bool CharacterPublicationSent => _characterPublicationSent && IsCurrent && Character?.HeroConstruction.RuntimePublication is not null;
     public WorldHostRegionInitialization? RegionInitialization { get; private set; }
     public string? Failure { get; private set; }
     public Task Completion { get; private set; } = Task.CompletedTask;
@@ -47,7 +53,6 @@ public sealed class WorldHostInitializationSession : IAsyncDisposable
         (_connection, _triggerBound, _seed, _log) = (connection, triggerBound, seed, log);
         _stop = CancellationTokenSource.CreateLinkedTokenSource(token);
     }
-
     public static WorldHostInitializationSession OpenSavedCharacter(string installation, SacredCampaignFiles campaign,
         int selection, string host, int port, Action<string> log, CancellationToken cancellationToken = default)
     {
@@ -60,7 +65,6 @@ public sealed class WorldHostInitializationSession : IAsyncDisposable
         return StartSavedCharacter(source, new(), host, port, contact, bound,
             (state, remote, token) => WorldHostStartupDiscovery.SeedAsync(installation, remote, contact.Version, state, log, token), log, cancellationToken);
     }
-
     public static WorldHostInitializationSession StartSavedCharacter(WorldHostSavedCharacterSource source,
         GoldGameConnection connection, string host, int port, GoldFirstContact contact, uint authoredTriggerBound,
         Func<GoldSessionState, IPEndPoint, CancellationToken, Task> seedSession, Action<string> log,
@@ -71,6 +75,7 @@ public sealed class WorldHostInitializationSession : IAsyncDisposable
             throw new InvalidDataException("Host character source must match the actual FIRSTCONTACT profile.");
         var session = Start(connection, host, port, contact, authoredTriggerBound, seedSession, log, cancellationToken);
         session.SelectedCharacter = source;
+        session.StartupRequest = WorldHostStartupRequest.FreshWorld;
         return session;
     }
 
@@ -84,7 +89,7 @@ public sealed class WorldHostInitializationSession : IAsyncDisposable
         try
         {
             RequireCurrent();
-            if (Character?.HeroConstruction.ModelResources is not null || Character is { AnimationRequest.RequiresActivation: false }) return Character;
+            if (Character?.HeroConstruction.RuntimePublication is not null) return Character;
             var source = SelectedCharacter ?? throw new InvalidOperationException("No selected saved-character source on this diagnostic connection.");
             if (_startupAttempted) throw new InvalidOperationException("Character import must precede StartCode and its shared reference allocations.");
             SetPhase(WorldHostInitializationPhase.PreparingCharacter);
@@ -95,6 +100,18 @@ public sealed class WorldHostInitializationSession : IAsyncDisposable
                 Character ??= new(source, Admission.PlayerSlot, References, flags, levelMode, () => IsCurrent && Character is not null);
                 await Character.HeroConstruction.PrepareModelAsync(source.Installation, Character.AnimationRequest,
                     () => IsCurrent && Character is not null, linked.Token).ConfigureAwait(false);
+                RequireCurrent();
+                Character.HeroConstruction.RestorePhysical(source.Installation, source.Records.Hero.Creature);
+                Character.HeroConstruction.RestoreCreature(source.Installation, source.Records.Hero.Creature);
+                Character.HeroConstruction.CompleteHeroPostLoad();
+                Character.HeroConstruction.RestoreSavedItems(source.Installation, Character.ReferencePlan);
+                Character.HeroConstruction.CompleteSavedItemPostLoad();
+                Character.HeroConstruction.BindSavedEquipmentAndInventories(Character.ReferencePlan);
+                Character.HeroConstruction.CompleteSavedWorldPrelude(source.Installation);
+                Character.HeroConstruction.ReactivateBodyModel();
+                Character.HeroConstruction.PrepareSavedLoaderTail();
+                Character.HeroConstruction.PlaceCampaignEntry(Character.EntryPosition);
+                Character.HeroConstruction.PrepareRuntimePublication(Character.ReferencePlan);
             }
             catch
             {
@@ -107,7 +124,16 @@ public sealed class WorldHostInitializationSession : IAsyncDisposable
             SetPhase(WorldHostInitializationPhase.WaitingForActorBinding);
             _log($"Host character prepared: selection {source.Selection}, slot {Character.ReferencePlan.PlayerSlot}, {Character.ReferencePlan.ObjectCount} objects, {Character.Packets.MessageCount} private packets, remaining actual IDs {References.Available}.");
             if (Character.HeroConstruction.ModelResources is { } model)
-                _log($"Host hero CPU resources: {model.ModelName}, saved motion {model.SavedAnimation.Name}, root {model.RootLocalOffset}; creature activation and saved animation timing pending.");
+                _log($"Host hero physical import: {model.ModelName}, saved motion {model.SavedAnimation.Name}, root {model.RootLocalOffset}, animation loop {Character.HeroConstruction.Animation?.LoopCount}, speed {Character.HeroConstruction.Animation?.PlaybackSpeed}; same factory node retained through campaign placement.");
+            if (Character.HeroConstruction.Actor.RestoredCreature is { } restored)
+                _log($"Host hero value import: normalized scalar state, {restored.CombatArts.Count} acquired arts, {restored.Combos.Count} combos, {restored.StatusModifiers.Count} status modifiers; original saved references retained alongside the separately validated current graph.");
+            _log($"Host saved item readers: {Character.HeroConstruction.EquipmentFactory.Items.Count} actual factory objects, shared allocation counter {Character.HeroConstruction.Counter.Value}; current saved objects retained privately; no world publication/readiness.");
+            _log($"Host C0 post-load: completed {Character.HeroConstruction.Actor.HeroPostLoadCompleted}, KI {Character.HeroConstruction.Actor.KiMode}, EI {Character.HeroConstruction.Actor.EiMode}, locomotion {Character.HeroConstruction.Actor.LocomotionAction}; existing node/model retained, no world readiness.");
+            _log($"Host C2 binding: normalized {Character.HeroConstruction.SavedItemPostLoadCompleted}, equipment refs {Character.HeroConstruction.Actor.EquipmentReferences.Count(reference => reference != 0)}, inventory members {Character.HeroConstruction.InventoryBinding?.Membership.Count}; actual factory objects; current-state publication and live actor binding pending.");
+            _log($"Host model reactivation: completed {Character.HeroConstruction.Actor.ModelReactivated}, animation selector {Character.HeroConstruction.Actor.RestoredPhysical?.Animation}, bind pose evaluated {Character.HeroConstruction.BindPose?.Pose.IsEvaluated}; unloaded item slot cleanup only, no loaded attachment/readiness.");
+            _log($"Host saved-loader tail: prepared {Character.HeroConstruction.Actor.SavedLoaderTailPrepared}, heading {Character.HeroConstruction.Actor.Direction}; final slots and both inventories fixed; campaign entry follows this stage.");
+            _log($"Host world entry: prelude {Character.HeroConstruction.Actor.SavedWorldPreludeCompleted}, placed {Character.HeroConstruction.Actor.CampaignEntryPlaced}, position {Character.HeroConstruction.Actor.Base.Sector}:{Character.HeroConstruction.Actor.Base.X},{Character.HeroConstruction.Actor.Base.Y},{Character.HeroConstruction.Actor.Base.Surface}, loaded sectors {Character.HeroConstruction.Terrain?.LoadedSectorCount}, primary quests {Character.HeroConstruction.InventoryBinding?.Primary.Inventory.QuestCount}; current-state publication and live actor binding pending.");
+            _log($"Host current publication: prepared {Character.HeroConstruction.RuntimePublication is not null}, messages {Character.HeroConstruction.RuntimePublication?.MessageCount}, native value snapshots {Character.HeroConstruction.ValueSnapshots is not null}; current actor/item/inventory bytes, not sent yet.");
             _log(Character.ActorBindingBlocker);
             return Character;
         }
@@ -124,7 +150,8 @@ public sealed class WorldHostInitializationSession : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(connection); ArgumentNullException.ThrowIfNull(contact);
         ArgumentNullException.ThrowIfNull(seedSession); ArgumentNullException.ThrowIfNull(log);
         cancellationToken.ThrowIfCancellationRequested();
-        var owner = new WorldHostInitializationSession(connection, authoredTriggerBound, seedSession, log, cancellationToken);
+        var owner = new WorldHostInitializationSession(connection, authoredTriggerBound, seedSession, log, cancellationToken)
+            { NetworkSpeedSettings = contact.ConnectionSpeed };
         try
         {
             connection.Start(host, port, contact);
@@ -140,14 +167,50 @@ public sealed class WorldHostInitializationSession : IAsyncDisposable
         RequireCurrent();
     }
 
+    public async Task<GoldParticipantCharacterUpload> PublishCharacterAsync(CancellationToken cancellationToken = default)
+    {
+        var character = await PrepareCharacterAsync(cancellationToken).ConfigureAwait(false);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token, cancellationToken);
+        await _gate.WaitAsync(linked.Token).ConfigureAwait(false);
+        try
+        {
+            RequireCurrent();
+            var runtime = character.HeroConstruction.RuntimePublication ?? throw new InvalidOperationException("Current native character export is absent.");
+            if (_characterPublicationSent) { ActiveHero!.RequireCurrent(); return runtime; }
+            if (_characterPublicationStarted) throw new InvalidOperationException("A partially sent character cannot be replayed on the same connection.");
+            character.HeroConstruction.ValueSnapshots!.RequireMatch(character.HeroConstruction.Actor);
+            var messages = runtime.CreateMessages();
+            _characterPublicationStarted = true;
+            foreach (var message in messages)
+            {
+                RequireCurrent();
+                await _connection.SendAsync(message, linked.Token).ConfigureAwait(false);
+            }
+            RequireCurrent();
+            ActiveHero = new(character);
+            _characterPublicationSent = true;
+            SetPhase(WorldHostInitializationPhase.WaitingForStartupInputs);
+            _log($"Host current publication: sent {messages.Count} current messages once; {runtime.ObjectCount} owned items, hero 0x169, primary/shared 0x122. World approval and actor readiness remain pending.");
+            _log($"Host active hero: bound actual factory ref {ActiveHero.Actor.Base.ObjectReference}, level {ActiveHero.Level}, evaluated pose {ActiveHero.Pose.IsEvaluated}, loaded sectors {ActiveHero.Terrain.LoadedSectorCount}; shared counter {ActiveHero.Counter.Value}.");
+            return runtime;
+        }
+        catch
+        {
+            if (_characterPublicationStarted && !_characterPublicationSent) { _stop.Cancel(); _connection.Stop(); }
+            throw;
+        }
+        finally { _gate.Release(); }
+    }
+
     public async Task<WorldHostStartupState> InitializeAsync(string installation, SacredCampaignFiles campaign,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(campaign);
         if (SelectedCharacter is not null)
         {
-            var character = await PrepareCharacterAsync(cancellationToken).ConfigureAwait(false);
-            throw new InvalidOperationException(character.ActorBindingBlocker);
+            await PublishCharacterAsync(cancellationToken).ConfigureAwait(false);
+            ActiveHero!.RequireCurrent();
+            StartupRequest!.RequireFreshWorld();
         }
         await WaitForReservationsAsync(cancellationToken).ConfigureAwait(false);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token, cancellationToken);
@@ -158,7 +221,7 @@ public sealed class WorldHostInitializationSession : IAsyncDisposable
             RequireCurrent();
             if (_startupAttempted) throw new InvalidOperationException("Host startup cannot be replayed into the same reservation lifetime.");
             _startupAttempted = true; started = true; SetPhase(WorldHostInitializationPhase.ExecutingStartup);
-            Startup = WorldHostStartupPreparation.Run(installation, campaign, Admission.PlayerSlot, Replicas, References, _log, linked.Token);
+            Startup = WorldHostStartupPreparation.Run(installation, campaign, Admission.PlayerSlot, Replicas, References, _log, linked.Token, ActiveHero, StartupRequest);
             RequireCurrent();
             SetPhase(Startup.Execution.StartupCompleted ? WorldHostInitializationPhase.StartupComplete : WorldHostInitializationPhase.StartupBlocked);
             _log("Host initialization retained on its live connection; full banks, callbacks, upload and actor readiness remain pending.");
@@ -178,6 +241,22 @@ public sealed class WorldHostInitializationSession : IAsyncDisposable
 
     /// <summary>Private source preparation only. Upload still requires complete
     /// callbacks, all sections/globals, actor state and reference validation.</summary>
+    public async Task<bool> ContinueCampaignAsync(CancellationToken cancellationToken = default)
+    {
+        RequireCurrent();
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token, cancellationToken);
+        await _gate.WaitAsync(linked.Token).ConfigureAwait(false);
+        try
+        {
+            RequireCurrent();
+            var complete = WorldHostCampaignContinuation.Run(this, _log, linked.Token);
+            RequireCurrent();
+            SetPhase(complete ? WorldHostInitializationPhase.CampaignComplete : WorldHostInitializationPhase.CampaignBlocked);
+            return complete;
+        }
+        finally { _gate.Release(); }
+    }
+
     public async Task<IReadOnlyList<WorldHostBankSource>> PrepareBankSourcesAsync(CancellationToken cancellationToken = default)
     {
         RequireCurrent();
@@ -213,6 +292,11 @@ public sealed class WorldHostInitializationSession : IAsyncDisposable
         finally { _gate.Release(); }
     }
 
+    public Task<bool?> InitializeSectorAsync(string installation, uint sector, CancellationToken cancellationToken = default) =>
+        WorldHostSectorInitialization.RunOwnedAsync(this, _connection,installation,sector,_gate,_stop.Token,
+            () => RegionInitialization ??= new(installation,Startup ?? throw new InvalidOperationException("No generated startup state."),Admission.PlayerSlot),cancellationToken);
+
+    public Task RequestInitialInterestAsync(string installation, CancellationToken token = default) => WorldHostInitialInterest.RequestAsync(this,installation,_connection,_gate,_stop.Token,token);
     private async Task ReceiveAsync()
     {
         try
@@ -283,6 +367,7 @@ public sealed class WorldHostInitializationSession : IAsyncDisposable
                 if (Startup is not null) Startup.Execution.IsInvalidated = true;
                 RegionInitialization = null;
                 Character?.HeroConstruction.Invalidate();
+                ActiveHero = null;
                 Character = null;
                 WorldSession.Clear(); References.Clear();
                 _reservations.TrySetException(new IOException(Failure ?? "Host initialization ended before reservations were available."));

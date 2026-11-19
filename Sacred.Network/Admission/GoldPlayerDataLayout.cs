@@ -9,6 +9,8 @@ public static class GoldPlayerDataLayout
     /// The compared session-import IP selector establishes this as its selected
     /// IPv4 word; it is not the admission controller's player-slot field.</summary>
     public const int SessionWord0Offset = 0;
+    /// <summary>Gold 7DB2C0 counts nonzero words here in roster slots 1..16
+    /// while connected. Record zero and the presence byte are excluded.</summary>
     public const int NetworkAddressWord0Offset = SessionWord0Offset;
     public const int CharacterTypeOffset = 4;
     public const int ProfileByte5Offset = 5;

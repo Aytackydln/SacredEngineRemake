@@ -6,4 +6,7 @@ namespace Sacred.GameplayHost.Networking;
 /// bytecode does not establish callbacks, complete banks, upload or actor readiness.</summary>
 public sealed record WorldHostStartupState(WorldScriptExecutionContext Execution,
     WorldScriptTriggerRegistry Triggers, WorldScriptObjectWorld Objects,
-    WorldScriptCreatureBlueprint? PendingCreature);
+    WorldScriptCreatureBlueprint? PendingCreature)
+{
+    public WorldHostSectorRestoreSource? SectorRestoreSource { get; internal init; }
+}

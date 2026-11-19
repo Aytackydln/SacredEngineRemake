@@ -50,6 +50,8 @@ public readonly struct SacredWeaponModifierLayout
     /// <summary>Gold 0x5C85AA: unsigned upper-bound filter in base-item selection.
     /// Compared to the selector's last argument (commonly 14). Its wider gameplay
     /// meaning is not yet established; retained separately from generated rarity.</summary>
+    /// <summary>CreateObj 487CF9 also selects the authored rescaling branch
+    /// when this value is 15 after successful modifier materialization.</summary>
     [FieldOffset(160)] public readonly int SelectionLimitValue;
     [FieldOffset(164)] public readonly SacredEquipmentEligibilityLayout Eligibility0;
     [FieldOffset(176)] public readonly SacredEquipmentEligibilityLayout Eligibility1;

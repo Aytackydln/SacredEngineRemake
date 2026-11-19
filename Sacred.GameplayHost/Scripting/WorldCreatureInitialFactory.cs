@@ -40,6 +40,8 @@ public sealed class WorldCreatureInitialFactory
     }
 
     public IReadOnlyDictionary<uint, WorldCreatureInitialActor> Actors { get; }
+    internal SacredRandomSequence Random => _random;
+    internal uint Difficulty => _difficulty;
     public WorldObjectActivationQueue Activation { get; } = new();
     public IReadOnlyList<uint> GraphicObjects => _registration.GraphicObjects;
 
@@ -112,5 +114,15 @@ public sealed class WorldCreatureInitialFactory
         if (!_actors.TryGetValue(actor.Base.ObjectReference, out var current) || !ReferenceEquals(current.Node, actor.Node)) return;
         Activation.DeactivateInitial(actor.Node);
         _actors.Remove(actor.Base.ObjectReference);
+    }
+
+    /// <summary>End this owner lifetime, including actors created by shared
+    /// StartCode and every node in its shared activation queue. This is managed
+    /// session invalidation, not a claim of native gameplay destructor effects.</summary>
+    internal void DiscardWorld()
+    {
+        foreach (var node in Activation.Nodes.ToArray()) Activation.DeactivateInitial(node);
+        _actors.Clear();
+        _registration.Clear();
     }
 }

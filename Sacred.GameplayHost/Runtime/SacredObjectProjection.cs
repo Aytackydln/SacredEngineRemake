@@ -9,6 +9,11 @@ namespace Sacred.GameplayHost.Runtime;
 public sealed record SacredObjectProjection(Matrix4x4 View, Matrix4x4 Projection)
 {
     public Vector3 Project(int nativeX, int nativeY, float height)
+        => Project((float)nativeX, (float)nativeY, height);
+
+    /// <summary>44DBF0 projects the float-stored point and point+direction
+    /// separately; subtracting a projected direction loses native rounding.</summary>
+    public Vector3 Project(float nativeX, float nativeY, float height)
     {
         var arithmetic = new SacredResultArithmetic(SacredX87Precision.Single);
         const float horizontal = 0.8944272f, vertical = 0.4472136f;

@@ -4,5 +4,6 @@ namespace Sacred.GameplayHost.Networking;
 public enum WorldHostInitializationPhase
 {
     Connecting, WaitingForHostAssignment, WaitingForReservations, ReservationsAvailable,
-    PreparingCharacter, WaitingForActorBinding, ExecutingStartup, StartupBlocked, StartupComplete, Disconnected
+    PreparingCharacter, WaitingForActorBinding, ExecutingStartup, StartupBlocked, StartupComplete, Disconnected,
+    WaitingForStartupInputs, CampaignBlocked, CampaignComplete
 }

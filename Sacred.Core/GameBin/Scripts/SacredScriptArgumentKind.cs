@@ -53,7 +53,9 @@ public enum SacredScriptArgumentKind : byte
     /// reader also resolves its optional dialogue/logging text.</summary>
     ScriptResourceId = 0x1D,
     /// <summary>Three Int32 world coordinates. CreateNPC negates X/Y into its placement scratch
-    /// words and retains the previous surface input, ignoring this operand's Z (Gold 0x48279A).</summary>
+    /// words and retains the previous surface input, ignoring this operand's Z (Gold 0x48279A).
+    /// The compared entered CreateObj fixed Effect also uses these literal X/Y
+    /// values instead of the preceding tile-position operand's center.</summary>
     WorldPosition = 0x20,
     /// <summary>CreateNPC: trader service, construction-mode mask 4; marks explicit behavior.</summary>
     CreatureTrader = 0x24,
@@ -157,5 +159,7 @@ public enum SacredScriptArgumentKind : byte
     SpawnEquipmentThirdPool = 0x89,
     /// <summary>Opcode 115: a single unsigned byte, retained as the equipment generator's return selector.</summary>
     SpawnEquipmentSelector = 0x8B,
+    /// <summary>CreateObj consumes four bytes but reads the signed low Int16
+    /// as height. The compared entered fixed Effect supplies zero.</summary>
     HeightOffset = 0x7E
 }

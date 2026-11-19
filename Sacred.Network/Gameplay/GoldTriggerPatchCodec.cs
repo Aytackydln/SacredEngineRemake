@@ -21,6 +21,24 @@ public static class GoldTriggerPatchCodec
     public const ushort Opcode = 0x1CE;
     public const int Capacity = 100;
     public const int MinimumSize = 8+Capacity*12;
+    /// <summary>Active triples retain their complete values. Unused fixed-capacity
+    /// triples are explicitly zero-normalized: native callers copy scratch there,
+    /// but 807800/463F50 ignore it beyond the declared count.</summary>
+    public static GoldMessage CreateNormalized(byte owner, uint reference, IReadOnlyList<GoldTriggerPatchCell> cells)
+    {
+        if (cells.Count > Capacity) throw new ArgumentOutOfRangeException(nameof(cells));
+        var bytes = new byte[MinimumSize];
+        BinaryPrimitives.WriteInt32LittleEndian(bytes,cells.Count);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4),reference);
+        for (var index = 0; index < cells.Count; index++)
+        {
+            var offset = 8 + index * 12;
+            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(offset),cells[index].X);
+            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(offset + 4),cells[index].Y);
+            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(offset + 8),cells[index].Surface);
+        }
+        return new(Opcode,0,owner,0,bytes);
+    }
     public static GoldTriggerPatchEvent Decode(GoldMessage message)
     {
         ArgumentNullException.ThrowIfNull(message);

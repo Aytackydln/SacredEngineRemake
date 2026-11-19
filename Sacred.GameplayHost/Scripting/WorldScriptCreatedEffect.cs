@@ -7,6 +7,8 @@ namespace Sacred.GameplayHost.Scripting;
 public sealed record WorldScriptCreatedEffect(int SourceOffset, GoldObjectFxState State,
     WorldObjectNode Node, GoldMessage Publication, uint RandomStateAfter)
 {
-    public GoldObjectBaseState BaseState => State.BaseState;
+    public GoldObjectBaseState? RuntimeState { get; init; }
+    public uint NextOnTile { get; init; }
+    public GoldObjectBaseState BaseState => RuntimeState ?? State.BaseState;
     public bool PacketReady => true;
 }

@@ -10,8 +10,8 @@ public interface IWorldScriptTriggerRegistry
     IReadOnlyDictionary<uint, uint> Patches { get; }
     IReadOnlyList<(ushort Sector, SacredScriptPosition Position)> PendingPositions { get; }
     uint? Find(string name);
-    void Create(SacredScriptTriggerCreation creation);
+    void Create(SacredScriptTriggerCreation creation, byte? publishingOwner);
     /// <summary>Gold startup 0x463F50: replace the packed cell mapping and queue tile positions.
     /// Duplicate mapping or queued XYZ ends the entire current command, including its remaining cells.</summary>
-    void Patch(SacredScriptTriggerPatch patch);
+    void Patch(SacredScriptTriggerPatch patch, Action<SacredScriptPosition>? markTile);
 }

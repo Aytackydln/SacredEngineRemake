@@ -13,6 +13,18 @@ public static class GoldWorldTriggerCodec
     public const ushort ClearOpcode = 0x1AF;
     public const ushort SetOpcode = 0x1B0;
 
+    /// <summary>Original SetTrigger's 0x1AE request with the actual allocated slot.</summary>
+    public static GoldMessage Create(byte owner, uint reference, ushort flags, ushort state, string name)
+    {
+        var encoded = GoldScriptNames.Encode(name);
+        var bytes = new byte[12 + encoded.Length];
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes,reference);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4),flags);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(8),state);
+        encoded.CopyTo(bytes,12);
+        return new(CreateOpcode,0,owner,0,bytes);
+    }
+
     public static GoldWorldTriggerEvent Decode(GoldMessage message)
     {
         ArgumentNullException.ThrowIfNull(message);

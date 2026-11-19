@@ -1,5 +1,6 @@
 using System.Text;
 using Sacred.Network.Gameplay;
+using Sacred.Network.Protocol;
 
 namespace Sacred.GameplayHost.Scripting;
 
@@ -7,6 +8,16 @@ namespace Sacred.GameplayHost.Scripting;
 public sealed class WorldScriptVariables
 {
     private readonly List<GoldScriptVariableRecord> _records = [];
+    private readonly List<GoldMessage> _publications = [];
+    public IReadOnlyList<GoldMessage> Publications=>_publications.AsReadOnly();
+    internal void ClearEnteredBit(string name,int bit,byte owner)
+    {
+        var index=FindIndex(name);
+        if(index<0)throw new NotSupportedException("Entered variable bit clear needs its existing ordinary record.");
+        var record=_records[index].WithValue(_records[index].Value & ~(1<<bit));
+        _records[index]=record;
+        _publications.Add(GoldScriptVariableCodec.Create(owner,owner,record,(uint)index));
+    }
     public WorldScriptVariables() => Records = _records.AsReadOnly();
     public IReadOnlyList<GoldScriptVariableRecord> Records { get; }
     public int? Find(string name)

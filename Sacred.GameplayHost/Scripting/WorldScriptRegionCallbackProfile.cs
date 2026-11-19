@@ -37,7 +37,7 @@ public static class WorldScriptRegionCallbackProfile
         return true;
     }
 
-    private static bool IsExcludedCall(WorldScriptExecutionContext context, SacredScriptCommand command)
+    internal static bool IsExcludedCall(WorldScriptExecutionContext context, SacredScriptCommand command)
     {
         var operands = SacredScriptOperandReader.Read(command);
         if (operands.Count != 1 || operands[0].Kind != SacredScriptArgumentKind.NullTerminatedString) return false;

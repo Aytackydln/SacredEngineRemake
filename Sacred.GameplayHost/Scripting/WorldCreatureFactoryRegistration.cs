@@ -11,6 +11,7 @@ public sealed class WorldCreatureFactoryRegistration
 {
     private readonly List<uint> _graphicObjects = [];
     public IReadOnlyList<uint> GraphicObjects => _graphicObjects.AsReadOnly();
+    internal void Clear() => _graphicObjects.Clear();
 
     public WorldCreatureInitialActor CompleteUnpublished(WorldCreatureInitialActor actor,
         ItemsPakEntry descriptor, bool networking, bool newReference)

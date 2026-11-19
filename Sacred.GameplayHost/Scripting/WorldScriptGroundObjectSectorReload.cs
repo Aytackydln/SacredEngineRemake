@@ -10,7 +10,7 @@ public static class WorldScriptGroundObjectSectorReload
 {
     public static uint Next(GoldObjectBaseState basis, WldxTileRecord tile, uint currentHead)
     {
-        if (basis.Flags != 0x201 || basis.Surface != 0 || tile.Properties.Behavior != WldxTileBehavior.None)
+        if ((basis.Flags & ~0x10000u) != 0x201 || basis.Surface != 0 || tile.Properties.Behavior != WldxTileBehavior.None)
             throw new NotSupportedException("Sector reload requires the compared ordinary placed ground object and tile.");
         return currentHead != basis.ObjectReference ? currentHead : 0;
     }

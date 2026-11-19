@@ -44,6 +44,25 @@ public sealed class WorldObjectActivationQueue(uint initialActivationCount = 0)
         return true;
     }
 
+    /// <summary>640640 on an existing node: flag/count precede its actual
+    /// activation callback; queue insertion/times follow that callback.</summary>
+    public bool ActivateExisting(WorldObjectNode node, double clock, Action callback)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        ArgumentNullException.ThrowIfNull(callback);
+        if (node.Active) return false;
+        if (!double.IsFinite(clock) || clock < 0 || node.QueueKind != 1)
+            throw new NotSupportedException("Existing activation requires queue one and the actual finite nonnegative scheduler clock.");
+        ActivationCount = unchecked(ActivationCount + 1);
+        node.Flags |= 0x80;
+        callback();
+        node.StartedAt = clock;
+        node.NextDue = SacredNodeActivationTime.Next(clock, node.PeriodMilliseconds);
+        _nodes.Add(node);
+        _records.Add(new(node));
+        return true;
+    }
+
     /// <summary>Gold 0x640620/0x6410A0 and ordinary empty callbacks. Used by
     /// sector deactivation after placement, before later caller initialization.</summary>
     public bool DeactivateInitial(WorldCreatureInitialActor actor)

@@ -23,6 +23,16 @@ internal static class ScriptHeroPredicateChecks
             else Check(value==row.GetProperty("result").GetBoolean(),"actual absent-hero and multiplayer branch result");
         }
         Check(positiveControls>0,"native active-hero positive controls exercise the other branch");
+        var originalTypes = EquipmentGenerationFixture.ReadStartup(root);
+        using (var entered = JsonDocument.Parse(File.ReadAllText(Path.Combine(root,"docs/game-server/evidence/native-host-hero-predicates.json"))))
+        foreach (var row in entered.RootElement.GetProperty("cases").EnumerateArray())
+        {
+            var context = new WorldScriptExecutionContext(new(), [], ReadOnlyMemory<byte>.Empty, true)
+                { HasActiveHero = true, MatchActiveHero = name => WorldScriptHeroPredicates.Matches(row.GetProperty("hero_type").GetUInt32(),
+                    originalTypes.Templates.Items.Keys.FirstOrDefault(type => string.Equals(originalTypes.ResourceName(type),name,StringComparison.OrdinalIgnoreCase))) };
+            Check(WorldScriptHeroPredicates.Evaluate(context,new(0,Convert.FromHexString(row.GetProperty("command_hex").GetString()!))) == row.GetProperty("result").GetBoolean(),
+                "actual original TYPE_ lookup and present-hero alias predicate");
+        }
         var unknown=new WorldScriptExecutionContext(new(),[],ReadOnlyMemory<byte>.Empty,true);
         Check(WorldScriptHeroPredicates.Evaluate(unknown,new(0,Convert.FromHexString("3a000700527800"))) is null,"unknown active-hero state is not defaulted to absence");
         return checks;

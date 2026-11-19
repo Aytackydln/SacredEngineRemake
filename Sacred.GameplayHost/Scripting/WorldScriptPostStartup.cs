@@ -3,15 +3,16 @@ using Sacred.Network.Gameplay;
 
 namespace Sacred.GameplayHost.Scripting;
 
-/// <summary>Original post-StartCode campaign callback selection and supported
-/// null-actor execution. Non-null execution stays pending before any effects;
-/// real local-actor/snapshot binding and the complete campaign profile remain pending.</summary>
+/// <summary>Original post-StartCode campaign selection and actor scope. A non-null
+/// argument requires the actual entered factory owner and retained initialization
+/// inputs. Other caller/handler profiles remain guarded independently.</summary>
 public sealed class WorldScriptPostStartup(WorldScriptExecutionContext context)
 {
     public const string CampaignCallback = "MultiCampaign";
     private WorldScriptPostStartupInputs? _inputs;
     public WorldScriptPostStartupInvocation? Invocation { get; private set; }
     public bool IsCompleted { get; private set; }
+    internal Func<IDisposable>? EnterBoundActorScope { get; set; }
     public bool RequiresActorBinding => Invocation is { FunctionIndex: not 0, ActorReference: not 0 } && !IsCompleted;
 
     /// <summary>Gold 0x470BBE..0x470CBF. First complete C-locale name match wins;
@@ -45,12 +46,13 @@ public sealed class WorldScriptPostStartup(WorldScriptExecutionContext context)
             _inputs = inputs;
             Invocation = Resolve(context.Multiplayer, inputs, context.Functions);
         }
-        if (RequiresActorBinding)
+        if (RequiresActorBinding && context.IsEnteredHeroReference?.Invoke(Invocation!.ActorReference) != true)
         {
             Console.WriteLine($"Post-startup campaign callback pending: function {Invocation!.FunctionIndex}, actor {Invocation.ActorReference} needs native caller binding.");
             return false;
         }
         var previousStartup = context.IsExecutingStartup;
+        using var boundInputs = Invocation is { ActorReference: not 0 } ? EnterBoundActorScope?.Invoke() : null;
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -59,7 +61,9 @@ public sealed class WorldScriptPostStartup(WorldScriptExecutionContext context)
                 // Native multiplayer loader retains interpreter +0x14 through this call.
                 context.IsExecutingStartup = true;
                 Console.WriteLine($"Post-startup campaign callback: function {invocation.FunctionIndex}, actor {invocation.ActorReference}.");
-                new WorldScriptExecutor(context).Invoke(invocation.FunctionIndex, cancellationToken);
+                var executor = new WorldScriptExecutor(context);
+                if (invocation.ActorReference == 0) executor.Invoke(invocation.FunctionIndex, cancellationToken);
+                else executor.InvokeAssociatedCreature(invocation.FunctionIndex, invocation.ActorReference, cancellationToken);
             }
             IsCompleted = true;
             Console.WriteLine("Post-startup campaign callback stage complete; sector work and host readiness remain separate.");

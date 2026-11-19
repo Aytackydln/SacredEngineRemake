@@ -18,7 +18,13 @@ public static class WorldScriptPopup
             if (name.Contains('$') || name.Contains("+Var(", StringComparison.Ordinal) || name.StartsWith("res:", StringComparison.OrdinalIgnoreCase))
                 throw new NotSupportedException("POPUP registration requires native string normalization.");
         }
-        if (name.Length == 0 || WorldCreatureScriptDialog.Resolve(context.Registrations, new(name, null)) < 0) return;
+        var selected = name.Length == 0 ? -1 : WorldCreatureScriptDialog.Resolve(context.Registrations, new(name, null));
+        if (selected < 0) return;
+        if (context.HasActiveHero == true && context.EnterHeroPopup is { } enter)
+        {
+            enter(context, selected);
+            return;
+        }
         if (context.HasActiveHero != false)
             throw new NotSupportedException("POPUP requires native hero dialog/authority/UI lifecycle outside the compared absent-hero path.");
     }

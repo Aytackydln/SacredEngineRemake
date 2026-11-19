@@ -9,6 +9,9 @@ public readonly struct SacredMagicDefinitionLayout
 {
     public const int Size = 0x94;
     [FieldOffset(0)] public readonly ushort Code;
+    /// <summary>4D25C0: base plus UInt16 rank times increment, converted to float.</summary>
+    [FieldOffset(0x3E)] public readonly ushort RegenerationBase;
+    [FieldOffset(0x40)] public readonly ushort RegenerationPerLevel;
     [FieldOffset(0x52)] public readonly SacredCombatArtLevelCurveLayout AttackPercent;
     [FieldOffset(0x56)] public readonly SacredCombatArtLevelCurveLayout DefensePercent;
     [FieldOffset(0x5A)] public readonly SacredCombatArtLevelCurveLayout PhysicalProtection;

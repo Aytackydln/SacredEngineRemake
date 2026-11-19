@@ -8,6 +8,9 @@ public sealed class GoldObjectReferencePool
     private readonly HashSet<uint> _issued = [];
     public int Available => _available.Count;
     public int Issued => _issued.Count;
+    /// <summary>True only for an actual received reservation already consumed
+    /// by this lifetime. Saved-object construction reuses its prepared IDs.</summary>
+    public bool IsAllocated(uint reference) => _issued.Contains(reference) && !_available.Contains(reference);
 
     public void Apply(GoldReferenceBatch batch)
     {

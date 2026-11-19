@@ -16,6 +16,8 @@ public sealed class SacredSavedItem
     public int SerializedSize => _payload.Length;
     public bool HasWeaponExtension { get; }
     public ReadOnlySpan<byte> ItemData => _payload.AsSpan(_itemDataOffset, SacredSavedItemLayout.ItemDataSize);
+    /// <summary>Own-value resource, which may differ from the base object's
+    /// visual resource. Format-27 5C7690 retains that distinction.</summary>
     public uint ItemResource => BinaryPrimitives.ReadUInt32LittleEndian(ItemData);
     public uint ItemFlags => BinaryPrimitives.ReadUInt32LittleEndian(ItemData[4..]);
     public SacredEquipmentInstanceLayout Instance => MemoryMarshal.Read<SacredEquipmentInstanceLayout>(ItemData);

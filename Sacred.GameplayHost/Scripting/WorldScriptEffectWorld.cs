@@ -11,7 +11,7 @@ namespace Sacred.GameplayHost.Scripting;
 /// <summary>Compared initial fixed, MAGICPRISON and BUBBLEPRISON Effect producers. Owns no
 /// transport; complete preparations stay private until campaign upload. Attached,
 /// deferred and other-family effects require their original lifecycle services.</summary>
-public sealed class WorldScriptEffectWorld
+public sealed partial class WorldScriptEffectWorld
 {
     private readonly SacredFixedEffectDefinitions _definitions;
     private readonly SacredObjectProjection _projection;

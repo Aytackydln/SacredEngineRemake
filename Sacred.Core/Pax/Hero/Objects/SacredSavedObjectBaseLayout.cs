@@ -13,14 +13,20 @@ public readonly struct SacredSavedObjectBaseLayout
     public const uint ModelLoadedFlag = 0x04000000;
     [FieldOffset(0), BinaryUnknown] public readonly uint Marker;
     /// <summary>Native cNode +0x08 flags. Bit 0x80 is active; 0x640640
-    /// sets it before activation callbacks, independently of model loading.</summary>
+    /// sets it before activation callbacks, independently of model loading.
+    /// File reader 449C19 uses only bit 0x80 to request activation; it does not
+    /// replace the runtime node flags with this byte.</summary>
     [FieldOffset(4)] public readonly byte ProcessFlags;
     public bool NodeActive => (ProcessFlags & 0x80) != 0;
     /// <summary>Native +0x09 queue selector: Gold 0x640660 uses queue +0x34
-    /// for value 2 and queue +0x40 otherwise. Ordinary creatures start with 1.</summary>
+    /// for value 2 and queue +0x40 otherwise. Ordinary creatures start with 1.
+    /// File reader consumes this byte without assigning the runtime selector.</summary>
     [FieldOffset(5)] public readonly byte ProcessByte09;
     public byte NodeQueueKind => ProcessByte09;
-    /// <summary>Native +0x04 unsigned update period in milliseconds.
+    /// <summary>Writer 449AE8 masks native +0x04 to its LOW BYTE and writes
+    /// that as a four-byte word. Reader 449C12 consumes/discards it; it does not
+    /// replace the constructed runtime node period. Native +0x04 is otherwise
+    /// the unsigned update period in milliseconds.
     /// 0x640733/0x640745 multiplies it by .001 for the next scheduled time.
     /// Ordinary creature constructors use 50 ms; ordinary item constructors
     /// (0x5BE130) use 200,000 ms.</summary>

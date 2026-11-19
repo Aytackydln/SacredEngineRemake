@@ -36,6 +36,7 @@ internal sealed class GoldLoopbackPeer : IAsyncDisposable
         catch { await peer.DisposeAsync(); throw; }
     }
     public static async Task<GoldLoopbackPeer> StartHostAsync(WorldHostSavedCharacterSource? source,
+        byte connectionSetting,
         CancellationToken token = default,
         Func<GoldSessionState, IPEndPoint, CancellationToken, Task>? seed = null)
     {
@@ -44,6 +45,7 @@ internal sealed class GoldLoopbackPeer : IAsyncDisposable
         {
             peer._listener.Start(); peer._server = peer.AcceptAsync();
             var bytes = new byte[GoldFirstContactLayout.Size];
+            bytes[GoldFirstContactLayout.ConnectionSpeedOffset] = connectionSetting;
             if (source is not null) source.Records.Profile.CopyTo(bytes.AsSpan(GoldFirstContactLayout.ProfileOffset));
             var contact = GoldFirstContact.FromPayload(bytes);
             var port = ((IPEndPoint)peer._listener.LocalEndpoint).Port;
@@ -59,7 +61,7 @@ internal sealed class GoldLoopbackPeer : IAsyncDisposable
 
     public static Task<GoldLoopbackPeer> StartHostAsync(CancellationToken token = default,
         Func<GoldSessionState, IPEndPoint, CancellationToken, Task>? seed = null)
-        => StartHostAsync(null, token, seed);
+        => StartHostAsync(null, 0, token, seed);
 
     public void AllowLongPreparation() => _stop.CancelAfter(TimeSpan.FromMinutes(2));
 

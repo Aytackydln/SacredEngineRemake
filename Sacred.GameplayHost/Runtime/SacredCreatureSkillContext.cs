@@ -5,4 +5,7 @@ namespace Sacred.GameplayHost.Runtime;
 /// Predicate names identify the skill gate without guessing a resource family.</summary>
 public readonly record struct SacredCreatureSkillContext(bool Skill3Weapon, bool Skill4Weapon, bool Skill5Weapon,
     bool Skill6Weapon, bool Skill7Weapon, bool Skill9AlternateCurve, ushort MainUsage,
-    bool OffhandPresent, bool OffhandWeaponUsage10);
+    bool OffhandPresent, bool OffhandWeaponUsage10)
+{
+    public SacredCreatureArtTimers? ArtTimers { get; init; }
+}

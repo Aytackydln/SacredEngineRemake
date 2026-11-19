@@ -39,21 +39,49 @@ public sealed class WorldEquipmentInitialFactory
     public WorldEquipmentInitialItem Create(ItemsPakEntry descriptor, ReadOnlySpan<byte> originalValues,
         double schedulerClock, bool networking, bool owned = false)
     {
-        if (descriptor.ModelDesc.Category is not (SacredItemCategory.Weapon or SacredItemCategory.Shield or SacredItemCategory.Helmet or SacredItemCategory.ChestArmor or
-                SacredItemCategory.ShoulderArmor or SacredItemCategory.FootArmor or SacredItemCategory.ArmArmor or SacredItemCategory.Wings or SacredItemCategory.Belt or SacredItemCategory.QuestItem or SacredItemCategory.Book or SacredItemCategory.HorseEquipment))
-            throw new NotSupportedException("Initial item factory requires a compared ordinary item constructor.");
+        Validate(descriptor, originalValues, schedulerClock);
+        if (!_references.TryAllocate(out var reference))
+            throw new InvalidDataException("Initial equipment construction needs a 0x153 object-reference reservation.");
+        return Construct(descriptor, originalValues, schedulerClock, networking, owned, reference);
+    }
+
+    public WorldEquipmentInitialItem RestoreAllocated(ItemsPakEntry descriptor, ReadOnlySpan<byte> originalValues,
+        WorldEquipmentSavedState saved, double schedulerClock, uint reference)
+    {
+        Validate(descriptor, originalValues, schedulerClock);
+        if (!_references.IsAllocated(reference) || _items.ContainsKey(reference) || saved.FileBase.ObjectType != descriptor.ItemIndex)
+            throw new InvalidOperationException("Saved item needs its actual already consumed character reservation exactly once.");
+        var item = Construct(descriptor, originalValues, schedulerClock, true, false, reference);
+        WorldEquipmentSavedImport.Commit(item, saved, _owner);
+        return item;
+    }
+
+    internal static bool Supports(SacredItemCategory category) => category is
+        SacredItemCategory.Weapon or SacredItemCategory.Shield or SacredItemCategory.Helmet or SacredItemCategory.ChestArmor or
+        SacredItemCategory.ShoulderArmor or SacredItemCategory.FootArmor or SacredItemCategory.ArmArmor or SacredItemCategory.Wings or
+        SacredItemCategory.Belt or SacredItemCategory.QuestItem or SacredItemCategory.Book or SacredItemCategory.HorseEquipment or
+        SacredItemCategory.Ring or SacredItemCategory.Potion or SacredItemCategory.Rune or SacredItemCategory.LegArmor or SacredItemCategory.Gloves;
+
+    private static void Validate(ItemsPakEntry descriptor, ReadOnlySpan<byte> originalValues, double schedulerClock)
+    {
+        if (!Supports(descriptor.ModelDesc.Category)) throw new NotSupportedException("Initial item factory requires a compared ordinary item constructor.");
         if (originalValues.Length != SacredEquipmentInstanceLayout.Size)
             throw new ArgumentException("Expected the original resolved 130-byte item record.", nameof(originalValues));
         if (!double.IsFinite(schedulerClock) || schedulerClock < 0)
             throw new ArgumentOutOfRangeException(nameof(schedulerClock));
-        // Book 0x5CBFC0 does not forward factory event 0x40 to the physical handler.
-        var direction = descriptor.ModelDesc.Category == SacredItemCategory.Book
-            ? default : SacredStartupHeading.ToDirection(descriptor.ModelDesc.Angle3D);
-        if (!_references.TryAllocate(out var reference))
-            throw new InvalidDataException("Initial equipment construction needs a 0x153 object-reference reservation.");
+        if (ForwardsHeading(descriptor.ModelDesc.Category)) _ = SacredStartupHeading.ToDirection(descriptor.ModelDesc.Angle3D);
+    }
+
+    private WorldEquipmentInitialItem Construct(ItemsPakEntry descriptor, ReadOnlySpan<byte> originalValues,
+        double schedulerClock, bool networking, bool owned, uint reference)
+    {
+        // Book/Potion/Rune handlers consume event 0x40 without forwarding its
+        // direction to the physical handler. Ring/Armor use that handler.
+        var direction = ForwardsHeading(descriptor.ModelDesc.Category)
+            ? SacredStartupHeading.ToDirection(descriptor.ModelDesc.Angle3D) : default;
         _counter.BeginAllocation();
         var physical = new WorldEquipmentObject(new(0, descriptor.ItemIndex, 2, 0, 0, 0, 0, 0, 0, _counter.Value, 0, 0), true, true);
-        var item = new WorldEquipmentInitialItem(physical, originalValues.ToArray());
+        var item = new WorldEquipmentInitialItem(physical, originalValues.ToArray()) { ResourceCategory = descriptor.ModelDesc.Category };
         _items.Add(reference, item);
         Activation.ActivateInitial(item.Node, schedulerClock);
         // Registry insertion and activation precede reference/owner assignment.
@@ -66,4 +94,14 @@ public sealed class WorldEquipmentInitialFactory
         if (descriptor.ModelDesc.RequiresGraphicObjectRegistration) _graphicObjects.Add(reference);
         return item;
     }
+
+    internal void DiscardSavedItems()
+    {
+        foreach (var item in _items.Values) Activation.DeactivateInitial(item.Node);
+        _items.Clear();
+        _graphicObjects.Clear();
+    }
+
+    private static bool ForwardsHeading(SacredItemCategory category) => category is not
+        (SacredItemCategory.Book or SacredItemCategory.Potion or SacredItemCategory.Rune);
 }

@@ -7,6 +7,67 @@ Use the [host checkpoint](../docs/game-server/host-development-plan.md#resume-ch
 for active work. [Native replay delivery history](native-replay-delivery-history-2026-11-15.md)
 retains earlier suites/counts; its research continuations are historical.
 
+HostRestoreSource compares original vector construction, save marker/count/row
+footprint, Engine-mode loader/reset selection and empty/positive restore-loop
+branches. Installed HostSectorEntry checks bind the same explicit fresh-world
+source to completed ambient work, then apply final patches on shared terrain and
+the actual pending lists/active registry. Prerequisite, unrelated-operation,
+retry, cancellation and incomplete-queue guards remain covered. NativeReplay's
+existing StartupSectorPatches retains nonempty indoor/outdoor comparisons.
+The latest original-server first-sector patch lists are empty; those native
+controls must not be presented as nonempty live patching or world approval.
+[Proof, latest live trace and next host tail](../docs/game-server/host-sector-restoration-and-patches.md).
+
+HostActiveHeroBinding compares the original getter on the current entered graph,
+including null controller and removed-slot controls. Installed TCP checks verify
+the same factory actor/node, actual current values, model/pose, terrain, counter
+and equipment dictionary, retry and invalidation. Live original-server execution
+now reaches WaitingForStartupInputs with a bound local hero. Startup composition,
+network actor registration, world approval and readiness remain open.
+[Current proof and live boundary](../docs/game-server/host-active-hero-binding.md).
+
+HostCurrentPublication compares original snapshot masking/value validation,
+clock/UI defaults and hero/item/both-inventory writers. Installed TCP checks
+compare all seventeen current messages against native bytes and verify exactly
+one send, stale-value rejection before publication and lifetime/disposal guards.
+Native PacketCatalog examples cover current 0x169/0x16E/0x122. The real original
+server publication remains separate from StartCode, network actor registration,
+approval and readiness.
+[Current proof and live boundary](../docs/game-server/host-current-character-publication.md).
+
+HostCharacterWorldEntry compares actual native saved-sector loading/reinsertion,
+fresh-world flag, primary quest reset and campaign entry/membership. Installed TCP
+checks compare both complete outdoor grids (including actual dynamic chains),
+current actor/item lifetime, retry and disposal. Read the [current proof and live
+boundary](../docs/game-server/host-character-world-entry.md). Active-hero
+startup composition and approval/readiness remain separate. Earlier stages below
+retain their original component scope.
+
+HostHeroPhysicalImport compares 192 original physical reader/activation/direction/
+animation-wrapper controls. HostHeroModel compares original body/motion resources,
+24 installed-library bind/zero-animation bone samples and new-control defaults.
+The persistent host now commits that physical stage to the same factory node and
+owns a current shared initial pose. HostHeroValueImport compares 19 complete
+original reader cases and integrates scalar/art normalization on that root.
+HostSavedItems compares 14 original factories/file readers including price side
+effects; installed TCP checks restore those real objects using already consumed
+grants and the shared counter/activation queue. HostHeroPostLoad adds 17 C0
+controls; HostItemPostLoad compares 42 current-item normalization controls;
+HostEquipmentReferences compares three native reference orders and ten original
+inventory-mode predicate inputs. Installed tests bind actual factory objects and
+inventory members, with stable grants, atomic guards and disposal. Loaded model
+attachment/equipped results, advancing animation and entry placement retain
+their separate verification guards.
+HostModelReactivation compares two original body reopen/unloaded-slot controls.
+HostSavedLoaderTail compares five native final equipment/inventory/heading cases,
+including dirty coordinates/caches/removal flags and successful original return.
+Installed checks compare actual bind-pose bones, selector zero and old-control
+retirement on the same factory lifetime. The saved-position world prelude, entry,
+publication and live acceptance remain separate; loaded equipment binding is not
+observed in this tail. [Exact boundaries](../docs/game-server/host-model-reactivation-and-loader-tail.md).
+The installed TCP checks cover retry, no extra grants and disposal invalidation;
+original-server evidence is in [C0/C2 stages](../docs/game-server/host-c2-equipment-inventory-binding.md).
+
 HostHeroConstructor compares 124 original logical constructor controls, including
 intermediate values/health and early physical-resource ordering. HostHeroFactory
 covers 27 actual local-slot seed/factory controls: supported no-default paths and
@@ -90,3 +151,62 @@ are distinct. Reuse recorded evidence for regressions; rerun native/live checks
 when the changed behavior needs them. Host construction's batched runner is
 `docs/game-server/tools/test-host-construction.ps1`; see its parameters for native
 and installed-data checks. Per-delivery counts remain in the archived history.
+
+Entered-hero startup coverage includes actual shared factory/terrain/counter/RNG
+ownership, received roster player count, native fresh-world mode, bounded initial
+automatic levels, Container/QuestItem/Weapon values and shared-node cleanup.
+Native quest checkpoint/journal/OnEnter, symbolic IsHero and pending POPUP effects
+now compare. Installed TCP completes StartCode, actual actor-bound MultiCampaign
+and initial-sector reload/region work, checking pending AI/model retention and
+idempotent region retry. These checks grant no world upload/approval/readiness.
+[Current proof and live evidence](../docs/game-server/host-entered-startup-completion.md).
+
+TriggerPatchBankSource compares native AVL flattening/count and the complete
+bank-3 section-2 writer against the existing host packed-cell table, including
+unsigned keys and a 2,453-pair profile. PacketCatalog reuses the actual producer
+for a focused bank-section fixture. Other sections are fixture header zeros only;
+production must establish all missing sources before building a full world bank.
+The independent runtime trigger-vector gap remains guarded.
+
+HostSectorInitialization compares the complete native Init selector/scope,
+the actual first requested neighbor, and ordinary/startup trigger notifications.
+The explicit normalized 0x1CE producer changes only unused coordinate triples;
+native raw/zero/A5 receiver controls preserve full map/queue/tile state. PacketCatalog
+includes both directions of 0x148 and the actual 0x1AE/0x1CE producers.
+
+Installed TCP tests provide an explicit center-first server fixture to compare
+the full center callback, then retain its real queue token as Executing. They
+also test missing-instruction rejection, one interest send, unchanged retry
+grants/effects/region temporary and incomplete queue/readiness. Original-server
+acceptance uses its real neighbor-first order and is separately recorded in
+[the current checkpoint](../docs/game-server/host-initial-sector-callback.md).
+
+HostRegionEntry compares 48 original complete EnterRegion lifecycle profiles,
+packed high/low selection, the original current-region sentinel and pending-body
+retry without premature alive mutation. HostRegionEntryBody compares all variable
+bytes and indexed 0x1C7 notifications across 108 complete original Region1Enter
+bodies. Mixed predicates keep scalar 0x48 equality separate from 0x49 set-bit.
+PacketCatalog reuses the actual indexed producer. Installed TCP checks completed
+entry, already-alive retry and unchanged queue/grants/readiness. No callback or
+replay result establishes full-bank approval or persistent hosting.
+
+HostSectorEntry compares 48 whole native EnterSector selectors and 12 complete
+Sector51038Enter bodies: all mutable environment bytes, the 160-byte spawn rule,
+three facing draws and empty-list FillRegion timer/schedule behavior. Replay
+reconstructs original executable fragments and Balance.bin threshold bytes from
+evidence, without installed files. Installed TCP separately covers actual setting-1
+FIRSTCONTACT propagation into the shared creature world, completed callback retry,
+no actor/allocation/grant changes and the still-Executing instruction. The existing
+center-first fixture retains its unsupported-body guard before RNG/effects.
+[Latest live evidence and post-callback blocker](../docs/game-server/host-sector-enter-callback.md).
+
+HostAmbientScan compares original shoreline scanning on the first requested
+sector's actual KEYX/WLDX border, including interleaved constructor/orientation
+draws. HostAmbientFactory compares 24 complete original positioned factories,
+all results/health and wire bytes (only the previously proved unused bone cache
+normalizes). Actual runtime 0x800 decides sector membership; owned actors remain
+scheduled in both profiles. Installed TCP separately creates two real shared
+factory actors under a declared test seed, checks exact submitted bytes and
+unchanged retry. The live driver preserves actual RNG. Native/fixture/transport
+completion remains separate from full-world approval and readiness.
+[Current native proof, live evidence and next restore-source blocker](../docs/game-server/host-ambient-population.md).

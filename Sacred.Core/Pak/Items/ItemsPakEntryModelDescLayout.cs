@@ -40,6 +40,9 @@ public readonly struct ItemsPakEntryModelDescLayout
     /// The unnamed legacy categories remain numeric; this predicate does not
     /// imply that their constructors are supported by the host.</summary>
     public bool IsCreature => (byte)Category is 2 or 3 or 0x20;
+    /// <summary>Gold saved-hero loader 606DC6..606DE7 detaches these descriptor
+    /// categories from equipment slots. Other categories retain their references.</summary>
+    public bool RejectedFromSavedHeroEquipment => (byte)Category is 2 or 3 or 4 or 0x0a or 0x0b or 0x0c or 0x20;
     internal const int Size = SerializedSize;
     internal const int ModelNameLength = 32;
     private const int ModelNameOffset = 55;
@@ -188,7 +191,9 @@ public readonly struct ItemsPakEntryModelDescLayout
     [BinaryString("ModelName", ModelNameLength, "ISO-8859-1")]
     public readonly ItemsPakEntryModelNameBytes ModelNameBytes;
 
-    /// <summary>Authored model facing in projected-world degrees (<c>cObjectShared::angle3D</c>).</summary>
+    /// <summary>Authored model facing in projected-world degrees (<c>cObjectShared::angle3D</c>).
+    /// Gold saved-hero loader 606F15 submits this value through heading event 0x40
+    /// after its final equipment and inventory fixes.</summary>
     [FieldOffset(87)]
     public readonly float Angle3D;
 

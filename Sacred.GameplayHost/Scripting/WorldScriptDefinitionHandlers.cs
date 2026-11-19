@@ -27,6 +27,9 @@ internal static class WorldScriptDefinitionHandlers
             case SacredScriptExecutionOpcodes.SetVariableBits:
                 WorldScriptBitVariableHandler.Apply(context, command);
                 return true;
+            case SacredScriptExecutionOpcodes.ClearVariableBits:
+                WorldScriptEnteredVariableBits.Apply(context,command);
+                return true;
             case SacredScriptExecutionOpcodes.AssociateDialog:
                 context.DialogAssociations.Apply(context,command);
                 return true;
@@ -57,7 +60,10 @@ internal static class WorldScriptDefinitionHandlers
                         throw new InvalidDataException($"Trigger '{creation.Name}' requires native name resolution.");
                     if (context.WorldTriggers is null)
                         throw new InvalidDataException($"World-trigger allocation/registration is required for '{creation.Name}' (scope {creation.Scope}, state 0x{creation.State:X4}); load the original trigger table and use granted 0x154 IDs.");
-                    context.WorldTriggers.Create(creation);
+                    if (!context.IsExecutingStartup && !context.IsInitializingSector)
+                        throw new NotSupportedException("SetTrigger publication requires its compared sector-initialization scope.");
+                    context.WorldTriggers.Create(creation, context.IsExecutingStartup ? null :
+                        checked((byte)(context.LocalPlayerSlot ?? throw new InvalidDataException("Sector trigger publication needs the actual owner."))));
                     // Gold 0x49655B clears the live name buffer across the following
                     // variable suffix. The supported registry limits names to 63 bytes.
                     if (creation.Name.Length < 64) WorldScriptVariableCallerEffects.EstablishZero(context);
@@ -68,9 +74,17 @@ internal static class WorldScriptDefinitionHandlers
                 {
                     if (patch.Name.Contains('$') || patch.Name.StartsWith(SacredScriptTriggerOpcodes.NamePrefix + "res:", StringComparison.OrdinalIgnoreCase))
                         throw new InvalidDataException($"Trigger '{patch.Name}' requires native name resolution.");
-                    if (!context.IsExecutingStartup || context.WorldTriggers is null)
+                    if (context.WorldTriggers is null)
                         throw new InvalidDataException("TriggerPatch requires world registration and the appropriate startup/live tile mutation handler.");
-                    context.WorldTriggers.Patch(patch);
+                    if (context.IsExecutingStartup) context.WorldTriggers.Patch(patch, null);
+                    else
+                    {
+                        if (!context.IsInitializingSector || context.WorldTriggers is not WorldScriptTriggerRegistry registry ||
+                            context.CreatureWorld is not WorldScriptCreatureWorld { Terrain: { } terrain })
+                            throw new NotSupportedException("TriggerPatch requires its bound sector-init terrain/publication services.");
+                        registry.PatchAndPublish(patch,checked((byte)(context.LocalPlayerSlot ??
+                            throw new InvalidDataException("Sector trigger patch needs the actual owner."))), cell => terrain.MarkInitializingTrigger(context,cell));
+                    }
                 }
                 return true;
             case SacredScriptExecutionOpcodes.SetVariable:

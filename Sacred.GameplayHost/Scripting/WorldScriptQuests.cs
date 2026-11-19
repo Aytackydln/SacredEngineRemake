@@ -15,6 +15,7 @@ public sealed class WorldScriptQuests
     public IReadOnlyList<GoldMessage> ActivationPublications => _activationPublications.AsReadOnly();
     public WorldScriptQuests(IEnumerable<SacredScriptQuestDefinition> definitions) => _rows = definitions.Select(row => row.ToPayload()).ToList();
     public WorldScriptQuestJournal Journal { get; init; } = new();
+    internal Action<int>? PrepareEnteredHero { get; init; }
     /// <summary>Restore explicitly supplied native runtime inputs, without inferring scratch defaults.</summary>
     public static WorldScriptQuests FromRuntime(IEnumerable<SacredScriptQuestDefinition> definitions,
         WorldScriptQuestJournal journal, IReadOnlyList<uint> scratch)

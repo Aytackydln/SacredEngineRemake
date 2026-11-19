@@ -21,7 +21,9 @@ public sealed class GoldCreatureTail
     public GoldCreatureValuesState Values { get; }
     public ushort Count { get; }
     public ReadOnlySpan<byte> Records => _payload.AsSpan(_recordsOffset, Count * GoldCreatureTailLayout.RecordSize);
-    /// <summary>Native writer policy output retained without inferring character validity.</summary>
+    /// <summary>Native hero writer: 2 for the UI override, otherwise 1 outside
+    /// the configured day interval and 0 inside it. Non-heroes write 0.
+    /// This byte does not establish character validity or world readiness.</summary>
     public byte Mode => _payload[_trailerOffset + GoldCreatureTailLayout.ModeOffset];
     public uint Word570 => BinaryPrimitives.ReadUInt32LittleEndian(_payload.AsSpan(_trailerOffset + GoldCreatureTailLayout.Word570Offset));
     public uint MountPartnerReference => Word570;

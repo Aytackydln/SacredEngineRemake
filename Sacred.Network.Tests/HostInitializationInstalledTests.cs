@@ -17,7 +17,7 @@ public sealed class HostInitializationInstalledTests
     {
         var installation = Environment.GetEnvironmentVariable("SACRED_GAME_DIRECTORY") ?? @"E:\SteamLibrary\steamapps\common\Sacred Gold";
         if (!Directory.Exists(installation)) Assert.Inconclusive("Installed Gold files needed; set SACRED_GAME_DIRECTORY.");
-        await using var peer = await GoldLoopbackPeer.StartHostAsync(source: null); peer.AllowLongPreparation();
+        await using var peer = await GoldLoopbackPeer.StartHostAsync(source: null, connectionSetting: 0); peer.AllowLongPreparation();
         var owner = peer.HostSession!;
         await peer.SendAsync(new(0x11, 0, 0, 1, [1, 1, 0, 0, 0, 0]), Words(0x1e, [0x100]),
             Words(0x153, Enumerable.Range(17, 3000).Select(value => (uint)value).ToArray()), Words(0x154, [2269, 2000]));

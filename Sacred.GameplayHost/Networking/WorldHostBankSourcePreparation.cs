@@ -23,6 +23,8 @@ internal static class WorldHostBankSourcePreparation
         Add("script quest definitions", GoldWorldBankLayout.Bank3Opcode, 1,
             (uint)(context.Quests?.Count ?? 0), () =>
                 (context.Quests ?? throw new InvalidDataException("Quest producer is absent.")).WriteBankSection(context));
+        Add("trigger cell patches", GoldWorldBankLayout.Bank3Opcode, 2,
+            (uint)startup.Triggers.Patches.Count, () => WorldScriptTriggerPatchBank.Write(startup.Triggers.Patches));
         Add("normalized dialog associations", GoldWorldBankLayout.Bank3Opcode, 5,
             (uint)context.DialogAssociations.Records.Count, context.DialogAssociations.WriteNormalizedBankSection);
         sources.Add(new("region singleton final flags", GoldWorldBankLayout.Bank1Opcode, null, GoldWorldRegionTableLayout.Count, ReadOnlyMemory<byte>.Empty,

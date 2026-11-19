@@ -37,7 +37,7 @@ public sealed class HostInitializationSessionTests
     [TestMethod, DataRow(false), DataRow(true)]
     public async Task RealTransportReservationsRemainOwnedUntilDisposal(bool triggerFirst)
     {
-        await using var peer = await GoldLoopbackPeer.StartHostAsync(source: null);
+        await using var peer = await GoldLoopbackPeer.StartHostAsync(source: null, connectionSetting: 0);
         var owner = peer.HostSession!;
         await Admit(peer);
         var sent = new List<GoldMessage>();
@@ -74,7 +74,7 @@ public sealed class HostInitializationSessionTests
     [TestMethod, DataRow((byte)0), DataRow((byte)5)]
     public async Task ExistingWorldOrParticipantAssignmentCannotStartFirstHost(byte flags)
     {
-        await using var peer = await GoldLoopbackPeer.StartHostAsync(source: null);
+        await using var peer = await GoldLoopbackPeer.StartHostAsync(source: null, connectionSetting: 0);
         await Admit(peer, flags);
         await peer.HostSession!.Completion.WaitAsync(peer.Token);
         Assert.AreEqual(WorldHostInitializationPhase.Disconnected, peer.HostSession.Phase);
@@ -85,7 +85,7 @@ public sealed class HostInitializationSessionTests
     [TestMethod]
     public async Task UnsolicitedObjectGrantIsRetainedWithoutAnotherObjectRequest()
     {
-        await using var peer = await GoldLoopbackPeer.StartHostAsync(source: null);
+        await using var peer = await GoldLoopbackPeer.StartHostAsync(source: null, connectionSetting: 0);
         var owner = peer.HostSession!;
         await peer.SendAsync(Admission(), Words(0x1e, 0x100), Words(0x153, 500, 501), Words(0x154, 2269, 2000));
         await owner.WaitForReservationsAsync(peer.Token);
@@ -101,7 +101,7 @@ public sealed class HostInitializationSessionTests
     [TestMethod]
     public async Task RepeatedReservationInvalidatesAndClearsTheOwnedLifetime()
     {
-        await using var peer = await GoldLoopbackPeer.StartHostAsync(source: null);
+        await using var peer = await GoldLoopbackPeer.StartHostAsync(source: null, connectionSetting: 0);
         var owner = peer.HostSession!;
         await Admit(peer); await peer.SendAsync(Words(0x153, 500, 501), Words(0x154, 2269, 2000));
         await owner.WaitForReservationsAsync(peer.Token);
@@ -127,7 +127,7 @@ public sealed class HostInitializationSessionTests
     [TestMethod]
     public async Task MissingSessionFactsFailBeforeReservationRequests()
     {
-        await using var peer = await GoldLoopbackPeer.StartHostAsync(source: null, seed: (_, _, _) => Task.CompletedTask);
+        await using var peer = await GoldLoopbackPeer.StartHostAsync(source: null, connectionSetting: 0, seed: (_, _, _) => Task.CompletedTask);
         await peer.SendAsync(Admission());
         await peer.HostSession!.Completion.WaitAsync(peer.Token);
         StringAssert.Contains(peer.HostSession.Failure!, "session flags");
@@ -139,7 +139,7 @@ public sealed class HostInitializationSessionTests
     {
         using var cancel = new CancellationTokenSource();
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var peer = await GoldLoopbackPeer.StartHostAsync(null, cancel.Token, async (_, _, token) =>
+        await using var peer = await GoldLoopbackPeer.StartHostAsync(null, 0, cancel.Token, async (_, _, token) =>
             { entered.SetResult(); await Task.Delay(Timeout.Infinite, token); });
         await peer.SendAsync(Admission()); await entered.Task.WaitAsync(peer.Token);
         cancel.Cancel(); await peer.HostSession!.Completion.WaitAsync(peer.Token);

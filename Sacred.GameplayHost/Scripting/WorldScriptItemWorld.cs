@@ -16,6 +16,9 @@ public sealed class WorldScriptItemWorld(SacredObjectTemplateArchive templates, 
 {
     private readonly List<WorldScriptCreatedItem> _created = [];
     public IReadOnlyList<WorldScriptCreatedItem> Created => _created.AsReadOnly();
+    internal Func<uint, byte[], byte[]>? PrepareCurrentValues { get; init; }
+    internal Action<WorldEquipmentInitialItem, GoldObjectPosition>? PrepareWeaponValues { get; init; }
+    internal bool HasCurrentValueSource => PrepareCurrentValues is not null;
 
     public WorldScriptCreatedItem Create(SacredScriptCommand command, SacredScriptCreateObject creation, ItemsPakEntry descriptor)
         => Create(command,creation,descriptor,null);
@@ -40,6 +43,9 @@ public sealed class WorldScriptItemWorld(SacredObjectTemplateArchive templates, 
         var resource = resources?.Resolve(creation.Name) ?? GoldScriptResourceLayout.UnnamedResource;
         var values = templates.GetInstance(creation.TypeId);
         var item = factory.Create(descriptor, values, runtime.Clock() / 1000d, networking: true);
+        if (descriptor.ModelDesc.Category == SacredItemCategory.Weapon && PrepareWeaponValues is not null)
+            PrepareWeaponValues(item, position);
+        else if (PrepareCurrentValues is not null) item.Values = PrepareCurrentValues(creation.TypeId, item.Values);
         var physical = item.Physical;
         physical.Base = physical.Base with { Sector = (ushort)position.Sector, X = position.X, Y = position.Y,
             Flags = (physical.Base.Flags & ~2u) | 0x200u | (callbackNames.Count != 0 ? 1u : 0u) };

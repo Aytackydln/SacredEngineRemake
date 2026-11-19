@@ -15,9 +15,21 @@ public sealed class WorldCreatureSectorMembership
         if ((actor.Base.Flags & 0x10000000) == 0) Move(actor.Base.ObjectReference,0,actor.Base.Sector);
     }
 
+    /// <summary>Owned ambient placement joins an entered sector's vector;
+    /// the same owned actor stays off that vector when the sector is unentered.</summary>
+    public void RegisterAmbient(WorldCreatureInitialActor actor, uint sectorRuntimeFlags)
+    {
+        if ((actor.Base.Flags & 0x10000000) == 0 || (actor.Base.Flags & 2) != 0 || !actor.Node.Active)
+            throw new InvalidOperationException("Ambient membership requires its actual placed owned/scheduled actor.");
+        if ((sectorRuntimeFlags & Sacred.Network.Gameplay.GoldSectorEntryRuntime.EnteredFlag) != 0)
+            Move(actor.Base.ObjectReference, 0, actor.Base.Sector);
+    }
+
     public void Move(uint reference, ushort oldSector, ushort newSector)
     {
-        if (reference <= 16) throw new ArgumentOutOfRangeException(nameof(reference));
+        // Original 5FEE50 also admits the actual local hero during saved-sector
+        // reinsertion/campaign entry. Identity/ownership belong to the caller.
+        if (reference == 0) throw new ArgumentOutOfRangeException(nameof(reference));
         if (oldSector == newSector) return;
         if (_sectors.TryGetValue(oldSector, out var old))
         {

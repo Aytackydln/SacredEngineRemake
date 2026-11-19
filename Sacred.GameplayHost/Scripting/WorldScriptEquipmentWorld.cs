@@ -43,7 +43,7 @@ public sealed class WorldScriptEquipmentWorld(WorldScriptCreatureWorld world, Wo
                     assets.Progression,world.Random,runtime.Difficulty,runtime.Owner,runtime.Clock()/1000d,
                     new(assets.Creatures.ResolveTemplate(assets.Objects.GetItem(actor.Base.ObjectType))
                         ?? throw new InvalidDataException("EquipNPC actor has no Creature.pak template."),
-                        assets.Results, runtime.Owner, runtime.Players));
+            assets.Results, runtime.Owner, runtime.RequirePlayerCount()));
                 _publications.AddRange(result.Publications);
                 actor = result.Actor;
                 world.UpdateScriptActor(actor);

@@ -41,7 +41,14 @@ public static class WorldScriptStartupInspection
                 Sacred.Assets.GameBin.SacredScriptRegionReplacementTable.Read(replacements.CreateRegionReplacements()) : null,
             EquipmentPools = scripts.EquipmentPoolArchive is { } pools ? new(pools) : new(),
             EquipmentPoolReload = scripts.EquipmentPoolArchive,
-            Quests = new(scripts.Quests), WorldTriggers = triggers, ObjectWorld = objects, CreatureWorld = creatures, LocalPlayerSlot = creatures?.LocalPlayerSlot, HasActiveHero = objects?.HasActiveHero, ResourceText = creatures?.ResourceText, MapIcons = creatures?.MapIcons, ScriptRegions = creatures?.ScriptRegions, Mouseovers = creatures?.Mouseovers, Hideouts = creatures?.Hideouts };
+            MatchActiveHero = creatures is null ? null : creatures.MatchEnteredHero,
+            EnterHeroPopup = creatures is null ? null : creatures.EnterHeroPopup,
+            IsEnteredHeroReference = creatures is null ? null : creatures.IsEnteredHeroReference,
+            Quests = new(scripts.Quests) { PrepareEnteredHero = creatures is null ? null : number =>
+                {
+                    if (!context!.IsExecutingStartup) throw new NotSupportedException("Entered quest hero needs its current startup scope.");
+                    creatures.PrepareEnteredQuestHero(number);
+                } }, WorldTriggers = triggers, ObjectWorld = objects, CreatureWorld = creatures, LocalPlayerSlot = creatures?.LocalPlayerSlot, HasActiveHero = objects?.HasActiveHero, ResourceText = creatures?.ResourceText, MapIcons = creatures?.MapIcons, ScriptRegions = creatures?.ScriptRegions, Mouseovers = creatures?.Mouseovers, Hideouts = creatures?.Hideouts };
         log($"Network startup execution: {scripts.Files.Name}; {context.Definitions.Records.Count} authored definitions, {context.Functions.Count} functions loaded.");
         try { new WorldScriptExecutor(context).ExecuteStartup(scripts.StartupCode, cancellationToken); }
         catch (WorldScriptExecutionFailure failure) { log($"Network startup blocked: {failure.Message}"); }

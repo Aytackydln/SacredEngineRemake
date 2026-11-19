@@ -34,7 +34,7 @@ public static class WorldScriptCreatureAttributeCommand
         var template = assets.Creatures.Entries.Single(row => row.ItemType == actor.Base.ObjectType);
         var next = WorldCreatureScriptBaseAttribute.Apply(actor, index, value, template, assets.Results,
             assets.Levels, assets.Progression, assets.LevelDefinitions, assets.Equipment!, runtime.Difficulty,
-            runtime.Owner, context.Multiplayer, runtime.Players);
+            runtime.Owner, context.Multiplayer, runtime.RequirePlayerCount());
         world.UpdateScriptActor(next);
         log($"Startup SetCV: ref {reference}, base attribute {index}, input {value}; current-level results and health private, no publication.");
     }

@@ -31,13 +31,23 @@ internal static class HostHeroModelChecks
         Check(OriginalHash((await models.LoadModelAsync(motion)).RawBytes) == data.GetProperty("animation_sha256").GetString(), "same original clip as native library probe");
         var skin = body.Skin!;
         var pose = new GrnPoseEvaluator(skin.SkinningData, animation).Evaluate(0);
+        var bindPose = GrnBindPose.Create(skin.SkinningData);
+        Check(bindPose.IsEvaluated && bindPose.Animation is null, "evaluated bind pose has no invented clip/control");
         foreach (var sample in data.GetProperty("samples").EnumerateArray())
         {
             Check(skin.Skeleton.TryFindBone(sample.GetProperty("bone").GetString()!, out var index), "native queried bone exists");
             var bone = skin.Skeleton.Bones[index];
             var local = sample.GetProperty("flags").GetUInt32() == 0x101;
             Matrix4x4 transform;
-            if (sample.GetProperty("phase").GetString() == "bind") transform = local ? bone.RestLocal : bone.RestWorld;
+            if (sample.GetProperty("phase").GetString() == "bind")
+            {
+                transform = bindPose.BoneWorldTransforms[index];
+                if (local && bone.ParentIndex != index)
+                {
+                    Check(Matrix4x4.Invert(bindPose.BoneWorldTransforms[bone.ParentIndex], out var inverse), "invertible bind parent");
+                    transform *= inverse;
+                }
+            }
             else
             {
                 transform = pose.BoneWorldTransforms[index];
@@ -53,6 +63,10 @@ internal static class HostHeroModelChecks
             Check(Vector3.Distance(actual, new(values[0], values[1], values[2])) < .0003f,
                 $"original {sample.GetProperty("phase")} {bone.Name} flags {sample.GetProperty("flags")}: {actual} / {string.Join(',', values)}");
         }
+        var controls = data.GetProperty("controls");
+        Check(controls.GetProperty("defaults")[0][1].GetDouble() == 0 &&
+            controls.GetProperty("defaults")[2][1].GetDouble() == 1 && controls.GetProperty("defaults")[3][1].GetDouble() == 1,
+            "new native control starts at zero with default rate/loop one");
         return checks;
         void Check(bool value, string reason) { if (!value) throw new InvalidDataException("HostHeroModel: " + reason); checks++; }
     }

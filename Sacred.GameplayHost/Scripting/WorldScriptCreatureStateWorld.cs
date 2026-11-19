@@ -10,6 +10,7 @@ public sealed class WorldScriptCreatureStateWorld(WorldScriptCreatureWorld world
 {
     private readonly List<GoldMessage> _publications = [];
     public IReadOnlyList<GoldMessage> Publications => _publications.AsReadOnly();
+    internal void RetainPublication(GoldMessage message) => _publications.Add(message);
     public void SetState(WorldScriptExecutionContext context, SacredScriptCommand command)
     {
         var operands = SacredScriptOperandReader.Read(command);
@@ -42,7 +43,7 @@ public sealed class WorldScriptCreatureStateWorld(WorldScriptCreatureWorld world
             var dialogTemplate = assets.Creatures.Entries.Single(value => value.ItemType == target.Base.ObjectType);
             target = WorldCreatureEquippedResults.Apply(target, dialogTemplate, assets.Results,
                 assets.Equipment ?? throw new InvalidDataException("SetNPCState dialog requires original result definitions."),
-                world.EquipmentFactory.Items, runtime.Difficulty, runtime.Owner, context.Multiplayer, runtime.Players);
+                    world.EquipmentFactory.Items, runtime.Difficulty, runtime.Owner, context.Multiplayer, runtime.RequirePlayerCount());
             target = target with { Component = target.Component with { ResultValid = 1 } };
             world.UpdateScriptActor(target);
             log($"Startup SetNPCState dialog: ref {target.Base.ObjectReference}, slot {target.DialogIndex}; registration and results private, 0x11A retained.");
@@ -54,7 +55,7 @@ public sealed class WorldScriptCreatureStateWorld(WorldScriptCreatureWorld world
             var flagTemplate=assets.Creatures.Entries.Single(value=>value.ItemType==target.Base.ObjectType);
             target=WorldCreatureEquippedResults.Apply(target,flagTemplate,assets.Results,
                 assets.Equipment ?? throw new InvalidDataException("SetNPCState requires original result definitions."),
-                world.EquipmentFactory.Items,runtime.Difficulty,runtime.Owner,context.Multiplayer,runtime.Players);
+                world.EquipmentFactory.Items,runtime.Difficulty,runtime.Owner,context.Multiplayer,runtime.RequirePlayerCount());
             target=target with { Component=target.Component with { ResultValid=1 } };
             world.UpdateScriptActor(target);
             log($"Startup SetNPCState mask 8: ref {target.Base.ObjectReference}, selector {operands[1].Integer}; results private, no update message.");
@@ -66,14 +67,14 @@ public sealed class WorldScriptCreatureStateWorld(WorldScriptCreatureWorld world
             var level = levelOperand.Integer ?? throw new NotSupportedException("SetNPCState needs original level expression evaluation.");
             if (level == 1000) throw new NotSupportedException("SetNPCState special-level selection requires its complete state-command comparison.");
             target = WorldCreatureScriptLevel.ApplyRequested(target,assets.Creatures.Entries.Single(value => value.ItemType == target.Base.ObjectType),level,
-                assets.Results,assets.Levels,assets.Progression,assets.LevelDefinitions,runtime.Difficulty,runtime.Owner,context.Multiplayer,0,runtime.Players);
+                    assets.Results,assets.Levels,assets.Progression,assets.LevelDefinitions,runtime.Difficulty,runtime.Owner,context.Multiplayer,0,runtime.RequirePlayerCount());
         }
         var template = assets.Creatures.Entries.Single(value => value.ItemType == target.Base.ObjectType);
         if (levelOnly)
         {
             target=WorldCreatureEquippedResults.Apply(target,template,assets.Results,
                 assets.Equipment ?? throw new InvalidDataException("SetNPCState requires original result definitions."),
-                world.EquipmentFactory.Items,runtime.Difficulty,runtime.Owner,context.Multiplayer,runtime.Players);
+                    world.EquipmentFactory.Items,runtime.Difficulty,runtime.Owner,context.Multiplayer,runtime.RequirePlayerCount());
             target=target with { Component=target.Component with { ResultValid=1 } };
             world.UpdateScriptActor(target);
             // No dialog setter runs; 0x114 is suppressed during startup. Existing
@@ -96,7 +97,7 @@ public sealed class WorldScriptCreatureStateWorld(WorldScriptCreatureWorld world
         else (horse,owner) = WorldHorseOwnerAssignment.Apply(target,owner,values,definitions,assets.Results.StartupPrecision);
         horse = WorldCreatureEquippedResults.Apply(horse,template,assets.Results,
             assets.Equipment ?? throw new InvalidDataException("SetNPCState requires original result definitions."),
-            world.EquipmentFactory.Items,runtime.Difficulty,runtime.Owner,context.Multiplayer,runtime.Players);
+                world.EquipmentFactory.Items,runtime.Difficulty,runtime.Owner,context.Multiplayer,runtime.RequirePlayerCount());
         horse = horse with { Component = horse.Component with { ResultValid = 1 } };
         world.UpdateScriptActor(horse);world.UpdateScriptActor(owner);
         // Native dialog setter explicitly requests 0x11A even in startup; 0x114 stays suppressed.

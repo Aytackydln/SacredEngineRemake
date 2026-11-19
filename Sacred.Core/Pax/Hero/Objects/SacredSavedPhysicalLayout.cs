@@ -6,7 +6,9 @@ public static class SacredSavedPhysicalLayout
     public const int Size = 247;
     public const int Word64Offset = 55;
     /// <summary>Animation selector passed to the creature's animation method at
-    /// Gold 45010F, after successful activation. Zero skips both calls.</summary>
+    /// Gold 45010F, after successful activation. Zero skips both calls.
+    /// Outer hero model disable 555C2D resets this native selector to zero;
+    /// reactivation does not replay the saved motion automatically.</summary>
     public const int AnimationSelectionOffset = Word64Offset;
     /// <summary>Native +0xF0: sampled ground height, refreshed by Reset3DPosition (Gold 0x44D520).</summary>
     public const int WordF0Offset = 59;
@@ -44,7 +46,9 @@ public static class SacredSavedPhysicalLayout
     /// <summary>Physical flags at native +0xB0. Equipment installation 0x555E00
     /// uses 0x10/0x08 in its retained-replacement path; detach 0x556A30 suppresses
     /// its returned reference when the removed item has 0x08. Other object types
-    /// use this same word for their own physical flags.</summary>
+    /// use this same word for their own physical flags. Creature result/art
+    /// initialization 571080 clears mask 0x7800 (57121A), independently of
+    /// the outer C0 loader's later 0x2EF07FFF cleanup mask.</summary>
     public const int WordB0Offset = 155;
     public const int ReservedWordsOffset = 159;
     public const int AnimationDoublesOffset = 175;
@@ -62,6 +66,13 @@ public static class SacredSavedPhysicalLayout
     /// parameter 0 before activation creates a new animation control. It is
     /// not forwarded as one of the subsequent animation method's arguments.</summary>
     public const int AnimationControlTimeDoubleOffset = AnimationDoublesOffset + 16;
+    /// <summary>Granny parameter 0 is the previous control's start time. A new
+    /// control starts at zero; the file reader sets this before model activation
+    /// replaces that control, so it is not the new clip's elapsed time.</summary>
+    public const int PreviousAnimationStartTimeDoubleOffset = AnimationControlTimeDoubleOffset;
     public const int BoneVectorOffset = 199;
+    /// <summary>Gold 4500CC reads these 36 saved bone-state bytes into temporary
+    /// storage and discards them. They must not replace the activated skeleton.</summary>
     public const int BoneBlockOffset = 211;
+    public const int DiscardedBoneStateSize = 36;
 }

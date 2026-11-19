@@ -11,4 +11,8 @@ public enum SectorWeatherKind : ushort
     Fog = 1,
     Snow = 2,
     GroundFog = 4,
+    /// <summary>Gold cEventWeather ENTERSECTOR 0x419E1B: selector 5 enters
+    /// positioned creature creation. After testing WeatherValid != 0, this
+    /// handler examines all four entries, independently of individual mask bits.</summary>
+    SectorEntryCreatures = 5,
 }

@@ -30,7 +30,7 @@ internal static class TriggerGapProvenanceChecks
             var replica = new GoldWorldReplica();
             replica.Apply(new GoldReferenceRangeEvent(GoldReferenceCodec.CreateTriggerRangeRequest((uint)count, 5, 1) with { Sender = 0 }, reference, 5));
             var registry = new WorldScriptTriggerRegistry(SacredWorldTriggerArchive.FromPayload(bytes), replica.TriggerReferences);
-            registry.Create(new("Trgnew", 0, 0x8001, 0));
+            registry.Create(new("Trgnew", 0, 0x8001, 0), null);
             Check(registry.Count == sample.GetProperty("count_after").GetUInt32(), "native resized vector bound");
             Check(registry.UnknownSlotCount == reference - count && registry.Records.Count == count + 1,
                 "scratch-dependent gap slots remain absent from complete host records");

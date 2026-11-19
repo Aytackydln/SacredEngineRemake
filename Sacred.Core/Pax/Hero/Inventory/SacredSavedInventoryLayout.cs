@@ -26,6 +26,8 @@ public static class SacredSavedInventoryLayout
     public const int SelectedWeaponSlotOffset = ActiveSlotOffset;
     public const int SelectedCombatArtSlotOffset = VampireActiveSlotOffset;
     public const int OwnerReferenceOffset = 4432;
+    /// <summary>Native quest-record vector length. Engine parameter 0x1D
+    /// (55D91B -> 5D8520) clears the primary inventory's vector before campaign entry.</summary>
     public const int QuestCountOffset = 4436;
     public const int QuestRecordsOffset = 4440;
     public const int QuestRecordSize = 8;

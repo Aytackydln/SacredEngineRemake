@@ -5,7 +5,12 @@ using Sacred.Network.Gameplay;
 
 namespace Sacred.GameplayHost.Scripting;
 
-public sealed record WorldCreatureInitialComponent(byte[] Values, byte[] Health, byte CombatProfile, byte ResultValid);
+public sealed record WorldCreatureInitialComponent(byte[] Values, byte[] Health, byte CombatProfile, byte ResultValid)
+{
+    /// <summary>Native component +0x148, initialized to zero; serialized after
+    /// compact/full value lists by 585C60.</summary>
+    public uint Flags148 { get; init; }
+}
 
 /// <summary>Gold 0x55E1B0/0x586C00 component scalar values. SetLevel calculates
 /// with still-zero Basis/skills, refills TP, and delivers actor event 6 BEFORE

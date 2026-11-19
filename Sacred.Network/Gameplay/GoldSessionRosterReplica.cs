@@ -8,6 +8,12 @@ public sealed class GoldSessionRosterReplica
     private readonly Dictionary<byte, GoldPlayerData> _rows = [];
     public GoldPlayerData? Find(byte slot) => _rows.GetValueOrDefault(slot);
     public string? Name(byte slot) => Find(slot)?.Name;
+    /// <summary>Gold 7DB2C0 counts nonzero IPv4 words in slots 1..16, not
+    /// presence bytes or character types. Unknown until the complete roster is
+    /// observed; callers must also establish the actual connection-active gate.</summary>
+    public uint? NativePlayerCount => _rows.Count == GoldPlayerRosterLayout.EntryCount
+        ? (uint)Enumerable.Range(1, 16).Count(slot => _rows[(byte)slot].NetworkAddressWord0 != 0)
+        : null;
     internal void Apply(GoldPlayerRosterEvent incoming)
     {
         var roster = (GoldPlayerRosterEvent)GoldGameEventDecoder.Decode(incoming.Message);

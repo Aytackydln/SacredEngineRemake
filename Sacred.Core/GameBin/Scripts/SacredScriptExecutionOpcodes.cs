@@ -36,6 +36,9 @@ public static class SacredScriptExecutionOpcodes
     public const ushort RandomVariable = 105;
     /// <summary>Gold 0x49B840: OR one bit per index into an ordinary variable; actor/hero families are separate.</summary>
     public const ushort SetVariableBits = 68;
+    /// <summary>Clear ordinary-variable bit indices; the reached EnterRegion
+    /// caller emits a normal indexed variable update after mutation.</summary>
+    public const ushort ClearVariableBits = 69;
     /// <summary>Dispatches to the same SetVar handler as opcode 67.</summary>
     public const ushort DefineVariable = 65;
     public const ushort AddVariable = 75;

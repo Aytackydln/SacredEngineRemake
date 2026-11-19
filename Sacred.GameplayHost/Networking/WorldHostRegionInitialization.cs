@@ -7,7 +7,8 @@ using Sacred.Network.Protocol;
 
 namespace Sacred.GameplayHost.Networking;
 
-/// <summary>Private host region initialization on already loaded sectors. The
+/// <summary>Private host region initialization on loaded sectors, with actual
+/// entered-hero demand loading after the campaign callback. The
 /// constructor baseline is established; visited flags are not final world globals.
 /// Effectful callbacks remain pending until their caller services bind.</summary>
 public sealed class WorldHostRegionInitialization
@@ -23,6 +24,12 @@ public sealed class WorldHostRegionInitialization
     public GoldWorldRegionTable Regions { get; private set; } = GoldWorldRegionTable.CreateInitial();
     public IReadOnlyList<GoldMessage> Publications => _publications.AsReadOnly();
     public string? Blocker { get; private set; }
+    public WorldHostSectorInitialization? InitialSector { get; internal set; }
+    internal uint? FindSectorFunction(string name) => _bindings.Find(name);
+    public WorldScriptRegionEntry? Entry { get; internal set; }
+    internal ushort ScriptRegion(uint sector) => _index.TryGetSector(sector,out var source)
+        ? _mapping.ScriptRegion(source.Environment.Region) : throw new InvalidDataException("Region entry has no original sector.");
+    internal int FindEntryFunction(string name)=>FindFunction(name);
 
     internal WorldHostRegionInitialization(string installation, WorldHostStartupState startup, byte owner)
     {
@@ -53,8 +60,15 @@ public sealed class WorldHostRegionInitialization
     private byte ReadRegion(uint sector)
     {
         if (!_index.TryGetSector(sector, out var source)) throw new InvalidDataException("Region sector is absent from original KEYX.");
-        if (_startup.Objects.Creatures?.Terrain?.Tiles.IsLoaded(sector) != true)
-            throw new NotSupportedException("Region initialization first requires the reached sector demand-load/patch effects.");
+        var creatures = _startup.Objects.Creatures;
+        if (creatures?.Terrain?.Tiles.IsLoaded(sector) != true)
+        {
+            if (creatures?.Terrain is not { } terrain || !_startup.Execution.PostStartup.IsCompleted ||
+                !creatures.IsEnteredHeroReference(_owner) || !creatures.Factory.Actors.TryGetValue(_owner,out var hero) || hero.Base.Sector != sector)
+                throw new NotSupportedException("Region initialization first requires the reached sector demand-load/patch effects.");
+            _ = terrain.Tiles.GetTile(SacredWorldCoordinates.WorldToTile(hero.Base.X), SacredWorldCoordinates.WorldToTile(hero.Base.Y))
+                ?? throw new InvalidDataException("Initial host sector has no original destination tile.");
+        }
         return source.Environment.Region;
     }
     private int FindFunction(string name)

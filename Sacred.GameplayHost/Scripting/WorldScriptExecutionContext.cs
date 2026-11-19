@@ -69,6 +69,9 @@ public sealed class WorldScriptExecutionContext
     public bool Multiplayer { get; }
     public uint? LocalPlayerSlot { get; init; }
     public bool? HasActiveHero { get; init; }
+    internal Func<string, bool?>? MatchActiveHero { get; init; }
+    internal Action<WorldScriptExecutionContext, int>? EnterHeroPopup { get; init; }
+    internal Func<uint, bool>? IsEnteredHeroReference { get; init; }
     public Sacred.Core.GameRes.GameResStore? ResourceText { get; init; }
     public IReadOnlyList<WorldScriptLocalGuiRequest> LocalGuiRequests { get; }
     internal void SubmitLocalGuiRequest(WorldScriptLocalGuiRequest request) => _localGuiRequests.Add(request);
@@ -106,7 +109,13 @@ public sealed class WorldScriptExecutionContext
     public WorldScriptSectorEnvironment? CurrentSector { get; internal set; }
     public bool IsInitializingSector { get; internal set; }
     public bool IsInitializingRegion { get; internal set; }
+    /// <summary>Native interpreter +10 during EnterRegion, separate from Init.</summary>
+    public bool IsEnteringRegion { get; internal set; }
     public bool IsEnteringSector { get; internal set; }
+    /// <summary>Actual queue runtime flags during an owned sector callback.</summary>
+    internal uint? CurrentSectorRuntimeFlags { get; set; }
+    /// <summary>Actual local FIRSTCONTACT setting during the compared entry callback.</summary>
+    public uint? LocalNetworkSpeedSettings { get; internal set; }
     public bool IsExecutingStartup { get; internal set; }
     public IReadOnlyList<SacredBaseTriggerDefinition> Triggers { get; }
     public IReadOnlyDictionary<ushort, int> Coverage { get; }

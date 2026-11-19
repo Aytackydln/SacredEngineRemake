@@ -20,6 +20,14 @@ public sealed class WorldParticipantPopulationCommand(SacredPopulationDefinition
     public int ExecutedCommands { get; private set; }
     public int ClearedSchedules { get; private set; }
 
+    public bool SupportsFilteredEmpty(SacredScriptCommand command, uint connectionSetting, WorldScriptSectorEnvironment sector)
+    {
+        var input = SacredScriptPopulationReader.Read(command);
+        return connectionSetting == 1 && definitions is not null && balance is not null &&
+            input.Types.All(row => definitions.Excluded(row.Type)) &&
+            (input.SectorX is null || input.SectorX == sector.Coordinate.X && input.SectorY == sector.Coordinate.Y);
+    }
+
     public void Execute(WorldScriptExecutionContext context, SacredScriptCommand command, uint connectionSetting)
     {
         var input = SacredScriptPopulationReader.Read(command);

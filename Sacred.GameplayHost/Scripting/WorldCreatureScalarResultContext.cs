@@ -14,6 +14,8 @@ public sealed record WorldCreatureScalarResultContext(uint Resource, uint Refere
 {
     /// <summary>The component calculates before the outer physical actor receives its type.</summary>
     public bool ActorTypeAssigned { get; init; } = true;
+    /// <summary>Actual acquired-art sources for the pre-inventory local hero import.</summary>
+    public SacredCreatureArtTimerInputs? SavedHeroArts { get; init; }
 }
 
 public sealed record WorldCreatureScalarEquipmentRecord(byte[] Values, SacredItemCategory Category, byte SharedSetType)
@@ -23,4 +25,7 @@ public sealed record WorldCreatureScalarEquipmentRecord(byte[] Values, SacredIte
     public int? ArmorModifier { get; init; }
 }
 public sealed record WorldCreatureScalarEquipment(ushort Slot, IReadOnlyList<WorldCreatureScalarEquipmentRecord> Records);
-public sealed record WorldCreatureScalarResult(byte[] Values, uint Regeneration, uint EquipmentFlagAdditions);
+public sealed record WorldCreatureScalarResult(byte[] Values, uint Regeneration, uint EquipmentFlagAdditions)
+{
+    public IReadOnlyList<byte[]>? CombatArts { get; init; }
+}

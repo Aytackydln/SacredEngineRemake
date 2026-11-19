@@ -4,9 +4,9 @@ using Sacred.Core.Runtime;
 
 namespace Sacred.GameplayHost.Runtime;
 
-/// <summary>Gold 0x566070 scalar passive results, with an explicitly empty
-/// learned-combat-art list and no description request. School skills traverse
-/// that empty list. Ranked skills run in the eight stored slots, without the
+/// <summary>Gold 0x566070 passive results with no description request.
+/// Nonempty acquired arts require the actual compared timer worklist; empty
+/// lists retain the existing scalar-only path. Ranked skills run in the eight stored slots, without the
 /// separate lookup helper's 255 clamp. Returns TP[4] after Constitution.</summary>
 public static class SacredCreaturePassiveSkills
 {
@@ -19,11 +19,18 @@ public static class SacredCreaturePassiveSkills
     {
         var fp = new SacredResultArithmetic(precision);
         if (values.Length != SacredActorValuesLayout.Size) throw new ArgumentException("Expected 238-byte actor values.", nameof(values));
-        if (learnedCombatArtCount != 0) throw new NotSupportedException("Passive skill application to learned combat arts requires their native entry effects.");
+        if (learnedCombatArtCount != 0 && actor.ArtTimers?.Records.Count != learnedCombatArtCount)
+            throw new NotSupportedException("Passive skills require the actual private acquired-art calculation.");
         for (var slot = 0; slot < 8; slot++)
         {
             var rank = values[36 + slot] + values[44 + slot];
             if (rank == 0) continue;
+            if (actor.ArtTimers is { } arts)
+            {
+                if (arts.ApplySkill(values[28 + slot], rank)) continue;
+                if (values[28 + slot] is not (>= 2 and <= 14 or 24))
+                    throw new NotSupportedException("Acquired-art calculation reached an uncompared passive skill body.");
+            }
             switch (values[28 + slot])
             {
                 case 2:

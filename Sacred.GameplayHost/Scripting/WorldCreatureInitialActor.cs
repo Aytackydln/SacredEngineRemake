@@ -11,9 +11,26 @@ namespace Sacred.GameplayHost.Scripting;
 public sealed record WorldCreatureInitialActor(GoldObjectBaseState Base,
     WorldCreatureInitialComponent Component, uint RelationClass, uint BehaviorFlags,
     ushort EquipmentSelector, ushort RandomTail, float ThinkElapsed, uint LastUpdateSecond,
+    // Native +0x4F4 count/+0x4F8 bytes: constructor clears 100 bytes for
+    // argument <16. Index 28 gates automatic NPC level progress at 48468C.
+    // Other byte meanings remain unassigned; this is not a saved-file mapping.
     byte[] Scratch)
 {
     public WorldObjectNode Node { get; } = new();
+    public WorldCreatureRestoredPhysical? RestoredPhysical { get; init; }
+    public WorldCreatureRestoredState? RestoredCreature { get; init; }
+    public bool HeroPostLoadCompleted { get; init; }
+    public bool SavedEquipmentReferencesBound { get; init; }
+    public bool ModelReactivated { get; init; }
+    /// <summary>Private final equipment/inventory/heading stage. The earlier
+    /// saved-tile/surface prelude and campaign entry are independent requirements.</summary>
+    public bool SavedLoaderTailPrepared { get; init; }
+    public bool SavedWorldPreludeCompleted { get; init; }
+    public bool CampaignEntryPlaced { get; init; }
+    /// <summary>Native +0x1FC; distinct from RuntimeFlags at +0x200.</summary>
+    public ushort Flags1FC { get; init; }
+    /// <summary>Native +0x1F8 locomotion/action selector, reset by C0 action 0x48.</summary>
+    public uint LocomotionAction { get; init; }
     public GoldPhysicalVector Direction { get; init; }
     public GoldObjectPosition ScriptInitialPosition { get; init; }
     /// <summary>Native +0x570 reciprocal Horse/owner partner (separate from +0x251).</summary>
@@ -28,20 +45,20 @@ public sealed record WorldCreatureInitialActor(GoldObjectBaseState Base,
     /// Separate from dynamic equipment attachment and Horse partner links.</summary>
     public uint StaticSurfaceReference { get; init; }
     public float ThinkInterval { get; init; } = 5;
-    public float AnimationSpeedMultiplier => 1;
-    public uint PaletteMask => 0;
+    public float AnimationSpeedMultiplier => RestoredCreature?.AnimationSpeedMultiplier ?? 1;
+    public uint PaletteMask => RestoredPhysical?.PaletteMask ?? 0;
     public ushort KiMode { get; init; }
     /// <summary>Native +0x2B6, set by CreateNPC's ECS selector operand.</summary>
     public byte SpellSelector { get; init; }
     /// <summary>Native +0x261; high word of the packed ECS selector.</summary>
     public ushort SpellParameter { get; init; }
-    public ushort EiMode => 0;
+    public ushort EiMode { get; init; }
     public uint RuntimeFlags { get; init; }
     public ushort Flags2B7 { get; init; }
-    public uint Word210 => BitConverter.SingleToUInt32Bits(1);
+    public uint Word210 => RestoredCreature?.Word210 ?? BitConverter.SingleToUInt32Bits(1);
     public uint Word564 => BitConverter.SingleToUInt32Bits(1);
     public uint[] EquipmentReferences { get; init; } = new uint[GoldCreatureStateLayout.EquipmentCount];
     public byte[] KiState { get; init; } = new byte[84];
-    public byte[] EiState { get; } = new byte[84];
-    public byte[] ActionState { get; } = new byte[GoldCreatureStateLayout.Block2EDSize];
+    public byte[] EiState { get; init; } = new byte[84];
+    public byte[] ActionState { get; init; } = new byte[GoldCreatureStateLayout.Block2EDSize];
 }

@@ -5,6 +5,9 @@ public static class SacredSavedCreatureLayout
 {
     public const int MarkerOffset = 247;
     public const int BlockFCOffset = 251;
+    /// <summary>Native +FC current AI mode. POPUP 54CBB0 sets mode 10/state 5,
+    /// targets the hero reference at +100, and writes argument +104 = 1.
+    /// This is separate from the thinking KI selector at native +25F.</summary>
     public const int KiModeOffset = BlockFCOffset;
     /// <summary>Native +0xFE: 0x59F580 sets this word to 1 when +0xFC/+0xFE are both zero.</summary>
     public const int KiInitializationStateOffset = BlockFCOffset + 2;
@@ -29,11 +32,31 @@ public static class SacredSavedCreatureLayout
     public const int RelationClassOffset = Block1F0Offset;
     /// <summary>Native +251 owner reference used by owned-creature team relationships (4234EB).</summary>
     public const int OwnerReferenceOffset = Block1F0Offset + 0x61;
+    /// <summary>Native +0x25F saved equipment-selection word.</summary>
+    public const int EquipmentSelectorOffset = Block1F0Offset + 0x6F;
+    /// <summary>Native +0x261 saved spell-selector parameter.</summary>
+    public const int SpellParameterOffset = Block1F0Offset + 0x71;
+    public const int SpellSelectorOffset = Block1F0Offset + 0xC6;
+    /// <summary>Native +0x2B7 flags; CalcResults clears bit 0x40 before equipment traversal.</summary>
+    public const int Flags2B7Offset = Block1F0Offset + 0xC7;
     /// <summary>Native +20C health-display seconds. Hover raises it to one second (61258A);
     /// creature update decrements it (537ECD). This field is absent from the network prefix.</summary>
     public const int HealthDisplaySecondsOffset = Block1F0Offset + 0x1C;
     /// <summary>Native +0x1F8 locomotion selector: 1 walking, 2 running (Gold Shift-key producer 0x4F5193).</summary>
     public const int LocomotionActionOffset = Block1F0Offset + 8;
+    /// <summary>Native +0x1FC flags. Fresh-world saved loading sets bit 0x10
+    /// when 63B540 reports an incomplete saved-sector-state vector (606C2D).
+    /// The adjacent +0x1FE auxiliary reference is a separate ushort.</summary>
+    public const int Flags1FCOffset = Block1F0Offset + 12;
+    public const ushort PartialWorldStateFlag = 0x10;
+    /// <summary>Native +0x1FE ushort auxiliary physical-object reference.
+    /// Gold 5568B0 refreshes/removes the resolved cObject3D; C0 queries its
+    /// presence with action 0x24 before action 0x23. Exact visual role is unresolved.</summary>
+    public const int AuxiliaryPhysicalReferenceOffset = Block1F0Offset + 14;
+    /// <summary>Native +0x235 twelve-byte secondary animation-control token.
+    /// Gold 555C1D passes it to 4047D0 on model disable. Raw saved words are
+    /// not valid cross-process SDK handles; the supported host path requires zero.</summary>
+    public const int SecondaryAnimationControlOffset = Block1F0Offset + 0x45;
     public const int Word200Offset = 511;
     /// <summary>Native +0x200 sleep flag, set by NW_CREATURE_SLEEP and cleared by the
     /// original wake path. The same flag word is retained in the saved creature prefix.</summary>
@@ -56,7 +79,9 @@ public static class SacredSavedCreatureLayout
     public const int AnimationSpeedMultiplierOffset = Block1F0Offset + 0xD9;
     /// <summary>Native +0x2B9, copied from base +0x18 by CreateNPC at
     /// 0x4833EF..0x483411: original script placement (sector, X/Y, surface).
-    /// Stored as a padded 16-byte native position; serialized by the file prefix.</summary>
+    /// Quest entry 46C3E6..46C420 refreshes it from the current hero position
+    /// for the native active-connection/session flag gate. Stored as a padded
+    /// 16-byte native position; serialized by the file prefix.</summary>
     public const int ScriptInitialPositionOffset = Block1F0Offset + 0xC9;
     public const int Block2EDOffset = 748;
     public const int Block2EDSize = 173;

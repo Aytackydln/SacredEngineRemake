@@ -17,6 +17,7 @@ public sealed record WorldScriptCreatureAssets(SacredObjectTemplateArchive Objec
 {
     public SacredEquipmentGenerationData? Equipment { get; init; }
     public SacredEquipmentSlotDefinitions? EquipmentSlots { get; init; }
+    public SacredScriptObjectValueDefinitions? ObjectValues { get; init; }
     public ModelsMotionAvailability? Motions { get; init; }
     public SacredFixedEffectDefinitions? FixedEffects { get; init; }
     public SacredMagicPrisonDefinitions? MagicPrison { get; init; }
@@ -36,6 +37,7 @@ public sealed record WorldScriptCreatureAssets(SacredObjectTemplateArchive Objec
             CreatureLevelBalanceBinReader.Read(balance), CreatureBalanceBinReader.Read(balance),
             SacredCreatureLevelDefinitions.Load(installation), sectors)
             { Equipment = SacredEquipmentGenerationData.Load(installation), EquipmentSlots = SacredEquipmentSlotDefinitions.Load(installation),
+                ObjectValues = SacredScriptObjectValueDefinitions.Load(installation),
                 Motions = ModelsMotionAvailability.Load(installation), FixedEffects = SacredFixedEffectDefinitions.Load(installation),
                 MagicPrison = SacredMagicPrisonDefinitions.Load(installation), BubblePrison = SacredBubblePrisonDefinitions.Load(installation),
                 HorseOwner = SacredHorseOwnerDefinitions.Load(installation), HorseValues = HorseValueBalanceBinReader.Read(balance),

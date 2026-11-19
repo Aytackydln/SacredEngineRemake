@@ -3,6 +3,7 @@ using Sacred.Assets.World;
 using Sacred.Core.GameBin.Scripts;
 using Sacred.Core.World;
 using Sacred.Network.Gameplay;
+using Sacred.Network.Protocol;
 
 namespace Sacred.GameplayHost.Scripting;
 
@@ -16,6 +17,8 @@ public sealed class WorldScriptTriggerRegistry : IWorldScriptTriggerRegistry
     private readonly SacredSectorGrid? _sectors;
     private readonly Dictionary<uint, uint> _patches = [];
     private readonly List<(ushort Sector, SacredScriptPosition Position)> _pendingPositions = [];
+    private readonly List<GoldMessage> _publications = [];
+    public IReadOnlyList<GoldMessage> Publications => _publications.AsReadOnly();
     public WorldScriptTriggerRegistry(SacredWorldTriggerArchive source, GoldTriggerReferencePool grants, SacredSectorGrid? sectors = null)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -73,7 +76,7 @@ public sealed class WorldScriptTriggerRegistry : IWorldScriptTriggerRegistry
         return true;
     }
 
-    public void Create(SacredScriptTriggerCreation creation)
+    public void Create(SacredScriptTriggerCreation creation, byte? publishingOwner)
     {
         if (creation.Name.Length >= 64) throw new InvalidDataException("Trigger name exceeds the native 64-byte registration storage.");
         if (!_grants.TryAllocate(out var reference))
@@ -83,11 +86,13 @@ public sealed class WorldScriptTriggerRegistry : IWorldScriptTriggerRegistry
         Count = Math.Max(Count, reference + 1);
         // Native 0x464760 keeps an existing nonzero reference even though SetTrigger allocated another trigger.
         if (!_names.TryGetValue(creation.Name, out var current) || current == 0) _names[creation.Name] = reference;
+        if (publishingOwner is { } owner)
+            _publications.Add(GoldWorldTriggerCodec.Create(owner,reference,creation.NativeFlags,creation.State,creation.Name));
     }
 
     /// <summary>Gold startup 0x463F50: replace the packed cell mapping and queue tile positions.
     /// Duplicate mapping or queued XYZ ends the entire current command, including its remaining cells.</summary>
-    public void Patch(SacredScriptTriggerPatch patch)
+    public void Patch(SacredScriptTriggerPatch patch, Action<SacredScriptPosition>? markTile)
     {
         if (_sectors is null) throw new InvalidDataException("TriggerPatch requires the authored KEYX sector lookup.");
         if (!_names.TryGetValue(patch.Name, out var reference))
@@ -101,6 +106,16 @@ public sealed class WorldScriptTriggerRegistry : IWorldScriptTriggerRegistry
             if (_pendingPositions.Any(position => position.Position.X == cell.X && position.Position.Y == cell.Y &&
                 unchecked((byte)position.Position.Z) == unchecked((byte)cell.Z))) return;
             _pendingPositions.Add((unchecked((ushort)_sectors.GetSector(cell.X, cell.Y)), cell with { Z = unchecked((byte)cell.Z) }));
+            markTile?.Invoke(cell);
         }
+    }
+
+    internal void PatchAndPublish(SacredScriptTriggerPatch patch, byte owner, Action<SacredScriptPosition> markTile)
+    {
+        Patch(patch,markTile);
+        // 49718C submits after 463F50, including its duplicate-cell early return.
+        var reference = Find(patch.Name) ?? throw new InvalidDataException("Patch publication lost its registered trigger.");
+        _publications.Add(GoldTriggerPatchCodec.CreateNormalized(owner,reference,
+            patch.Cells.Select(cell => new GoldTriggerPatchCell(cell.X,cell.Y,cell.Z)).ToArray()));
     }
 }
