@@ -12,11 +12,17 @@ internal static class ModelFrustumCuller
     // This keeps its silhouette from popping at screen edges while still rejecting distant props.
     private const float DirectionalShadowCasterPadding = PlanarShadowProjection.MaximumLength;
 
-    public static bool IsVisible(SacredCamera camera, SceneModel model) =>
-        IntersectsCamera(camera, model.VisualCenter, model.WorldBoundsRadius, 0.0f);
+    public static bool IsVisible(SacredCamera camera, SceneModel model)
+    {
+        var bounds = model.VisibilityBounds;
+        return IntersectsCamera(camera, bounds.Center, bounds.Radius, 0.0f);
+    }
 
-    public static bool MayCastVisibleShadow(SacredCamera camera, SceneModel model) =>
-        IntersectsCamera(camera, model.VisualCenter, model.WorldBoundsRadius, DirectionalShadowCasterPadding);
+    public static bool MayCastVisibleShadow(SacredCamera camera, SceneModel model)
+    {
+        var bounds = model.VisibilityBounds;
+        return IntersectsCamera(camera, bounds.Center, bounds.Radius, DirectionalShadowCasterPadding);
+    }
 
     public static bool MayCastVisibleGroundShadow(SacredCamera camera, SceneModel model) =>
         IntersectsCamera(camera,
