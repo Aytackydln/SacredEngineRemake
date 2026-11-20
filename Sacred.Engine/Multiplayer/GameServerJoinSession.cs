@@ -25,7 +25,7 @@ internal sealed class GameServerJoinSession
     private readonly Task<(GoldFirstContact Contact, SacredSavedCharacterRecords Source, SacredSectorIndex Sectors, IReadOnlyDictionary<uint, SacredCreatureClass> Classes, IReadOnlyDictionary<uint, uint> Resources)> _load;
     private (GoldFirstContact Contact, SacredSavedCharacterRecords Source, SacredSectorIndex Sectors, IReadOnlyDictionary<uint, SacredCreatureClass> Classes, IReadOnlyDictionary<uint, uint> Resources) _data;
     private Task? _ready;
-    private Task? _banksRequest;
+    private Task? _hostJoin;
     private readonly Task<IReadOnlyDictionary<uint, SacredItemCategory>> _categories;
     private readonly string _folder;
     private Task<WorldCampaignScripts>? _scriptLoad;
@@ -62,7 +62,9 @@ internal sealed class GameServerJoinSession
             var compatibility = GoldLanCompatibility.Read(folder);
             var hero = SacredHeroPaxProfile.ReadSelected(folder, selection);
             var source = GameServerSavedCharacterReader.Read(folder, selection);
-            var contact = GoldFirstContact.Create(hero.Profile, new(hero.Name, (byte)selection, 1, (byte)connectionMode, 1, 0), compatibility);
+            GoldSavedCharacterImportPreparation.ValidateObjectPhysicalImports(source);
+            var parameters = GoldFirstContactParameters.ForLanGameServer(hero.Name, (byte)selection, connectionMode);
+            var contact = GoldFirstContact.Create(hero.Profile, parameters, compatibility);
             return (contact, source, SacredSectorIndex.Read(Path.Combine(folder,"World","sectors.keyx")),
                 (IReadOnlyDictionary<uint, SacredCreatureClass>)GameServerCreatureClasses.Read(folder),
                 (IReadOnlyDictionary<uint, uint>)GameServerCreatureClasses.ReadObjectResources(folder));
@@ -100,6 +102,7 @@ internal sealed class GameServerJoinSession
                     _data = _load.GetAwaiter().GetResult();
                     _client.SetFirstContact(_data.Contact);
                     _client.TrySetOption("server",_endpoint,out var connected);
+                    _client.TrackHostAdmission();
                     _client.WorldReplicas.ConfigureCreatureClasses(_data.Classes);
                     _client.WorldReplicas.ConfigureObjectResources(_data.Resources);
                     _client.WorldReplicas.ConfigureObjectCategories(_categories.GetAwaiter().GetResult());
@@ -107,21 +110,24 @@ internal sealed class GameServerJoinSession
                     _client.WorldReplicas.SpecialFx.ConfigureSectors(_data.Sectors);
                     Advance(1, connected + $"; saved selection {_selection}, {_data.Classes.Count} creature class definitions loaded");
                     break;
+                case 1 when _client.IsAssignedFirstHost:
+                    _hostJoin = _client.BeginFirstHostJoin(WorldHostSavedCharacterSource.ReadSelected(_folder, _selection));
+                    Advance(7, "uploading the minimal first-host world");
+                    break;
                 case 1 when _client.PlayerSlot != 0 && _client.GrantedReferenceCount >= _data.Source.Objects.Records.ToArray().Count(record=>!record.IsEmpty):
+                    _client.EndHostAdmissionTracking();
                     _client.StageCharacterReferences(_selection,_data.Source);
                     _client.StartCharacterUpload();
                     Advance(2,"waiting for native participant approval");
                     break;
-                case 2 when _client.IsParticipantWorldApproved && _client.WorldReplicas.LocalPlayerSlot != 0:
+                case 2 when _client.IsParticipantWorldApproved && _client.IsParticipantUploadComplete &&
+                    _client.WorldReplicas.LocalPlayerSlot != 0:
                     _scriptLoad = Task.Run(() => WorldCampaignScripts.Load(SacredCampaignFiles.Resolve(_folder, SectorScriptSelection)));
                     _constructionLoad = Task.Run(() => WorldCreatureConstructionAssets.Load(_folder));
-                    _banksRequest = _client.RequestWorldBanksAsync();
                     _client.RequestInitialSectors(_data.Sectors);
                     Advance(3,"waiting for native script/world banks and confirmed terrain");
                     break;
                 case 3 when _client.WorldReplicas.Sectors.Count > 0:
-                    if (!_banksRequest!.IsCompleted) break;
-                    _banksRequest.GetAwaiter().GetResult();
                     if (!_client.WorldReplicas.WorldBanks.IsComplete || !bindScene(_client.WorldReplicas)) break;
                     Advance(4,"native script/world banks received; loading server world into the scene");
                     break;
@@ -132,10 +138,24 @@ internal sealed class GameServerJoinSession
                     break;
                 case 5 when _ready!.IsCompleted:
                     _ready.GetAwaiter().GetResult();
-                    Advance(6,$"in game: Sacred slot {_client.PlayerSlot}, saved selection {_selection}; connection stays open");
+                    if (_client.IsMinimalHostApproved) _client.TrackFirstHostSectorInterest(_data.Sectors);
+                    Advance(6, _client.IsMinimalHostApproved
+                        ? $"in game as first host in slot {_client.PlayerSlot}"
+                        : $"in game: Sacred slot {_client.PlayerSlot}, saved selection {_selection}; connection stays open");
+                    break;
+                case 7 when _hostJoin!.IsCompleted:
+                    _hostJoin.GetAwaiter().GetResult();
+                    if (!_client.IsConnected) throw new InvalidOperationException("Host connection ended before scene entry.");
+                    if (!_client.IsWorldApproved || !_client.WorldReplicas.SectorInterest.IsConfirmed ||
+                        !bindScene(_client.WorldReplicas)) break;
+                    Advance(8, "first-host upload approved, loading confirmed terrain");
+                    break;
+                case 8 when sceneReady():
+                    _ready = _client.SendPeerReadyAsync();
+                    Advance(5, "sending first-host peer readiness after local model binding");
                     break;
             }
-            if (_phase is >= 1 and <= 5 && !_client.IsConnected)
+            if ((_phase is >= 1 and <= 5 or 7 or 8) && !_client.IsConnected)
                 throw new InvalidOperationException("Connection ended during join: " + _client.Status);
         }
         catch (Exception error)
@@ -160,8 +180,6 @@ internal sealed class GameServerJoinSession
             _ = scripts.ContinueWith(task => { _ = task.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
         if (_constructionLoad is { } construction)
             _ = construction.ContinueWith(task => { _ = task.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
-        if (_banksRequest is { } banks)
-            _ = banks.ContinueWith(task => { _ = task.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
         EngineLog.WriteLine($"Network join: {Status}.");
     }
 

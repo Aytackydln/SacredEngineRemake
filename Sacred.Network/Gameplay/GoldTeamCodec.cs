@@ -21,6 +21,15 @@ public static class GoldTeamCodec
     public const uint LeaderFlag = 0x80000000;
     public const uint TeamMask = 0x7fffffff;
 
+    /// <summary>Gold 0x60EC72: campaign entry joins team 1 before peer readiness.</summary>
+    public static GoldMessage CreateCampaignJoin(byte playerSlot)
+    {
+        if (playerSlot is < 1 or > PlayerCount) throw new ArgumentOutOfRangeException(nameof(playerSlot));
+        var payload = new byte[4];
+        BinaryPrimitives.WriteUInt32LittleEndian(payload, 1);
+        return new(JoinOpcode, playerSlot, playerSlot, 0, payload);
+    }
+
     public static GoldTeamEvent Decode(GoldMessage message)
     {
         ArgumentNullException.ThrowIfNull(message);

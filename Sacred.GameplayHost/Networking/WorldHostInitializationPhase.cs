@@ -5,5 +5,5 @@ public enum WorldHostInitializationPhase
 {
     Connecting, WaitingForHostAssignment, WaitingForReservations, ReservationsAvailable,
     PreparingCharacter, WaitingForActorBinding, ExecutingStartup, StartupBlocked, StartupComplete, Disconnected,
-    WaitingForStartupInputs, CampaignBlocked, CampaignComplete
+    WaitingForStartupInputs, CampaignBlocked, CampaignComplete, MinimalUploadApproved
 }

@@ -10,11 +10,16 @@ public static class GoldSavedPhysicalStateImporter
 {
     public static GoldPhysicalState Import(ReadOnlySpan<byte> savedPhysical)
     {
+        ValidateImport(savedPhysical);
+        return ImportRetainedState(savedPhysical);
+    }
+
+    internal static void ValidateImport(ReadOnlySpan<byte> savedPhysical)
+    {
         if (savedPhysical.Length != SacredSavedPhysicalLayout.Size)
             throw new InvalidDataException("Saved physical import requires exactly 247 bytes.");
         if (BinaryPrimitives.ReadUInt32LittleEndian(savedPhysical[SacredSavedPhysicalLayout.Word64Offset..]) != 0)
             throw new NotSupportedException("Nonzero native +0x64 requires the unimplemented model/animation import path.");
-        return ImportRetainedState(savedPhysical);
     }
 
     /// <summary>Project saved physical fields for upload, retaining animation selection and the saved bone vector.

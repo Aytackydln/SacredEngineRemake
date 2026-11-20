@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Sacred.Network.Admission;
 using Sacred.Network.Gameplay;
 using Sacred.Network.Tests.Infrastructure;
 
@@ -28,6 +29,16 @@ internal static class PacketCatalog
             rows.Add(new(name, opcode, typeof(T), bytes, rule, verify, sender, owns, shorter));
         Add<GoldHostWorldAvailableEvent>("server host world availability", GoldWorldEntryCodec.HostStartOpcode,
             () => [], verify: entry => Assert.AreEqual((byte)1, entry.Message.Origin));
+        Add<GoldWorldBankRequestEvent>("native co-op participant bank request", 0x1B5, () => [], sender: 2);
+        Add<GoldWorldEnvironmentEvent>("native co-op host environment request", 0x0B, () => [], verify: entry =>
+        {
+            Assert.IsTrue(((GoldWorldEnvironmentEvent)entry).IsRequest);
+            var request = GoldWorldEnvironmentCodec.CreateRequest(1);
+            Assert.AreEqual(entry.Message.Opcode, request.Opcode);
+            Assert.AreEqual((byte)1, request.Sender);
+            Assert.AreEqual((byte)1, request.Origin);
+            CollectionAssert.AreEqual(entry.Message.Payload, request.Payload);
+        }, sender: 1);
         Add<GoldWorldRegionFlagsEvent>("native initialization flag before callback", 0x185,
             () => RegionInitializationChecks.WireExample(RepositoryFiles.Root), verify: entry =>
             {
@@ -349,6 +360,14 @@ internal static class PacketCatalog
         Add<GoldSessionNoticeEvent>("lobby kick notice", 0x031, () => [0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 0xa5, 72, 0, 105, 0, 0, 0], PayloadRule.RetainedSuffix,
             e => { Assert.AreEqual("Hi", ((GoldSessionNoticeEvent)e).Text); Assert.IsTrue(((GoldSessionNoticeEvent)e).UpdatesCustomText); }, owns: true);
         Add<GoldFirstContactEvent>("first contact", 0x10, () => new byte[950]);
+        Add<GoldFirstContactEvent>("co-op direct LAN FIRSTCONTACT", 0x10, () =>
+        {
+            var compatibility = new GoldLanCompatibility(0, new(new uint[GoldDataFingerprints.Count]), 0, 0, 0);
+            var parameters = GoldFirstContactParameters.ForLanGameServer("LAN", 4, GoldConnectionMode.LanHighBandwidth);
+            var payload = GoldFirstContact.Create(new byte[GoldFirstContactLayout.ProfileBytes], parameters, compatibility).ToPayload();
+            CollectionAssert.AreEqual(new byte[] { 4, 1, 2, 0 }, payload[6..10]);
+            return payload;
+        });
         foreach (var opcode in new ushort[] { 0x035, 0x038, 0x03a, 0x03c, 0x03d })
             Add<GoldSessionNoticeEvent>("session/lobby notice", opcode, () =>
             {
@@ -386,6 +405,15 @@ internal static class PacketCatalog
                 e => Assert.AreEqual(opcode == 0x135, ((GoldSessionPauseEvent)e).IsPaused), owns: true);
         Add<GoldTeamJoinEvent>("team join", 0x138, () => Words(0x80000003), PayloadRule.RetainedSuffix,
             e => Assert.AreEqual(0x80000003u, ((GoldTeamJoinEvent)e).Team), owns: true);
+        Add<GoldTeamJoinEvent>("native campaign startup team join", 0x138, () => Words(1), PayloadRule.RetainedSuffix,
+            e =>
+            {
+                var outbound = GoldTeamCodec.CreateCampaignJoin(1);
+                Assert.AreEqual(e.Message.Opcode, outbound.Opcode);
+                Assert.AreEqual((byte)1, outbound.Sender);
+                Assert.AreEqual((byte)1, outbound.Origin);
+                CollectionAssert.AreEqual(e.Message.Payload, outbound.Payload);
+            }, sender: 1, owns: true);
         Add<GoldTeamInviteEvent>("team invitation", 0x139, () => Words(3), PayloadRule.RetainedSuffix,
             e => Assert.AreEqual(3u, ((GoldTeamInviteEvent)e).Player), owns: true);
         Add<GoldTeamSnapshotEvent>("team snapshot", 0x13a,

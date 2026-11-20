@@ -17,10 +17,17 @@ internal static class HostInitializationConsole
             var campaign = SacredCampaignFiles.Resolve(options.GameDirectory, options.CampaignScriptsDirectory);
             await using var session = WorldHostInitializationSession.OpenSavedCharacter(options.GameDirectory, campaign,
                 profile, options.NetworkProbeHost, options.NetworkProbePort, RendererLog.Info, cancel.Token);
-            var character = await session.PrepareCharacterAsync(cancel.Token);
-            await session.PublishCharacterAsync(cancel.Token);
-            RendererLog.Info($"Host character: {character.Source.Profile.Name}, {character.ReferencePlan.ObjectCount} saved objects rebased with actual grants; source packets retained privately, verified runtime character publication sent.");
-            RendererLog.Info(session.ActiveHero!.StartupBlocker);
+            if (options.MinimalHost)
+            {
+                using var approvalTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancel.Token);
+                approvalTimeout.CancelAfter(TimeSpan.FromSeconds(30));
+                await session.JoinMinimalAsync(approvalTimeout.Token);
+            }
+            else await session.PublishCharacterAsync(cancel.Token);
+            var character = session.Character;
+            var referencePlan = session.MinimalCharacterReferences ?? character!.ReferencePlan;
+            RendererLog.Info($"Host character: {session.SelectedCharacter!.Profile.Name}, {referencePlan.ObjectCount} saved objects rebased with actual grants.");
+            if (!options.MinimalHost) RendererLog.Info(session.ActiveHero!.StartupBlocker);
         RendererLog.Info("Host connection retained. Console commands: status, character, startup, campaign, interest, sector, enter-region, enter-sector, ambient, restore-sector, patch-sector, complete-sector, sectors, banks, region <sector>, quit.");
             while (session.IsCurrent)
             {
@@ -37,7 +44,7 @@ internal static class HostInitializationConsole
                 {
                     try
                     {
-                        var startup = session.Startup ?? throw new InvalidOperationException(character.ActorBindingBlocker);
+                        var startup = session.Startup ?? throw new InvalidOperationException(character?.ActorBindingBlocker ?? "Campaign execution is deferred in minimal host mode.");
                         if (!uint.TryParse(command.Trim()[7..], out var sector)) throw new InvalidOperationException("region requires an original sector ID.");
                         var result = await session.InitializeRegionAsync(options.GameDirectory, sector, cancel.Token);
                         var region = session.RegionInitialization!;
@@ -51,15 +58,23 @@ internal static class HostInitializationConsole
                 }
                 switch (command.Trim().ToLowerInvariant())
                 {
-                    case "quit": case "exit": return 3; // initialization is still incomplete
+                    case "quit": case "exit": return session.Phase == WorldHostInitializationPhase.MinimalUploadApproved ? 0 : 3;
                     case "status":
                         RendererLog.Info($"Host current roster player count: {session.Replicas.Session.Lobby.Control.Roster.NativePlayerCount?.ToString() ?? "unknown; complete server roster not received"}.");
-                        RendererLog.Info($"Host status: {session.Phase}, live {session.IsCurrent}, slot {session.Admission.PlayerSlot}, IDs {session.References.Available}/{session.References.Issued}, trigger IDs {session.Replicas.TriggerReferences.Available}, current character sent {session.CharacterPublicationSent}, received network replicas {session.Replicas.Objects.Count}.");
+                        RendererLog.Info($"Host status: {session.Phase}, live {session.IsCurrent}, slot {session.Admission.PlayerSlot}, IDs {session.References.Available}/{session.References.Issued}, trigger IDs {session.Replicas.TriggerReferences.Available}, current character sent {session.CharacterPublicationSent}, world replicas {session.Replicas.Objects.Count}, local replica slot {session.Replicas.LocalPlayerSlot}.");
+                        if (options.MinimalHost)
+                            RendererLog.Info($"Host initial interest confirmed: {session.Replicas.SectorInterest.IsConfirmed}, active sectors {session.Replicas.Sectors.Count}.");
                         RendererLog.Info(session.Startup is { } startupState
                             ? $"Startup: commands {startupState.Execution.ExecutedCommands}, complete {startupState.Execution.StartupCompleted}, invalidated {startupState.Execution.IsInvalidated}."
-                            : $"StartCode not started: {session.ActiveHero?.StartupBlocker ?? character.ActorBindingBlocker}");
+                            : options.MinimalHost ? "Minimal host mode. Campaign execution is deferred." :
+                                $"StartCode not started: {session.ActiveHero?.StartupBlocker ?? character?.ActorBindingBlocker}");
                         break;
                     case "character":
+                        if (options.MinimalHost)
+                        {
+                            RendererLog.Info($"Host character: {session.SelectedCharacter!.Profile.Name}, slot {session.Replicas.LocalPlayerSlot}, {referencePlan.ObjectCount} restored saved objects.");
+                            break;
+                        }
                         var retained = await session.PrepareCharacterAsync(cancel.Token);
                         var saved = retained.Source.Records.Hero.Creature.BaseState;
                         RendererLog.Info($"Host character: current {retained.IsCurrent}, slot {retained.ReferencePlan.PlayerSlot}, {retained.ReferencePlan.ObjectCount} rebased objects, {retained.Packets.MessageCount} private packets, saved pose {saved.Sector}:{saved.X},{saved.Y},{saved.Surface}; campaign entry placed {retained.HeroConstruction.Actor.CampaignEntryPlaced}.");

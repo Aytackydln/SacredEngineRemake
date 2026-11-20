@@ -300,6 +300,9 @@ public static class GoldGameEventDecoder
             case GoldWorldEntryCodec.PeerReadyOpcode:
                 RequireExact(payload, 0, message.Opcode);
                 return new GoldPeerReadyEvent(message);
+            case GoldWorldEntryCodec.WorldBankRequestOpcode:
+                RequireExact(payload, 0, message.Opcode);
+                return new GoldWorldBankRequestEvent(message);
             case GoldSectorEntryLayout.Opcode:
                 return message.Sender == 0 ? new GoldSectorEntryEvent(message, GoldSectorEntry.FromPayload(payload)) :
                     new GoldSectorInterestEvent(message, GoldSectorInterestRequest.FromPayload(payload));

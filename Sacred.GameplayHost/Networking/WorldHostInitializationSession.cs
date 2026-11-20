@@ -12,7 +12,7 @@ namespace Sacred.GameplayHost.Networking;
 /// <summary>Persistent first-host connection and ordered receive owner. The
 /// connection performs keepalive while world preparation holds the state gate.
 /// Disposal or connection loss invalidates all retained generated state.</summary>
-public sealed class WorldHostInitializationSession : IAsyncDisposable
+public sealed partial class WorldHostInitializationSession : IAsyncDisposable
 {
     private readonly GoldGameConnection _connection;
     private readonly Action<string> _log;
@@ -40,7 +40,8 @@ public sealed class WorldHostInitializationSession : IAsyncDisposable
     public WorldHostCharacterPreparation? Character { get; private set; }
     public WorldHostActiveHeroBinding? ActiveHero { get; private set; }
     public WorldHostStartupRequest? StartupRequest { get; private set; }
-    public bool CharacterPublicationSent => _characterPublicationSent && IsCurrent && Character?.HeroConstruction.RuntimePublication is not null;
+    public bool CharacterPublicationSent => _characterPublicationSent && IsCurrent &&
+        (MinimalCharacterPublication is not null || Character?.HeroConstruction.RuntimePublication is not null);
     public WorldHostRegionInitialization? RegionInitialization { get; private set; }
     public string? Failure { get; private set; }
     public Task Completion { get; private set; } = Task.CompletedTask;
@@ -60,7 +61,8 @@ public sealed class WorldHostInitializationSession : IAsyncDisposable
         cancellationToken.ThrowIfCancellationRequested();
         var source = WorldHostSavedCharacterSource.ReadSelected(installation, selection);
         var hero = source.Profile;
-        var contact = GoldFirstContact.Create(hero.Profile, new(hero.Name, checked((byte)selection), 1, 1, 1, 0), GoldLanCompatibility.Read(installation));
+        var parameters = GoldFirstContactParameters.ForLanGameServer(hero.Name, checked((byte)selection), GoldConnectionMode.LowBandwidth);
+        var contact = GoldFirstContact.Create(hero.Profile, parameters, GoldLanCompatibility.Read(installation));
         var bound = SacredWorldTriggerArchive.Load(Path.Combine(installation, "World", "Triggers.PAK")).Header.TriggerCount;
         return StartSavedCharacter(source, new(), host, port, contact, bound,
             (state, remote, token) => WorldHostStartupDiscovery.SeedAsync(installation, remote, contact.Version, state, log, token), log, cancellationToken);
@@ -89,6 +91,7 @@ public sealed class WorldHostInitializationSession : IAsyncDisposable
         try
         {
             RequireCurrent();
+            if (_minimalUpload is not null) throw new InvalidOperationException("The minimal host upload owns character publication.");
             if (Character?.HeroConstruction.RuntimePublication is not null) return Character;
             var source = SelectedCharacter ?? throw new InvalidOperationException("No selected saved-character source on this diagnostic connection.");
             if (_startupAttempted) throw new InvalidOperationException("Character import must precede StartCode and its shared reference allocations.");
@@ -177,6 +180,7 @@ public sealed class WorldHostInitializationSession : IAsyncDisposable
             RequireCurrent();
             var runtime = character.HeroConstruction.RuntimePublication ?? throw new InvalidOperationException("Current native character export is absent.");
             if (_characterPublicationSent) { ActiveHero!.RequireCurrent(); return runtime; }
+            if (_minimalUpload is not null) throw new InvalidOperationException("The minimal host upload owns character publication.");
             if (_characterPublicationStarted) throw new InvalidOperationException("A partially sent character cannot be replayed on the same connection.");
             character.HeroConstruction.ValueSnapshots!.RequireMatch(character.HeroConstruction.Actor);
             var messages = runtime.CreateMessages();
@@ -219,7 +223,7 @@ public sealed class WorldHostInitializationSession : IAsyncDisposable
         try
         {
             RequireCurrent();
-            if (_startupAttempted) throw new InvalidOperationException("Host startup cannot be replayed into the same reservation lifetime.");
+            if (_startupAttempted || _minimalUpload is not null) throw new InvalidOperationException("Full startup requires a fresh host connection.");
             _startupAttempted = true; started = true; SetPhase(WorldHostInitializationPhase.ExecutingStartup);
             Startup = WorldHostStartupPreparation.Run(installation, campaign, Admission.PlayerSlot, Replicas, References, _log, linked.Token, ActiveHero, StartupRequest);
             RequireCurrent();
@@ -302,23 +306,18 @@ public sealed class WorldHostInitializationSession : IAsyncDisposable
         try
         {
             SetPhase(WorldHostInitializationPhase.WaitingForHostAssignment);
-            await foreach (var entry in _connection.Events.ReadAllAsync(_stop.Token).ConfigureAwait(false))
+            await foreach (var entry in ReadHostEventsAsync().ConfigureAwait(false))
             {
                 await _gate.WaitAsync(_stop.Token).ConfigureAwait(false);
                 try
                 {
                     if (entry is GoldConnectionClosed closed) throw new IOException(closed.Reason);
                     if (entry is GoldMessagesReceived received)
-                        GoldGameDispatcher.Dispatch(received.Messages, message =>
-                        {
-                            WorldSession.Apply(message);
-                            if (message is GoldAdmissionEvent) _admissionObserved = true;
-                            if (message is GoldReferenceBatchEvent batch)
-                            {
-                                References.Apply(batch.Batch);
-                                _log($"Host initialization: received {batch.Batch.Count} object IDs; issued {References.Issued}, available {References.Available}.");
-                            }
-                        });
+                    {
+                        ApplyHostMessages(received.Messages);
+                        if (ReferenceEquals(received, _consumedHostMessages)) _consumedHostMessages = null;
+                        else _observeHostBatch?.Invoke(received.Messages);
+                    }
                     var admission = Admission;
                     if (admission.Phase == GoldAdmissionPhase.Rejected)
                         throw new InvalidDataException($"Host admission rejected: reason {admission.RejectionReason}, mismatch 0x{admission.DataMismatchMask:X8}.");

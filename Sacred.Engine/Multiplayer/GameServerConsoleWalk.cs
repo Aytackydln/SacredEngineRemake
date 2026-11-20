@@ -54,7 +54,7 @@ internal sealed class GameServerConsoleWalk
         if(IsComplete) return;
         try
         {
-            if(!_world.IsCurrentSession || !_client.IsParticipantWorldApproved) throw new InvalidOperationException("Walking session ended.");
+            if(!_world.IsCurrentSession || !_client.IsWorldApproved) throw new InvalidOperationException("Walking session ended.");
             if (_world.Replicas.Session.IsPaused == true) return;
             if(_send is { IsCompleted:false }) return;
             if (_world.LocalHero.Creature?.IsSleeping == true)

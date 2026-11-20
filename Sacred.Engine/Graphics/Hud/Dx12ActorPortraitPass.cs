@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Threading.Tasks;
+using ImGuiNET;
 using Sacred.Assets.Paks.Texture;
 using Sacred.Engine.Assets;
 using Sacred.Engine.Scene;
@@ -42,6 +43,7 @@ internal sealed class Dx12ActorPortraitPass : IDisposable
         var viewport = new Vector2(_graphics.OutputWidth, _graphics.OutputHeight);
         var scale = BottomHudLayout.GetScale(viewport);
         var draw = ImGuiNET.ImGui.GetBackgroundDrawList();
+        Dx12AllyHudPass.Build(scene, viewport, scale, DrawAllyPortrait);
         Draw(player, 0, true);
         for (var index = 0; index < Math.Min(ActorPortraitLayout.MaximumCompanions, state.Party.Members.Count); index++)
             Draw(state.Party.Members[index], index + 1, false);
@@ -76,6 +78,12 @@ internal sealed class Dx12ActorPortraitPass : IDisposable
             if (!EnsureTexture(region.TextureName, out var slot)) return;
             draw.AddImage(slot, minimum, minimum + size, region.UvMinimum, region.UvMaximum);
         }
+    }
+
+    private void DrawAllyPortrait(uint? actorType, ImDrawListPtr draw, Vector2 minimum, Vector2 maximum)
+    {
+        if (actorType is { } type && _art!.GetPortrait(type) is { } portrait && EnsureTexture(portrait.TextureName, out var slot))
+            draw.AddImageRounded(slot, minimum, maximum, portrait.UvMinimum, portrait.UvMaximum, 0xFFFFFFFF, 3);
     }
 
     private bool EnsureDefinitions()

@@ -34,7 +34,7 @@ internal sealed class NetworkScenePresentation : IDisposable
     private readonly WorldMeleeDeflectionPrediction _meleeDeflections = new();
     public void UpdateMeleeDeflections(float seconds, WorldCombatDeflectionSystem effects) =>
         _meleeDeflections.Update(World.Replicas, World.Replicas.Session.SimulationSeconds(seconds),
-            subject => World.CanNavigateSector(subject.BaseState.Sector) ? FxActor(subject) : null,
+            subject => World.IsSectorInitialized(subject.BaseState.Sector) ? FxActor(subject) : null,
             attack => _actors.TryGetValue(attack.ObjectReference, out var entry) ? entry.Actor.MeleeImpactTime(attack) : null,
             effects.EmitPredicted);
     public IReadOnlyList<WorldCreatureMarker> GroundMarkers => _markers.Markers;
@@ -468,6 +468,7 @@ internal sealed class NetworkScenePresentation : IDisposable
         _scene.CombatText.Damage = [];
         _scene.CombatText.HudNotices = [];
         _scene.CombatText.ChatLines = [];
+        _scene.Allies = [];
         _scene.CombatText.DrawnHudNotices = 0;
         _scene.CombatText.DragDropClears = 0;
         _scene.CombatText.DroppedWorldText = 0;

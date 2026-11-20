@@ -20,7 +20,7 @@ internal sealed class NetworkMovementPublisher(GameServerClientController client
 
     public void Update(Vector2 position, Vector2 target, Vector2 facing, bool moving, bool walking, float deltaSeconds)
     {
-        if (Error is not null || !world.IsCurrentSession || !client.IsParticipantWorldApproved || world.Replicas.Session.IsPaused == true) return;
+        if (Error is not null || !world.IsCurrentSession || !client.IsWorldApproved || world.Replicas.Session.IsPaused == true) return;
         try
         {
             _elapsed += deltaSeconds;

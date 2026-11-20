@@ -16,6 +16,7 @@ public sealed class GoldParticipantUploadSession
         cancellationToken.ThrowIfCancellationRequested();
         // Validate/copy the whole data sequence before the first control is sent.
         var messages = upload.CreateMessages().Prepend(GoldWorldEntryCodec.CreateParticipantUpload(upload.PlayerSlot))
+            .Append(GoldWorldEntryCodec.CreateWorldBankRequest(upload.PlayerSlot))
             .Append(GoldWorldEntryCodec.CreateParticipantStart(upload.PlayerSlot)).ToArray();
         connection.ClaimWorldUpload(upload.PlayerSlot, host: false);
         return new(connection.SendWorldUploadAsync(messages, cancellationToken));

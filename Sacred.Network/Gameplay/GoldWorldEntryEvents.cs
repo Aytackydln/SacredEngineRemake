@@ -13,5 +13,6 @@ public sealed record GoldHostStartRequestEvent(GoldMessage Message, uint Word) :
 /// <summary>Server 0x18 is empty and may retain the host's Sacred slot in Origin.</summary>
 public sealed record GoldHostWorldAvailableEvent(GoldMessage Message) : GoldGameEvent(Message);
 public sealed record GoldPeerReadyEvent(GoldMessage Message) : GoldGameEvent(Message);
+public sealed record GoldWorldBankRequestEvent(GoldMessage Message) : GoldGameEvent(Message);
 public sealed record GoldSectorEntryEvent(GoldMessage Message, GoldSectorEntry Entry) : GoldGameEvent(Message);
 public sealed record GoldSectorInterestEvent(GoldMessage Message, GoldSectorInterestRequest Request) : GoldGameEvent(Message);

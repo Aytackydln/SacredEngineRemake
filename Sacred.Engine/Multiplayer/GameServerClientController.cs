@@ -38,10 +38,12 @@ internal sealed partial class GameServerClientController : IDisposable
     public bool IsConnected => _connection is { Completion.IsCompleted: false };
     public IPEndPoint? RemoteEndpoint => IsConnected ? _connection?.RemoteEndpoint : null;
     public bool IsParticipantWorldApproved => _connection is { Completion.IsCompleted: false } connection && connection.Admission.WorldStartup.ParticipantStartApproved;
+    public bool IsParticipantUploadComplete => _uploadSession?.Completion.IsCompletedSuccessfully == true;
     private GoldSavedCharacterReferencePlan? _referencePlan;
     private GoldSavedCharacterImportPreparation? _importPreparation;
     private GoldParticipantCharacterUpload? _characterPackets;
     private GoldParticipantUploadSession? _uploadSession;
+    private GoldPlayerStatisticsState? _startupStatistics;
     private bool _uploadReported;
     private GameServerSectorInterest? _sectorInterest;
     private string _status = "offline";
@@ -75,6 +77,7 @@ internal sealed partial class GameServerClientController : IDisposable
         LocalMovementControl = source.Hero.Creature.MovementControl;
         _importPreparation = prepared;
         _characterPackets = packets;
+        _startupStatistics = GoldPlayerStatisticsState.FromSavedCharacter(source);
         var message = $"reference plan staged: hero {plan.PlayerSlot}, {plan.ObjectCount} objects from {_allocatedReferences.Count} granted refs; upload pending";
         EngineLog.WriteLine($"Network: {message}.");
         EngineLog.WriteLine($"Network participant data order: {plan.ObjectCount} object streams 0x16E, hero 0x169, player/shared inventories 0x122; {packets.MessageCount} packets, {packets.PayloadBytes} bytes prepared.");
@@ -88,7 +91,7 @@ internal sealed partial class GameServerClientController : IDisposable
         if (_connection is null || _characterPackets is null) throw new InvalidOperationException("Connect and run set server-character plan <selection> before entering.");
         _uploadSession = GoldParticipantUploadSession.Start(_connection, _characterPackets);
         _uploadReported = false;
-        var message = $"participant upload started: {_characterPackets.MessageCount} character packets between 0x15/0x17 controls";
+        var message = $"participant upload started: {_characterPackets.MessageCount} character packets, then world-bank request 0x1B5 before 0x17";
         EngineLog.WriteLine($"Network: {message}.");
         return message;
     }
@@ -96,7 +99,7 @@ internal sealed partial class GameServerClientController : IDisposable
     public string RequestInitialSectors(SacredSectorIndex index)
     {
         if (_connection is not { Completion.IsCompleted: false } connection ||
-            !connection.Admission.WorldStartup.ParticipantStartApproved || _uploadSession?.Completion.IsCompletedSuccessfully != true || _referencePlan is null)
+            !connection.Admission.WorldStartup.ParticipantStartApproved || !IsParticipantUploadComplete || _referencePlan is null)
             throw new InvalidOperationException("Initial sector interest requires a completed and approved participant upload.");
         if (_sectorInterest is not null) throw new InvalidOperationException("Initial sector interest already requested; disconnect before retrying.");
         var current = WorldReplicas.Objects[WorldReplicas.LocalPlayerSlot].BaseState.Sector;
@@ -108,26 +111,37 @@ internal sealed partial class GameServerClientController : IDisposable
 
     public string RequestSectorInterest(ushort sector)
     {
-        if (!IsParticipantWorldApproved || _sectorInterest is null) throw new InvalidOperationException("Connect, upload and request initial sectors before changing interest.");
+        if (!IsWorldApproved || _sectorInterest is null) throw new InvalidOperationException("Connect, upload and request initial sectors before changing interest.");
         return _sectorInterest.Request(sector);
     }
 
     public Task SendPeerReadyAsync()
     {
+        if (IsMinimalHostApproved)
+        {
+            if (!WorldReplicas.SectorInterest.IsConfirmed ||
+                !WorldReplicas.Objects.TryGetValue(PlayerSlot, out var local) ||
+                local.BaseState.Owner != PlayerSlot || local.Creature is null ||
+                !WorldReplicas.Sectors.ContainsKey(local.BaseState.Sector))
+                throw new InvalidOperationException("First-host peer readiness requires the approved local actor and confirmed sector.");
+            var flags = _hostSession!.Replicas.Session.GameFlags ??
+                throw new InvalidOperationException("First-host peer readiness requires the native session flags.");
+            return SendPeerReadyForSessionAsync(_connection!, PlayerSlot, flags);
+        }
         if (WorldReplicas.WorldTriggers.Pending.Count != 0)
             throw new InvalidOperationException($"Peer readiness requires native trigger world effects: {WorldReplicas.WorldTriggers.Pending.Count} pending. Inspect set server resources before retrying.");
         if (!IsParticipantWorldApproved || WorldReplicas.LocalPlayerSlot == 0 || WorldReplicas.Sectors.Count == 0 || !WorldReplicas.WorldBanks.IsComplete)
             throw new InvalidOperationException("Peer readiness requires approved character upload, confirmed world sectors and all four native world banks.");
         if (!WorldReplicas.SectorWork.IsComplete)
             throw new InvalidOperationException($"Peer readiness requires completion of requested native sector work: {WorldReplicas.SectorWork.PendingCount} pending, {WorldReplicas.SectorWork.FailedCount} failed. Inspect set server work before retrying.");
-        return _connection!.SendAsync(GoldWorldEntryCodec.CreatePeerReady(PlayerSlot)).AsTask();
+        return SendPeerReadyForSessionAsync(_connection!, PlayerSlot, WorldReplicas.Session.GameFlags ?? 0);
     }
 
     public Task SendOwnedMovementAsync(GoldMessage message)
     {
         if (WorldReplicas.Session.IsPaused == true) throw new InvalidOperationException("Movement waits for the server to resume.");
-        if (!IsParticipantWorldApproved || message.Sender != PlayerSlot || message.Origin != PlayerSlot)
-            throw new InvalidOperationException("Movement requires the current approved participant identity.");
+        if (!IsWorldApproved || message.Sender != PlayerSlot || message.Origin != PlayerSlot)
+            throw new InvalidOperationException("Movement requires the current approved local identity.");
         var decoded = GoldGameEventDecoder.Decode(message);
         var reference = decoded switch { GoldMovementEvent move => move.ObjectReference, GoldMovementEndEvent end => end.ObjectReference,
             GoldIdleEvent idle => idle.ObjectReference, _ => throw new ArgumentException("Expected a movement message.", nameof(message)) };
@@ -304,6 +318,7 @@ internal sealed partial class GameServerClientController : IDisposable
     public void Update()
     {
         if (_connection is not { } connection) return;
+        if (_hostSession is not null) { UpdateFirstHost(); return; }
         if (!_uploadReported && _uploadSession?.Completion is { IsCompleted: true } upload)
         {
             _uploadReported = true;
@@ -325,7 +340,11 @@ internal sealed partial class GameServerClientController : IDisposable
                     EngineLog.WriteLine($"Network admission: {_admission}.");
                     break;
                 case GoldMessagesReceived batch:
-                    try { GoldGameDispatcher.Dispatch(batch.Messages, Receive); }
+                    try
+                    {
+                        GoldGameDispatcher.Dispatch(batch.Messages, Receive);
+                        _hostAdmissionHistory?.AddRange(batch.Messages);
+                    }
                     catch (InvalidDataException e)
                     {
                         EngineLog.WriteLine($"Network batch rejected: {e.Message}");
@@ -351,6 +370,7 @@ internal sealed partial class GameServerClientController : IDisposable
 
     private void Disconnect()
     {
+        DisposeFirstHost();
         if (_connection is { } connection) connection.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _connection = null;
         _movements.Clear(); _objects.Clear(); _doors.Clear(); _opcodeCounts.Clear();
@@ -364,6 +384,7 @@ internal sealed partial class GameServerClientController : IDisposable
             catch (Exception error) { EngineLog.WriteLine($"Network upload ended on disconnect: {error.Message}."); }
         }
         _uploadSession = null; _uploadReported = false;
+        _startupStatistics = null;
         _sectorInterest?.ObserveCompletion();
         _sectorInterest = null;
         _gameplay.Clear();

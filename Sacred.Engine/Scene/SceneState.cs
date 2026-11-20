@@ -20,6 +20,7 @@ public sealed class SceneState
 {
     public NpcOverheadSceneState NpcOverheads { get; } = new();
     public CombatTextSceneState CombatText { get; } = new();
+    internal IReadOnlyList<AllyHudEntry> Allies { get; set; } = [];
     public BottomHudState? Hud { get; set; }
     public EquipmentUiState EquipmentUi { get; } = new();
     public ActorPortraitPanelState Portraits { get; } = new();

@@ -93,6 +93,8 @@ internal sealed partial class InGameScene
                 var world = load.GetAwaiter().GetResult();
                 if (world.IsCurrentSession)
                 {
+                    if (_networkClient is { IsMinimalHostApproved: true } host)
+                        world.IsMinimalHostApproved = () => host.IsMinimalHostApproved;
                     _networkPresentation = new(world,_assets,_scene)
                     { GameplayObjects = new SacredNetworkObjectWorld(world, _assets, _networkClient, EngineLog.WriteLine),
                         DeathEffects = _particles.ReceivedEffects };
@@ -190,16 +192,16 @@ internal sealed partial class InGameScene
         _particles.ReceivedEffects.Synchronize(view.World.Replicas, view.FxActor,
             point => view.World.OutdoorHeightAt(new Vector2(point.X, point.Y) / SacredNetworkPosition.NativeUnitsPerTile) /
                 (WorldModelPose.Scale * WorldModelPose.CameraProjection.M33));
-        uint? BloodColor(GoldReplicatedObject subject) => view.World.CanNavigateSector(subject.BaseState.Sector) &&
+        uint? BloodColor(GoldReplicatedObject subject) => view.World.IsSectorInitialized(subject.BaseState.Sector) &&
             _assets.GetItem(subject.BaseState.ObjectType) is { } item
             ? SacredCreatureBlood.Color(item.ModelDesc) : null;
         _particles.CombatEffects.Synchronize(view.World.Replicas, view.FxActor);
-        _particles.DeflectionEffects.Synchronize(view.World.Replicas, view.FxActor, subject => view.World.CanNavigateSector(subject.BaseState.Sector));
+        _particles.DeflectionEffects.Synchronize(view.World.Replicas, view.FxActor, subject => view.World.IsSectorInitialized(subject.BaseState.Sector));
         _particles.BloodEffects.Synchronize(view.World.Replicas, view.FxActor, BloodColor);
         view.Update(deltaSeconds);
         view.UpdateMeleeDeflections(deltaSeconds, _particles.DeflectionEffects);
         _particles.CombatEffects.Synchronize(view.World.Replicas, view.FxActor);
-        _particles.DeflectionEffects.Synchronize(view.World.Replicas, view.FxActor, subject => view.World.CanNavigateSector(subject.BaseState.Sector));
+        _particles.DeflectionEffects.Synchronize(view.World.Replicas, view.FxActor, subject => view.World.IsSectorInitialized(subject.BaseState.Sector));
         _particles.BloodEffects.Synchronize(view.World.Replicas, view.FxActor, BloodColor);
         _particles.CreatureMarkers.Markers = view.GroundMarkers;
         // The first pass retains retiring sources; this pass samples today's evaluated wearer pose.

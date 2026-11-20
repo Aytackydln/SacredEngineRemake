@@ -31,7 +31,7 @@ public sealed class SacredHeroPaxArchive
         uint size = type switch
         {
             SacredHeroPaxChunkTypes.Profile => SacredHeroProfileLayout.Size,
-            SacredHeroPaxChunkTypes.StartInfo => 64u,
+            SacredHeroPaxChunkTypes.StartInfo => SacredHeroStartInfoLayout.Size,
             SacredHeroPaxChunkTypes.StatisticsExtension => SacredHeroStatisticsExtensionLayout.Size,
             SacredHeroPaxChunkTypes.Hero or SacredHeroPaxChunkTypes.Inventory or SacredHeroPaxChunkTypes.Objects or
                 SacredHeroPaxChunkTypes.SharedInventory or SacredHeroPaxChunkTypes.Scripts => chunk.DecodedSize,

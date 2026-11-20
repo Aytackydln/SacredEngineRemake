@@ -82,8 +82,13 @@ public sealed class SacredNetworkWorldBinding : IDisposable
     public GoldReplicatedObject LocalHero => IsCurrentSession && Replicas.Objects.TryGetValue(PlayerSlot, out var hero)
         ? hero : throw new InvalidOperationException("Bound participant session has ended.");
     public Vector2 LocalPosition => SacredNetworkPosition.ToTiles(LocalHero.BaseState);
-    public bool CanNavigateSector(ushort sector) => IsCurrentSession && Replicas.Sectors.ContainsKey(sector) &&
-        Sectors.ContainsKey(sector) && Replicas.SectorWork.IsSectorComplete(sector);
+    /// <summary>Minimal hosts can walk loaded, server-confirmed terrain while campaign work is deferred.</summary>
+    public Func<bool>? IsMinimalHostApproved { get; set; }
+    private bool IsConfirmedAndLoaded(ushort sector) =>
+        IsCurrentSession && Replicas.Sectors.ContainsKey(sector) && Sectors.ContainsKey(sector);
+    public bool IsSectorInitialized(ushort sector) => IsConfirmedAndLoaded(sector) && Replicas.SectorWork.IsSectorComplete(sector);
+    public bool CanNavigateSector(ushort sector) => IsConfirmedAndLoaded(sector) &&
+        (Replicas.SectorWork.IsSectorComplete(sector) || IsMinimalHostApproved?.Invoke() == true);
     public bool CanNavigateSector(SectorCoord coordinate) => Sectors.Any(pair => pair.Value.Coord == coordinate && CanNavigateSector(pair.Key));
     public bool TryGetMovementPosition(Vector2 tiles, out GoldObjectPosition position) =>
         TryGetPosition(tiles, out position) && CanNavigateSector(unchecked((ushort)position.Sector));

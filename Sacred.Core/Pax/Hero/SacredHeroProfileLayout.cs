@@ -13,4 +13,7 @@ public static class SacredHeroProfileLayout
     public const int RosterUiGateOffset = Word04Offset;
     /// <summary>Native LoadHero passes profile +8 to the UTF-16 string reader at 0x606B76.</summary>
     public const int NameOffset = 8;
+    /// <summary>Gold 0x6065D2 copies these bytes into statistics at +0x5704.</summary>
+    public const int StatisticsBytesOffset = 0xED;
+    public const int StatisticsBytesSize = 5;
 }

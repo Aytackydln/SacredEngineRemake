@@ -18,6 +18,7 @@ internal sealed class GameServerSectorInterest
     private bool _waiting;
     private ushort _desired;
     private ushort _observedHero;
+    public Func<GoldSectorInterestRequest, Task>? SendHostRequest { private get; init; }
     public string Status { get; private set; } = "not requested";
 
     public GameServerSectorInterest(GoldGameConnection connection, GoldWorldReplica replicas,
@@ -26,6 +27,8 @@ internal sealed class GameServerSectorInterest
         (_connection, _replicas, _index, _freeReferences) = (connection, replicas, index, freeReferences);
         _sessionVersion = replicas.SessionVersion;
         _observedHero = replicas.Objects[replicas.LocalPlayerSlot].BaseState.Sector;
+        if (replicas.SectorInterest.IsConfirmed)
+            Status = $"sector {replicas.SectorInterest.Center} confirmed: {replicas.Sectors.Count} active sectors";
     }
 
     public string Request(ushort sector)
@@ -40,7 +43,8 @@ internal sealed class GameServerSectorInterest
     public void Update()
     {
         if (_replicas.SessionVersion != _sessionVersion || _connection.Completion.IsCompleted) return;
-        var heroSector = _replicas.Objects[_replicas.LocalPlayerSlot].BaseState.Sector;
+        if (!_replicas.Objects.TryGetValue(_replicas.LocalPlayerSlot, out var hero)) return;
+        var heroSector = hero.BaseState.Sector;
         if (heroSector != _observedHero) { _observedHero = heroSector; _desired = heroSector; }
         Advance();
     }
@@ -71,8 +75,9 @@ internal sealed class GameServerSectorInterest
         }
         if (_desired == 0 || _desired == _replicas.SectorInterest.Center) return;
         var request = GoldSectorInterestPlanner.Create(_index, _desired, _replicas.SectorInterest.Center, _freeReferences());
-        _send = _connection.SendAsync(request.CreateMessage(_replicas.LocalPlayerSlot)).AsTask();
         _replicas.BeginSectorInterest(request);
+        _send = SendHostRequest is { } sendHostRequest ? sendHostRequest(request) :
+            _connection.SendAsync(request.CreateMessage(_replicas.LocalPlayerSlot)).AsTask();
         _waiting = true;
         Status = $"sector interest {_desired}, previous {request.PreviousSector}; sending";
         EngineLog.WriteLine($"Network interest: {Status}.");

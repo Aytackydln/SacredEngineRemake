@@ -180,7 +180,7 @@ internal sealed partial class GameServerClientController
                 EngineLog.WriteLine($"Network sector entry: {sectors.Entry.Count} retained slots; use set server sectors; world/script application pending.");
                 break;
             case GoldPlayerRosterEvent roster:
-                EngineLog.WriteLine($"Network server roster: {roster.Roster.Count} retained records; server metadata at index 0, player slots 1..16; actor/world binding pending.");
+                EngineLog.WriteLine($"Network server roster: {roster.Roster.Count} retained records, {WorldReplicas.Session.Lobby.Control.Roster.NativePlayerCount} connected players.");
                 break;
             case GoldTimeProbeEvent:
                 EngineLog.WriteLine($"Network time probe: {(_connection?.Admission.Phase == GoldAdmissionPhase.SlotAssigned ? "transport handles native reply; counters in set server callbacks" : "retained in transport diagnostics")}.");

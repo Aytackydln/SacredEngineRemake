@@ -37,7 +37,7 @@ internal static class WorldHostStartupDiscovery
             if (announced is not null)
             {
                 session.SeedAdvertisedGameFlags(announced.Flags);
-                log($"Host startup session initialized from LAN announcement: {announced.Endpoint}, flags 0x{announced.Flags:X8}, difficulty {session.Difficulty}.");
+                log($"Host startup session initialized from LAN announcement: {announced.Endpoint}, flags 0x{announced.Flags:X8}, difficulty {session.Difficulty}, advertised occupancy {announced.Players}/{announced.MaximumPlayers}.");
                 return;
             }
             await Task.Delay(50, cancellationToken).ConfigureAwait(false);

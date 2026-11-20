@@ -20,7 +20,8 @@ public static class SacredNetworkHostStartupProbe
     {
         cancellationToken.ThrowIfCancellationRequested();
         var hero = SacredHeroPaxProfile.ReadSelected(installation, selection);
-        var contact = GoldFirstContact.Create(hero.Profile, new(hero.Name, checked((byte)selection), 1, 1, 1, 0), GoldLanCompatibility.Read(installation));
+        var parameters = GoldFirstContactParameters.ForLanGameServer(hero.Name, checked((byte)selection), GoldConnectionMode.LowBandwidth);
+        var contact = GoldFirstContact.Create(hero.Profile, parameters, GoldLanCompatibility.Read(installation));
         return RunAsync(installation, campaign, contact, host, port, log, cancellationToken);
     }
 

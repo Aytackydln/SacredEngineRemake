@@ -4,6 +4,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sacred.Core.GameBin.Scripts;
 using Sacred.GameplayHost.Networking;
 using Sacred.GameplayHost.Scripting;
+using Sacred.Network.Gameplay;
 using Sacred.Network.Protocol;
 using Sacred.Network.Tests.Infrastructure;
 
@@ -15,6 +16,52 @@ public sealed class HostCharacterInitializationTests
 {
     private static readonly string Installation = Environment.GetEnvironmentVariable("SACRED_GAME_DIRECTORY") ?? @"E:\SteamLibrary\steamapps\common\Sacred Gold";
     private static readonly Lazy<WorldHostSavedCharacterSource> Source = new(() => WorldHostSavedCharacterSource.ReadSelected(Installation, 1));
+
+    [TestMethod, DataRow(1), DataRow(2)]
+    public async Task MinimalHostSendsRestoredCharacterAndEmptyBanksInOneUpload(int selection)
+    {
+        _ = ReadSource();
+        var source = WorldHostSavedCharacterSource.ReadSelected(Installation, selection);
+        await using var peer = await GoldLoopbackPeer.StartHostAsync(source, 0, default, null);
+        peer.AllowLongPreparation();
+        await Admit(peer, source.ObjectCount + 4);
+        var owner = peer.HostSession!;
+        var joining = owner.JoinMinimalAsync(peer.Token);
+        var upload = new List<GoldMessage>();
+        while (!upload.Any(message => message.Opcode == GoldWorldEntryCodec.HostStartOpcode))
+            foreach (var message in await peer.ReadClientBatchAsync())
+            {
+                if (message.Opcode == GoldWorldEntryCodec.HostUploadOpcode || upload.Count != 0)
+                    upload.Add(message);
+            }
+
+        var character = owner.MinimalCharacterPublication!;
+        CollectionAssert.AreEqual(new ushort[] { 0x16 }.Concat(character.CreateMessages().Select(message => message.Opcode))
+            .Concat(new ushort[] { 0x148, 0x1B2, 0x1B4, 0x1B3, 0x1B1, 0x18 }).ToArray(), upload.Select(message => message.Opcode).ToArray());
+        foreach (var message in upload.Skip(upload.Count - 5).Take(4))
+        {
+            var bank = GoldWorldBankSnapshot.FromPayload(message.Opcode, message.Payload);
+            Assert.IsTrue(bank.RemainingData.IsEmpty);
+            Assert.IsTrue(bank.Sections.All(section => section.Records.Count == 0));
+            if (bank.Globals is { } globals)
+                CollectionAssert.AreEqual(GoldWorldRegionTable.CreateInitial().ToPayload(), globals.Table.ToArray());
+        }
+        Assert.IsFalse(joining.IsCompleted);
+        Assert.AreEqual((byte)0, owner.Replicas.LocalPlayerSlot);
+        await peer.SendAsync(new GoldMessage(0x18, 0, 1, 0, []));
+        await joining;
+        await owner.JoinMinimalAsync(peer.Token);
+        Assert.AreEqual(WorldHostInitializationPhase.MinimalUploadApproved, owner.Phase);
+        Assert.IsTrue(owner.IsCurrent);
+        Assert.IsTrue(owner.CharacterPublicationSent);
+        Assert.AreEqual(1u, owner.Replicas.Objects[1].BaseState.ObjectReference);
+        Assert.AreEqual((byte)1, owner.Replicas.LocalPlayerSlot);
+        Assert.AreEqual(owner.MinimalInitialInterest!.CurrentSector, owner.Replicas.Objects[1].BaseState.Sector);
+        Assert.IsNotNull(owner.Replicas.Objects[1].Creature);
+        Assert.AreEqual(1, peer.Connection.Diagnostics.Recent.Count(entry => entry.Outgoing && entry.Opcode == 0x18));
+        Assert.IsFalse(owner.AdmissionReceipt!.DeliveryComplete);
+        Assert.IsNull(owner.Startup);
+    }
 
     [TestMethod]
     public async Task CharacterConsumesSharedReservationsOnceAndCannotBypassNativeActorEntry()
