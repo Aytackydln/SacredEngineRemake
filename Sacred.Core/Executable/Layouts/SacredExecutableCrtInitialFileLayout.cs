@@ -1,0 +1,10 @@
+namespace Sacred.Core.Executable.Layouts;
+
+public static class SacredExecutableCrtInitialFileLayout
+{
+    public static ReadOnlySpan<byte> ModeSignature => [0x8b, 0x7d, 0x0c, 0x33, 0xdb, 0x89, 0x5d, 0xf8, 0x89, 0x5d, 0xfc, 0x8a, 0x07];
+    public const int CommitPointerFromSignature = -5;
+    public static ReadOnlySpan<byte> OpenSignature => [0x55, 0x8b, 0xec, 0x83, 0xec, 0x1c, 0x8b, 0x4d, 0x0c, 0x53];
+    public const int FileModePointer = 0x41;
+    public const int UmaskPointer = 0x13c;
+}
