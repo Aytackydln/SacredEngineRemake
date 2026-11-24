@@ -68,13 +68,13 @@ public class WorldEventsHooksTests
 
     private static string Script(string events, Func<string, string>? more = null)
     {
-        string text = null!;
+        string? text = null;
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null && text is null; dir = dir.Parent)
         {
             var candidate = Path.Combine(dir.FullName, "Sacred.GameServer", "scripts-examples", "world_events.lua");
             if (File.Exists(candidate)) text = File.ReadAllText(candidate);
         }
-        text = EventsBlock.Replace(text, m => "local EVENTS = {\n" + events + "\n}\n");
+        text = EventsBlock.Replace(text ?? throw new FileNotFoundException("world_events.lua not found above " + AppContext.BaseDirectory), m => "local EVENTS = {\n" + events + "\n}\n");
         text = text.Replace("first_delay = 60,", "first_delay = 0,").Replace("cooldown = 900,", "cooldown = 5,").Replace("announce_hooks = true,", "announce_hooks = false,");
         return more is null ? text : more(text);
     }
