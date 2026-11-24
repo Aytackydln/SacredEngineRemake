@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Headless, drop-in replacement for the original GameServer.exe (dedicated server).
+    Self-contained project: it only reuses the layout/codec knowledge in Sacred.Network
+    (admission layouts, LAN announcement, data fingerprints). See docs/game-server/README.md.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>SacredGameServer</AssemblyName>
+    <RootNamespace>Sacred.GameServer</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Native AOT + trimming (dotnet publish -r linux-x64) -->
+    <PublishAot>true</PublishAot>
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>full</TrimMode>
+    <StripSymbols>true</StripSymbols>
+    <OptimizationPreference>Speed</OptimizationPreference>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <EventSourceSupport>false</EventSourceSupport>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- Predictable latency on small VPSes: no background GC thread, workstation GC. -->
+    <ServerGarbageCollector>false</ServerGarbageCollector>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>false</TieredPGO>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Sacred.Network/Sacred.Network.csproj" />
+  </ItemGroup>
+</Project>
