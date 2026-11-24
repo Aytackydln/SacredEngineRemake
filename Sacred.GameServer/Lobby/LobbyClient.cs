@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Net;
@@ -14,49 +15,64 @@ public readonly record struct LobbyEvent(LobbyEventKind Kind, int PermId = 0, us
 /// <summary>
 /// Registers the game with a Sacred lobby (Open/Closed Internet) the way GameServer.exe's lobby module does
 /// (<c>FUN_0048b880</c> and its vtable at 0x533E6C): TinCat logon, game record 12, updates 13, player announcements 45/46 and
-/// logout 14. It runs on its own thread with its own socket, so the game loop only enqueues commands and reads events.
-/// Lobby traffic is rare (a few messages per minute), so it may allocate; the game and packet loops stay allocation free.
+/// logout 14. One async loop (no thread of its own) owns the socket: connect, a receive loop and a send loop that sleeps on a signal
+/// the game loop sets, so nothing polls. The game loop only enqueues commands and reads events. Everything ends on the cancellation
+/// token: no connect or retry after Stop. Lobby traffic is rare (a few messages per minute); frames are pooled, the game and
+/// packet loops stay allocation free.
 /// </summary>
 public sealed class LobbyClient : IDisposable
 {
     private const uint LogMeOff = 4;
-    private const int KeepAliveMs = 15_000, MaxBackoffMs = 60_000;
+    private const int KeepAliveMs = 15_000, MaxBackoffMs = 60_000, LogonTimeoutMs = 15_000, MaxFrameBytes = 0x30000;
     private readonly string _host;
     private readonly int _port;
-    private readonly Thread _thread;
-    private readonly ConcurrentQueue<byte[]> _outbox = new();
+    private readonly CancellationTokenSource _cts;
+    private readonly SemaphoreSlim _signal = new(0, 1);
+    private readonly ConcurrentQueue<Frame> _outbox = new();
     private readonly object _gate = new();
     private LobbyProtocol.GameRecord _game, _sentGame;
     private bool _gameChanged;
-    private volatile bool _stop;
     private volatile bool _online;
+    private Task? _loop;
     private Socket? _socket;
+
+    /// <summary>A pooled outgoing TinCat frame (header + prefix + body); returned to the pool after it was sent.</summary>
+    private readonly record struct Frame(byte[] Buffer, int Length);
 
     public ConcurrentQueue<LobbyEvent> Events { get; } = new();
     /// <summary>True between the lobby's answer to message 12 and the loss of the connection (<c>FUN_0048d100</c>).</summary>
     public bool IsOnline => _online;
     public IPAddress? PublicAddress { get; private set; }
 
-    public LobbyClient(string host, int port, in LobbyProtocol.GameRecord initial)
+    /// <param name="stop">Cancelled when the server stops (the host's <c>StopToken</c>): the lobby ends at once.</param>
+    public LobbyClient(string host, int port, in LobbyProtocol.GameRecord initial, CancellationToken stop = default)
     {
         _host = host; _port = port; _game = initial;
-        _thread = new Thread(Run) { IsBackground = true, Name = "lobby" };
+        _cts = CancellationTokenSource.CreateLinkedTokenSource(stop);
     }
 
-    public void Start() => _thread.Start();
+    public void Start() => _loop ??= Task.Run(RunAsync);
+
+    private void Wake()
+    {
+        try { if (_signal.CurrentCount == 0) _signal.Release(); } catch (Exception e) when (e is SemaphoreFullException or ObjectDisposedException) { }
+    }
 
     /// <summary>Called by the game loop when players, max players, flags or the name changed; message 13 follows.</summary>
     public void UpdateGame(in LobbyProtocol.GameRecord game)
     {
         lock (_gate) { _game = game with { LanAddress = _game.LanAddress, PublicAddress = _game.PublicAddress }; _gameChanged = true; }
+        Wake();
     }
+
+    private void Enqueue(Frame frame) { _outbox.Enqueue(frame); Wake(); }
 
     /// <summary>Message 45 (<c>FUN_0048d130</c>): a player with a lobby identity joined; <paramref name="first"/> false re-announces.</summary>
     public void PlayerJoined(int permId, ushort block, bool first)
     {
         var frame = Build(LobbyProtocol.UserJoinedServer, 8, out var body);
         LobbyProtocol.WriteUserJoined(body, permId, block, first);
-        _outbox.Enqueue(frame);
+        Enqueue(frame);
     }
 
     /// <summary>Message 19: asks sacred-lobby for a Closed Net character block (answered with PublicData 11, which the game loop
@@ -65,7 +81,7 @@ public sealed class LobbyClient : IDisposable
     {
         var frame = Build(LobbyProtocol.ServerDataRequest, 14, out var body);
         LobbyProtocol.WriteDataRequest(body, permId, block, 0, LobbyProtocol.MaxBlock);   // GameServer.exe asks for offset 0, length 0x20000
-        _outbox.Enqueue(frame);
+        Enqueue(frame);
     }
 
     /// <summary>Message 18: stores a changed character block (preview + sizes + zlib save) at the lobby. At most
@@ -75,7 +91,7 @@ public sealed class LobbyClient : IDisposable
         if (data.Length is <= 0x230 or > LobbyProtocol.MaxBlock) return false;
         var frame = Build(LobbyProtocol.ServerDataUpload, 18 + data.Length, out var body);
         LobbyProtocol.WriteDataUpload(body, permId, block, data);
-        _outbox.Enqueue(frame);
+        Enqueue(frame);
         return true;
     }
 
@@ -84,40 +100,42 @@ public sealed class LobbyClient : IDisposable
     {
         var frame = Build(LobbyProtocol.UserLeftServer, 4, out var body);
         BinaryPrimitives.WriteInt32LittleEndian(body, permId);
-        _outbox.Enqueue(frame);
+        Enqueue(frame);
     }
 
-    private void Run()
+    private async Task RunAsync()
     {
+        var token = _cts.Token;
         var backoff = 2_000;
-        while (!_stop)
+        while (!token.IsCancellationRequested)
         {
             try
             {
-                Session();
+                await SessionAsync(token).ConfigureAwait(false);
                 backoff = 2_000;
             }
-            catch (Exception e) when (e is SocketException or IOException or InvalidDataException or ObjectDisposedException)
+            catch (Exception e) when (e is SocketException or IOException or InvalidDataException or ObjectDisposedException or OperationCanceledException)
             {
-                if (_stop) break;
+                if (token.IsCancellationRequested) break;
                 Log.Info($"LOBBY: {e.Message}");
             }
             if (_online) { _online = false; Events.Enqueue(new LobbyEvent(LobbyEventKind.Offline)); }
             _socket?.Dispose(); _socket = null;
-            while (_outbox.TryDequeue(out _)) { } // announcements are repeated after the next login
-            for (var waited = 0; waited < backoff && !_stop; waited += 100) Thread.Sleep(100);
+            while (_outbox.TryDequeue(out var dropped)) ArrayPool<byte>.Shared.Return(dropped.Buffer);   // announcements are repeated after the next login
+            if (token.IsCancellationRequested) break;
+            try { await Task.Delay(backoff, token).ConfigureAwait(false); } catch (OperationCanceledException) { break; }
             backoff = Math.Min(backoff * 2, MaxBackoffMs);
         }
     }
 
-    private void Session()
+    private async Task SessionAsync(CancellationToken token)
     {
         Log.Info($"LOBBY: connecting to {_host}:{_port}");
         var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
         socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
         _socket = socket;
-        socket.Connect(_host, _port);
-        var reader = new FrameReader(socket);
+        await socket.ConnectAsync(_host, _port, token).ConfigureAwait(false);
+        var header = new byte[TinCatWire.HeaderBytes];
 
         // TinCat logon (the game logs on as user/passwor, the lobby assigns the id).
         var logon = new byte[TinCatWire.HeaderBytes + TinCatWire.LoginPayloadBytes];
@@ -128,15 +146,25 @@ public sealed class LobbyClient : IDisposable
         "passwor"u8.CopyTo(p[40..]);
         BinaryPrimitives.WriteUInt32LittleEndian(p[48..], 1);
         TinCatWire.SealFrame(logon, TinCatWire.UnassignedId, TinCatWire.ServerId, TinCatWire.LoginRequest, TinCatWire.LoginPayloadBytes);
-        socket.Send(logon);
+        await socket.SendAsync(logon, SocketFlags.None, token).ConfigureAwait(false);
         uint id = 0;
-        var deadline = Environment.TickCount64 + 15_000;
-        while (id == 0)
+        using (var logonLimit = CancellationTokenSource.CreateLinkedTokenSource(token))
         {
-            if (Environment.TickCount64 > deadline) throw new IOException("no TinCat logon answer");
-            if (!reader.TryRead(1000, out var type, out var payload)) continue;
-            if (type == TinCatWire.LoginAccepted && payload.Length == TinCatWire.LoginPayloadBytes)
-                id = BinaryPrimitives.ReadUInt32LittleEndian(payload.AsSpan(4));
+            logonLimit.CancelAfter(LogonTimeoutMs);
+            try
+            {
+                while (id == 0)
+                {
+                    var (type, payload, length) = await ReadFrameAsync(socket, header, logonLimit.Token).ConfigureAwait(false);
+                    try
+                    {
+                        if (type == TinCatWire.LoginAccepted && length == TinCatWire.LoginPayloadBytes)
+                            id = BinaryPrimitives.ReadUInt32LittleEndian(payload.AsSpan(4));
+                    }
+                    finally { ArrayPool<byte>.Shared.Return(payload); }
+                }
+            }
+            catch (OperationCanceledException) when (!token.IsCancellationRequested) { throw new IOException("no TinCat logon answer"); }
         }
         _id = id;
 
@@ -150,54 +178,102 @@ public sealed class LobbyClient : IDisposable
         }
         var login = Build(LobbyProtocol.ServerLogin, LobbyProtocol.GameRecordBytes, out var body);
         LobbyProtocol.WriteLogin(body, game);
-        Send(socket, login);
+        await SendAsync(socket, login, token).ConfigureAwait(false);
         Log.Info($"LOBBY: logging in game '{game.Name}' (channel {game.Channel})");
 
-        long lastSend = Environment.TickCount64, lastReceive = lastSend;
-        while (!_stop)
+        // Receive loop and send loop run side by side; the session ends with whichever fails first (or the token).
+        using var sessionCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+        var receive = ReceiveLoopAsync(socket, header, sessionCts.Token);
+        long lastSend = Environment.TickCount64;
+        try
         {
-            if (reader.TryRead(50, out var type, out var payload)) { lastReceive = Environment.TickCount64; OnFrame(type, payload); }
-            // No silence time-out: the lobby only answers our messages, and GameServer.exe idles on the connection indefinitely
-            // (checked against sacred-lobby for 100+ s). A dead lobby shows as a socket error (TCP keep-alive below).
-            while (_online && _outbox.TryDequeue(out var frame)) { Send(socket, frame); lastSend = Environment.TickCount64; }
-            byte[]? update = null;
-            lock (_gate)
+            while (!token.IsCancellationRequested)
             {
-                if (_online && _gameChanged)
+                var wait = (int)Math.Clamp(KeepAliveMs - (Environment.TickCount64 - lastSend), 0, KeepAliveMs);
+                var signalled = _signal.WaitAsync(wait, sessionCts.Token);
+                if (await Task.WhenAny(signalled, receive).ConfigureAwait(false) == receive) { await receive.ConfigureAwait(false); break; }
+                await signalled.ConfigureAwait(false);
+                // No silence time-out: the lobby only answers our messages, and GameServer.exe idles on the connection indefinitely
+                // (checked against sacred-lobby for 100+ s). A dead lobby shows as a socket error (TCP keep-alive).
+                while (_online && _outbox.TryDequeue(out var frame)) { await SendAsync(socket, frame, token).ConfigureAwait(false); lastSend = Environment.TickCount64; }
+                Frame update = default;
+                lock (_gate)
                 {
-                    _gameChanged = false;
-                    if (_game != _sentGame)
+                    if (_online && _gameChanged)
                     {
-                        _sentGame = _game;
-                        update = Build(LobbyProtocol.ServerUpdate, LobbyProtocol.GameRecordBytes, out var ub);
-                        LobbyProtocol.WriteUpdate(ub, _game);
+                        _gameChanged = false;
+                        if (_game != _sentGame)
+                        {
+                            _sentGame = _game;
+                            update = Build(LobbyProtocol.ServerUpdate, LobbyProtocol.GameRecordBytes, out var ub);
+                            LobbyProtocol.WriteUpdate(ub, _game);
+                        }
                     }
                 }
-            }
-            if (update is not null) { Send(socket, update); lastSend = Environment.TickCount64; }
-            if (Environment.TickCount64 - lastSend >= KeepAliveMs)
-            {
-                var alive = new byte[TinCatWire.HeaderBytes + 2];
-                Send(socket, alive, TinCatWire.StayingAlive); lastSend = Environment.TickCount64;
+                if (update.Buffer is not null) { await SendAsync(socket, update, token).ConfigureAwait(false); lastSend = Environment.TickCount64; }
+                if (Environment.TickCount64 - lastSend >= KeepAliveMs)
+                {
+                    await SendAsync(socket, Build(0, 2, out _, raw: true), token, TinCatWire.StayingAlive).ConfigureAwait(false);
+                    lastSend = Environment.TickCount64;
+                }
             }
         }
-        // Orderly shutdown: message 14 (FUN_0048ca70), then TinCat log off.
-        if (_online)
+        finally
         {
-            Send(socket, Build(LobbyProtocol.ServerLogout, LobbyProtocol.GameRecordBytes, out _));
-            var off = new byte[TinCatWire.HeaderBytes];
-            Send(socket, off, LogMeOff);
+            sessionCts.Cancel();
+            try { await receive.ConfigureAwait(false); } catch (Exception e) when (e is SocketException or IOException or InvalidDataException or ObjectDisposedException or OperationCanceledException) { }
+        }
+        // Stop: best effort, one non-blocking attempt at message 14 and the log off, never waited on.
+        if (_online && token.IsCancellationRequested) TryGoodbye(socket);
+    }
+
+    private async Task ReceiveLoopAsync(Socket socket, byte[] header, CancellationToken token)
+    {
+        while (!token.IsCancellationRequested)
+        {
+            var (type, payload, length) = await ReadFrameAsync(socket, header, token).ConfigureAwait(false);
+            try { OnFrame(type, payload.AsSpan(0, length)); }
+            finally { ArrayPool<byte>.Shared.Return(payload); }
+        }
+    }
+
+    /// <summary>One TinCat frame: 28-byte header into <paramref name="header"/>, payload into a rented buffer (the caller returns it).</summary>
+    private static async Task<(uint Type, byte[] Payload, int Length)> ReadFrameAsync(Socket socket, byte[] header, CancellationToken token)
+    {
+        await ReadExactAsync(socket, header, TinCatWire.HeaderBytes, token).ConfigureAwait(false);
+        if (BinaryPrimitives.ReadUInt32LittleEndian(header) != TinCatWire.Magic) throw new InvalidDataException("bad TinCat magic from lobby");
+        var type = BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(12));
+        var length = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(20));
+        if (length < 0 || length > MaxFrameBytes) throw new InvalidDataException($"lobby frame of {length} bytes");
+        var payload = ArrayPool<byte>.Shared.Rent(Math.Max(length, 1));
+        try
+        {
+            await ReadExactAsync(socket, payload, length, token).ConfigureAwait(false);
+            if (TinCatCrc.Compute(payload.AsSpan(0, length)) != BinaryPrimitives.ReadUInt32LittleEndian(header.AsSpan(24))) throw new InvalidDataException("lobby frame CRC mismatch");
+        }
+        catch { ArrayPool<byte>.Shared.Return(payload); throw; }
+        return (type, payload, length);
+    }
+
+    private static async Task ReadExactAsync(Socket socket, byte[] buffer, int count, CancellationToken token)
+    {
+        var read = 0;
+        while (read < count)
+        {
+            var n = await socket.ReceiveAsync(buffer.AsMemory(read, count - read), SocketFlags.None, token).ConfigureAwait(false);
+            if (n == 0) throw new IOException("lobby closed the connection");
+            read += n;
         }
     }
 
     private uint _id;
 
-    private void OnFrame(uint type, byte[] payload)
+    private void OnFrame(uint type, ReadOnlySpan<byte> payload)
     {
         if (type != TinCatWire.CustomData) return; // keep-alives, time alignment
         if (payload.Length < LobbyProtocol.PrefixBytes || BinaryPrimitives.ReadUInt16LittleEndian(payload) != LobbyProtocol.Module) return;
-        var message = BinaryPrimitives.ReadUInt16LittleEndian(payload.AsSpan(2));
-        var body = payload.AsSpan(LobbyProtocol.PrefixBytes);
+        var message = BinaryPrimitives.ReadUInt16LittleEndian(payload[2..]);
+        var body = payload[LobbyProtocol.PrefixBytes..];
         switch (message)
         {
             case LobbyProtocol.ServerLoginResult:                    // 38: [public IP] (internal 0x25, "Internet IP: %s.")
@@ -237,19 +313,43 @@ public sealed class LobbyClient : IDisposable
         }
     }
 
-    private byte[] Build(ushort type, int bodyLength, out Span<byte> body)
+    /// <summary>A pooled frame with room for <paramref name="bodyLength"/> body bytes after the TinCat header and the lobby prefix
+    /// (<paramref name="raw"/>: no lobby prefix, for TinCat's own keep-alive). The body is zeroed.</summary>
+    private static Frame Build(ushort type, int bodyLength, out Span<byte> body, bool raw = false)
     {
-        var frame = new byte[TinCatWire.HeaderBytes + LobbyProtocol.PrefixBytes + bodyLength];
-        LobbyProtocol.WritePrefix(frame.AsSpan(TinCatWire.HeaderBytes), type, bodyLength);
-        body = frame.AsSpan(TinCatWire.HeaderBytes + LobbyProtocol.PrefixBytes);
-        return frame;
+        var prefix = raw ? 0 : LobbyProtocol.PrefixBytes;
+        var total = TinCatWire.HeaderBytes + prefix + bodyLength;
+        var buffer = ArrayPool<byte>.Shared.Rent(total);
+        buffer.AsSpan(0, total).Clear();
+        if (!raw) LobbyProtocol.WritePrefix(buffer.AsSpan(TinCatWire.HeaderBytes), type, bodyLength);
+        body = buffer.AsSpan(TinCatWire.HeaderBytes + prefix, bodyLength);
+        return new Frame(buffer, total);
     }
 
-    private void Send(Socket socket, byte[] frame, uint type = TinCatWire.CustomData)
+    private async Task SendAsync(Socket socket, Frame frame, CancellationToken token, uint type = TinCatWire.CustomData)
     {
-        TinCatWire.SealFrame(frame, _id, TinCatWire.ServerId, type, frame.Length - TinCatWire.HeaderBytes);
-        var sent = 0;
-        while (sent < frame.Length) sent += socket.Send(frame, sent, frame.Length - sent, SocketFlags.None);
+        try
+        {
+            TinCatWire.SealFrame(frame.Buffer, _id, TinCatWire.ServerId, type, frame.Length - TinCatWire.HeaderBytes);
+            await socket.SendAsync(frame.Buffer.AsMemory(0, frame.Length), SocketFlags.None, token).ConfigureAwait(false);
+        }
+        finally { ArrayPool<byte>.Shared.Return(frame.Buffer); }
+    }
+
+    /// <summary>Message 14 and the TinCat log off as one non-blocking attempt; nothing is retried or awaited.</summary>
+    private void TryGoodbye(Socket socket)
+    {
+        try
+        {
+            if (!socket.Poll(0, SelectMode.SelectWrite)) return;
+            var logout = Build(LobbyProtocol.ServerLogout, LobbyProtocol.GameRecordBytes, out _);
+            try { TinCatWire.SealFrame(logout.Buffer, _id, TinCatWire.ServerId, TinCatWire.CustomData, logout.Length - TinCatWire.HeaderBytes); socket.Send(logout.Buffer.AsSpan(0, logout.Length), SocketFlags.None); }
+            finally { ArrayPool<byte>.Shared.Return(logout.Buffer); }
+            var off = new byte[TinCatWire.HeaderBytes];
+            TinCatWire.SealFrame(off, _id, TinCatWire.ServerId, LogMeOff, 0);
+            socket.Send(off, SocketFlags.None);
+        }
+        catch (Exception e) when (e is SocketException or ObjectDisposedException) { }
     }
 
     private static uint ToUInt(IPAddress address)
@@ -259,42 +359,17 @@ public sealed class LobbyClient : IDisposable
         return BinaryPrimitives.ReadUInt32BigEndian(b);
     }
 
-    public void Dispose()
+    /// <summary>Stops the lobby at once (the host's stop token does the same when the client was created with it).</summary>
+    public void RequestStop()
     {
-        _stop = true;
-        if (_thread.IsAlive && !_thread.Join(3000)) _socket?.Dispose();
-        _socket?.Dispose();
+        try { _cts.Cancel(); } catch (ObjectDisposedException) { }
     }
 
-    /// <summary>Blocking TinCat frame reader with a poll timeout (lobby thread only).</summary>
-    private sealed class FrameReader(Socket socket)
+    /// <summary>Cancels and waits at most 300 ms; the loop ends on the token.</summary>
+    public void Dispose()
     {
-        private readonly byte[] _header = new byte[TinCatWire.HeaderBytes];
-
-        public bool TryRead(int timeoutMs, out uint type, out byte[] payload)
-        {
-            type = 0; payload = [];
-            if (!socket.Poll(timeoutMs * 1000, SelectMode.SelectRead)) return false;
-            Fill(_header);
-            if (BinaryPrimitives.ReadUInt32LittleEndian(_header) != TinCatWire.Magic) throw new InvalidDataException("bad TinCat magic from lobby");
-            type = BinaryPrimitives.ReadUInt32LittleEndian(_header.AsSpan(12));
-            var length = BinaryPrimitives.ReadInt32LittleEndian(_header.AsSpan(20));
-            if (length < 0 || length > 0x30000) throw new InvalidDataException($"lobby frame of {length} bytes");
-            payload = new byte[length];
-            Fill(payload);
-            if (TinCatCrc.Compute(payload) != BinaryPrimitives.ReadUInt32LittleEndian(_header.AsSpan(24))) throw new InvalidDataException("lobby frame CRC mismatch");
-            return true;
-        }
-
-        private void Fill(byte[] buffer)
-        {
-            var read = 0;
-            while (read < buffer.Length)
-            {
-                var n = socket.Receive(buffer, read, buffer.Length - read, SocketFlags.None);
-                if (n == 0) throw new IOException("lobby closed the connection");
-                read += n;
-            }
-        }
+        RequestStop();
+        try { _loop?.Wait(300); } catch (AggregateException) { }
+        _socket?.Dispose();
     }
 }

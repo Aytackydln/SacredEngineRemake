@@ -16,8 +16,10 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <!-- Native AOT + trimming (dotnet publish -r linux-x64) -->
     <PublishAot>true</PublishAot>
-    <PublishTrimmed>true</PublishTrimmed>
-    <TrimMode>full</TrimMode>
+    <!-- Trimming only together with Native AOT. ILLink-trimming a JIT (PublishAot=false) build breaks Kestrel (TypeLoadException in
+         X509Certificate2Collection), so a plain self-contained publish stays untrimmed. -->
+    <PublishTrimmed Condition="'$(PublishAot)' == 'true'">true</PublishTrimmed>
+    <TrimMode Condition="'$(PublishAot)' == 'true'">full</TrimMode>
     <StripSymbols>true</StripSymbols>
     <OptimizationPreference>Speed</OptimizationPreference>
     <UseSystemResourceKeys>true</UseSystemResourceKeys>
@@ -31,5 +33,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Sacred.Network/Sacred.Network.csproj" />
+    <ProjectReference Include="../Sacred.GameServer.Web/Sacred.GameServer.Web.csproj" />
   </ItemGroup>
 </Project>

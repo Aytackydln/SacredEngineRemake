@@ -58,7 +58,7 @@ SacredGameServer --accept-any-data      # development: skip version/fingerprint 
 
 `--game-dir` needs `Sacred.exe`, `tincat2.dll` and the Pak/Bin data of the supported English Gold install (same files the
 client hashes); clients with different data are rejected exactly like the original (reason 6 + mask).
-All `Gameserver.cfg` keys can also be passed as `--key=value`.
+All `Gameserver.cfg` keys can also be passed as `--key=value`. The command line is strict: an unknown option or a bad value is refused with exit code 2 (and a "did you mean" hint) before any port is bound; `quiet` (the original's no-dialog switch) is accepted. `--help` is generated from the same option table (`Config/CommandLine.cs`). Gameserver.cfg lines, `webui.json` and environment variables stay lenient.
 
 ## Lobby
 
@@ -121,3 +121,62 @@ online, lobby kick, Closed Net character, lobby shutdown).
 5. Server-side Lua API for Sacred Gear server mods (events, per-player storage, messages/items; enough for e.g. achievements,
    not full parity with the client API).
 6. Ladder export (`LADDER_EXPORT`).
+
+## Flood protection (`--flood-protection`, on with `--authoritative`)
+
+GameServer.exe has none, so plain relay games stay unlimited unless `FLOOD_PROTECTION=1` is set; `--authoritative` turns it on
+(`FLOOD_PROTECTION=0` turns it off again). Code: `Session/FloodGuard.cs` (pure checks) and `Session/GameServerHost.Flood.cs`;
+the hooks are one line each in connection set-up, `HandleCustomData` and `Dispatch`. No allocations per message.
+
+| Limit | Default | Key |
+| --- | --- | --- |
+| received bytes (TinCat payloads as received) | 2 MB/s, burst 8 MB | `FLOOD_BYTES_PER_SECOND`, `FLOOD_BYTE_BURST` |
+| messages | 600/s, burst 3000 | `FLOOD_MESSAGES_PER_SECOND`, `FLOOD_MESSAGE_BURST` |
+| chat lines 0x003/0x004/0x005 (also count as messages) | 3/s, burst 8; excess is muted, never kicked | `FLOOD_CHAT_PER_SECOND`, `FLOOD_CHAT_BURST` |
+| kick (reason 8) after dropped messages/frames | 500 within 10 s (0 = never) | `FLOOD_KICK_AFTER_DROPS`, `FLOOD_STRIKE_WINDOW` |
+| free upload of world/hero states, banks, inventories before entering the world | 60 s after admission | `FLOOD_UPLOAD_GRACE` |
+| open connections per IP address (players behind one NAT share it) | 8 (0 = unlimited) | `MAX_CONNECTIONS_PER_ADDRESS` |
+
+All limits (and the on/off switch) can be changed while the server runs, from the web UI's "Flood protection" card or
+`POST /api/flood {"text":"FLOOD_MESSAGES_PER_SECOND=150;FLOOD_CHAT_PER_SECOND=1"}` (`GET /api/flood` shows the limits and the
+dropped/removed/refused counters). The change runs on the game loop like every admin command and is logged and shown in the live
+log; nobody is kicked by it: lower rates apply to the next messages, a lower burst caps each player's remaining allowance at once,
+a lower connection limit only refuses new connections. Changes are not written back to the config file.
+
+`FloodTests` cover the buckets, mute vs. kick, the upload grace, the connection limit, relay mode staying unlimited and a zero
+allocation check. The defaults are generous guesses; real sessions (sector owners stream many creature updates) should be
+measured before tightening them.
+
+## Authoritative mode (optional, `--authoritative`)
+
+Off by default: normal relay games behave like the original. Code lives in `Auth/` and `Session/GameServerHost.Authoritative.cs`; the only
+hooks in existing files are one filter call in `Route`, one save call in `RemovePlayer` and one pump call in the tick.
+
+| Stage 1 | Behaviour |
+| --- | --- |
+| Difficulty | the difficulty bits (0x100..0x800) stay what the server was configured with; a host 0x01E cannot change them (`AUTH_LOCK_DIFFICULTY`) |
+| Damage 0x17A | attacker must be the sender's own hero or an object it owns in the server's object world, damage is clamped to `AUTH_MAX_DAMAGE` (default 0xFFFF) and forwarded; `AUTH_STRICT_ATTACKERS` also rejects unknown attackers |
+| Trade 0x198 | sender word must be the sender's slot (the original ignores a mismatch) |
+| Violations | counted per player, kick (reason 8) at `AUTH_MAX_VIOLATIONS` (default 25, 0 = never) |
+| Anti-dupe saves | Closed Net hero uploaded to the lobby (message 18) when the player leaves (hard disconnects too), every `AUTH_SAVE_INTERVAL` s (default 120) and `AUTH_SAVE_DEBOUNCE_MS` after trades, pick-ups, equipment and inventory changes. The block is written by the server from its own view (below), never taken from the client |
+
+### Hero saves (`Auth/Hero`, `Session/GameServerHost.HeroState.cs`)
+
+The block the lobby delivered (0x132) is the base; `HeroWriter` replaces what the server can see and keeps every other byte:
+
+| Chunk | Source |
+| --- | --- |
+| C7 hero | equipment from the hero's object states and 0x11E/0x11D; values: hit-point block, +0x08 block (0x16B full, or the compact fields of 0x169/0x16E/0x16F laid over it: experience, gold, level, skill points, attributes), combat arts (22-byte records), **combos (38-byte records, verbatim and in order)**, 9-byte records. Status modifiers, the 68-byte list and the hero attachment are file-only and stay as saved |
+| C8 objects | one record per item named by the inventories, item bars or equipment, built from the server's item state: **all value records = item + one per socketed rune/gem, in socket order** (u16 count on the wire, u8 in the file: more than 255 is refused, never truncated), item data, weapon extension. File-only fields come from the saved record of the same item. Only items the object world says the player owns are saved. Saved creatures and items attached to the hero model stay unchanged |
+| CA/CB inventories | latest 0x122 per inventory (id = slot, 17 = shared), then 0x13E pick / 0x13F place `[item ref][cell][inventory id]`. Cells hold only the item's anchor (word +4 = `01 \| w<<8 \| h<<16`); an item never seen in an inventory gets its footprint from the game's item tables (`--game-dir`: Weapon.pak row +0x1C/+0x1D via the Items.pak descriptor, see docs/protocol.md; matches every anchor cell of the test saves), 1x1 without them |
+| C3 / preview | level word; the block preview is this chunk |
+| CE | statistics extension: the 100 bytes after the 0x2670-byte primary block of 0x14F |
+| Quest pairs (in CA) | the inventory stream's 8-byte `[key][word04]` records come with 0x122 and are kept current from 0x145 `[key][word04]` (`Auth/Hero/QuestRecords.cs`, `Session/GameServerHost.Quests.cs`): applied to the sender's and to every recipient's stream by the client's own rule (Sacred.exe 0x5D8280: refused when a pair has the same key or any pair has word04 0, else appended). These pairs are the only quest state in a hero file; quest journal, script variables and actual quests (0x1B8..0x1BE, 0x1C6/0x1C7, 0x1C9/0x1CA, 0x1D3..0x1D5) are world state and are not part of it |
+| C4, CD | unchanged. CD (decoded CC) is not scripts but the **explored map**: `[0xB00BB00B][area count][0][0]`, per area `[i][0]` + 128-byte 32x32 reveal mask or `[i][0xDEADB00B]` (6051 areas in Gold). The client sets the mask bits from its own hero's tile steps (0x5997C0 -> 0x638E00 -> 0x622B10) and no message carries them, so the server cannot know them (`Auth/Hero/ExploredMap.cs`). C4 (start info) is client-only too |
+
+`HeroWriterTests` round-trip the real saves under `SACRED_HERO_SAVES` (decoded chunks identical when nothing changed) and check
+sockets, gold and combos; `QuestStateTests` check the CD layout, an identical decoded CD after a round trip and that a quest
+pair changes exactly the expected inventory bytes; `AuthoritativeTests.ClosedNetHeroIsSavedFromTheServersOwnView` and
+`QuestPairFromThePlayerIsSaved` run the whole flow against a fake lobby. Saves allocate a few buffers per save (rare event), not per packet.
+
+Open: server-owned creature values (they live in the sector owner's 0x16E/0x16F object bodies, see docs/protocol.md), item/stat/gold plausibility checks, kill validation, Lua API.

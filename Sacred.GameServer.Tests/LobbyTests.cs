@@ -13,7 +13,7 @@ namespace Sacred.GameServer.Tests;
 [TestClass]
 public sealed class LobbyTests
 {
-    private sealed class FakeLobby : IDisposable
+    internal sealed class FakeLobby : IDisposable
     {
         private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
         private NetworkStream? _stream;

@@ -42,6 +42,10 @@ public sealed class GameServerConfig
     public bool ClosedNet { get; set; }
     /// <summary>Lobby channel of message 12 (GameServer.exe always sends 5, Open Net).</summary>
     public int LobbyChannel { get; set; } = 5;
+    /// <summary>Optional authoritative mode (server-owned state, validated client values); see Auth/.</summary>
+    public Auth.AuthoritativeOptions Auth { get; } = new();
+    /// <summary>Flood protection (on with authoritative mode unless FLOOD_PROTECTION says otherwise); see Session/FloodGuard.cs.</summary>
+    public Session.FloodOptions Flood { get; } = new();
 
     public static GameServerConfig Load(string[] args)
     {
@@ -102,6 +106,7 @@ public sealed class GameServerConfig
             case "CLOSED_NET": ClosedNet = Int(value, 1) != 0; break;
             case "TRACE": Trace = Int(value, 1) != 0; break;
             case "ANNOUNCE_VERSION" or "VERSION": AnnounceVersion = (ushort)Math.Clamp(Int(value, 0), 0, ushort.MaxValue); break;
+            default: if (!Auth.Apply(key, value)) Flood.Apply(key, value); break;
         }
     }
 

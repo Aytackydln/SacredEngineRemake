@@ -6,6 +6,7 @@ using System.Net;
 using Sacred.GameServer.Config;
 using Sacred.GameServer.Lan;
 using Sacred.GameServer.Net;
+using Sacred.GameServer.Web;
 using Sacred.GameServer.Wire;
 using Sacred.Network.Admission;
 
@@ -54,7 +55,12 @@ public sealed partial class GameServerHost : IDisposable
         InitializeSession();
     }
 
-    public void Stop() => _stop = true;
+    private readonly CancellationTokenSource _stopCts = new();
+
+    /// <summary>Cancelled by <see cref="Stop"/>: every background part (lobby, web UI streams) ends on it at once.</summary>
+    public CancellationToken StopToken => _stopCts.Token;
+
+    public void Stop() { _stop = true; try { _stopCts.Cancel(); } catch (ObjectDisposedException) { } }
 
     /// <summary>Adds another transport (for example reliable UDP); it feeds the same inbox, so sessions work the same on it.
     /// Call before <see cref="Start"/>.</summary>
@@ -81,8 +87,30 @@ public sealed partial class GameServerHost : IDisposable
             else if (wait < -250) next = _clock.ElapsedMilliseconds; // fell behind: do not spiral
             while (_clock.ElapsedMilliseconds < next && !_stop) Thread.SpinWait(50);
         }
+        EndSessionForPlayers();
         foreach (var s in _sessions) s.Connection.Close();
         Log.Info("--- Gameserver Shutdown ---");
+    }
+
+    /// <summary>
+    /// Stopping with players connected ends the session the way the original does (FUN_004d6c50: 0x009 0x68, 0x008, 0x157 to each
+    /// player; in authoritative mode every hero is saved), then waits a bounded time (at most 1.5 s) for the frames to leave. Nothing else
+    /// is waited for: no players, no wait.
+    /// </summary>
+    private void EndSessionForPlayers()
+    {
+        if (PlayerCount == 0) return;
+        ShutDownSession();
+        foreach (var s in _sessions) s.Connection.Flush();
+        var until = _clock.ElapsedMilliseconds + 1500;
+        var pending = true;
+        while (pending && _clock.ElapsedMilliseconds < until)
+        {
+            pending = false;
+            foreach (var s in _sessions) if (!s.Connection.IsClosed && s.Connection.PendingBytes > 0) { s.Connection.Flush(); pending = true; }
+            if (pending) Thread.Sleep(5);
+        }
+        Thread.Sleep(100);                                   // the last async sends of the final flush
     }
 
     /// <summary>One loop iteration. Public so tests can single-step the server.</summary>
@@ -105,7 +133,9 @@ public sealed partial class GameServerHost : IDisposable
             if (s.State >= SessionState.LoggedIn && now - s.LastKeepAliveMs >= 5_000) { s.LastKeepAliveMs = now; SendControl(s, TinCatWire.StayingAlive, 2); }
         }
         PumpLobby();
+        if (_config.Auth.Enabled) PumpAuthoritative(now);
         PumpEnvironment(now);
+        PumpAdmin(now);
         OnTick?.Invoke(Tick);
         foreach (var s in _sessions) s.Connection.Flush();
         for (var i = _retired.Count - 1; i >= 0; i--)
@@ -119,6 +149,7 @@ public sealed partial class GameServerHost : IDisposable
         var created = new PlayerSession { Connection = connection, LastReceiveMs = _clock.ElapsedMilliseconds, LastKeepAliveMs = _clock.ElapsedMilliseconds };
         connection.Session = created;
         _sessions.Add(created);
+        if (FloodOn && !AdmitConnection(connection)) connection.Close();
         return created;
     }
 
@@ -163,6 +194,7 @@ public sealed partial class GameServerHost : IDisposable
 
     private void HandleCustomData(PlayerSession s, ReadOnlySpan<byte> payload, long now)
     {
+        if (FloodOn && !FloodFrame(s, payload.Length, now)) return;
         if (payload.Length < 4 + GoldWire.EnvelopeHeaderBytes || BinaryPrimitives.ReadUInt16LittleEndian(payload) != TinCatWire.GameModule ||
             BinaryPrimitives.ReadUInt16LittleEndian(payload[2..]) != 0) { Drop(s, "bad TinCat module"); return; }
         var envelope = payload[4..];
@@ -183,6 +215,7 @@ public sealed partial class GameServerHost : IDisposable
     private void Dispatch(PlayerSession s, in GoldMessageView m)
     {
         if (Log.TraceEnabled) Log.Trace("RX", s.Slot, m.Opcode, m.Sender, m.Origin, m.Payload);
+        if (FloodOn && !FloodMessage(s, m)) return;
         switch (m.Opcode)
         {
             case 0x10: OnFirstContact(s, m); return;
@@ -203,6 +236,7 @@ public sealed partial class GameServerHost : IDisposable
         if (reason == 0 && identity != -1 && LobbyIdentityCheck)
             foreach (var other in _sessions)
                 if (other != s && other.State >= SessionState.SlotAssigned && other.LobbyIdentity == identity) { reason = RejectionReason.DuplicateIdentity; break; }
+        if (reason == 0 && IsBanned(s.Connection)) reason = RejectionReason.LobbyRefused;
         byte slot = 0;
         if (reason == 0)
         {
@@ -224,6 +258,7 @@ public sealed partial class GameServerHost : IDisposable
         SendMessage(s, 0x11, 0, 0, reply);
         // No 0x01E here: the original sends the flags only as the echo of the host's 0x01E (checked against a real session).
         Log.Info($"FIRSTCONTACT from {s.Connection.RemoteEndPoint}: '{s.Name}' admitted as #{slot}{(s.IsHost ? " (host)" : "")}");
+        RecordChat(ChatKind.System, s, -1, "joined");
         AnnounceToLobby(s);
         RequestCharacter(s);
         // The original then queues two internal commands (0x4EBE2A, 0x4EBF08): 0x101 = roster for a session without password,

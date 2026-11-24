@@ -29,6 +29,9 @@ public sealed class PlayerSession
     public bool Ready;               // +0x7A, set by 0x0F
     public ushort CurrentSector;     // sector the player stands in (word +0 of its last 0x148)
     public long CharacterAskDueMs;   // Closed Net: ask the lobby (message 19) at this time unless the block was pushed by then
+    public FloodState Flood;         // flood protection buckets (Session/FloodGuard.cs)
+    public int Violations;           // authoritative mode: rejected client values
+    public long HeroSaveDueMs, NextPeriodicSaveMs;   // authoritative mode: debounced / periodic hero save to the lobby (0 = none)
     public bool CharacterReceived;   // +0x8D, Closed Net character delivered
 
     public string Describe() => Slot != 0 ? $"#{Slot} {Name}" : $"{Connection.RemoteEndPoint}";

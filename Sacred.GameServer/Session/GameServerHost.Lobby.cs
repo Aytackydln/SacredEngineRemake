@@ -133,6 +133,7 @@ public sealed partial class GameServerHost
             // own request as well.
             if (s.CharacterReceived) return;
             s.CharacterReceived = true; s.CharacterAskDueMs = 0;
+            if (_config.Auth.Enabled) RememberBaseline(s, data);
             SendMessage(s, 0x132, 0, 0, data);
             Log.Info($"Character savegame received from lobby (permID={permId}, block={block}, size={data.Length}), sent to player #{slot}.");
             return;
