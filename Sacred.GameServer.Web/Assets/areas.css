@@ -1,0 +1,21 @@
+.ae{display:grid;grid-template-columns:20rem minmax(0,1fr);gap:1rem;align-items:start}
+.ae .side{display:flex;flex-direction:column;gap:.8rem;max-height:calc(100dvh - 9rem);overflow:auto}
+.ae .stage{position:relative;background:#0c0a07;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow);touch-action:none;height:calc(100dvh - 9rem);min-height:22rem}
+.ae canvas{display:block;width:100%;height:100%;cursor:grab;touch-action:none}
+.ae canvas.paint{cursor:crosshair}
+.ae .tools{display:flex;flex-wrap:wrap;gap:.35rem}
+.ae .tools button{flex:1 1 auto;min-width:3rem;min-height:2.6rem;padding:.3rem .5rem}
+.ae .tools button[aria-pressed=true]{border-color:var(--gold);background:var(--card2);color:var(--text)}
+.ae ul.areas{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.3rem}
+.ae ul.areas li{display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;border:1px solid var(--line);border-radius:8px;cursor:pointer;min-height:2.4rem}
+.ae ul.areas li[aria-current=true]{border-color:var(--gold);background:var(--card2)}
+.ae ul.areas .sw{width:.8rem;height:.8rem;border-radius:50%;flex:none}
+.ae ul.areas small{color:var(--dim);margin-left:auto;white-space:nowrap}
+.ae .row{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center}
+.ae .row input[type=text]{flex:1 1 8rem}
+.ae .row input[type=number]{width:5.5rem}
+.ae .hint{color:var(--dim);font-size:.85rem}
+.ae .readout{position:absolute;left:.5rem;bottom:.5rem;background:rgba(12,10,7,.78);color:#efe6d6;border-radius:6px;padding:.25rem .5rem;font-size:.82rem;pointer-events:none;max-width:calc(100% - 1rem)}
+.ae .status{min-height:1.2rem;font-size:.9rem}.ae .status.bad{color:var(--bad)}.ae .status.ok{color:var(--ok)}
+.ae textarea.snip{width:100%;min-height:5rem;font:12px/1.4 ui-monospace,Consolas,monospace;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:.4rem;box-sizing:border-box}
+@media (max-width:860px){.ae{grid-template-columns:minmax(0,1fr)}.ae>*{min-width:0}.ae .stage{height:62dvh;order:-1}.ae .side{max-height:none}}

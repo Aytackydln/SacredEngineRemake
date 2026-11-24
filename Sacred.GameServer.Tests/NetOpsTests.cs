@@ -9,7 +9,7 @@ namespace Sacred.GameServer.Tests;
 /// <summary>Custom net opcodes (0x1E0 control / 0x1E1 data): handshake, peers, relaying, server channels and every cap.
 /// Servers listen on ephemeral ports (TcpPort = 0), never the game's ports.</summary>
 [TestClass]
-public class NetOpsTests
+public partial class NetOpsTests
 {
     private sealed class NetServer : IDisposable
     {

@@ -48,6 +48,41 @@ public sealed class HeroWriter
     /// <summary>Item references the inventories or equipment named but the server had no item state for (dropped from the save).</summary>
     public int MissingItems { get; private set; }
 
+    /// <summary>The content (130-byte item data plus records, lower-case hex) of every saved item of a lobby block, counted: what the hero
+    /// already had when it joined (the strict item gate lets the client announce exactly these).</summary>
+    public bool BaselineItemContents(ReadOnlySpan<byte> baselineBlock, Dictionary<string, int> into)
+    {
+        var fileLength = HeroFile.ReadBlock(baselineBlock, _inflater, _file);
+        if (fileLength < 0) return false;
+        var baseline = _file.AsSpan(0, fileLength);
+        if (HeroFile.ChunkCount(baseline) < 0) return false;
+        var version = baseline[3];
+        var objectsIndex = HeroFile.FindChunk(baseline, HeroFile.Objects, out _, out _);
+        if (objectsIndex < 0) return false;
+        var length = HeroFile.Decode(baseline, objectsIndex, _inflater, _baseObjects);
+        if (length < 4) return false;
+        var list = _baseObjects.AsSpan(0, length);
+        var count = BinaryPrimitives.ReadUInt32LittleEndian(list);
+        var position = 4;
+        for (var i = 0; i < count; i++)
+        {
+            if (position + 4 > list.Length) return false;
+            var resource = BinaryPrimitives.ReadUInt32LittleEndian(list[position..]);
+            position += 4;
+            if (resource == 0) continue;
+            var size = SavedObjects.RecordSize(list[position..], version);
+            if (size < 0) return false;
+            var data = list[position..];
+            if (SavedObjects.IsItem(data))
+            {
+                var key = Convert.ToHexStringLower(SavedObjects.SavedContent(data));
+                into[key] = into.GetValueOrDefault(key) + 1;
+            }
+            position += size;
+        }
+        return true;
+    }
+
     /// <summary>Writes the new lobby block into <paramref name="block"/>; returns its length or -1 (see <see cref="Error"/>).</summary>
     public int WriteBlock(ReadOnlySpan<byte> baselineBlock, LiveHero live, Span<byte> block)
     {

@@ -9,7 +9,7 @@ namespace Sacred.GameServer.Web;
 /// are always HTML encoded. The blocks <c>#head</c>, <c>#players</c>, <c>#bans</c> and <c>#session</c> are what <c>/fragment</c>
 /// returns and the page swaps in every few seconds; chat arrives through the SSE stream.
 /// </summary>
-internal static class Pages
+internal static partial class Pages
 {
     private static readonly string[] Modes = ["Default", "Free game", "Player killer", "Campaign", "Underworld campaign"];
     private static readonly string[] Levels = ["Any level", "Bronze", "Silver", "Gold", "Platinum", "Niobium"];
@@ -157,14 +157,51 @@ internal static class Pages
         sb.Append("<nav class=\"tabs\" aria-label=\"Sections\">")
           .Append("<a href=\"./\"").Append(current == "server" ? " aria-current=\"page\"" : "").Append(">").Append(Icon("pulse")).Append("Server</a>")
           .Append("<a href=\"mods\"").Append(current == "mods" ? " aria-current=\"page\"" : "").Append(">").Append(Icon("users")).Append("Mods <span class=\"count\">")
-          .Append(mods).Append("</span></a></nav>");
+          .Append(mods).Append("</span></a>")
+          .Append("<a href=\"areas\"").Append(current == "areas" ? " aria-current=\"page\"" : "").Append(">").Append(Icon("pulse")).Append("Areas</a>")
+          .Append("<a href=\"events\"").Append(current == "events" ? " aria-current=\"page\"" : "").Append(">").Append(Icon("pulse")).Append("Events</a>")
+          .Append("<a href=\"auction\"").Append(current == "auction" ? " aria-current=\"page\"" : "").Append(">").Append(Icon("pulse")).Append("Auction</a></nav>");
+    }
+
+    /// <summary>
+    /// <c>GET /areas</c>: the area editor. A canvas with the game's own world map and its sector grid (<c>/api/areas/map</c>, needs
+    /// --game-dir), tools to paint, erase and rectangle-select sectors and to draw a circle, a list of named areas and a save button
+    /// (through <c>POST /api/mod-store</c> into the world_events mod's storage). Script and style are <c>Assets/areas.js</c> and <c>areas.css</c>.
+    /// </summary>
+    public static string AreaEditorPage(IServerAdmin admin)
+    {
+        var o = admin.Overview();
+        var sb = new StringBuilder(12 * 1024);
+        sb.Append("<div class=\"app\">");
+        sb.Append("<header class=\"top\"><div class=\"brand\"><span class=\"logo\">").Append(Icon("shield")).Append("</span><div><b>Sacred GameServer</b><small>")
+          .Append(E(o.Name)).Append("</small></div></div>");
+        Tabs(sb, "areas", admin.Mods().Count);
+        sb.Append("</header>").Append(Assets.Text(EmbeddedResource_Assets.areas_html)).Append("</div>");
+        return Assets.Page("Areas - " + E(o.Name) + " - Sacred GameServer", sb.ToString(), ["app.css", "areas.css"], ["areas.js"], viewport: "width=device-width, initial-scale=1, viewport-fit=cover");
+    }
+
+    /// <summary>
+    /// <c>GET /events</c>: manages the world_events mod's events while the server runs: the list (script file and web events), add, edit,
+    /// turn off, delete, start now, cancel the running one. Script and style are <c>Assets/events.js</c> and <c>events.css</c>; data and commands go through
+    /// the mod's <c>events</c> endpoint and <c>POST /api/mod-store</c>.
+    /// </summary>
+    public static string EventsPage(IServerAdmin admin)
+    {
+        var o = admin.Overview();
+        var sb = new StringBuilder(8 * 1024);
+        sb.Append("<div class=\"app\">");
+        sb.Append("<header class=\"top\"><div class=\"brand\"><span class=\"logo\">").Append(Icon("shield")).Append("</span><div><b>Sacred GameServer</b><small>")
+          .Append(E(o.Name)).Append("</small></div></div>");
+        Tabs(sb, "events", admin.Mods().Count);
+        sb.Append("</header>").Append(Assets.Text(EmbeddedResource_Assets.events_html)).Append("</div>");
+        return Assets.Page("Events - " + E(o.Name) + " - Sacred GameServer", sb.ToString(), ["app.css", "events.css"], ["events.js"]);
     }
 
     /// <summary>
     /// <c>GET /mods</c>: one card per mod (script file) with its pages and its endpoints listed apart. Links open in a new tab; pages
     /// run sandboxed (see WebUiServer.ModEndpoint). Public ones show their <c>/public/mods/...</c> address too.
     /// </summary>
-    public static string ModsPage(IServerAdmin admin, bool publicApi)
+    public static string ModsPage(IServerAdmin admin, bool publicApi, string? notice = null)
     {
         var o = admin.Overview();
         var mods = admin.Mods().OrderBy(m => m.Mod, StringComparer.OrdinalIgnoreCase).ToList();
@@ -174,6 +211,14 @@ internal static class Pages
           .Append(E(o.Name)).Append("</small></div></div>");
         Tabs(sb, "mods", mods.Count);
         sb.Append("</header><main class=\"modgrid\">");
+        if (notice is not null) sb.Append("<div id=\"toast\" role=\"status\">").Append(E(notice)).Append("</div>");
+        if (mods.Count > 0)
+            sb.Append("<section class=\"card modbar\"><p class=\"dim small\">Scripts reload by themselves when a file changes (only that mod). A mod's <code>unload</code> handler saves its state first.</p>");
+        if (mods.Count > 0)
+        {
+            Form(sb, "reload-mods", "<input type=\"hidden\" name=\"back\" value=\"mods\"><input type=\"hidden\" name=\"text\" value=\"\"><button class=\"ghost\" title=\"Every mod saves its state in its unload handler and is loaded again from disk, in a fresh Lua state\">Reload all mods</button>", null, null, false, inline: true);
+            sb.Append("</section>");
+        }
         if (mods.Count == 0)
             sb.Append("<section class=\"card\"><div class=\"empty\">").Append(Icon("users")).Append("<p>No mods installed.</p>")
               .Append("<small>Put .lua scripts into the scripts folder; they load without a restart.</small></div></section>");
@@ -190,6 +235,7 @@ internal static class Pages
             if (mod.Error is { Length: > 0 } error) sb.Append("<p class=\"moderror\">Failed to load: ").Append(E(error)).Append("</p>");
             ModList(sb, "Pages", pages, publicApi);
             ModList(sb, "Endpoints", endpoints, publicApi);
+            Form(sb, "reload-mods", $"<input type=\"hidden\" name=\"back\" value=\"mods\"><input type=\"hidden\" name=\"text\" value=\"{E(mod.Mod)}\"><button class=\"ghost\">Reload</button>", null, null, false, inline: true);
             sb.Append("</section>");
         }
         sb.Append("</main></div>");

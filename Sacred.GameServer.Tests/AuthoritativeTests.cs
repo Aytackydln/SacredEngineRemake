@@ -39,12 +39,12 @@ public partial class AuthoritativeTests
         public void Dispose() { Host.Stop(); _thread.Join(); Lobby?.Dispose(); Host.Dispose(); }
     }
 
-    private sealed class FixedSerializer(byte[] block) : IHeroSerializer
+    internal sealed class FixedSerializer(byte[] block) : IHeroSerializer
     {
         public int Serialize(PlayerSession player, Span<byte> destination) { block.CopyTo(destination); return block.Length; }
     }
 
-    private static byte[] Word(uint value) { var b = new byte[4]; BinaryPrimitives.WriteUInt32LittleEndian(b, value); return b; }
+    internal static byte[] Word(uint value) { var b = new byte[4]; BinaryPrimitives.WriteUInt32LittleEndian(b, value); return b; }
 
     private static byte[] Damage(uint victim, uint damage, uint attacker)
     {

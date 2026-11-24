@@ -20,7 +20,7 @@ public readonly record struct LobbyEvent(LobbyEventKind Kind, int PermId = 0, us
 /// token: no connect or retry after Stop. Lobby traffic is rare (a few messages per minute); frames are pooled, the game and
 /// packet loops stay allocation free.
 /// </summary>
-public sealed class LobbyClient : IDisposable
+public sealed partial class LobbyClient : IDisposable
 {
     private const uint LogMeOff = 4;
     private const int KeepAliveMs = 15_000, MaxBackoffMs = 60_000, LogonTimeoutMs = 15_000, MaxFrameBytes = 0x30000;
@@ -97,6 +97,7 @@ public sealed class LobbyClient : IDisposable
         if (data.Length is <= 0x230 or > LobbyProtocol.MaxBlock) return false;
         var frame = Build(LobbyProtocol.ServerDataUpload, 18 + data.Length, out var body);
         LobbyProtocol.WriteDataUpload(body, permId, block, data);
+        TrackUpload(permId);                                                 // lobby answers, upload times (LobbyClient.Uploads.cs)
         Enqueue(frame);
         return true;
     }
@@ -129,6 +130,7 @@ public sealed class LobbyClient : IDisposable
             if (_online) { _online = false; Events.Enqueue(new LobbyEvent(LobbyEventKind.Offline)); }
             _socket?.Dispose(); _socket = null;
             while (_outbox.TryDequeue(out var dropped)) ArrayPool<byte>.Shared.Return(dropped.Buffer);   // announcements are repeated after the next login
+            FailUploads("the lobby connection was lost");
             if (token.IsCancellationRequested) break;
             try { await Task.Delay(backoff, token).ConfigureAwait(false); } catch (OperationCanceledException) { break; }
             backoff = Math.Min(backoff * 2, MaxBackoffMs);
@@ -295,6 +297,7 @@ public sealed class LobbyClient : IDisposable
                 var code = BinaryPrimitives.ReadInt32LittleEndian(body);
                 var last = BinaryPrimitives.ReadInt32LittleEndian(body[4..]);
                 if (code != 0 && code != 12) Log.Info($"LOBBY: result={code}, last={last}.");
+                if (last == LobbyProtocol.ServerDataUpload) UploadAnswered(code);
                 if (last == LobbyProtocol.ServerLogin && code == 0 && !_online)
                 { _online = true; Events.Enqueue(new LobbyEvent(LobbyEventKind.Online)); Report(4, 0); }
                 if (last == LobbyProtocol.ServerLogin && code != 0) { Report(9, code); throw new IOException($"lobby refused the game (result {code})"); }

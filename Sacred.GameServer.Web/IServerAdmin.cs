@@ -22,6 +22,13 @@ public interface IServerAdmin
     IReadOnlyList<ModInfo> Mods() => ModEndpoints().GroupBy(e => e.Mod).Select(g => new ModInfo(g.Key, null, null, g.ToArray())).ToArray();
     /// <summary>Runs a script endpoint on the game loop. <paramref name="publicOnly"/>: only endpoints the script marked public.</summary>
     Task<ModResponse> ModRequest(string mod, string path, IReadOnlyList<KeyValuePair<string, string>> query, bool publicOnly, CancellationToken cancellationToken);
+    /// <summary>The area editor's data: the sector table and the world map of --game-dir. <paramref name="image"/>: the map as a PNG, else
+    /// the sectors and the map projection as JSON. Built once, off the game loop; 404 without game data.</summary>
+    Task<BinaryResponse> AreaMapRequest(bool image, CancellationToken cancellationToken) =>
+        Task.FromResult(new BinaryResponse(404, "text/plain; charset=utf-8", "the area map needs --game-dir"u8.ToArray()));
+    /// <summary>Reads (<paramref name="body"/> null) or writes the storage of a mod (script) on the game loop; see <c>POST /api/mod-store</c>.</summary>
+    Task<ModResponse> ModStoreRequest(string mod, string? key, string? body, CancellationToken cancellationToken) =>
+        Task.FromResult(new ModResponse(404, "text/plain; charset=utf-8", "scripts are off"));
     /// <summary>Queues a command for the game loop. False when the queue is full.</summary>
     bool Submit(in AdminCommand command);
     /// <summary>Cancelled when the server stops: the web UI ends its streaming responses and stops at once (it never waits for browsers).</summary>
@@ -73,6 +80,8 @@ public enum AdminCommandKind
     Shutdown,
     /// <summary>Text = <c>KEY=VALUE</c> pairs separated by ';' or new lines (FLOOD_* keys, MAX_CONNECTIONS_PER_ADDRESS); applied live.</summary>
     SetFlood,
+    /// <summary>Text = mod name (script file without .lua) or empty for every mod: its "unload" handler runs, then it is loaded again from disk.</summary>
+    ReloadMods,
 }
 
 /// <summary>Flood protection as the game loop uses it right now (see Sacred.GameServer README "Flood protection").</summary>
@@ -105,5 +114,8 @@ public sealed record ModInfo(string Mod, string? Description, string? Error, Mod
 
 /// <summary>A script endpoint's answer.</summary>
 public sealed record ModResponse(int Status, string ContentType, string Body, bool Page = false);
+
+/// <summary>An answer with a binary body (the area map PNG).</summary>
+public sealed record BinaryResponse(int Status, string ContentType, byte[] Body);
 
 public readonly record struct AdminCommand(AdminCommandKind Kind, int Slot = 0, int Value = 0, string? Text = null);

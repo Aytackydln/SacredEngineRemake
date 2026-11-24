@@ -28,9 +28,16 @@ public sealed partial class GameServerHost
         switch (m.Opcode)
         {
             case 0x16E: case 0x16F:
+            {
+                var reference = BinaryPrimitives.ReadUInt32LittleEndian(m.Payload) & 0x7FFFFFFF;
+                var isNew = m.Opcode == 0x16F && _scripts is not null && !_world.TryGet(reference, out _);
                 if (_world.Store(m.Opcode, owner, m.Payload, Bit(s.Slot)))
-                    StreamObject(BinaryPrimitives.ReadUInt32LittleEndian(m.Payload) & 0x7FFFFFFF);
+                {
+                    StreamObject(reference);
+                    if (isNew) ScriptItemOnGround(s, reference);
+                }
                 return true;
+            }
             case 0x169: case 0x16C:
                 _world.Store(m.Opcode, owner, m.Payload, InGameMask());
                 return false;                                   // forwarded by the routing table (mode 6)
@@ -65,6 +72,7 @@ public sealed partial class GameServerHost
         }
         if (entry.Owner != s.Slot) { entry.KnownBy &= (ushort)~Bit(s.Slot); return; }
         var knownBy = entry.KnownBy;
+        RememberRemovedItem(s, reference, entry);                           // authoritative: items a player destroyed (GameServerHost.ScriptHeroes.cs)
         _world.Remove(m.Payload);
         for (byte slot = 1; slot <= MaxSlots; slot++)
             if (slot != s.Slot && (knownBy & Bit(slot)) != 0 && _slots[slot] is { InGame: true } target)

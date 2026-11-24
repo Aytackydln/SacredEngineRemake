@@ -12,7 +12,7 @@ namespace Sacred.GameServer.Scripting;
 /// hero's character name for ladders. Files are written to a temporary file and moved over the old one. The game server itself
 /// keeps no mod state: a mod that wants a ladder, a list of recent deaths or anything else stores it here.
 /// </summary>
-public sealed class ModStore
+public sealed partial class ModStore
 {
     public const string HeroPrefix = "@";
     public const string NameKey = "_name";
@@ -142,7 +142,7 @@ public sealed class ModStore
         }
     }
 
-    private static object? FromJson(JsonElement element) => element.ValueKind switch
+    public static object? FromJson(JsonElement element) => element.ValueKind switch
     {
         JsonValueKind.Number => element.GetDouble(),
         JsonValueKind.String => element.GetString(),
@@ -201,6 +201,7 @@ public sealed class ModStore
     /// <paramref name="wait"/> (shutdown) waits for the write.</summary>
     public void Flush(bool wait = false)
     {
+        if (!wait && DurablePending) return;                                // a durable write is out: its outcome decides (ModStore.Durable.cs)
         if (!_writing.IsCompleted) { if (!wait) return; _writing.Wait(); }
         if (_dirty)
         {

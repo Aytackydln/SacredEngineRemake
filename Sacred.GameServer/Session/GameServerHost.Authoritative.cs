@@ -101,6 +101,7 @@ public sealed partial class GameServerHost
             if (s.State != SessionState.Closed) RemovePlayer(s, ReasonCheat, notifyVictim: true);
             return false;
         }
+        if (m.Opcode is 0x16F or 0x16E && StrictRefuses(s, reference, body)) return false;
         if (!_config.Auth.CheckItems || ItemGuard.Check(body, ItemFootprints) is not { } why) return true;
         RejectedItems++;
         Violation(s, $"0x{m.Opcode:X3} 0x{reference:X}: {why}");

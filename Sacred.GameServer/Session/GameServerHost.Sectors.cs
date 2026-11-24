@@ -73,7 +73,9 @@ public sealed partial class GameServerHost
         SendMessage(s, 0x148, 0, 0, e);
         if (current != 0 && current < SectorTableSize)
         {
+            var changed = s.CurrentSector != current;
             s.CurrentSector = current;
+            if (changed && _scripts is not null) ScriptSectorChanged(s);
             if (_sectorOwner[current] == 0) { _sectorOwner[current] = s.Slot; SendMessage(s, 0x020, 0, 0, default); }
             else if (previous != 0 && previous < SectorTableSize && _sectorOwner[previous] == s.Slot) SendMessage(s, 0x01F, 0, 0, default);
         }

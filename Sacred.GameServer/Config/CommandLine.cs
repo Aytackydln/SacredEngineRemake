@@ -70,6 +70,7 @@ public static class CommandLine
         new("Authoritative mode", "auth-save-interval", OptionKind.Int, "seconds between periodic hero saves (0 = off)", "60"),
         new("Authoritative mode", "auth-save-debounce-ms", OptionKind.Int, "milliseconds to wait after a trade or drop before saving", "500"),
         new("Authoritative mode", "auth-check-items", OptionKind.Flag, "refuse impossible item states (sockets; item types with --game-dir)", "1"),
+        new("Authoritative mode", "auth-strict-items", OptionKind.Text, "off (default), log or on: refuse item creations by the client that no script token or baseline item covers (experimental, Closed Net)", "log"),
         new("Authoritative mode", "auth-max-hero-level", OptionKind.Int, "highest hero level a player may report, above it the player is removed (0 = no check)", "216"),
 
         // ---- flood protection ----

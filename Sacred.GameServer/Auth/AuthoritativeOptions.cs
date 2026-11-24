@@ -6,6 +6,8 @@ namespace Sacred.GameServer.Auth;
 /// Settings of the optional authoritative mode (<c>--authoritative</c>). Normal relay games are unaffected: without the switch
 /// no authoritative code path runs. Keys use the same KEY=VALUE form as <c>Gameserver.cfg</c> (prefix <c>AUTH_</c>).
 /// </summary>
+public enum StrictItemsMode { Off, Log, On }
+
 public sealed class AuthoritativeOptions
 {
     /// <summary>Master switch.</summary>
@@ -25,6 +27,11 @@ public sealed class AuthoritativeOptions
 
     /// <summary>Refuse item states that no legitimate item has (sockets, item types against the game tables; Auth/ItemGuard.cs).</summary>
     public bool CheckItems { get; set; } = true;
+    /// <summary>Items a player's client creates (0x16F / 0x16E of an object the server's world does not have) in Closed Net with the hero kept by
+    /// the server: <see cref="StrictItemsMode.Off"/> (default), <c>Log</c> (counted and logged, still accepted) or <c>On</c> (refused: no state, never
+    /// saved). Allowed: an item covered by a one-time token a script minted (<c>server.item_token</c>) and an item of the hero's baseline block.
+    /// Experimental: the game's other legitimate creators (loot of client-side creatures, merchants, crafting, quest rewards) are not known yet.</summary>
+    public StrictItemsMode StrictItems { get; set; }
     /// <summary>Highest hero level a player's hero may report (Sacred Gold caps at 216; 0 = no check). Above it the player is removed.</summary>
     public int MaxHeroLevel { get; set; } = 216;
 
@@ -40,6 +47,7 @@ public sealed class AuthoritativeOptions
             case "AUTH_LOCK_DIFFICULTY": LockDifficulty = Int(value, 1) != 0; return true;
             case "AUTH_SAVE_INTERVAL": SaveIntervalSeconds = Math.Max(0, Int(value, SaveIntervalSeconds)); return true;
             case "AUTH_CHECK_ITEMS": CheckItems = Int(value, 1) != 0; return true;
+            case "AUTH_STRICT_ITEMS": StrictItems = value.Trim().ToLowerInvariant() switch { "log" => StrictItemsMode.Log, "0" or "off" or "" => StrictItemsMode.Off, _ => StrictItemsMode.On }; return true;
             case "AUTH_MAX_HERO_LEVEL": MaxHeroLevel = Math.Max(0, Int(value, MaxHeroLevel)); return true;
             case "AUTH_SAVE_DEBOUNCE_MS": SaveDebounceMilliseconds = Math.Max(0, Int(value, SaveDebounceMilliseconds)); return true;
         }

@@ -1,0 +1,3 @@
+.au{display:grid;gap:1rem;max-width:46rem}.au label{display:grid;grid-template-columns:13rem 1fr;gap:.5rem;align-items:center;margin:.35rem 0}
+.au label small{display:block;color:var(--dim)}.au input[type=text]{width:100%}.au input[type=checkbox]{justify-self:start}
+.au .status{min-height:1.2rem}.au .status.bad{color:var(--bad)}.au .status.ok{color:var(--ok)}

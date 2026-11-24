@@ -272,6 +272,7 @@ public sealed partial class GameServerHost : IServerAdmin
                 ShutDownSession();
                 break;
             case AdminCommandKind.SetFlood when c.Text is { } settings: ApplyFloodSettings(settings); break;
+            case AdminCommandKind.ReloadMods: ReloadMods(string.IsNullOrEmpty(c.Text) ? null : c.Text); break;
             case AdminCommandKind.Shutdown:
                 Log.Info("web admin: shutting down.");
                 Stop();

@@ -127,8 +127,8 @@ online, lobby kick, Closed Net character, lobby shutdown).
 
 Lua scripts run on the server itself, with [LuaCSharp](https://github.com/nuskey8/Lua-CSharp) 0.5.8 (pure managed Lua 5.2:
 no native library, Native AOT clean, one binary). Every `*.lua` file of the scripts folder (`--scripts-dir`, default
-`scripts`) is loaded in name order when the server starts and all of them are reloaded half a second after one changes; no
-restart is needed. Without the folder (or with `--scripts=0`) nothing runs. `scripts-examples/kill_milestones.lua` is a
+`scripts`) is loaded in name order when the server starts; a changed, added or removed file reloads only that mod half a
+second later (see "Hot reload" below); no restart is needed. Without the folder (or with `--scripts=0`) nothing runs. `scripts-examples/kill_milestones.lua` is a
 complete example.
 
 ```lua
@@ -136,18 +136,26 @@ server.on("join", function(player) end)          -- admitted
 server.on("enter", function(player) end)         -- in the world (0x017/0x018 answered)
 server.on("leave", function(player) end)
 server.on("chat", function(player, text) return true end)   -- public chat; true = not relayed (commands like "!kills")
-server.on("kill", function(player, monster) end) -- monster = { ref, type, level, name }
+server.on("kill", function(player, monster) end) -- monster = { ref, type, level, name, sector, x, y }
 server.on("death", function(player, by) end)     -- a hero died; by = { player } or { ref, type, level }
-server.on("start", function() end)               -- after (re)loading
+server.on("sector", function(player, sector) end) -- the hero moved into another sector (player.sector is the same number)
+server.on("drop", function(item, reporter) end)  -- a new item lies on the ground; item = { ref, type, level, rarity 0..15, sockets, price, name, sector, x, y }
+server.on("start", function() end)               -- after (re)loading (a reloaded mod's own start handlers run again)
+server.on("unload", function(reason) end)        -- before this mod is replaced ("reload") or the server stops ("shutdown"): save state here
 server.every(seconds, fn)  server.after(seconds, fn)
 server.broadcast(text)  server.message(player or slot, text)  server.kick(player or slot, reason)
 server.players()  server.player(slot)  server.time()  server.log(text)  print(...)
 server.save(key, value)  server.load(key [, default])  server.delete(key)  server.keys([prefix])   -- the mod's own storage
+server.flush([fn])                     -- write this mod's storage now, durably; fn(ok, err) afterwards on the game loop
+server.authoritative(player)  server.save_hero(player, fn)  server.hero_upload_time(player)   -- Closed Net hero saves (see "Hero custody")
+server.hero_item(player, ref)  server.hero_items(player)  server.claim_item(player, ref)     -- items in, leaving and arriving in a hero
 server.get(player or nil, key [, default])  server.set(player or nil, key, value)  server.add(player or nil, key [, n])
 server.drop_item(player, { quality = 0..14, category = "ring", level = n, class = n, seed = n })  -- item or nil, error
 server.drop_gold(player, amount)       -- { ref, type, amount } or nil, error: a gold pile next to the hero
 server.random()  server.random(n)  server.random(m, n)
 server.creature_name(type or monster)  server.item_name(type or item)   -- the game's name, or nil
+server.hero(player or slot)            -- table, or nil + reason: the server's view of a hero (see "Hero data for scripts")
+server.sector_cell(id)  server.sector_at(cellX, cellY)   -- the sector grid { x, y } / id (needs --game-dir), or nil
 server.top(key, n)                     -- { { name, value }, ... }: this mod's per-hero numbers, also offline heroes
 server.endpoint(path, fn [, { public = true, description = "..." }])   -- GET /mods/{script}/{path}
 server.page(path, html or fn [, { public = true, title = "..." }])     -- a single-file HTML page at the same address
@@ -189,7 +197,56 @@ with an error instead of silently becoming a folder of that name. The game serve
 mods: ladders, recent deaths, statistics live in the mod that needs them, so mods can grow without growing the server. (JSON,
 not SQLite: SQLite needs a native library, which would end the single-file Native AOT binary.)
 
-* `player` = `{ slot, name, character, uid, class, level, in_game, host, online }`. **Privacy:** scripts never see lobby ids,
+**User documentation of the example mods** (install, chat commands, settings, pages and endpoints, Sacred Gear channels,
+limits, screenshots of the web pages): [`docs/mods/README.md`](../docs/mods/README.md).
+
+**Durable writes (`server.flush([fn])`).** For a mod that must not answer a player before its change is on disk (the auction
+house: a delivery that was answered and then lost in a crash before the 10 s flush could be collected twice). The store is
+serialized at once on the game loop thread and written on a worker thread after any write still running: temporary file,
+flushed to the disk (`FileStream.Flush(true)`, write-through), moved over the old file. `fn(ok, err)` runs on the game loop at the
+next pump after the write finished, in the order the writes were started; the game loop never waits. While a durable write is out
+(until its callback ran) the regular 10 s flush skips this mod's file, so after a failed write the file still holds the state from
+before it and the script can undo its change in memory first (the next flush writes the undo). A reload first drains the writes in
+flight (their callbacks run, the old script is still intact); callbacks of a `server.flush` started by an unload hook are dropped
+after a reload (the write still finishes before the mod is replaced) but answered at shutdown. Code: `Scripting/ScriptHost.Durable.cs`, `ModStore.Durable.cs`; tests
+`ScriptTests.Durable.cs`.
+
+**Hot reload and the `unload` hook.** `server.on("unload", function(reason) ... end)` runs while the old script is still intact
+(same instruction budget as any handler): `reason` is `"reload"` (the mod is replaced) or `"shutdown"` (the server stops; the
+hooks run on the game loop before the stores are flushed, and the durable writes they start are awaited). Save state with
+`server.save(...)` and `server.flush()` there; then everything the script registered (handlers, timers, endpoints and pages, net
+handlers) is dropped and the file runs again. The mod's storage lives in the host and survives a reload, so the new version reads
+back what the old one saved, exactly as after a restart. Order: pending durable writes are drained (callbacks answered), the
+`unload` handlers of the mod run (all mods on a full reload, the last loaded first), the writes they started finish, the
+registrations are dropped, the file(s) load, then `start` fires (for a per-mod reload only that mod's handlers). Reloading:
+the folder watcher reloads only the file that changed (a new file loads, a deleted one unloads); the Mods tab of the web UI has a
+Reload button per mod and "Reload all mods" (`POST /api/reload-mods` with `{"text": "mod"}`, empty text = all); `ScriptHost.Reload(mod|null)`
+from code. A full reload creates a fresh Lua state (global variables reset); a per-mod reload runs the file in the shared state, so
+globals it set earlier stay until overwritten, a reloaded mod's handlers run after the others', and mods that share globals should be
+reloaded together. Code: `Scripting/ScriptHost.Reload.cs`; tests `ScriptTests.Reload.cs`. The example mods are built on it: each saves its in-memory state in an unload handler and keeps its tunables as data in its storage key `config` (defaults in the script seed it, `POST /api/mod-store` edits it live, `/mods/{mod}/config` is the admin overview); see [`docs/mods/README.md`](../docs/mods/README.md#configuration-live-edits-and-hot-reload), tests `ScriptTests.ModConfig.cs`.
+
+**Hero custody (Closed Net, `--authoritative`).** For mods that move items or gold between a hero and their own storage (auction
+house, shared stash) so that killing the client never restores a save with the item twice: the server is the one that writes the
+hero, so a mod accepts a transfer only after the server saw it in its own hero state and the lobby stored the hero.
+`server.authoritative(player)` is true when the server writes this hero (authoritative mode, a Closed Net hero, the lobby online).
+`server.save_hero(player, fn)` saves the hero now from the server's view (as the anti-dupe saves) and calls `fn(ok, err)` on the
+game loop once sacred-lobby answered the upload (message 15 code 12 = stored in one SQLite statement; anything else, a lost
+lobby connection or 30 s without an answer is `ok = false`). `server.hero_upload_time(player)` is the unix time of the last
+hero upload sent for that hero (any reason, also earlier sessions while the server runs), or nil: no save went out since a moment
+means the lobby's hero is still older than it. `server.hero_item(player, ref)` returns `{ ref, type, where, records, age }` for one
+item object of the player: `where` = `backpack` (anchored in the hero's own inventory, 0x122/0x13E/0x13F), `stash` (inventory 17),
+`equipped`, `world` (an object of the player in no inventory) or `gone` (destroyed by its owner with 0x167: the server keeps the
+last 64 per player for 10 minutes, with their records); `records` is the item's value records as hex (one 130-byte block per
+socketed rune/gem, then its own), the same bytes Sacred Gear's `gear.inv.export` carries after its u32 type and u16 count, so a
+mod can check that exported data belongs to that object. An anchored item without a server state has `type` 0 and empty
+`records`. `server.hero_items(player)` lists the items in the inventories and equipment; `server.claim_item(player, ref)` takes a
+`gone` item off the list (true once), so one destroyed item backs one transfer. Hero gold is `server.hero(player).gold`. Code:
+`Session/GameServerHost.ScriptHeroes.cs`, `Scripting/ScriptHost.Heroes.cs`, `Lobby/LobbyClient.Uploads.cs` (upload answers); hooks
+in existing code: one call in `RemoveObject`, three lines in `LobbyClient`. **Unverified with a real client:** that Gear's
+`inv.remove` reaches the server as 0x13E + 0x167 and `inv.add` as 0x16F/0x16C + 0x13F, that the export's records equal the
+server's in order, and how soon a client reports a gold change in its hero state.
+
+* `player` = `{ slot, name, character, uid, account, class, level, in_game, host, online, sector, x, y }`. `account` is an opaque per-server key of the player's lobby account (all heroes of one account share it; absent without a lobby identity), made like `uid`. **Privacy:** scripts never see lobby ids,
   owner keys or account names. `name` and `character` are the character name (the server strips the `account.` prefix of
   lobby names, and only of lobby names: a LAN name like `Mr.X` stays), `uid` is an opaque per-server identity of the hero
   (HMAC-SHA256 of its lobby identity with a secret kept in `{scripts-data}/.uid-secret`): stable across sessions on this
@@ -225,7 +282,33 @@ not SQLite: SQLite needs a native library, which would end the single-file Nativ
   objects) and how `class` maps to the game's 0..9 selector (the player's FIRSTCONTACT class byte is passed as is).
 * Ladders: `scripts-examples/ladders.lua` keeps most kills, highest level, time online (+60 s per connected hero each minute),
   kills per creature and the last 20 deaths in its own storage and serves them as a page and as JSON/CSV endpoints; `!top`
+  shows the kill ladder in chat. `player.online` is the current session in seconds. `player.sector` is the sector number the hero stands in (first word of its last 0x148 sector entry; 0 until the server has seen one); the `"sector"` event fires when it changes. `player.x`/`y` are the hero's world position from its last state the server saw (0 when none; it can lag behind a moving hero: position updates are not applied yet). A kill's `monster.sector`, `x`, `y` come the same way from the victim's last state in the object world (absent when the server never saw it). **Sector ids are slots of the game's sector table, not coordinates**: `server.sector_cell(id)` gives the id's cell of the 128 x 128 sector grid and `server.sector_at(cx, cy)` the id at a cell, from `World/sectors.keyx` of `--game-dir` (nil without it). One tile is 53.67 world units and a sector 64 tiles, about 3435 units.
+* World events: `scripts-examples/world_events.lua` runs server-wide timed goals ("slay 1000 orcs in 2 hours", optionally only in some sectors, filtered by creature name or type) from a config table at the top of the file: a rotation with a cooldown, 25/50/75 % and result broadcasts, a reward shared by contribution (`drop_gold`, `drop_item`; heroes who are offline get theirs when they enter), `!event` and `!sector` in chat, a public dashboard page and `/mods/world_events/state` (JSON, character names only), and the state pushed over the net channel `worldevents:state` to the Sacred Gear mod `world-events` (a movable progress bar). Everything, including an event that ran out while the server was down, lives in `script-data/world_events.json`. Uses `player.sector` and the `"sector"` event. Events can be tied to named **areas** (sector lists and ranges, a grid rectangle, `near` neighbours, a world-unit circle; a kill counts where the creature died, `where = victim|player|either`); admins record areas by walking with `!area start/stop` and read the numbers off with `!sector`/`!here`; recorded areas live in the mod's storage (`areas`). See the comments at the top of the script. **Reward odds:** an event can have rarity milestones (`reward.milestones = { { at = 1, weights = { common = 100 } }, { at = 10, weights = { common = 75, magic = 25 } }, ... }`): tier chances are weight / sum of weights, the best tier can never be 100 % (a row that breaks that, has a negative or no weight, or an unknown tier is refused with a log line), every hero with the minimum kills gets one item rolled with `server.random` when the event ends using the odds of the highest milestone reached (a failed event rolls too, unless `on_fail = false`; gold and the top prize only for a completed one), and nothing else (level, class, kills above the minimum) changes the roll. All odds are public: dashboard table, `/mods/world_events/state` (`reward_odds`, `reward_rules`, `rewards` = the recent rolls with character names only), `!event rewards`, the announcement at each milestone and the tooltip of the Sacred Gear mod.
+* Bounty board: `scripts-examples/bounty_board.lua` posts a few bounties at a time ("kill N creatures whose name contains ...", optionally only in some sectors, `min_level`), each hero works on them separately, finishing one pays gold (`drop_gold`) and/or an item (`drop_item`) once; bounties expire and are replaced from a pool in the file. `!bounty` lists them, `!where` tells the sector number; a public dashboard at `/mods/bounty_board/` and JSON at `/mods/bounty_board/state`; the net channel `bounty:state` pushes each hero's own progress to Sacred Gear clients (client mod `gear/examples/bounty`, panel on F8). Everything is in the mod's own storage; no host API was added.
   shows the kill ladder in chat. `player.online` is the current session in seconds.
+* Achievements and login streak: `scripts-examples/achievements.lua` unlocks 31 achievements from kills, distinct creature types,
+  "giants" (a creature 10+ levels above the hero), deaths, players defeated, hero level (read from the player on kills, joins and a
+  20 s timer: there is no level event), time online, days visited and the streak, and pays rewards with `drop_gold` / `drop_item`
+  (held until the hero is in the world; no `--game-dir`: the item becomes 1000 gold). The first entry into the world on a new UTC
+  day extends the streak (a missed day resets it) and pays 100 gold per streak day up to 1000, plus an item every 7th day. Page
+  `/mods/achievements/` (public with `WebUi:PublicApi`), JSON `players` and `achievements`, chat `!ach` and `!streak`, and the
+  net channel `achievements:sync` for the Sacred Gear mod `gear/examples/achievements` (toast on unlock and streak, a panel;
+  messages `{op = "state" | "unlock" | "streak"}` to the client, `{op = "get"}` from it). Gold held/earned and exploration are not
+  achievements: the script API has no data for them. Tests: `ScriptTests` (fake server) and `NetOpsTests` (live channel).
+* Ground items ("drop"): the game has no drop message. Creature loot, chest contents and items a player throws down all show up
+  as a 0x16F state with a position, sent by the client that owns the sector; the first such state of an item object the server's
+  world did not have yet fires `drop` (`item.rarity` is the tier 0..15 of the value block: Sacred Gear shows 0-4 normal, 5-11
+  magic, 12-14 rare, 15 unique; `reporter` is the player whose client reported it, which is not necessarily the killer; items
+  without a position, updates of known objects and the server's own `drop_item`/`drop_gold` objects do not fire it). Items already
+  lying in a sector when its owner enters also arrive this way, so a mod that wants creature loot ties a drop to a recent
+  `kill`, as `rare_drops.lua` does. **Unverified with a real client:** the rarity mapping and that all loot arrives as 0x16F.
+* Statistics mods (`scripts-examples`, each with a public page and JSON endpoints, own storage, tests in `ScriptTests.Mods.cs`):
+  `server_stats.lua` (online, peak, uptime, totals, 24 h charts as inline SVG), `hall_of_fame.lua` (records, first to reach a level
+  or defeat a creature, `!hof`), `seasons.lua` (ladders per season: timer or `/mods/seasons/end-season` (admin), archive of past
+  seasons, `!season`), `rare_drops.lua` (live feed of rare/unique drops from the `drop` event, chat line, Gear client channel
+  `rare_drops:feed`) and `graveyard.lua` (recent deaths with killer names, deadliest killers, `!rip`, channel `graveyard:feed`).
+  The Sacred Gear mod `gear/examples/serverfeed` (sacred-bild) shows the two channels on screen.
+* Mods built on `server.hero` and `net`: `scripts-examples/build_sharer.lua` (players publish their build, stored per mod, a searchable page, JSON endpoints and a channel for the Sacred Gear panel `buildsharer`) and `scripts-examples/quest_helper.lua` (a hero's quest records with an owner-written catalog of names, areas and hints, change notices, a page; Gear panel `questhelper`). Client halves: sacred-bild `gear/examples/buildsharer` and `gear/examples/questhelper`; docs there in `docs/GearServerMods.md`. `ModScriptTests` cover them.
 * `drop_gold` drops a gold pile the same way (no `--game-dir` needed). Money is an ordinary item object: resources
   0x140C..0x140F (Gold client table 0x949920 / test 0x43AF50, GameServer.exe 0x5B0274 / 0x409D30), pile size by amount as the
   game picks it when gold is dropped (0x4AEC1E: below 50, 350, 1000, else). The amount is the value block's price (+8, cItemBase
@@ -234,6 +317,18 @@ not SQLite: SQLite needs a native library, which would end the single-file Nativ
   adds it to the hero's gold (values +0x46, AddGold 0x57FD80, at most 0x7FFFFFFE, the cap `drop_gold` applies). Amounts are
   whole numbers of at least 1. **Unverified with a real client:** as for `drop_item`, that the owner's pick-up of a
   server-referenced object runs that path, and that the new gold reaches the server in the hero's values (saves).
+
+### Hero data for scripts (`server.hero`)
+
+`server.hero(player or slot)` returns a fresh read-only table of what the server knows about that hero, or `nil` and a reason. It is the
+data of the web UI's `/api/heroes` (the same code, `HeroOf`), so it exists only while the server keeps hero state (the web UI runs, or
+`--authoritative`) and once the player's client has sent its hero. Fields: `character`, `class`, `level`, `experience`, `gold`,
+`skill_points`, `combos`, `in_game`; `skills` (`id`, `level`, `bonus`, `name`), `attribute_points` (the six spent points), `attributes`
+(six totals, only after a full 0x16B state), `arts` (`kind`, `id`, `rank`, `name`), `equipment` (`slot` 0..18, `type`, `level`, `rarity`
+0..15, `sockets`, `name`), `inventory_items` (a count), `quest_pairs` (`key`, `value`: the `[key][word04]` records of the inventory
+stream, see "Quest pairs"). Names are the game's text and exist only with `--game-dir`. No account, lobby id or owner key. What it does not
+have: the quest journal, active quests and their progress (world state of the game's interpreter, not in a hero file and on no wire message).
+In the five hero saves we have, the quest pairs are empty, so a script cannot rely on them being filled.
 
 ### Custom net messages for scripts (`net`)
 
@@ -295,6 +390,26 @@ out and only the game's numbers remain. Source: the hero's own object
 states (Gold 0x585C60 values at +445: compact fields, or the full sCharValHero block from 0x16B), 0x11D/0x11E, 0x122, 0x13E/0x13F
 and the items in the object world.
 
+### Area editor (`/areas`, admin)
+
+A page of the web UI to draw the sectors of an area on the game's own world map. It needs `--game-dir`: the server reads
+`World/sectors.keyx` (id, cell of the 128 x 128 sector grid, authored name of every sector) and the Ancaria overview (the 64 textures
+`UI_WORLDMAPX<row><col>.TGA` of Texture.pak, one 2048 x 2048 PNG, about 10 MB, built once on a worker thread and cached by the browser).
+`GET /api/areas/map` answers the sectors and the projection, `GET /api/areas/map.png` the image (`Data/AreaMap.cs`; the projection is
+the game's own world-map one, tiles to map pixels: `x = ox + (tx - ty) * kx`, `y = oy + (tx + ty) * ky`; a sector cell covers 64 x 64
+tiles; the underworld and caves are not on the overview). Sector ids are slots of the sector table, not coordinates: the page works on
+cells and sends ids.
+Tools: move (drag, wheel, pinch), paint and erase (drag), rectangle add / remove, a circle (centre, drag the radius, world units), a list
+of areas (create, rename, delete, zoom to it), "plus neighbours within n cells", a live count, the heroes online as dots (from the
+`world_events` script's `whereabouts` endpoint), hover shows the sector id, its name, the cell and the world position. Mouse and touch
+(pointer events; two fingers pan and zoom), light and dark like the rest of the UI, no outside resources.
+**Saving**: the page posts to `POST /api/mod-store` (admin, JSON only, not from another site, at most 512 KB):
+`{"mod":"world_events","set":{"areas":{...}},"delete":[...]}` writes keys of that mod's storage on the game loop (storage limits apply,
+413 beyond them) and bumps `{key}_rev`; `GET /api/mod-store?mod=...&key=...` reads one key. Keys are `a-z 0-9 _ . -`, per-hero data is out
+of reach. `world_events.lua` reads the key `areas` (the same format as the `AREAS` table in the script file, ranges as `[a, b]`) every few
+seconds and lets it win over the file; events use areas by id (`area = "silver_creek"`). The page also shows the config line to paste
+into the script file ("Copy snippet"). The commands and forms of the web UI keep their 16 KB limit; only this endpoint takes more.
+
 ### Names (`Data/NameService.cs`)
 
 Read once at startup from `--game-dir` with the Sacred.Assets readers (never in the game loop; lookups are dictionary reads):
@@ -314,6 +429,19 @@ carry their own name word in the saves (a type's base name can be empty, e.g. 19
 word of creatures on the wire (named bosses and NPCs should carry it; the saves only show the horse, 551 with 0x227 = its type),
 the language when the install has several (`us` is preferred), and that item 0x16F drops of `server.drop_item` show their
 generated name (the server creates them with name word 0, so clients see the type's name).
+
+**Item tokens and the strict item gate (`--auth-strict-items=off|log|on`, Closed Net, `--authoritative`).** `server.item_token(player, { data = hex export }
+| { type = n, records = hex }, ttl_seconds = 120)` returns a token id (nil, err when the server does not keep this hero): a one-time permission for the
+player's client to create exactly that item (type and value records), bound to the player's session, lobby account and character, expiring after
+the ttl (1..600 s). The client attaches nothing: its creation (0x16F/0x16E) is matched by type and records. `server.claim_item(player, ref)` now also
+consumes the matching token once the item is in the hero (true once); `server.revoke_item_token(id)` removes an unused one. Tokens live in the C# host
+(`GameServerHost.ItemTokens.cs`), so they survive script reloads but not a server restart. With the gate on, an item the client creates that no token
+and no baseline item of the hero covers is refused: no state in the server's world, so it is never saved. `log` counts and logs only (default off).
+Not known yet, so the gate is opt-in: loot of creatures the client simulates, merchant purchases, crafting/socketing results, quest rewards and trades.
+
+**Shared stash (Closed Net).** `scripts-examples/shared_stash.lua` keeps the stash of the Sacred Gear mod shared-stash per `player.account` on channel `shared-stash`, with the hero custody checks above (deposits count after the item left the hero and the hero was saved; withdrawals are removed after the item arrived and the hero was saved). Outside `--authoritative` it offers nothing. Hot reload: everything is stored at every change; the join times go through the unload hook (reason reload), tokens live in the C# host, in-flight checks are resumed by the clients' resends (same rid). Tunables (`max_items`, `max_data`, `verify_seconds`, `retry_seconds`, `token_seconds`, `rate_per_minute`, ...) are data: the script writes its defaults to the key `config` on the first run and the storage wins from then on (edit on the page `/mods/shared_stash/` or `POST /api/mod-store`; `config_rev` is polled every second, no reload needed). The page and `/mods/shared_stash/state` show totals (never account keys). Tests: `SharedStashScriptTests.cs`.
+
+**Auction house in Closed Net.** `scripts-examples/auction_house.lua` follows the shared stash's gate. *Tokens:* before the market tells a client to create an item (a mailbox `collect` of a bought, expired or cancelled item) it mints a token for exactly that item (`server.item_token`, label `auction:<rid>`, `token_seconds`, default 120); a repeated rid reuses the token while it lives, a delivery that is released or abandoned (the player left) revokes it, and the arrival's `claim_item` consumes it. Where no token can be minted the delivery works as before. *Gold:* the client adds withdrawn gold itself (`add_gold`), and the server has no gold hook in the item gate, so this check lives in the script and is **not a general gold gate**: it notes the hero's gold (the server's own copy) at the withdrawal and the lowest value since (so gold spent before the report does not hide the increase) and counts the withdrawal as done once the gold rose by the amount (or stands at the old value plus the amount) and the hero save is confirmed. After `gold_timeout` (default 120 s) without it the hero is saved and the saved copy decides: an increase confirms, none credits the wallet back (the rid then answers `refunded`). Not covered: gold that is picked up or earned in the same moment looks like the withdrawal, and a client that adds the gold after the refund keeps both. *Rules as data:* the script's `config` only seeds the storage on the first run; durations, `fee_per_day`, `fee_min`, `sale_cut`, `max_per_seller`, `max_listings` (total cap), `allow_special`, `sweep_seconds` (expiry interval), `verify_seconds`, `token_seconds`, `gold_timeout` and the price limits live under the storage key `config`, polled through `config_rev` (applies within 2 s, no reload), edited on the web UI's **Auction** page (`/auction`) and shown on `/mods/auction_house/` and the JSON `/mods/auction_house/rules`. *Hot reload:* the market is stored at every change; the unload hook stores the gold watches (always) and, for a reload, the join times, token ids and prepared deposits; clients resend in-flight checks with the same rid; the item sale is claimed only after the hero save so a reload in between loses nothing. The info reply says `closed = true` when `server.authoritative(player)`. Tests: `AuctionHouseScriptTests.cs`.
 
 ## Flood protection (`--flood-protection`, on with `--authoritative`)
 
