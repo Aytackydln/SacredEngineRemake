@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Sacred.Core.GameBin.Scripts;
+using Sacred.Core.World;
 using Sacred.GameplayHost.Networking;
 using Sacred.Network.Gameplay;
 using Sacred.Network.Protocol;
@@ -187,46 +188,68 @@ public sealed class HostSectorEntryInstalledTests
         _ = await next.ContinueRegionEntryAsync(peer.Token);
         var effects = startup.Objects.Creatures.Effects!;
         var priorEffects = effects.Created.Count;
-        var beforeEnteredRandom = startup.Objects.Creatures.Random.State;
         var beforeEnteredReferences = session.References.Available;
         var beforeEnteredNodes = startup.Objects.Creatures.Factory.Activation.Nodes.Count;
-        Assert.IsFalse(await next.ContinueSectorEntryAsync(peer.Token));
-        StringAssert.Contains(next.SectorEntry!.Blocker!, "0x2AA6BE");
-        Assert.AreEqual(priorEffects, effects.Created.Count);
-        Assert.AreEqual(beforeEnteredRandom, startup.Objects.Creatures.Random.State);
-        Assert.AreEqual(beforeEnteredReferences, session.References.Available);
-        // The complete callback remains blocked by its final explicit-behavior
-        // NPC. Exercise the compared Effect module in the actual entered-sector
-        // scope without completing that callback or claiming live acceptance.
-        var code = File.ReadAllBytes(Path.Combine(installation,"bin/NetScriptCamp/FunkCode.bin"));
-        var command = new SacredScriptCommand(0x2aa68a, code.AsMemory(0x2aa68a,52));
-        startup.Execution.CurrentSectorRuntimeFlags = session.Replicas.SectorWork.Runtime.Flags[2503];
-        try
-        {
-            Assert.IsTrue(Sacred.GameplayHost.Scripting.WorldScriptSectorEntryCallback.TryInvoke(startup.Execution,next.Environment,session.NetworkSpeedSettings,
-                next.SectorEntry.FunctionIndex, _ => { startup.Objects.Create(startup.Execution,command); return true; }));
-        }
-        finally { startup.Execution.CurrentSectorRuntimeFlags = null; }
+        var creatures = startup.Objects.Creatures;
+        var preparedCount = creatures.Prepared.Count;
+        Assert.IsTrue(await next.ContinueSectorEntryAsync(peer.Token));
+        var entry = next.SectorEntry!;
+        Assert.IsTrue(entry.IsCompleted);
+        Assert.IsNull(entry.Blocker);
         Assert.AreEqual(priorEffects + 1, effects.Created.Count);
         var effect = effects.Created.Last();
         Assert.AreEqual((ushort)2503, effect.BaseState.Sector);
         Assert.AreEqual(180289, effect.BaseState.X); Assert.AreEqual(133385, effect.BaseState.Y);
         Assert.AreEqual(0x90000000u, effect.BaseState.Flags); Assert.AreEqual(0x10000000u, effect.State.BaseState.Flags);
         Assert.IsTrue(effect.Node.Active);
-        Assert.AreEqual(beforeEnteredReferences - 1, session.References.Available);
-        Assert.AreEqual(beforeEnteredNodes + 1, startup.Objects.Creatures.Factory.Activation.Nodes.Count);
         Assert.IsTrue(startup.Objects.Creatures.Terrain.Membership.Get(2503).Contains(effect.BaseState.ObjectReference));
         Assert.AreEqual(effect.BaseState.ObjectReference, startup.Objects.Creatures.Terrain.Tiles.GetTile(3359,2485)!.Value.WorldObjectChainHeadId);
-        var enteredRandom = new Sacred.Core.Runtime.SacredRandomSequence(beforeEnteredRandom);
-        for (var index = 0; index < 4; index++) enteredRandom.Next();
-        Assert.AreEqual(enteredRandom.State, startup.Objects.Creatures.Random.State);
-        Assert.AreEqual(0, next.SectorEntry!.SentPublications);
-        var sentAfterEntered = peer.Connection.Diagnostics.Recent.Count(row => row.Outgoing && row.Opcode == 0x16f);
-        Assert.IsFalse(await next.ContinueSectorEntryAsync(peer.Token));
+        Assert.AreEqual(preparedCount + 1, creatures.Prepared.Count);
+        var npc = creatures.Prepared.Last();
+        Assert.IsTrue(npc.PacketReady);
+        Assert.AreEqual(0x90400000u, npc.Actor!.Base.Flags);
+        Assert.IsTrue(npc.Actor.Node.Active);
+        Assert.AreSame(npc.Actor, creatures.Factory.Actors[npc.Actor.Base.ObjectReference]);
+        Assert.IsTrue(creatures.Terrain.Membership.Get(2503).Contains(npc.Actor.Base.ObjectReference));
+        Assert.AreEqual(npc.Actor.Base.ObjectReference, creatures.Terrain.Tiles.GetTile(
+            SacredWorldCoordinates.WorldToTile(npc.Actor.Base.X), SacredWorldCoordinates.WorldToTile(npc.Actor.Base.Y))!.Value.WorldObjectChainHeadId);
+        Assert.AreEqual(beforeEnteredReferences - 4, session.References.Available);
+        Assert.AreEqual(beforeEnteredNodes + 4, creatures.Factory.Activation.Nodes.Count);
+        Assert.AreEqual(npc.RandomStateAfter, creatures.Random.State);
+        Assert.IsFalse(npc.Equipment[0].Generated);
+        Assert.IsTrue(npc.Equipment[1].Generated);
+        CollectionAssert.AreEqual(new ushort[] { 0x16f, 0x16e, 0x16e }, npc.Publications.Select(message => message.Opcode).ToArray());
+        CollectionAssert.AreEqual(new[] { npc.Actor.Base.ObjectReference, npc.Equipment[0].Physical.Base.ObjectReference,
+            npc.Equipment[1].Physical.Base.ObjectReference },
+            npc.Publications.Select(message => ((GoldObjectEvent)GoldGameEventDecoder.Decode(message)).BaseState.ObjectReference).ToArray());
+        var expectedPublications = npc.Publications.Prepend(effect.Publication).ToArray();
+        var receivedPublications = new List<GoldMessage>();
+        while (receivedPublications.Count < expectedPublications.Length)
+            receivedPublications.AddRange((await peer.ReadClientBatchAsync()).Where(message => message.Opcode is 0x16f or 0x16e));
+        Assert.AreEqual(expectedPublications.Length, receivedPublications.Count);
+        for (var index = 0; index < expectedPublications.Length; index++)
+        {
+            Assert.AreEqual(expectedPublications[index].Opcode, receivedPublications[index].Opcode);
+            CollectionAssert.AreEqual(expectedPublications[index].Payload, receivedPublications[index].Payload);
+        }
+        var randomAfterEntry = creatures.Random.State;
+        var sendsAfterEntry = peer.Connection.Diagnostics.Recent.Count(row => row.Outgoing && row.Opcode is 0x16f or 0x16e);
+        Assert.IsTrue(await next.ContinueSectorEntryAsync(peer.Token));
+        Assert.AreEqual(expectedPublications.Length, entry.SentPublications);
+        Assert.AreEqual(sendsAfterEntry, peer.Connection.Diagnostics.Recent.Count(row => row.Outgoing && row.Opcode is 0x16f or 0x16e));
+        Assert.AreEqual(randomAfterEntry, creatures.Random.State);
+        Assert.AreEqual(beforeEnteredReferences - 4, session.References.Available);
+        Assert.AreEqual(preparedCount + 1, creatures.Prepared.Count);
         Assert.AreEqual(priorEffects + 1, effects.Created.Count);
-        Assert.AreEqual(enteredRandom.State, startup.Objects.Creatures.Random.State);
-        Assert.AreEqual(sentAfterEntered, peer.Connection.Diagnostics.Recent.Count(row => row.Outgoing && row.Opcode == 0x16f));
         Assert.IsNull(startup.Execution.CurrentSectorRuntimeFlags);
+        Assert.IsFalse(session.AdmissionReceipt.DeliveryComplete);
+
+        Assert.IsTrue(await next.ContinueAmbientAsync(peer.Token));
+        Assert.IsTrue(await next.ContinueRestorationAsync(peer.Token));
+        Assert.IsTrue(await next.ContinueFinalPatchesAsync(peer.Token));
+        Assert.IsTrue(await next.ContinueCompletionAsync(peer.Token));
+        Assert.IsTrue(session.Replicas.SectorWork.IsSectorComplete(2503));
+        Assert.AreEqual(7, session.Replicas.SectorWork.PendingCount);
         await session.DisposeAsync();
         await Assert.ThrowsExceptionAsync<TaskCanceledException>(() => init.ContinueSectorEntryAsync(peer.Token));
         await Assert.ThrowsExceptionAsync<TaskCanceledException>(() => init.ContinueRestorationAsync(peer.Token));

@@ -23,6 +23,7 @@ internal static class HostAmbientFactoryChecks
         using var prefix = Read("native-host-entered-npc-prefix");
         using var automatic = Read("native-host-entered-npc-level");
         using var shieldInstallation = Read("native-host-entered-npc-shield-installation");
+        using var enteredPublication = Read("native-host-entered-npc-publication");
         using var slotsEvidence = Read("native-equipment-slot-selection");
         using var tuning = Read("native-script-automatic-level");
         using var levelEvidence = Read("native-creature-level-selection");
@@ -42,7 +43,7 @@ internal static class HostAmbientFactoryChecks
         var equipmentData = EquipmentGenerationFixture.ReadStartup(root);
         var slots = SacredEquipmentSlotDefinitions.Read(Bytes(slotsEvidence.RootElement,"override_code_hex"));
         var checks = 0;
-        foreach (var document in new[] { proof, entered, prefix, automatic, shieldInstallation })
+        foreach (var document in new[] { proof, entered, prefix, automatic, shieldInstallation, enteredPublication })
         {
             var keyx = KeyxSectorRecord.FromBytes(Bytes(document.RootElement, "keyx_hex"));
             using var compressed = new MemoryStream(Bytes(document.RootElement, "compressed_hex"));
@@ -55,9 +56,11 @@ internal static class HostAmbientFactoryChecks
                 Bytes(row, "template_hex").CopyTo(archive, 256 + CreatureGoldRecordLayout.Size);
                 var template = CreaturePakArchive.Parse(archive).Entries[1];
                 var descriptor = new ItemsPakEntry(new((ushort)template.ItemType, 0, 128, 0), MemoryMarshal.Read<ItemsPakEntryModelDescLayout>(Bytes(row, "descriptor_hex")), "");
-                var hasShield = ReferenceEquals(document, shieldInstallation);
-                var references = new GoldObjectReferencePool(); references.Apply(GoldReferenceBatch.FromPayload(hasShield
-                    ? BitConverter.GetBytes(86u).Concat(BitConverter.GetBytes(87u)).ToArray() : BitConverter.GetBytes(86u)));
+                var hasWeapon = ReferenceEquals(document, enteredPublication);
+                var hasShield = ReferenceEquals(document, shieldInstallation) || hasWeapon;
+                var allocationCount = hasWeapon ? 3 : hasShield ? 2 : 1;
+                var references = new GoldObjectReferencePool();
+                references.Apply(GoldReferenceBatch.FromPayload(Enumerable.Range(86, allocationCount).SelectMany(value => BitConverter.GetBytes((uint)value)).ToArray()));
                 var counter = new WorldObjectAllocationCounter(69); var random = new SacredRandomSequence(row.GetProperty("seed").GetUInt32());
                 var hasAutomaticLevel = ReferenceEquals(document, automatic) || hasShield;
                 var scriptPrefix = ReferenceEquals(document, prefix) || hasAutomaticLevel;
@@ -95,12 +98,28 @@ internal static class HostAmbientFactoryChecks
                         1,equipmentData,random,results.StartupPrecision);
                     actor = WorldCreatureInitialEquipmentInstallation.Apply(actor,item,1200,equipmentData,slots,itemFactory.Items,true);
                     var nativeItem = Bytes(row,"shield_hex");
+                    var expectedFlags = BinaryPrimitives.ReadUInt32LittleEndian(nativeItem.AsSpan(20)) | (hasWeapon ? 0x10000u : 0);
                     Check(item.Values.AsSpan().SequenceEqual(nativeItem.AsSpan(0x118,130)) &&
-                        item.Physical.AttachmentParent == 86 && item.Physical.Base.Flags == BinaryPrimitives.ReadUInt32LittleEndian(nativeItem.AsSpan(20)) &&
+                        item.Physical.AttachmentParent == 86 && item.Physical.Base.Flags == expectedFlags &&
                         item.Physical.Base.Word3C == BinaryPrimitives.ReadUInt32LittleEndian(nativeItem.AsSpan(60)) &&
-                        item.Node.Flags == nativeItem[8] && factory.Activation.Nodes.Count == 2 &&
-                        counter.Value == row.GetProperty("allocation_counter").GetByte(),
+                        item.Node.Flags == nativeItem[8] && factory.Activation.Nodes.Count == 2 && counter.Value == 71,
                         $"Shield seed {row.GetProperty("seed")}: value differences [{string.Join(',',Enumerable.Range(0,130).Where(at => item.Values[at] != nativeItem[0x118+at]))}], parent {item.Physical.AttachmentParent}, flags {item.Physical.Base.Flags:X8}/{BinaryPrimitives.ReadUInt32LittleEndian(nativeItem.AsSpan(20)):X8}, name {item.Physical.Base.Word3C:X8}/{BinaryPrimitives.ReadUInt32LittleEndian(nativeItem.AsSpan(60)):X8}, node {item.Node.Flags}/{nativeItem[8]}, nodes {factory.Activation.Nodes.Count}, counter {counter.Value}/{row.GetProperty("allocation_counter")}");
+                    if (hasWeapon)
+                    {
+                        const uint weaponType = 1729;
+                        var weaponDescriptor = equipmentData.Templates.GetItem(weaponType);
+                        var weapon = itemFactory.Create(weaponDescriptor, equipmentData.Templates.GetInstance(weaponType), 1, true);
+                        WorldScriptCreatureEquipmentValues.Apply(weapon, BinaryPrimitives.ReadUInt16LittleEndian(actor.Component.Values.AsSpan(78)),
+                            1, equipmentData, random, results.StartupPrecision);
+                        actor = WorldCreatureInitialEquipmentInstallation.Apply(actor, weapon, weaponType, equipmentData, slots, itemFactory.Items, true);
+                        var nativeWeapon = Bytes(row, "weapon_hex");
+                        Check(weapon.Values.AsSpan().SequenceEqual(nativeWeapon.AsSpan(0x118, 130)) &&
+                            weapon.Physical.Base.Word3C == BinaryPrimitives.ReadUInt32LittleEndian(nativeWeapon.AsSpan(60)) &&
+                            weapon.Physical.AttachmentParent == 86 && factory.Activation.Nodes.Count == 3,
+                            "generated and named Weapon installed after the original Shield on the active graph");
+                        actor = actor with { Base = actor.Base with { Flags = actor.Base.Flags | 0x80000000u } };
+                        actor = WorldCreatureEquippedResults.Apply(actor, template, results, equipmentData, itemRegistry, 1, 1, true, row.GetProperty("players").GetUInt32());
+                    }
                     Check(actor.EquipmentReferences.SequenceEqual(Enumerable.Range(0,19).Select(index =>
                         BinaryPrimitives.ReadUInt32LittleEndian(Bytes(row,"actor_hex").AsSpan(0x1a4+index*4)))),
                         "native parent Shield slot vector after actual installation");
@@ -119,7 +138,26 @@ internal static class HostAmbientFactoryChecks
                         actor.Direction.X == BitConverter.ToSingle(native,0x70) && actor.Direction.Y == BitConverter.ToSingle(native,0x74),
                         "actual entered caller pose and control before current automatic level/equipment");
                 Check(actor.Component.Values.SequenceEqual(native.AsSpan(0x3b0, 238).ToArray()) && actor.Component.Health.SequenceEqual(native.AsSpan(0x4d0, 24).ToArray()), "all constructor result/health bytes");
-                if (published)
+                if (hasWeapon)
+                {
+                    var messages = WorldCreatureInitialPublication.Prepare(actor, state, itemRegistry, equipmentData.Templates.GetItem);
+                    var nativePublications = row.GetProperty("publications");
+                    Check(messages.Count == nativePublications.GetArrayLength(), "equipped actor sends a creature and both slot items");
+                    for (var index = 0; index < messages.Count; index++)
+                    {
+                        var expected = nativePublications[index];
+                        var nativePayload = Bytes(expected, "payload_hex");
+                        nativePayload.AsSpan(GoldPhysicalStateLayout.SelectedVectorOffset, 12).Clear();
+                        var opcode = expected.GetProperty("opcode").GetUInt16();
+                        var packet = GoldObjectStateCodec.Create(opcode, 1, nativePayload);
+                        var actual = messages[index];
+                        var difference = packet.Payload.Length == actual.Payload.Length
+                            ? string.Join(',', Enumerable.Range(0, packet.Payload.Length).Where(at => packet.Payload[at] != actual.Payload[at])) : "different lengths";
+                        Check(actual.Opcode == opcode && actual.Payload.SequenceEqual(packet.Payload),
+                            $"ordered native object publication {index}, opcode {opcode:X}, differences {difference}");
+                    }
+                }
+                else if (published)
                 {
                     var managedPayload = state.ToPayload(); var nativePayload = Bytes(row.GetProperty("publications")[0], "payload_hex");
                     // Existing creature consumer proof establishes that Reset3DPosition
@@ -134,7 +172,7 @@ internal static class HostAmbientFactoryChecks
                 membership.RegisterAmbient(actor, row.GetProperty("interest_flags").GetUInt32());
                 Check(membership.Get(actor.Base.Sector).SequenceEqual(row.GetProperty("members").EnumerateArray().Select(value=>value.GetUInt32())) &&
                     row.GetProperty("changed_tiles").GetArrayLength() == 1, "native tile insertion and actual runtime-gated sector membership");
-                Check(random.State == row.GetProperty("rng_after").GetUInt32() && references.Available == 0 && counter.Value == (hasShield ? 71 : 70) && ReferenceEquals(factory.Actors[86], actor), "same factory, reservation, counter and exact RNG");
+                Check(random.State == row.GetProperty("rng_after").GetUInt32() && references.Available == 0 && counter.Value == 69 + allocationCount && ReferenceEquals(factory.Actors[86], actor), "same factory, reservation, counter and exact RNG");
                 var activationCount = factory.Activation.ActivationCount;
                 var activationRecords = factory.Activation.Records.Count;
                 var plan = WorldCreatureSectorActivation.Prepare(actor.Base.Sector, SacredSectorCoordinates.ToGrid(keyx), factory, membership, null, null);
@@ -164,6 +202,14 @@ internal static class HostAmbientFactoryChecks
         var body = Bytes(proof.RootElement.GetProperty("cases")[0].GetProperty("publications")[0], "payload_hex");
         body.AsSpan(GoldPhysicalStateLayout.SelectedVectorOffset, 12).Clear();
         return GoldObjectStateCodec.Create(0x16f, 1, body).Payload;
+    }
+    internal static byte[] EnteredNpcWireExample(string root, int index)
+    {
+        using var proof = HostSectorInitializationChecks.Read(root, "native-host-entered-npc-publication");
+        var row = proof.RootElement.GetProperty("cases")[0].GetProperty("publications")[index];
+        var body = Bytes(row, "payload_hex");
+        body.AsSpan(GoldPhysicalStateLayout.SelectedVectorOffset, 12).Clear();
+        return GoldObjectStateCodec.Create(row.GetProperty("opcode").GetUInt16(), 1, body).Payload;
     }
     private static byte[] Bytes(JsonElement row, string name) => HostSectorInitializationChecks.Bytes(row, name);
 }

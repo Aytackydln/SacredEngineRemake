@@ -12,6 +12,7 @@ internal static class StartupEquipmentGenerationChecks
     {
         JsonDocument Read(string name) => JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "docs/game-server/evidence/" + name + ".json")));
         using var fixture = Read("native-startup-equipment-generation");
+        using var entered = Read("native-host-entered-npc-weapon-generation");
         using var ordinary = Read("native-equipment-factory");
         using var names = Read("native-equipment-names");
         using var magic = Read("native-equipment-magic");
@@ -28,7 +29,8 @@ internal static class StartupEquipmentGenerationChecks
         var checks = 0;
         var differences = 0;
         var startupFailures = new List<string>();
-        foreach (var row in fixture.RootElement.GetProperty("cases").EnumerateArray())
+        foreach (var row in fixture.RootElement.GetProperty("cases").EnumerateArray()
+            .Concat(entered.RootElement.GetProperty("cases").EnumerateArray()))
         {
             var random = new SacredRandomSequence(row.GetProperty("seed").GetUInt32());
             var legacy = (uint)(random.Next() % 4);
@@ -55,7 +57,7 @@ internal static class StartupEquipmentGenerationChecks
                 startupFailures.Add($"type {type}, level {row.GetProperty("level")}, seed {row.GetProperty("seed")}: bytes [{string.Join(',', Enumerable.Range(0, expected.Length).Where(at => expected[at] != startupValues[at]))}], RNG {startupRandom.State}/{startup.GetProperty("rng_after")}");
             checks += 2;
         }
-        Check(differences == 28, "original PC=24 results prohibit using the wider generator for this startup path");
+        Check(differences == 31, "original PC=24 results prohibit using the wider generator for startup and entered NPCs");
         if (startupFailures.Count != 0) throw new Exception($"{startupFailures.Count} startup named-generation differences:\n" + string.Join('\n', startupFailures.Take(12)));
         return checks;
 

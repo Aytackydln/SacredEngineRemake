@@ -138,6 +138,7 @@ internal sealed class GameServerJoinSession
                     break;
                 case 5 when _ready!.IsCompleted:
                     _ready.GetAwaiter().GetResult();
+                    _client.RetainPublishedStartupStatistics();
                     if (_client.IsMinimalHostApproved) _client.TrackFirstHostSectorInterest(_data.Sectors);
                     Advance(6, _client.IsMinimalHostApproved
                         ? $"in game as first host in slot {_client.PlayerSlot}"

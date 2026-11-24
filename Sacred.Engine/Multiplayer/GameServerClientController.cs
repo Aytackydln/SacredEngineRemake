@@ -50,7 +50,15 @@ internal sealed partial class GameServerClientController : IDisposable
     private string _admission = "transport diagnostics; native player profile and world entry pending";
     private int _eventsReceived;
 
-    public string Status => $"{_status}; {_eventsReceived} events; {_objects.Count} base object states; {_movements.Count} movement refs; {_doors.Count} door refs; {_inventories.Count} inventory streams; {_admission}{StartupStatus}; {_allocatedReferences.Count} granted refs; {(_referencePlan is null ? "reference plan pending" : $"reference plan staged: hero {_referencePlan.PlayerSlot}, {_referencePlan.ObjectCount} objects")}{ImportStatus}; interest {_sectorInterest?.Status ?? "not requested"}";
+    public string Status => $"{_status}; {_eventsReceived} events; {_objects.Count} base object states; {_movements.Count} movement refs; {_doors.Count} door refs; {_inventories.Count} inventory streams; {AdmissionStatus}{StartupStatus}; {_allocatedReferences.Count} granted refs; {ReferenceStatus}{ImportStatus}; interest {_sectorInterest?.Status ?? "not requested"}";
+
+    private bool HasGraphicalReadiness => IsWorldApproved && WorldReplicas.Statistics.LocalPublication is not null;
+    private string AdmissionStatus => HasGraphicalReadiness && _connection is { } connection
+        ? $"Sacred slot {connection.Admission.PlayerSlot}, flags 0x{connection.Admission.Flags:X2}; graphical world ready"
+        : _admission;
+    private string ReferenceStatus => (_referencePlan ?? _hostSession?.MinimalCharacterReferences) is { } plan
+        ? $"reference plan staged: hero {plan.PlayerSlot}, {plan.ObjectCount} objects"
+        : "reference plan pending";
 
     private string ImportStatus => _importPreparation is { } prepared
         ? $"; {prepared.ObjectPhysicalStates.Count} physical prefixes, player/shared inventory fix ready; {_characterPackets?.MessageCount ?? 0} character packets prepared; {UploadStatus}"
@@ -58,7 +66,9 @@ internal sealed partial class GameServerClientController : IDisposable
 
     private string UploadStatus => _uploadSession is null ? "upload ready; derived values retained from save" :
         !_uploadSession.Completion.IsCompleted ? "upload sending" :
-        _uploadSession.Completion.IsCompletedSuccessfully ? "upload sent; awaiting world/scene binding" : "upload failed; reconnect required";
+        _uploadSession.Completion.IsCompletedSuccessfully
+            ? (HasGraphicalReadiness ? "upload sent; scene bound" : "upload sent; awaiting world/scene binding")
+            : "upload failed; reconnect required";
 
     public string StageCharacterReferences(int selection, SacredSavedCharacterRecords source)
     {
@@ -137,6 +147,12 @@ internal sealed partial class GameServerClientController : IDisposable
         return SendPeerReadyForSessionAsync(_connection!, PlayerSlot, WorldReplicas.Session.GameFlags ?? 0);
     }
 
+    public void RetainPublishedStartupStatistics()
+    {
+        if (IsWorldApproved && _startupStatistics is { } statistics)
+            WorldReplicas.Statistics.RetainLocalPublication(statistics);
+    }
+
     public Task SendOwnedMovementAsync(GoldMessage message)
     {
         if (WorldReplicas.Session.IsPaused == true) throw new InvalidOperationException("Movement waits for the server to resume.");
@@ -155,8 +171,8 @@ internal sealed partial class GameServerClientController : IDisposable
     }
 
     private string StartupStatus => _connection?.Admission is { Phase: GoldAdmissionPhase.SlotAssigned } admission
-        ? $"; client host {admission.WorldStartup.AssignedClientHost}, host world available {admission.WorldStartup.HostWorldAvailable}, participant approved {admission.WorldStartup.ParticipantStartApproved}, sector entries {admission.WorldStartup.SectorEntryCount}; session lock {(admission.SessionLocked is { } locked ? locked ? "locked" : "unlocked" : "unknown")}"
-            + (admission.SessionGameFlags is { } flags ? $", game flags 0x{flags:X8}" : ", game flags unknown")
+        ? $"; client host {admission.WorldStartup.AssignedClientHost}, host world available {admission.WorldStartup.HostWorldAvailable}, participant approved {admission.WorldStartup.ParticipantStartApproved}, sector entries {admission.WorldStartup.SectorEntryCount}; session lock {((admission.SessionLocked ?? WorldReplicas.Session.IsLocked) is { } locked ? locked ? "locked" : "unlocked" : "unknown")}"
+            + ((admission.SessionGameFlags ?? WorldReplicas.Session.GameFlags) is { } flags ? $", game flags 0x{flags:X8}" : ", game flags unknown")
             + $"; player capacity {admission.MaxPlayers?.ToString() ?? "unknown"}, announced {admission.AnnouncedMaxPlayers?.ToString() ?? "unknown"}"
             + $"; team {WorldReplicas.Session.Teams.GetTeam(admission.PlayerSlot)}, leader {WorldReplicas.Session.Teams.IsLeader(admission.PlayerSlot)}"
             + $"; server pause {admission.SessionPaused?.ToString() ?? "unknown"}, origin {admission.PausedBy?.ToString() ?? "none"}"
@@ -249,8 +265,11 @@ internal sealed partial class GameServerClientController : IDisposable
             message = GameServerWorldBankDiagnostics.WriteResources(WorldReplicas);
         else if (value.Equals("statistics", StringComparison.OrdinalIgnoreCase))
         {
-            var states = WorldReplicas.Statistics.States;
-            message = $"{states.Count} native statistics snapshots retained; counter meanings pending";
+            var statistics = WorldReplicas.Statistics;
+            var states = statistics.States;
+            message = $"{states.Count} received statistics snapshots; local publication {(statistics.LocalPublication is null ? "pending" : "retained")}";
+            if (statistics.LocalPublication is { } local)
+                EngineLog.WriteLine($"Network local statistics: {local.PrimaryData.Length} primary bytes, {local.Extension.Data.Length} extension bytes; automatic-level elapsed {local.AutomaticLevelElapsedMilliseconds} ms.");
             foreach (var entry in states)
                 EngineLog.WriteLine($"Network statistics sender {entry.Key.Sender}, origin {entry.Key.Origin}: {entry.Value.PrimaryData.Length} primary bytes, {entry.Value.Extension.Data.Length} extension bytes; suffix words [{string.Join(", ", Enumerable.Range(0, 25).Select(entry.Value.Extension.GetWord))}].");
         }

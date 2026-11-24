@@ -41,8 +41,12 @@ public sealed class WorldHostSectorEntry
                     if (command.Opcode == SacredScriptExecutionOpcodes.SetSectorMonsterParameters &&
                         SacredScriptOperandReader.Read(command).All(value => value.Kind == SacredScriptArgumentKind.Integer && value.Integer is not null)) continue;
                     if (command.Opcode == SacredScriptSpawnEquipmentLayout.Opcode) { _ = SacredScriptSpawnEquipment.Read(command); continue; }
-                    if (command.Opcode == SacredScriptCreateCreature.Opcode && context.CreatureWorld is WorldScriptCreatureWorld creatures &&
-                        WorldScriptEnteredCreatureGate.CanSkip(context, command, setting, creatures.Resources, creatures.ResourceText)) continue;
+                    if (command.Opcode == SacredScriptCreateCreature.Opcode && context.CreatureWorld is WorldScriptCreatureWorld creatures)
+                    {
+                        if (!WorldScriptEnteredCreatureGate.CanSkip(context, command, setting, creatures.Resources, creatures.ResourceText))
+                            creatures.PrepareEnteredCreature(context, command, environment);
+                        continue;
+                    }
                     if (command.Opcode == SacredScriptPopulation.Opcode && _population.SupportsFilteredEmpty(command, setting, environment)) continue;
                     if (command.Opcode == 8 && context.ObjectWorld is WorldScriptObjectWorld objects)
                     { objects.PrepareEntered(context, command, environment); continue; }
@@ -55,7 +59,9 @@ public sealed class WorldHostSectorEntry
         }
         try
         {
-            var effects = (context.CreatureWorld as WorldScriptCreatureWorld)?.Effects;
+            var creatures = context.CreatureWorld as WorldScriptCreatureWorld;
+            var effects = creatures?.Effects;
+            var priorCreatures = creatures?.Prepared.Count ?? 0;
             var priorEffects = effects?.Created.Count ?? 0;
             IsCompleted = WorldScriptSectorEntryCallback.TryInvoke(context, environment, setting, FunctionIndex, selected =>
             {
@@ -67,7 +73,15 @@ public sealed class WorldHostSectorEntry
                 }).Invoke(selected, token);
                 return true;
             });
-            if (IsCompleted) Publications = effects?.Created.Skip(priorEffects).Select(value => value.Publication).ToArray() ?? [];
+            if (IsCompleted)
+            {
+                var creaturePublications = creatures?.Prepared.Skip(priorCreatures)
+                    .Select(value => (Offset: value.Blueprint.SourceOffset, Messages: value.Publications)) ?? [];
+                var effectPublications = effects?.Created.Skip(priorEffects)
+                    .Select(value => (Offset: value.SourceOffset, Messages: (IReadOnlyList<GoldMessage>)[value.Publication])) ?? [];
+                Publications = creaturePublications.Concat(effectPublications).OrderBy(value => value.Offset)
+                    .SelectMany(value => value.Messages).ToArray();
+            }
             return IsCompleted;
         }
         catch { context.IsInvalidated = true; throw; }

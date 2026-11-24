@@ -23,4 +23,6 @@ public sealed record WorldScriptCreatureRuntime(
     /// for automatic requested levels. Presence does not resolve actor identity.
     /// The provider is queried at the native post-service level stage.</summary>
     public Func<ushort,WorldCreatureAutomaticLevelInputs>? AutomaticLevelInputs { get; init; }
+    internal Func<WorldScriptSectorEnvironment, WorldCreatureAutomaticLevelInputs>? EnteredAutomaticLevelInputs { get; init; }
+    internal Func<uint?>? EnteredPlayerCount { get; init; }
 }

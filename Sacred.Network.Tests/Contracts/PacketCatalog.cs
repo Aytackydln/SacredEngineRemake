@@ -51,6 +51,15 @@ internal static class PacketCatalog
             () => HostAmbientFactoryChecks.WireExample(RepositoryFiles.Root), PayloadRule.Structured,
             verify: entry => Assert.AreEqual(0x10000000u, ((GoldObjectEvent)entry).BaseState.Flags & 0x90000000u), sender: 1,
             shorter: [65,66,67,68,145,146,147,148,469,470,471,472]);
+        Add<GoldObjectEvent>("native entered-sector equipped NPC", 0x16F,
+            () => HostAmbientFactoryChecks.EnteredNpcWireExample(RepositoryFiles.Root, 0), PayloadRule.Structured,
+            verify: entry =>
+            {
+                var value = (GoldObjectEvent)entry;
+                Assert.AreEqual(86u, value.BaseState.ObjectReference);
+                Assert.AreEqual(0x90400000u, value.BaseState.Flags);
+                Assert.AreEqual((ushort)2503, value.BaseState.Sector);
+            }, sender: 1, shorter: [65,66,67,68,145,146,147,148,469,470,471,472]);
         Add<GoldSectorInterestEvent>("native first-host interest request",0x148,
             ()=>HostSectorInitializationChecks.InterestWireExample(RepositoryFiles.Root,false),
             verify:e=>{var request=((GoldSectorInterestEvent)e).Request;Assert.AreEqual((ushort)1,request.CurrentSector);Assert.AreEqual(768u,request.FreeReferenceCount);},sender:1);
@@ -568,6 +577,18 @@ internal static class PacketCatalog
             Add<GoldObjectEvent>($"native initial installed equipment {index}", 0x16E, () => StartupCreatureSerializationChecks.EquipmentWireExample(RepositoryFiles.Root, index), PayloadRule.Structured,
                 verify: e => Assert.AreEqual(index == 0 ? 28u : 27u, ((GoldObjectEvent)e).BaseState.ObjectReference),
                 shorter: index == 0 ? [49, 50, 51, 52, 129, 130, 131, 132] : [49, 50, 51, 52, 129, 130, 131, 132, 273, 274, 275, 276]);
+        Add<GoldObjectEvent>("native entered NPC installed Shield", 0x16E,
+            () => HostAmbientFactoryChecks.EnteredNpcWireExample(RepositoryFiles.Root, 1), PayloadRule.Structured,
+            verify: entry => Assert.AreEqual(87u, ((GoldObjectEvent)entry).BaseState.ObjectReference), sender: 1,
+            shorter: [49, 50, 51, 52, 129, 130, 131, 132]);
+        Add<GoldObjectEvent>("native entered NPC generated Weapon", 0x16E,
+            () => HostAmbientFactoryChecks.EnteredNpcWireExample(RepositoryFiles.Root, 2), PayloadRule.Structured,
+            verify: entry =>
+            {
+                var value = (GoldObjectEvent)entry;
+                Assert.AreEqual(88u, value.BaseState.ObjectReference);
+                Assert.AreEqual(2279938133u, value.BaseState.Word3C);
+            }, sender: 1, shorter: [49, 50, 51, 52, 129, 130, 131, 132, 273, 274, 275, 276]);
         Add<GoldMapIconEvent>("native startup map label", 0x1CB, () => StartupMapIconChecks.WireExample(RepositoryFiles.Root),
             PayloadRule.RetainedSuffix, e => { var icon = ((GoldMapIconEvent)e).Icon;
                 Assert.AreEqual(3376, icon.X); Assert.AreEqual(2670, icon.Y); Assert.AreEqual((sbyte)43, icon.AngleDegrees);

@@ -44,7 +44,9 @@ internal static class WorldHostStartupPreparation
         var runtime = new WorldScriptCreatureRuntime(slot, replicas.Session.Difficulty, false,
             activeHero is null ? 0u : replicas.Session.Lobby.Control.Roster.NativePlayerCount, () => unchecked((uint)Environment.TickCount))
         { EffectProjection = WorldStartupEffectProjection.ComparedGold, SessionGameFlags = replicas.Session.GameFlags,
-                AutomaticLevelInputs = automaticLevels is null ? null : automaticLevels.Read };
+            AutomaticLevelInputs = automaticLevels is null ? null : automaticLevels.Read,
+            EnteredAutomaticLevelInputs = automaticLevels is null ? null : automaticLevels.ReadEntered,
+            EnteredPlayerCount = () => replicas.Session.Lobby.Control.Roster.NativePlayerCount };
         objects.Creatures = new(WorldScriptCreatureAssets.Load(installation, templates, sectorIndex), references,
             objects.AllocationCounter, runtime,
             activeHero?.Random ?? new SacredRandomSequence(unchecked((uint)Environment.TickCount)), log, activeHero);

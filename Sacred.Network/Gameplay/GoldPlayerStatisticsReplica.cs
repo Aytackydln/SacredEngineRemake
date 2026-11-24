@@ -8,6 +8,10 @@ public sealed class GoldPlayerStatisticsReplica
     private readonly Dictionary<(byte Sender, byte Origin), GoldPlayerStatisticsState> _states = [];
     public GoldPlayerStatisticsReplica() => States = new ReadOnlyDictionary<(byte Sender, byte Origin), GoldPlayerStatisticsState>(_states);
     public IReadOnlyDictionary<(byte Sender, byte Origin), GoldPlayerStatisticsState> States { get; }
+    public GoldPlayerStatisticsState? LocalPublication { get; private set; }
+
+    public void RetainLocalPublication(GoldPlayerStatisticsState state)
+        => LocalPublication = state ?? throw new ArgumentNullException(nameof(state));
 
     public void Apply(GoldPlayerStatisticsEvent entry)
     {
@@ -15,5 +19,9 @@ public sealed class GoldPlayerStatisticsReplica
         _states[(entry.Message.Sender, entry.Message.Origin)] = entry.State;
     }
 
-    public void Clear() => _states.Clear();
+    public void Clear()
+    {
+        _states.Clear();
+        LocalPublication = null;
+    }
 }

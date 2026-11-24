@@ -27,13 +27,16 @@ internal static class WorldCreatureAutomaticScriptLevel
             return WorldCreatureScriptLevel.ApplyRequested(actor,blueprint.Template,blueprint.Creation.LevelInput,
                 assets.Results,assets.Levels,assets.Progression,assets.LevelDefinitions,runtime.Difficulty,runtime.Owner,
                 context.Multiplayer,sectorMaximum,runtime.RequirePlayerCount());
-        var inputs=runtime.AutomaticLevelInputs!(actor.Base.Sector)??throw new InvalidDataException("Automatic level provider returned no current snapshot.");
+        var inputs = context.IsEnteringSector && context.CurrentSector is { } environment
+            ? runtime.EnteredAutomaticLevelInputs!(environment)
+            : runtime.AutomaticLevelInputs!(actor.Base.Sector);
+        if (inputs is null) throw new InvalidDataException("Automatic level provider returned no current snapshot.");
         var selected=WorldCreatureAutomaticLevel.Select(inputs,runtime.Difficulty,context.Multiplayer,
             blueprint.Template.Class==SacredCreatureClass.Horse,assets.Levels,assets.Progression,
             assets.AutomaticLevelDefinitions!.Tuning,assets.Results.StartupPrecision,random.Next);
         log($"Startup NPC automatic level: ref {actor.Base.ObjectReference}, hero {inputs.HeroLevel}, sector {actor.Base.Sector}, base {selected.BaseLevel}, extra {selected.ExtraPercent}, request {selected.RequestedLevel}.");
         return WorldCreatureScriptLevel.ApplyAutomaticRequested(actor,blueprint.Template,checked((ushort)selected.RequestedLevel),
             assets.Results,assets.Levels,assets.Progression,assets.LevelDefinitions,runtime.Difficulty,runtime.Owner,
-            context.Multiplayer,inputs.SectorPresent?inputs.SectorMaximum:(ushort)0,runtime.RequirePlayerCount());
+            context.Multiplayer,inputs.SectorPresent?inputs.SectorMaximum:(ushort)0, runtime.RequirePlayerCount());
     }
 }
