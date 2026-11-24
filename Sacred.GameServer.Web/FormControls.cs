@@ -1,0 +1,77 @@
+using System.Text;
+
+namespace Sacred.GameServer.Web;
+
+/// <summary>
+/// Themed form controls for the admin pages that edit things (Events, Areas): checkboxes and radios with a drawn box, a select with its
+/// own arrow, a range slider, a visible focus ring and large touch targets. The rules are written once and scoped to the page's own
+/// wrapper class (<see cref="Css"/> prefixes every selector), so nothing leaks into the shared stylesheet and the other pages. Colours
+/// are the theme variables, so light and dark follow the UI.
+/// </summary>
+public static class FormControls
+{
+    // Selector lists with their declarations; every selector is prefixed with each scope.
+    private static readonly string[] Base =
+    [
+        "input[type=checkbox],input[type=radio]{appearance:none;-webkit-appearance:none;flex:none;box-sizing:border-box;width:1.3rem;height:1.3rem;min-width:1.3rem;min-height:0;margin:0;padding:0;display:inline-grid;place-content:center;vertical-align:middle;background:var(--bg);border:1.5px solid color-mix(in srgb,var(--dim) 75%,var(--line));border-radius:6px;cursor:pointer;transition:background .12s,border-color .12s,box-shadow .12s}",
+        "input[type=radio]{border-radius:50%}",
+        "input[type=checkbox]::before{content:\"\";width:.75rem;height:.75rem;background:var(--bg);clip-path:polygon(14% 44%,0 62%,40% 100%,100% 18%,84% 4%,40% 68%);transform:scale(0);transition:transform .12s}",
+        "input[type=radio]::before{content:\"\";width:.55rem;height:.55rem;border-radius:50%;background:var(--bg);transform:scale(0);transition:transform .12s}",
+        "input[type=checkbox]:checked,input[type=radio]:checked{background:var(--gold);border-color:var(--gold)}",
+        "input[type=checkbox]:checked::before,input[type=radio]:checked::before{transform:scale(1)}",
+        "input[type=checkbox]:hover,input[type=radio]:hover{border-color:var(--gold2)}",
+        "input[type=checkbox]:disabled,input[type=radio]:disabled,select:disabled,input:disabled,button:disabled{opacity:.45;cursor:not-allowed}",
+        "input:focus-visible,select:focus-visible,button:focus-visible,textarea:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}",
+        // a checkbox with its text: the box and the text on one centred line with a fixed gap, the whole label is the click target
+        "label.chk,label.check{display:inline-flex;align-items:center;gap:.6rem;min-height:2.2rem;padding:.1rem .6rem .1rem .15rem;margin:0 .5rem 0 0;color:var(--text);font-size:.95rem;line-height:1.25;cursor:pointer;border-radius:8px;width:auto}",
+        "label.chk:hover,label.check:hover{background:color-mix(in srgb,var(--gold) 9%,transparent)}",
+        "label.chk small,label.check small{color:var(--dim);font-size:.8rem}",
+        "label.chk input,label.check input{width:1.3rem}",
+        "select{appearance:none;-webkit-appearance:none;padding-right:2.2rem;cursor:pointer;background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),linear-gradient(135deg,var(--dim) 50%,transparent 50%);background-position:calc(100% - 1.15rem) 52%,calc(100% - .8rem) 52%;background-size:.4rem .4rem,.4rem .4rem;background-repeat:no-repeat}",
+        "input[type=range]{appearance:none;-webkit-appearance:none;padding:0;border:0;background:transparent;height:1.8rem;min-height:0;cursor:pointer}",
+        "input[type=range]::-webkit-slider-runnable-track{height:.4rem;border-radius:999px;background:var(--line)}",
+        "input[type=range]::-moz-range-track{height:.4rem;border-radius:999px;background:var(--line)}",
+        "input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:1.3rem;height:1.3rem;margin-top:-.45rem;border-radius:50%;background:var(--gold);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--gold)}",
+        "input[type=range]::-moz-range-thumb{width:1.1rem;height:1.1rem;border-radius:50%;background:var(--gold);border:2px solid var(--bg);box-shadow:0 0 0 1px var(--gold)}",
+        // grids of labelled fields: the fields line up on their bottom edge whatever the label's length
+        ".two{align-items:end}",
+        "fieldset .chk{vertical-align:middle}",
+    ];
+
+    // On touch screens: bigger boxes and rows.
+    private static readonly string[] Coarse =
+    [
+        "label.chk,label.check{min-height:2.75rem}",
+        "input[type=checkbox],input[type=radio]{width:1.6rem;height:1.6rem;min-width:1.6rem;min-height:0}",
+        "label.chk input,label.check input{width:1.6rem}",
+        "select,button{min-height:2.75rem}",
+        "input[type=range]{height:2.4rem}",
+        "input[type=range]::-webkit-slider-thumb{width:1.7rem;height:1.7rem;margin-top:-.65rem}",
+    ];
+
+    /// <summary>The rules for the given scopes (CSS selectors of a page's wrapper elements, such as <c>.ev</c> or <c>.ae</c>).</summary>
+    public static string Css(params string[] scopes)
+    {
+        var sb = new StringBuilder(4096);
+        foreach (var rule in Base) Append(sb, rule, scopes);
+        sb.Append("@media (pointer:coarse){");
+        foreach (var rule in Coarse) Append(sb, rule, scopes);
+        sb.Append('}');
+        return sb.ToString();
+    }
+
+    private static void Append(StringBuilder sb, string rule, string[] scopes)
+    {
+        var brace = rule.IndexOf('{', StringComparison.Ordinal);
+        var selectors = rule[..brace].Split(',');
+        var first = true;
+        foreach (var scope in scopes)
+            foreach (var selector in selectors)
+            {
+                if (!first) sb.Append(',');
+                first = false;
+                sb.Append(scope).Append(' ').Append(selector);
+            }
+        sb.Append(rule.AsSpan(brace)).Append('\n');
+    }
+}
