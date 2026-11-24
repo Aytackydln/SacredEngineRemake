@@ -44,6 +44,12 @@ public sealed partial class GameServerHost
             case 0x16B:
                 _world.Store(m.Opcode, owner, m.Payload, Bit(s.Slot));
                 return true;
+            case 0x16D when _config.Auth.Enabled:
+                // A merchant purchase announces the item with this state (short prefix [ref][type], like 0x16E) and then places it (0x13F): the
+                // authoritative server keeps it so the hero is saved with it (it was left out of every save before: "inventory entries without
+                // an item of the player").
+                _world.Store(0x16D, owner, m.Payload, Bit(s.Slot));
+                return true;
             case 0x16D: case 0x14B:
                 return true;
             case 0x166: case 0x167:

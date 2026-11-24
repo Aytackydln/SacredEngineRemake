@@ -171,6 +171,7 @@ public sealed partial class GameServerHost
                 theirs.Data.CopyTo(body.AsSpan(16));
                 SendMessage(to, 0x198, 0, other.Slot, body);
             }
+            WitnessTrade(s, p);                                          // GameServerHost.Witness.cs
             Exchange(s, p, you, me);
             Exchange(p, s, me, you);
             if (_config.Auth.Enabled) { MarkHeroChanged(s); MarkHeroChanged(p); }

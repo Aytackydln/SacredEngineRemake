@@ -38,13 +38,17 @@ public sealed partial class GameServerHost
     {
         SaveHero(s, "leave");
         ForgetHeroState(s.Slot);
+        WitnessLeave(s);
     }
 
     /// <summary>Returns true when the message may continue through the normal routing.</summary>
     private bool AuthoritativeFilter(PlayerSession s, in GoldMessageView m)
     {
         var options = _config.Auth;
-        if (m.Opcode is 0x169 or 0x16B or 0x16C or 0x16E or 0x16F && !PlausibleState(s, m)) return false;
+        WitnessObserve(s, m);                                            // kills, containers, pick-ups (GameServerHost.Witness.cs)
+        if (m.Opcode == 0x165) _world.ApplyPosition(s.Slot, m.Payload);  // plan M4: current positions in the server's world
+        else if (m.Opcode == 0x128) _world.ApplyHitPoints(s.Slot, m.Payload);   // and current hit points
+        if (m.Opcode is 0x169 or 0x16B or 0x16C or 0x16D or 0x16E or 0x16F && !PlausibleState(s, m)) return false;
         CaptureHeroState(s, m);
         switch (m.Opcode)
         {
@@ -90,7 +94,7 @@ public sealed partial class GameServerHost
     /// in the object world, not relayed, so never saved) and counted as a violation; an impossible hero removes the player.</summary>
     private bool PlausibleState(PlayerSession s, in GoldMessageView m)
     {
-        var prefix = m.Opcode is 0x16C or 0x16E ? 8 : 24;
+        var prefix = m.Opcode is 0x16C or 0x16D or 0x16E ? 8 : 24;
         if (m.Payload.Length <= prefix) return true;
         var reference = BinaryPrimitives.ReadUInt32LittleEndian(m.Payload) & 0x7FFFFFFF;
         var body = m.Payload[prefix..];
@@ -101,7 +105,8 @@ public sealed partial class GameServerHost
             if (s.State != SessionState.Closed) RemovePlayer(s, ReasonCheat, notifyVictim: true);
             return false;
         }
-        if (m.Opcode is 0x16F or 0x16E && StrictRefuses(s, reference, body)) return false;
+        // every item state of a reference the world does not have yet is a creation: an update (0x16C, 0x169) of a refused item must not bring it in
+        if (m.Opcode is 0x16F or 0x16E or 0x16D or 0x16C or 0x169 && StrictRefuses(s, reference, body, m.Payload, prefix, purchase: m.Opcode == 0x16D)) return false;
         if (!_config.Auth.CheckItems || ItemGuard.Check(body, ItemFootprints) is not { } why) return true;
         RejectedItems++;
         Violation(s, $"0x{m.Opcode:X3} 0x{reference:X}: {why}");
@@ -128,6 +133,8 @@ public sealed partial class GameServerHost
 
     private void PumpAuthoritative(long now)
     {
+        PumpPurchases(now);
+        if (_tokenPending.Count > 0) PumpTokenPending(now);
         var interval = _config.Auth.SaveIntervalSeconds * 1000L;
         for (var slot = 1; slot <= MaxSlots; slot++)
         {

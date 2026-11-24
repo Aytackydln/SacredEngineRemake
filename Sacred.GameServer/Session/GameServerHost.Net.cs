@@ -18,7 +18,7 @@ public sealed class NetChannel
 public sealed class NetOpsStats
 {
     public long HelloAccepted, Received, Delivered, Relayed, Sent, RateLimited, UnknownChannel, ServerOnlyRefused, Malformed, TooManyInFlight,
-        TooManyChannels, TooLarge, ReassemblyLimit, TimedOut, Orphans, NotCapable, NoRecipient;
+        TooManyChannels, TooLarge, ReassemblyLimit, TimedOut, Orphans, NotCapable, NoRecipient, ChatFramesSent;
 }
 
 /// <summary>Per session state of the custom net ops.</summary>
@@ -36,6 +36,22 @@ public sealed class NetOpsSession
     internal int ReassemblyBytes;
     internal ushort NextId;
     internal int SentPeers = -1;
+    // the chat carrier (GameServerHost.NetChat.cs)
+    /// <summary>The client speaks net channels (it answered the query or sent a channel message): messages can go over chat.</summary>
+    public bool ChatCapable { get; internal set; }
+    /// <summary>The client's chat answer accepted the server's custom message types: its HELLO is welcome.</summary>
+    public bool Agreed { get; internal set; }
+    /// <summary>The client announced itself over chat (so it may be written to over chat) / answered the server's query.</summary>
+    public bool Announced { get; internal set; }
+    public bool Answered { get; internal set; }
+    internal int QueriesSent;
+    internal long NextQueryMs;
+    internal readonly Dictionary<int, GameServerHost.ChatInbound> ChatIn = new();
+    internal readonly HashSet<int> BlockedChat = new();
+    internal readonly Queue<byte[]> ChatOut = new();
+    internal int ChatOutBytes, NextChatNumber;
+    internal double ChatCredit;
+    internal long ChatCreditMs;
 
     internal sealed class Inbound
     {
@@ -79,6 +95,14 @@ public sealed partial class GameServerHost
 
     public bool NetSupports(int slot) => CapablePlayer(slot) is not null;
 
+    /// <summary>The session of <paramref name="slot"/> when it can be sent net channel messages at all (custom types or chat).</summary>
+    private PlayerSession? NetReachable(int slot) =>
+        slot is >= 1 and <= MaxSlots && _slots[slot] is { State: >= SessionState.SlotAssigned } p && !p.Connection.IsClosed
+        && _netSessions.TryGetValue(p, out var state) && (state.Capable || state.ChatCapable) ? p : null;
+
+    /// <summary>"custom" when the player is on the custom message types, "chat" when it only speaks channels over chat, else null.</summary>
+    public string? NetTransport(int slot) => CapablePlayer(slot) is not null ? "custom" : NetReachable(slot) is not null ? "chat" : null;
+
     // ---- channel registry -------------------------------------------------------------------------------------------
 
     public IReadOnlyCollection<NetChannel> NetChannels => _netChannels.Values;
@@ -115,6 +139,7 @@ public sealed partial class GameServerHost
 
     private void OnNetControl(PlayerSession s, NetOpsSession state, ReadOnlySpan<byte> payload)
     {
+        if (!state.Agreed) { NetStats.NotCapable++; return; }       // HELLO is welcome only after the chat handshake agreed on the numbers
         if (!NetOpsWire.TryReadHello(payload, out var hello) || hello.Protocol < 1) { NetStats.Malformed++; return; }
         var options = _config.NetOps;
         state.Capable = true;
@@ -281,7 +306,14 @@ public sealed partial class GameServerHost
         error = null;
         var options = _config.NetOps;
         if (!options.Enabled) { error = "net ops are off"; return 0; }
-        if (to.State == SessionState.Closed || !_netSessions.TryGetValue(to, out var state) || !state.Capable) { error = "the player has no custom net support"; return 0; }
+        if (to.State == SessionState.Closed || !_netSessions.TryGetValue(to, out var state) || !(state.Capable || state.ChatCapable)) { error = "the player has no custom net support"; return 0; }
+        if (!state.Capable)       // not (yet) on the custom message types: the chat carrier
+        {
+            if (!_netChannels.TryGetValue(channel, out var named)) { error = "the channel is not registered"; return 0; }
+            if (!QueueNetChat(to, json ? NetChatWire.KindJson : NetChatWire.KindBytes, named.Name, data, out error)) return 0;
+            NetStats.Sent++;
+            return 1;
+        }
         if (data.Length > options.MaxMessage) { error = $"message larger than {options.MaxMessage:N0} bytes"; return 0; }
         var id = ++state.NextId;
         var target = NetOpsWire.SlotTarget(to.Slot);
@@ -314,7 +346,7 @@ public sealed partial class GameServerHost
         error = null;
         var players = 0;
         for (var slot = 1; slot <= MaxSlots; slot++)
-            if (CapablePlayer(slot) is { } target && SendNet(target, channel, json, data, out error) > 0) players++;
+            if (NetReachable(slot) is { } target && SendNet(target, channel, json, data, out error) > 0) players++;
         return players;
     }
 
@@ -323,6 +355,7 @@ public sealed partial class GameServerHost
     uint IScriptServer.NetRegister(string name, bool serverOnly) => RegisterNetChannel(name, serverOnly).Id;
     void IScriptServer.NetReset() => ClearNetChannels();
     bool IScriptServer.NetSupports(int slot) => NetSupports(slot);
+    string? IScriptServer.NetTransport(int slot) => NetTransport(slot);
     int IScriptServer.NetHandlerBudget => _config.NetOps.HandlerBudget;
 
     int IScriptServer.NetSend(int slot, uint channel, bool json, byte[] data, out string? error)
@@ -355,6 +388,7 @@ public sealed partial class GameServerHost
                     NetOpsWire.WritePeers(peers, (ushort)mask);
                     SendMessage(target, options.Control, 0, 0, peers);
                 }
+        PumpNetChat(now);
         if (now < _nextNetSweepMs) return;
         _nextNetSweepMs = now + 500;
         var limit = options.FragmentTimeoutSeconds * 1000L;

@@ -29,6 +29,8 @@ public interface IServerAdmin
     /// <summary>Reads (<paramref name="body"/> null) or writes the storage of a mod (script) on the game loop; see <c>POST /api/mod-store</c>.</summary>
     Task<ModResponse> ModStoreRequest(string mod, string? key, string? body, CancellationToken cancellationToken) =>
         Task.FromResult(new ModResponse(404, "text/plain; charset=utf-8", "scripts are off"));
+    /// <summary>Who owns which sector right now, and where the players are (refreshed about 4 times a second; <see cref="SectorOwnership.Version"/> changes with the content).</summary>
+    SectorOwnership SectorOwnership() => new(0, 0, [], []);
     /// <summary>Queues a command for the game loop. False when the queue is full.</summary>
     bool Submit(in AdminCommand command);
     /// <summary>Cancelled when the server stops: the web UI ends its streaming responses and stops at once (it never waits for browsers).</summary>
@@ -106,6 +108,15 @@ public sealed record ArtInfo(int Kind, int Id, int Rank, [property: JsonIgnore(C
 public sealed record ItemInfo(uint Ref, uint Type, int Level, int Rarity, int Sockets, long Price, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Name = null);
 public sealed record EquippedItem(int Slot, ItemInfo Item);
 public sealed record StoredItem(int Cell, int Width, int Height, ItemInfo Item);
+
+/// <summary>A sector with an owner or players in it: <see cref="Owner"/> is the slot that runs its scripts and AI (0 = none), <see cref="Players"/> the slots
+/// whose clients hold the sector (the server's per-sector player mask), <see cref="Initialized"/> that its scripts were started once.</summary>
+public sealed record SectorOwnerInfo(int Id, int Owner, int[] Players, bool Initialized);
+/// <summary>A player on the sector map: <see cref="Sector"/> its current sector (0 = unknown), X/Y the world position when <see cref="HasPosition"/> (from
+/// the last hero state the client sent, in the current sector), <see cref="Owned"/> how many sectors it owns.</summary>
+public sealed record SectorPlayerInfo(int Slot, string Name, bool InGame, int Sector, int X, int Y, bool HasPosition, int Owned);
+/// <summary>The sector ownership snapshot. <see cref="Version"/> increases whenever owners, players or positions change.</summary>
+public sealed record SectorOwnership(long Version, long TimeUnixMs, SectorOwnerInfo[] Sectors, SectorPlayerInfo[] Players);
 
 /// <summary>A script endpoint: <c>/mods/{Mod}/{Path}</c> (and <c>/public/mods/...</c> when <see cref="Public"/>).</summary>
 public sealed record ModEndpointInfo(string Mod, string Path, bool Public, string? Description, bool Page = false);

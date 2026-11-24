@@ -32,6 +32,8 @@ public sealed class NetOpsOptions
     public int FragmentTimeoutSeconds { get; set; } = 10;
     /// <summary>Lua instructions one channel handler may run (the script budget is the upper limit).</summary>
     public int HandlerBudget { get; set; } = 200_000;
+    /// <summary>Bytes per second the server sends over the chat carrier to one player (paced).</summary>
+    public int ChatBytesPerSecond { get; set; } = 16 * 1024;
 
     public NetOpsOptions()
     {
@@ -65,6 +67,7 @@ public sealed class NetOpsOptions
             case "NETOPS_REASSEMBLY_SESSION": ReassemblyPerSession = Math.Clamp(Int(value, ReassemblyPerSession), 4096, 64 * 1024 * 1024); return true;
             case "NETOPS_REASSEMBLY_TOTAL": ReassemblyTotal = Math.Clamp(Int(value, ReassemblyTotal), 4096, 512 * 1024 * 1024); return true;
             case "NETOPS_FRAGMENT_TIMEOUT": FragmentTimeoutSeconds = Math.Clamp(Int(value, FragmentTimeoutSeconds), 1, 600); return true;
+            case "NETOPS_CHAT_RATE": ChatBytesPerSecond = Math.Clamp(Int(value, ChatBytesPerSecond), 1024, 1024 * 1024); return true;
             case "NETOPS_HANDLER_BUDGET": HandlerBudget = Math.Clamp(Int(value, HandlerBudget), 1000, 100_000_000); return true;
         }
         return false;

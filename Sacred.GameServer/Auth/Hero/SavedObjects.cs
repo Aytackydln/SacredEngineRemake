@@ -25,6 +25,8 @@ public static class SavedObjects
     public const int RecordBytes = 130, ItemMinimumBytes = SacredSavedItemLayout.MinimumSize, WeaponBytes = 20, TrailerBytes = 12;
     public const uint ItemMarker = 0xBAADC0DE, WeaponMarker = 0xBAADF00D, CreatureMarker = 0xC0DEF00D;
     private const int BaseReference = SacredSavedObjectBaseLayout.ObjectReferenceOffset;
+    /// <summary>Saved physical bytes 18..32: the base flags, the sector, the position and the surface (see <see cref="WriteItem"/>).</summary>
+    private const int ContainedStateOffset = 18, ContainedStateLength = 15;
 
     /// <summary>Size of the object stream starting at <paramref name="data"/> (after the resource word), or -1.</summary>
     public static int RecordSize(ReadOnlySpan<byte> data, byte version)
@@ -87,6 +89,12 @@ public static class SavedObjects
         var physical = destination[..PhysicalBytes];
         template[..PhysicalBytes].CopyTo(physical);
         if (!SamePhysical(template[..PhysicalBytes], body[..GoldPhysicalStateLayout.Size])) ApplyPhysical(body, physical);
+        // Everything written here is held by the hero (inventory, shared inventory, equipment): where the object was last seen in the world
+        // and the flags of a world object mean nothing for it, and the loader treats an item that carries them as lying there instead of
+        // in the backpack. An item made on the client (Gear's import: created at the hero's feet, announced, then put into a container)
+        // still has its creation state on the wire, so its saved sector, position, surface and flags are the template's, which is an item
+        // of the same kind that was in a container when saved.
+        template.Slice(ContainedStateOffset, ContainedStateLength).CopyTo(physical[ContainedStateOffset..]);
         BinaryPrimitives.WriteUInt32LittleEndian(physical[BaseReference..], fileReference);
         BinaryPrimitives.WriteUInt32LittleEndian(destination[MarkerOffset..], ItemMarker);
         destination[ItemCountOffset] = (byte)records;

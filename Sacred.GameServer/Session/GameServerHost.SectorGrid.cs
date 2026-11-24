@@ -1,4 +1,5 @@
 using Sacred.Core.World;
+using Sacred.GameServer.Data;
 
 namespace Sacred.GameServer.Session;
 
@@ -40,6 +41,39 @@ public sealed partial class GameServerHost
         var cell = SacredSectorCoordinates.ToGrid(record);
         return (cell.X, cell.Y);
     }
+
+    private RegionMap? _regionMap;
+    private bool _regionMapTried;
+
+    /// <summary>The game's regions and the region of every sector (sectors.keyx + bin/Balance.bin + the game texts), loaded on first use; null without --game-dir or the files.</summary>
+    public RegionMap? RegionMapOrNull()
+    {
+        if (_regionMapTried) return _regionMap;
+        _regionMapTried = true;
+        try
+        {
+            if (string.IsNullOrEmpty(_config.GameDirectory)) return null;
+            _regionMap = RegionMap.Load(_config.GameDirectory, key => Names?.TextByKey(key));
+            Log.Info($"SCRIPT: {_regionMap.Regions.Count} regions, {_regionMap.RegionOfSector.Count} sectors in a region.");
+        }
+        catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            Log.Info($"SCRIPT: regions not available: {e.Message}");
+        }
+        return _regionMap;
+    }
+
+    int Scripting.IScriptServer.SectorRegion(int sector) => sector > 0 && RegionMapOrNull() is { } map ? map.RegionAt((uint)sector) : 0;
+
+    IReadOnlyList<Scripting.ScriptRegion> Scripting.IScriptServer.Regions() =>
+        RegionMapOrNull() is { } map
+            ? map.Regions.Select(r => new Scripting.ScriptRegion(r.Id, r.Key, r.Name, map.SectorsOf.TryGetValue(r.Id, out var s) ? s.Length : 0, r.KillsNeeded, r.Boss)).ToArray()
+            : [];
+
+    IReadOnlyList<uint> Scripting.IScriptServer.RegionSectors(int region) =>
+        RegionMapOrNull() is { } map && map.SectorsOf.TryGetValue(region, out var sectors) ? sectors : [];
+
+    int Scripting.IScriptServer.SectorOwner(int sector) => sector is > 0 and < SectorTableSize ? _sectorOwner[sector] : 0;
 
     uint Scripting.IScriptServer.SectorAt(int cellX, int cellY) =>
         SectorGridOrNull() is { } data && cellX is >= 0 and < SacredSectorCoordinates.GridWidth && cellY is >= 0 and < SacredSectorCoordinates.GridWidth

@@ -43,6 +43,10 @@ local CONFIG = {
   max_area_sectors = 1500,  -- an area is cut off at this many sectors
   admins = {},              -- character names that may record areas with !area (empty: the host player)
   debug_kills = false,      -- log every kill with the creature's sector and position (to read sector numbers off)
+  max_spawn_n = 40,         -- hooks: most creatures one spawn action may ask for (for each hero, or in all)
+  max_item_n = 10,          -- hooks: most items one item action drops for each hero
+  max_spawn_per_minute = 120, -- hooks: most creatures all hooks together may ask the clients for in a minute
+  announce_hooks = true,    -- hooks: say in chat when one fires (what, around whom)
 }
 
 -- Named AREAS: sets of sectors an event can be tied to (`area = "silver_creek"` in an event, or `areas = {...}` for several).
@@ -52,6 +56,8 @@ local CONFIG = {
 --   sectors   sector ids and inclusive ranges: { 2909, 2910, { 2915, 2920 } }   (`ranges` = { { 2915, 2920 } } is the same)
 --   rect      { x1, y1, x2, y2 }: every sector of those cells of the 128 x 128 sector grid (needs --game-dir)
 --   near      n: plus every sector within n grid cells of the ones above (needs --game-dir)
+--   regions   { 3, 5 }: every sector of those game regions (needs --game-dir; `server.regions()` lists them with their names, the area editor and
+--             the Events page have a picker). The sector -> region mapping is read from the game files, so server and clients agree.
 --   circle    { x = , y = , r = } in world units: a point inside it counts (a tile is 53.67 units, a sector 64 tiles = 3435 units);
 --             finer than sectors, for a village inside a big sector. !here prints your x and y.
 -- Areas recorded in game (!area) and by the area editor are kept in this mod's storage (key "areas") in this same format; a
@@ -231,13 +237,191 @@ local function roll_tier(milestone)
   return milestone.odds[#milestone.odds]
 end
 
+-- ---- hooks: what happens at a moment of an event ----------------------------------------------------------------------------------
+-- A hook is a TRIGGER with a list of ACTIONS:
+--   triggers  at = percent of the goal | at_time = seconds into the event | on = "start" / "success" / "fail" |
+--             kills = { creature = "Orc Shaman" (a name or a type number), count = 5, per_player = false }: the Nth such creature
+--             defeated in the event (event-wide, or by one hero) -- the hero who killed it is the "killer"
+--   actions   { action = "spawn", n, per_player, kinds = { { type = "Orc Warrior", weight = 3 }, ... }, radius, target, text }
+--             { action = "item", spec = { quality, category, level } (or { type = "Healing Potion" } where the Sacred Gear mod runs it), n, target }
+--             { action = "message", text, target }      { action = "gold", amount, target }
+--             { action = "boss", name, kinds = { { type = "Orc Warrior" } } | near = "Orc", health, damage, taken, deflect, reflect, regen, radius,
+--               reward = { gold, item = { quality, category, level } }, text, window, target }: a WORLD BOSS. Everybody's client shows its name and
+--               health bar (`worldevents:boss`); the target hero's game is asked to make it (message `worldevents:spawn` with a `boss`): Sacred Gear
+--               can only create creatures in a game of its own (single player / LAN host), so in a dedicated server game nobody can make it
+--               yet; the server only announces it and calls it defeated when a hero kills a creature of its kind (`kinds[1].type` / `near`)
+--               within `window` seconds (default 1800); the reward (gold, an item by rarity) goes to that hero. The server has no creature and no
+--               health of the boss: the bar shows its name and "Hunt" without numbers.
+--   targets   killer (the hero who made the triggering kill) | host | random (a hero in the event's area, anybody online for an event
+--             without area) | owner (the owner of the area's sector, the only hero there, else the one with most kills) |
+--             players (every hero in the area, everybody for an event without area) | global (everybody)
+-- Hooks fire ONCE per event (kept with the running event, so a restart never repeats them; progress that jumps past several makes all
+-- of them fire), are limited (see CONFIG: creatures per wave and per minute) and are shown on the dashboard, in !event hooks and in the
+-- client's tooltip. This part checks them (never throws).
+
+local region_name        -- defined with the areas below (the name of a game region)
+local HOOK_LIMITS = { hooks = 12, actions = 6, kinds = 8 }
+local HOOK_TARGETS = { killer = true, host = true, random = true, owner = true, players = true, global = true }
+local HOOK_ACTIONS = { spawn = true, item = true, message = true, gold = true, boss = true }
+local HOOK_DEFAULT_TARGET = { spawn = "owner", item = "killer", message = "global", gold = "killer", boss = "owner" }
+-- What a boss may be made of (the same limits as the Sacred Gear mod): name = { lowest, highest, default }.
+local BOSS_LIMITS = { health = { 1, 1000, 10 }, damage = { 0, 50, 2 }, taken = { 0.05, 10, 1 }, deflect = { 0, 0.9, 0 }, reflect = { 0, 1, 0 }, regen = { 0, 0.2, 0 } }
+
+local function hk_int(v, low, high)
+  v = tonumber(v)
+  if not v or v ~= v then return nil end
+  v = math.floor(v)
+  if v < low or v > high then return nil end
+  return v
+end
+
+local function hk_clamp(v, low, high, default)
+  v = tonumber(v)
+  if not v or v ~= v then return default end
+  return math.max(low, math.min(high, math.floor(v)))
+end
+
+local function hk_text(v, limit)
+  return (tostring(v or ""):gsub("[%c\\]", " "):sub(1, limit))
+end
+
+-- A creature kind ({ type = name or number, weight }) or nil.
+local function hk_kind(raw)
+  if type(raw) ~= "table" then return nil end
+  local t = raw.type
+  if type(t) == "number" then t = hk_int(t, 1, 4294967295)
+  elseif type(t) == "string" and t:match("%S") then t = hk_text(t, 48):match("^%s*(.-)%s*$")
+  else t = nil end
+  if t == nil or t == "" then return nil end
+  return { type = t, weight = hk_int(raw.weight, 1, 1000) or 1 }
+end
+
+local function hk_num(v, low, high, default)
+  v = tonumber(v)
+  if not v or v ~= v then return default end
+  return math.max(low, math.min(high, v))
+end
+
+-- The boss of a `boss` action, checked (never throws): name, kinds / near, multipliers, reward, window.
+local function hk_boss(raw)
+  local b = { kinds = {} }
+  for _, k in ipairs(type(raw.kinds) == "table" and raw.kinds or {}) do
+    local entry = hk_kind(k)
+    if entry and #b.kinds < HOOK_LIMITS.kinds then b.kinds[#b.kinds + 1] = entry end
+  end
+  if type(raw.near) == "string" and raw.near:match("%S") then b.near = hk_text(raw.near, 48):match("^%s*(.-)%s*$") end
+  if #b.kinds == 0 and not b.near then return nil, "a boss needs a creature kind (kinds) or creatures to promote (near)" end
+  local first = b.kinds[1] and tostring(b.kinds[1].type) or b.near
+  b.name = hk_text(raw.name ~= nil and raw.name or first, 40):match("^%s*(.-)%s*$")
+  if b.name == "" then b.name = hk_text(first, 40) end
+  b.radius = hk_clamp(raw.radius, 50, 3000, 400)
+  b.window = hk_clamp(raw.window, 1, 86400, 1800)
+  for key, range in pairs(BOSS_LIMITS) do b[key] = hk_num(raw[key], range[1], range[2], range[3]) end
+  if type(raw.reward) == "table" then
+    local r = { gold = hk_int(raw.reward.gold, 1, 2000000000) }
+    if type(raw.reward.item) == "table" then
+      local spec, item = raw.reward.item, {}
+      if spec.quality ~= nil then item.quality = hk_int(spec.quality, 0, 14) end
+      if type(spec.category) == "string" and spec.category ~= "" then item.category = hk_text(spec.category, 20):lower() end
+      if spec.level ~= nil then item.level = hk_int(spec.level, 1, 200) end
+      if next(item) ~= nil then r.item = item end
+    end
+    if raw.reward.text ~= nil and tostring(raw.reward.text):match("%S") then r.text = hk_text(raw.reward.text, 120) end
+    if r.gold or r.item then b.reward = r end
+  end
+  return b
+end
+
+local function hk_action(raw, hook_no, action_no)
+  if type(raw) ~= "table" then return nil, "not an object" end
+  local kind = raw.action
+  if not HOOK_ACTIONS[kind] then return nil, "unknown action '" .. tostring(kind) .. "'" end
+  local a = { action = kind, target = HOOK_TARGETS[raw.target] and raw.target or HOOK_DEFAULT_TARGET[kind] }
+  if kind == "spawn" then
+    a.n = hk_clamp(raw.n, 1, CONFIG.max_spawn_n, 1)
+    a.per_player = raw.per_player ~= false
+    a.radius = hk_clamp(raw.radius, 50, 3000, 400)
+    a.kinds = {}
+    for _, k in ipairs(type(raw.kinds) == "table" and raw.kinds or {}) do
+      local kind_entry = hk_kind(k)
+      if kind_entry and #a.kinds < HOOK_LIMITS.kinds then a.kinds[#a.kinds + 1] = kind_entry end
+    end
+    if #a.kinds == 0 then return nil, "a spawn needs at least one creature kind" end
+  elseif kind == "boss" then
+    -- the cleaned action keeps the shape of the raw one (the definition is cleaned again when it is copied, exported or edited)
+    local boss, why = hk_boss(raw)
+    if not boss then return nil, why end
+    for k, v in pairs(boss) do a[k] = v end
+    a.n = 1
+  elseif kind == "item" then
+    local spec = type(raw.spec) == "table" and raw.spec or {}
+    a.spec = {}
+    if type(spec.type) == "string" and spec.type:match("%S") then a.spec.type = hk_text(spec.type, 48)
+    elseif type(spec.type) == "number" then a.spec.type = hk_int(spec.type, 1, 4294967295) end
+    if spec.quality ~= nil then a.spec.quality = hk_int(spec.quality, 0, 14) end
+    if type(spec.category) == "string" and spec.category ~= "" then a.spec.category = hk_text(spec.category, 20):lower() end
+    if spec.level ~= nil then a.spec.level = hk_int(spec.level, 1, 200) end
+    if next(a.spec) == nil then return nil, "an item needs a type or a quality / category / level" end
+    a.n = hk_clamp(raw.n, 1, CONFIG.max_item_n, 1)
+  elseif kind == "gold" then
+    a.amount = hk_clamp(raw.amount, 1, 2000000000, nil)
+    if not a.amount then return nil, "gold needs an amount" end
+  end
+  if raw.text ~= nil and tostring(raw.text):match("%S") then a.text = hk_text(raw.text, 160) end
+  if kind == "message" and not a.text then return nil, "a message needs a text" end
+  return a
+end
+
+-- The hooks of an event definition (config or web), checked and cleaned; refused ones are logged. nil when there are none.
+local function hooks_of(raw, event_id)
+  if type(raw) ~= "table" then return nil end
+  local out = {}
+  for i, h in ipairs(raw) do
+    if #out >= HOOK_LIMITS.hooks then server.log("event " .. tostring(event_id) .. ": more than " .. HOOK_LIMITS.hooks .. " hooks, the rest is ignored"); break end
+    local hook, why = {}, nil
+    if type(h) ~= "table" then why = "not an object"
+    else
+      if h.on == "start" or h.on == "success" or h.on == "fail" then hook.on = h.on
+      elseif type(h.kills) == "table" then
+        local creature = h.kills.creature
+        if type(creature) == "string" and creature:match("%S") then creature = hk_text(creature, 48):match("^%s*(.-)%s*$")
+        elseif type(creature) == "number" then creature = hk_int(creature, 1, 4294967295) else creature = nil end
+        local count = hk_int(h.kills.count, 1, 100000)
+        if creature and count then hook.kills = { creature = creature, count = count, per_player = h.kills.per_player == true, region = hk_int(h.kills.region, 1, 255) }
+        else why = "kills needs a creature and a count" end
+      elseif tonumber(h.at_time) then
+        hook.at_time = hk_int(h.at_time, 1, 30 * 86400)
+        if not hook.at_time then why = "at_time must be 1 second to 30 days" end
+      elseif tonumber(h.at) then
+        local at = tonumber(h.at)
+        if at > 0 and at <= 100 then hook.at = at else why = "at must be a percent above 0 up to 100" end
+      else why = "no trigger (at, at_time, on or kills)" end
+      if not why then
+        hook.actions = {}
+        for j, raw_action in ipairs(type(h.actions) == "table" and h.actions or {}) do
+          if #hook.actions >= HOOK_LIMITS.actions then break end
+          local action, action_why = hk_action(raw_action, i, j)
+          if action then hook.actions[#hook.actions + 1] = action
+          else server.log("event " .. tostring(event_id) .. ": hook #" .. i .. " action #" .. j .. " refused: " .. tostring(action_why)) end
+        end
+        if #hook.actions == 0 then why = "no valid action" end
+        if h.label ~= nil and tostring(h.label):match("%S") then hook.label = hk_text(h.label, 60) end
+      end
+    end
+    if why then server.log("event " .. tostring(event_id) .. ": hook #" .. i .. " refused: " .. why)
+    else out[#out + 1] = hook end
+  end
+  if #out == 0 then return nil end
+  return out
+end
+
 -- A definition as it is stored with a running event (so editing this file does not change an event in progress).
 local function snapshot(def)
   local reward = type(def.reward) == "table" and def.reward or {}
   return {
     id = tostring(def.id), title = tostring(def.title or def.id), goal = "kill",
     target = math.max(1, math.floor(tonumber(def.target) or 100)), duration = math.max(1, tonumber(def.duration) or 3600),
-    names = copy_list(def.names, lower_of), types = copy_list(def.types, number_of), where = def.where,
+    names = copy_list(def.names, lower_of), types = copy_list(def.types, number_of), where = def.where, hooks = hooks_of(def.hooks, def.id),
     text = def.text and tostring(def.text) or nil, unit = def.unit and tostring(def.unit) or nil, min_contribution = math.max(1, math.floor(tonumber(def.min_contribution) or 1)),
     reward = {
       gold = math.max(0, math.floor(tonumber(reward.gold) or 0)), gold_each = math.max(0, math.floor(tonumber(reward.gold_each) or 0)),
@@ -326,6 +510,13 @@ local function add_parts(def, ids, circles)
   for _, part in ipairs(def.ranges or {}) do
     if type(part) == "table" then add_range(own, tonumber(part[1]) or 0, tonumber(part[2]) or tonumber(part[1]) or 0) end
   end
+  local wanted_regions = def.regions
+  if tonumber(wanted_regions) then wanted_regions = { wanted_regions } end
+  for _, region_id in ipairs(type(wanted_regions) == "table" and wanted_regions or {}) do
+    local list = tonumber(region_id) and server.region_sectors and server.region_sectors(math.floor(region_id)) or {}
+    if #list == 0 then server.log("region " .. tostring(region_id) .. " has no sectors (unknown region, or the server has no --game-dir)") end
+    for _, sector in ipairs(list) do own[sector] = true end
+  end
   if type(def.rect) == "table" and #def.rect >= 4 then
     local x1, y1 = math.min(def.rect[1], def.rect[3]), math.min(def.rect[2], def.rect[4])
     local x2, y2 = math.max(def.rect[1], def.rect[3]), math.max(def.rect[2], def.rect[4])
@@ -364,6 +555,15 @@ end
 
 -- The region of an event definition as it is stored with the event: { name, ids = {sorted}, margin = {sorted}, circles = {..} },
 -- or nil for "everywhere". A region with no sector and no circle is empty: it matches nothing (the event is not offered).
+local region_names
+function region_name(id)
+  if not region_names then
+    region_names = {}
+    for _, r in ipairs(server.regions and server.regions() or {}) do region_names[r.id] = r.name end
+  end
+  return region_names[id] or ("region " .. tostring(id))
+end
+
 local function region_of(def)
   local names, ids, circles = {}, {}, {}
   local wanted = {}
@@ -379,7 +579,13 @@ local function region_of(def)
     end
   end
   if def.sectors then add_parts({ sectors = def.sectors }, ids, circles) end
-  if #wanted == 0 and not def.sectors then return nil end
+  local game_regions = def.regions
+  if tonumber(game_regions) then game_regions = { game_regions } end
+  if type(game_regions) == "table" and #game_regions > 0 then
+    add_parts({ regions = game_regions }, ids, circles)
+    for _, id in ipairs(game_regions) do names[#names + 1] = clean_name(region_name(math.floor(tonumber(id) or 0))) end
+  end
+  if #wanted == 0 and not def.sectors and not (type(game_regions) == "table" and #game_regions > 0) then return nil end
   local region = { ids = sorted_ids(ids), circles = circles }
   if #names > 0 then region.name = table.concat(names, " & ") end
   region.margin = sorted_ids(grow(ids, CONFIG.margin))
@@ -485,7 +691,7 @@ end
 -- ---- state (kept in this mod's storage) ---------------------------------------------------------------------------------------
 
 local function fresh()
-  return { seq = 0, index = 0, history = {}, next_start = NOW() + CONFIG.first_delay, control_rev = (function() local ok, v = pcall(server.load, "control_rev", 0); return ok and tonumber(v) or 0 end)() }
+  return { seq = 0, index = 0, history = {}, bosses = {}, next_start = NOW() + CONFIG.first_delay, control_rev = (function() local ok, v = pcall(server.load, "control_rev", 0); return ok and tonumber(v) or 0 end)() }
 end
 
 local function load_state()
@@ -494,6 +700,7 @@ local function load_state()
   value.seq = tonumber(value.seq) or 0
   value.index = tonumber(value.index) or 0
   value.history = type(value.history) == "table" and value.history or {}
+  value.bosses = type(value.bosses) == "table" and value.bosses or {}
   value.next_start = tonumber(value.next_start) or NOW()
   if value.current ~= nil and (type(value.current) ~= "table" or type(value.current.def) ~= "table"
       or not tonumber(value.current.ends) or type(value.current.players) ~= "table") then
@@ -622,10 +829,11 @@ local function sanitize_event(id, raw)
     area = type(raw.area) == "string" and raw.area ~= "" and text_of(raw.area, 40) or nil,
     areas = words_of(raw.areas, function(v) if type(v) == "string" and v ~= "" then return text_of(v, 40) end end, 10),
     sectors = type(raw.sectors) == "table" and raw.sectors or nil,
+    regions = words_of(raw.regions, function(v) return int_in(v, 1, 255) end, 16),
     where = (raw.where == "victim" or raw.where == "player" or raw.where == "either") and raw.where or nil,
     text = type(raw.text) == "string" and raw.text:match("%S") and text_of(raw.text, 200) or nil,
     unit = type(raw.unit) == "string" and raw.unit:match("%S") and text_of(raw.unit, 30) or nil,
-    min_contribution = int_in(raw.min_contribution, 1, 1000000) or 1,
+    min_contribution = int_in(raw.min_contribution, 1, 1000000) or 1, hooks = hooks_of(raw.hooks, id),
     reward = {
       gold = int_in(reward.gold, 0, 2000000000) or 0, gold_each = int_in(reward.gold_each, 0, 2000000000) or 0,
       item = item_spec(reward.item), top_item = item_spec(reward.top_item), milestones = milestones_of(reward.milestones),
@@ -716,6 +924,9 @@ end
 
 local channel = net and net.channel("worldevents:state", { server_only = true })
 
+-- The next hook that has not fired, in one short line for the client's tooltip ("At 30%: 12 Orc Warrior appear around the owner").
+local next_hook_text
+
 local function payload_for(player)
   local t = NOW()
   local ev = state.current
@@ -733,7 +944,7 @@ local function payload_for(player)
       v = 1, st = "active", n = ev.n, title = def.title, text = goal_text(def), unit = unit_of(def), count = ev.count, target = def.target,
       left = math.floor(math.max(0, ev.ends - t)), dur = def.duration, here = in_area(def, player), mine = mine and mine.n or 0,
       need = def.min_contribution, people = participants(ev), reward = reward_text(def), area = def.region and def.region.name or nil,
-      odds = odds_now, odds_at = odds_at, odds_next = odds_next, odds_next_at = odds_next_at,
+      odds = odds_now, odds_at = odds_at, odds_next = odds_next, odds_next_at = odds_next_at, hook = next_hook_text(ev),
     }
   end
   local last = state.last
@@ -757,6 +968,404 @@ local function push_all()
   push_due = false
   if not channel then return end
   for _, player in ipairs(server.players()) do push(player) end
+end
+
+-- ---- hooks: describing, targeting and running them ------------------------------------------------------------------------------
+
+local spawn_channel = net and net.channel("worldevents:spawn", { server_only = true })
+local spawn_window = {}          -- { t, n } of the creatures asked for in the last minute
+
+local TARGET_TEXT = {
+  killer = "the hero who made the kill", host = "the host", random = "a random hero in the area", owner = "the owner of the area (or the only hero there)",
+  players = "every hero in the area", global = "everybody",
+}
+
+local function kind_text(kinds)
+  local parts = {}
+  for _, k in ipairs(kinds) do parts[#parts + 1] = tostring(k.type) .. (k.weight > 1 and (" x" .. k.weight) or "") end
+  return table.concat(parts, " / ")
+end
+
+local function target_text(target, bound)
+  if not bound and (target == "random" or target == "owner" or target == "players") then
+    return ({ random = "a random hero online", owner = "the only hero (or the one with most kills)", players = "every hero online" })[target]
+  end
+  return TARGET_TEXT[target]
+end
+
+local function action_text(a, bound)
+  local who = target_text(a.target, bound)
+  if a.action == "spawn" then
+    return string.format("%d of %s appear around %s%s", a.n, kind_text(a.kinds), who, a.per_player and " (that many for each)" or " (shared out)")
+  elseif a.action == "boss" then
+    return string.format("the boss %s (x%s health, x%s damage) %s for %s", a.name, tostring(a.health), tostring(a.damage),
+      a.near and ("rises from the nearest " .. a.near) or "appears", who)
+  elseif a.action == "item" then
+    local spec = a.spec
+    local what = spec.type and tostring(spec.type) or ("an item" .. (spec.quality and (" of quality " .. spec.quality) or "") .. (spec.category and (", " .. spec.category) or "")
+      .. (spec.level and (", level " .. spec.level) or ""))
+    return string.format("%s%s drops for %s", a.n > 1 and (a.n .. " x ") or "", what, who)
+  elseif a.action == "gold" then
+    return string.format("%d gold drops for %s", a.amount, who)
+  end
+  return string.format("%s is told to %s", who, '"' .. tostring(a.text) .. '"')
+end
+
+local function trigger_text(h)
+  if h.on == "start" then return "When the event starts"
+  elseif h.on == "success" then return "When the goal is reached"
+  elseif h.on == "fail" then return "When the time runs out"
+  elseif h.kills then
+    return string.format("When %s has defeated %d x %s%s", h.kills.per_player and "a hero" or "the realm", h.kills.count, tostring(h.kills.creature),
+      h.kills.region and (" in " .. region_name(h.kills.region)) or "")
+  elseif h.at_time then return "After " .. duration_text(h.at_time)
+  end
+  return "At " .. percent_text(h.at) .. " of the goal"
+end
+
+-- The hooks of a definition as lines of text, for the page, the JSON and !event hooks.
+local function hook_lines(def)
+  local lines = {}
+  for i, h in ipairs(def.hooks or {}) do
+    local parts = {}
+    for _, a in ipairs(h.actions) do parts[#parts + 1] = action_text(a, def.region ~= nil) end
+    lines[i] = trigger_text(h) .. ": " .. table.concat(parts, "; ") .. "."
+  end
+  return lines
+end
+
+-- Heroes in the world: those in the event's area, for an event without area everybody.
+local function zone_players(def)
+  local out = {}
+  for _, p in ipairs(server.players()) do
+    if p.in_game and (not def.region or contains(def.region, p.sector, p.x, p.y)) then out[#out + 1] = p end
+  end
+  return out
+end
+
+local function pick_targets(ev, target, ctx)
+  local def = ev.def
+  if target == "killer" then
+    return (ctx.killer and ctx.killer.in_game ~= false) and { ctx.killer } or {}
+  elseif target == "host" then
+    for _, p in ipairs(server.players()) do if p.host and p.in_game then return { p } end end
+    return {}
+  elseif target == "global" then
+    local out = {}
+    for _, p in ipairs(server.players()) do if p.in_game then out[#out + 1] = p end end
+    return out
+  end
+  local zone = zone_players(def)
+  if target == "players" then return zone end
+  if #zone == 0 then return {} end
+  if target == "random" then
+    local pool = zone
+    if not def.region then
+      local took = {}
+      for _, p in ipairs(zone) do if ev.players[p.uid] then took[#took + 1] = p end end
+      if #took > 0 then pool = took end
+    end
+    return { pool[server.random(#pool)] }
+  end
+  -- owner: the only hero there; else the one whose game owns its sector; else the one with the most kills (lowest slot on a tie)
+  if #zone == 1 then return { zone[1] } end
+  for _, p in ipairs(zone) do
+    if (p.sector or 0) ~= 0 and server.sector_owner and server.sector_owner(p.sector) == p.slot then return { p } end
+  end
+  local best
+  for _, p in ipairs(zone) do
+    local n = ev.players[p.uid] and ev.players[p.uid].n or 0
+    local bn = best and (ev.players[best.uid] and ev.players[best.uid].n or 0) or -1
+    if not best or n > bn or (n == bn and p.slot < best.slot) then best = p end
+  end
+  return { best }
+end
+
+-- Takes `n` creatures from the per-minute budget (CONFIG.max_spawn_per_minute): how many may be asked for now.
+local function spawn_budget(n)
+  local now, used, keep = NOW(), 0, {}
+  for _, e in ipairs(spawn_window) do
+    if now - e.t < 60 then keep[#keep + 1] = e; used = used + e.n end
+  end
+  spawn_window = keep
+  local left = CONFIG.max_spawn_per_minute - used
+  if left <= 0 then return 0 end
+  n = math.min(n, left)
+  keep[#keep + 1] = { t = now, n = n }
+  return n
+end
+
+local function send_spawn(ev, key, index, player, action, n)
+  if n <= 0 then return false end
+  n = spawn_budget(n)
+  if n <= 0 then server.log("hook " .. key .. ": the spawn budget of " .. CONFIG.max_spawn_per_minute .. " creatures a minute is used up, no wave for " .. player.name); return false end
+  if not (spawn_channel and net.supports(player)) then
+    server.log("hook " .. key .. ": " .. player.name .. "'s game has no world-events mod (or the server has no net channel), no wave")
+    return false
+  end
+  local message = { v = 1, id = ev.n .. ":" .. key .. ":" .. index .. ":" .. tostring(player.uid):sub(1, 8), event = ev.def.title, n = n, radius = action.radius,
+    kinds = action.kinds, text = action.text }
+  local ok, err = pcall(spawn_channel.send, spawn_channel, player, message)
+  if not ok then server.log("hook " .. key .. ": cannot send the wave: " .. tostring(err)); return false end
+  return true
+end
+
+-- ---- world bosses ------------------------------------------------------------------------------------------------------------------
+-- The server cannot make creatures: it announces a boss on `worldevents:boss` (name, no health numbers), asks the target hero's game to make it
+-- (`worldevents:spawn` with a `boss`, only a game that can create creatures does) and calls the boss defeated when a hero kills a creature of its
+-- kind. The bosses are kept in state.bosses (a restart or a reload carries on).
+
+local boss_channel = net and net.channel("worldevents:boss", { server_only = true })
+
+local function boss_message(b, st, by)
+  return { v = 1, id = b.id, st = st, name = b.name, event = b.event, text = b.text, by = by, reward = b.reward_text }
+end
+
+local function boss_send(player, b, st, by)
+  if not boss_channel or not net.supports(player) then return end
+  local ok, err = pcall(boss_channel.send, boss_channel, player, boss_message(b, st, by))
+  if not ok then server.log("boss " .. tostring(b.id) .. ": cannot send: " .. tostring(err)) end
+end
+
+local function boss_send_all(b, st, by)
+  for _, p in ipairs(server.players()) do if p.in_game then boss_send(p, b, st, by) end end
+end
+
+local function boss_reward_text(r)
+  if not r then return nil end
+  local parts = {}
+  if r.gold then parts[#parts + 1] = r.gold .. " gold" end
+  if r.item then parts[#parts + 1] = "an item" .. (r.item.category and (" (" .. r.item.category .. ")") or "") end
+  return table.concat(parts, ", ")
+end
+
+if server.events then
+  server.events.declare("worldevent.boss.spawned", { doc = "A world boss was announced (a boss action of an event).", args = "id, name, event, reward?, source = 'server'" })
+  server.events.declare("worldevent.boss.defeated", { doc = "A hero defeated the boss (gone = true: its time ran out).", args = "id, name, event, reward?, by?, gone?, source = 'server'" })
+end
+
+local function boss_emit(name, b, extra)
+  if not server.emit then return end
+  local e = { id = b.id, name = b.name, event = b.event, reward = b.reward_text, source = "server" }
+  for k, v in pairs(extra or {}) do e[k] = v end
+  local ok, err = pcall(server.emit, name, e)
+  if not ok then server.log("hook " .. name .. ": " .. tostring(err)) end
+end
+
+local function boss_start(ev, key, index, action)
+  state.bosses = state.bosses or {}
+  local def = action
+  local first = def.kinds[1] and def.kinds[1].type or def.near
+  local b = { id = ev.n .. ":" .. key .. ":" .. index, name = def.name, event = ev.def.title, text = action.text, match = first, started = NOW(),
+    expires = NOW() + def.window, reward = def.reward, reward_text = boss_reward_text(def.reward) }
+  for i = #state.bosses, 1, -1 do if state.bosses[i].id == b.id then table.remove(state.bosses, i) end end
+  if #state.bosses >= 8 then table.remove(state.bosses, 1) end
+  state.bosses[#state.bosses + 1] = b
+  dirty = true
+  boss_send_all(b, "active")
+  boss_emit("worldevent.boss.spawned", b)
+  say(string.format("%s: the boss %s has appeared!%s", ev.def.title, b.name, b.reward_text and (" Reward: " .. b.reward_text .. ".") or ""))
+  return b
+end
+
+local function boss_end(i, st, player)
+  local b = table.remove(state.bosses, i)
+  dirty = true
+  boss_send_all(b, st, player and player.character or nil)
+  boss_emit("worldevent.boss.defeated", b, { by = player and player.character or nil, gone = st == "gone" or nil })
+  if st == "defeated" and player then
+    say(string.format("%s defeated the boss %s!", player.character or player.name or "A hero", b.name))
+    local r = b.reward
+    if r then
+      if r.gold then
+        local ok, pile, err = pcall(server.drop_gold, player, r.gold)
+        if not (ok and pile) then server.log("boss " .. b.id .. ": no gold for " .. tostring(player.name) .. ": " .. tostring(ok and err or pile)) end
+      end
+      if r.item then
+        local ok, item, err = pcall(server.drop_item, player, r.item)
+        if not (ok and item) then server.log("boss " .. b.id .. ": no item for " .. tostring(player.name) .. ": " .. tostring(ok and err or item)) end
+      end
+      if r.text then server.message(player, PREFIX .. r.text) end
+    end
+  elseif st == "gone" then
+    say(string.format("The boss %s is gone.", b.name))
+  end
+end
+
+-- A hero killed `monster`: the first boss of that kind is defeated.
+local function boss_kill(player, monster)
+  for i, b in ipairs(state.bosses or {}) do
+    local match = false
+    if type(b.match) == "number" then match = monster.type == b.match
+    elseif monster.name and type(b.match) == "string" then
+      local function norm(text) return (tostring(text):lower():gsub("[_%s]+", " ")) end
+      match = norm(monster.name):find(norm(b.match):gsub("%.%a+$", ""), 1, true) ~= nil
+    end
+    if match then boss_end(i, "defeated", player); return end
+  end
+end
+
+local function boss_tick()
+  local t = NOW()
+  for i = #(state.bosses or {}), 1, -1 do
+    if t >= state.bosses[i].expires then boss_end(i, "gone", nil) end
+  end
+end
+
+-- A hero who joins sees the bosses that are on.
+local function boss_greet(player)
+  for _, b in ipairs(state.bosses or {}) do boss_send(player, b, "active") end
+end
+
+local function run_action(ev, key, index, action, ctx)
+  local targets = pick_targets(ev, action.target, ctx)
+  if action.action == "message" then
+    if action.target == "global" then say(action.text)
+    else for _, p in ipairs(targets) do server.message(p, PREFIX .. action.text) end end
+    return
+  end
+  if #targets == 0 and action.action ~= "boss" then server.log("hook " .. key .. ": no " .. action.target .. " target for " .. action.action); return end
+  if action.action == "boss" then
+    local b = boss_start(ev, key, index, action)
+    -- the target's game is asked to make the creature (only a game that can create creatures does; see above)
+    for _, p in ipairs(targets) do
+      if spawn_channel and net.supports(p) and spawn_budget(1) > 0 then
+        local message = { v = 1, id = b.id .. ":" .. tostring(p.uid):sub(1, 8), event = ev.def.title, n = 1, radius = action.radius, text = action.text,
+          boss = { name = action.name, kinds = action.kinds, near = action.near, radius = action.radius, health = action.health, damage = action.damage,
+            taken = action.taken, deflect = action.deflect, reflect = action.reflect, regen = action.regen, reward = action.reward } }
+        local ok, err = pcall(spawn_channel.send, spawn_channel, p, message)
+        if not ok then server.log("hook " .. key .. ": cannot send the boss: " .. tostring(err)) end
+      end
+    end
+    return
+  end
+  if action.action == "spawn" then
+    local base, extra = action.n, 0
+    if not action.per_player then base, extra = math.floor(action.n / #targets), action.n % #targets end
+    for i, p in ipairs(targets) do
+      local n = action.per_player and action.n or (base + (i <= extra and 1 or 0))
+      send_spawn(ev, key, index, p, action, n)
+    end
+    if action.text then
+      for _, p in ipairs(targets) do server.message(p, PREFIX .. action.text) end
+    end
+  elseif action.action == "item" then
+    if action.spec.type then
+      server.log("hook " .. key .. ": an item by type name is dropped by the Sacred Gear mod in a game of its own (single player); the server drops rarity / category specs")
+      return
+    end
+    for _, p in ipairs(targets) do
+      for _ = 1, action.n do
+        local ok, item, err = pcall(server.drop_item, p, action.spec)
+        if not (ok and item) then server.log("hook " .. key .. ": no item for " .. p.name .. ": " .. tostring(ok and err or item)); break end
+      end
+      if action.text then server.message(p, PREFIX .. action.text) end
+    end
+  elseif action.action == "gold" then
+    for _, p in ipairs(targets) do
+      local ok, pile, err = pcall(server.drop_gold, p, action.amount)
+      if not (ok and pile) then server.log("hook " .. key .. ": no gold for " .. p.name .. ": " .. tostring(ok and err or pile)) end
+      if action.text then server.message(p, PREFIX .. action.text) end
+    end
+  end
+end
+
+-- Fires one hook once. Never throws.
+-- Events for other mods (server.emit; the same names and payloads as the Sacred Gear world events mod publishes in the game):
+-- worldevent.started / progress / completed / failed / hook.
+if server.events then
+  for _, e in ipairs({
+    { "worldevent.started", "A world event began." },
+    { "worldevent.progress", "The realm's count went up (previous)." },
+    { "worldevent.completed", "The goal was reached." },
+    { "worldevent.failed", "The time ran out (cancelled = true: an admin ended it)." },
+    { "worldevent.hook", "A trigger of the event fired an action (action, text)." },
+  }) do
+    server.events.declare(e[1], { doc = e[2], args = "id, title, text, unit, area?, count, target, percent, here, source = 'server', previous?, cancelled?, action?" })
+  end
+end
+
+local function we_hook(name, ev, extra)
+  if not server.emit then return end
+  local def = ev.def
+  local e = { id = ev.n, title = def.title, text = goal_text(def), unit = unit_of(def), area = def.region and def.region.name or nil,
+    count = ev.count, target = def.target, percent = math.min(100, math.floor(ev.count * 100 / def.target)), here = false, source = "server" }
+  for k, v in pairs(extra or {}) do e[k] = v end
+  local ok, err = pcall(server.emit, name, e)
+  if not ok then server.log("hook " .. name .. ": " .. tostring(err)) end
+end
+
+local function fire_hook(ev, number, hook, ctx)
+  local key = "h" .. number
+  ev.fired = ev.fired or {}
+  if ev.fired[key] then return end
+  ev.fired[key] = true
+  dirty = true
+  local parts = {}
+  for i, action in ipairs(hook.actions) do
+    local ok, err = pcall(run_action, ev, key, i, action, ctx)
+    if not ok then server.log("hook " .. key .. " action " .. i .. " failed: " .. tostring(err)) end
+    we_hook("worldevent.hook", ev, { action = action.action, text = action.text })
+    parts[#parts + 1] = action_text(action, ev.def.region ~= nil)
+  end
+  if CONFIG.announce_hooks then say(ev.def.title .. ": " .. trigger_text(hook):lower() .. " -> " .. table.concat(parts, "; ") .. ".") end
+end
+
+local function run_hooks(ev, test, ctx)
+  for number, hook in ipairs(ev.def.hooks or {}) do
+    if not (ev.fired and ev.fired["h" .. number]) and test(hook) then fire_hook(ev, number, hook, ctx or {}) end
+  end
+end
+
+local function hooks_progress(ev, killer)
+  if not ev.def.hooks then return end
+  local percent = ev.count * 100 / ev.def.target
+  local elapsed = NOW() - ev.started
+  run_hooks(ev, function(h) return (h.at and percent >= h.at) or (h.at_time and elapsed >= h.at_time) end, { killer = killer })
+end
+
+local function hooks_on(ev, which)
+  if not ev.def.hooks then return end
+  run_hooks(ev, function(h) return h.on == which end, {})
+end
+
+-- A kill that counts for the event: the "kills" triggers count creatures of their kind.
+local function hooks_kill(ev, player, monster)
+  if not ev.def.hooks then return end
+  ev.hk = ev.hk or {}
+  for number, hook in ipairs(ev.def.hooks) do
+    local k = hook.kills
+    local key = "h" .. number
+    if k and not (ev.fired and ev.fired[key]) then
+      local match = false
+      if k.region then
+        local at = monster.sector or player.sector
+        if not (at and server.sector_region and server.sector_region(at) == k.region) then goto continue end
+      end
+      if type(k.creature) == "number" then match = monster.type == k.creature
+      elseif monster.name then match = monster.name:lower():find(tostring(k.creature):lower(), 1, true) ~= nil end
+      if match then
+        local counters = ev.hk[key] or {}
+        ev.hk[key] = counters
+        local who = k.per_player and tostring(player.uid) or "all"
+        counters[who] = (counters[who] or 0) + 1
+        dirty = true
+        if counters[who] >= k.count then fire_hook(ev, number, hook, { killer = player }) end
+      end
+    end
+    ::continue::
+  end
+end
+
+next_hook_text = function(ev)
+  local lines = hook_lines(ev.def)
+  for i, h in ipairs(ev.def.hooks or {}) do
+    if not (ev.fired and ev.fired["h" .. i]) and (h.at or h.at_time) then
+      local text = trigger_text(h) .. ": " .. action_text(h.actions[1], ev.def.region ~= nil)
+      return (#text > 150) and (text:sub(1, 147) .. "...") or text
+    end
+  end
+  return nil
 end
 
 -- ---- rewards ----------------------------------------------------------------------------------------------------------------
@@ -867,6 +1476,8 @@ local function finish(success)
   if not ev then return end
   state.current = nil
   local def, top = ev.def, ranked(ev)
+  pcall(hooks_on, ev, success and "success" or "fail")
+  we_hook(success and "worldevent.completed" or "worldevent.failed", ev)
   local record = {
     n = ev.n, id = def.id, title = def.title, text = goal_text(def), unit = unit_of(def), success = success, count = ev.count, target = def.target,
     started = ev.started, finished = NOW(), people = #top, region = def.region, top = {},
@@ -947,9 +1558,11 @@ local function begin_event(def, index)
   state.last_id = tostring(def.id)
   local snap, t = snapshot(def), NOW()
   snap.region = region_of(def)
-  state.current = { n = state.seq, def = snap, started = t, ends = t + snap.duration, count = 0, players = {}, marks = {} }
+  state.current = { n = state.seq, def = snap, started = t, ends = t + snap.duration, count = 0, players = {}, marks = {}, fired = {}, hk = {} }
   say(snap.title .. " begins: " .. goal_text(snap) .. " within " .. duration_text(snap.duration) .. "! Reward: "
     .. (reward_text(snap) ~= "" and reward_text(snap) or "glory") .. ". Type !event for the progress.")
+  we_hook("worldevent.started", state.current)
+  pcall(hooks_on, state.current, "start")
   save_state()
   push_all()
 end
@@ -974,6 +1587,7 @@ local function cancel_event()
     finished = record.finished, people = record.people })
   while #state.history > 10 do table.remove(state.history) end
   state.next_start = NOW() + CONFIG.cooldown
+  we_hook("worldevent.failed", ev, { cancelled = true })
   say(def.title .. " was cancelled by an admin.")
   save_state()
   push_all()
@@ -1029,6 +1643,7 @@ server.on("kill", function(player, monster)
     server.log(string.format("kill: %s (type %s) at sector %s x %s y %s by %s in sector %s", tostring(monster.name), tostring(monster.type),
       tostring(monster.sector), tostring(monster.x), tostring(monster.y), player.character, tostring(player.sector)))
   end
+  if state.bosses and #state.bosses > 0 then pcall(boss_kill, player, monster) end
   local ev = state.current
   if not ev or not counts(ev.def, player, monster) then return end
   ev.count = ev.count + 1
@@ -1039,6 +1654,7 @@ server.on("kill", function(player, monster)
   end
   if mine then mine.n = mine.n + 1; mine.name = player.character end
   dirty, push_due = true, true
+  we_hook("worldevent.progress", ev, { previous = ev.count - 1 })
   local percent = ev.count * 100 / ev.def.target
   for _, mark in ipairs(CONFIG.milestones) do
     if percent >= mark and ev.count < ev.def.target and not ev.marks[tostring(mark)] then
@@ -1054,10 +1670,13 @@ server.on("kill", function(player, monster)
       say(ev.def.title .. " " .. percent_text(milestones[index].at) .. ": reward odds now: " .. odds_text(milestones[index]) .. ".")
     end
   end
+  local hooked, hook_err = pcall(function() hooks_kill(ev, player, monster); hooks_progress(ev, player) end)
+  if not hooked then server.log("hooks failed: " .. tostring(hook_err)) end
   if ev.count >= ev.def.target then finish(true) end
 end)
 
 server.on("enter", function(player)
+  pcall(boss_greet, player)
   if state.current then
     for _, line in ipairs(status_lines(player)) do server.message(player, PREFIX .. line) end
   end
@@ -1217,6 +1836,13 @@ server.on("chat", function(player, text)
   if text == "!event" then
     for _, line in ipairs(status_lines(player)) do server.message(player, PREFIX .. line) end
     return true
+  elseif text == "!event hooks" then
+    local ev = state.current
+    if not ev then server.message(player, PREFIX .. "No world event is running."); return true end
+    local lines = hook_lines(ev.def)
+    if #lines == 0 then server.message(player, PREFIX .. "This event has no hooks.") end
+    for i, line in ipairs(lines) do server.message(player, PREFIX .. (ev.fired and ev.fired["h" .. i] and "[done] " or "") .. line) end
+    return true
   elseif text == "!event rewards" or text == "!event odds" then
     local ev = state.current
     if not ev then server.message(player, PREFIX .. "No world event is running."); return true end
@@ -1300,8 +1926,10 @@ local function tick()
   end
   poll_events()
   poll_control()
+  pcall(boss_tick)
   local ev = state.current
   if ev and t >= ev.ends then finish(false) end
+  if state.current then pcall(hooks_progress, state.current, nil) end
   if not state.current and t >= (state.next_start or 0) and #definitions > 0 and #server.players() >= CONFIG.min_players then
     start_event(next_index())
   end
@@ -1345,6 +1973,11 @@ local function public_state()
       n = ev.n, id = ev.def.id, title = ev.def.title, text = goal_text(ev.def), count = ev.count, target = ev.def.target,
       percent = math.min(100, math.floor(ev.count * 100 / ev.def.target)), left = math.floor(math.max(0, ev.ends - t)), ends = ev.ends,
       area = ev.def.region and ev.def.region.name or nil, participants = participants(ev), top = top, reward = reward_text(ev.def),
+      hooks = (function()
+        local out, lines = {}, hook_lines(ev.def)
+        for i, text in ipairs(lines) do out[i] = { text = text, fired = ev.fired and ev.fired["h" .. i] == true } end
+        return out
+      end)(),
     }
   else
     out.next_in = math.floor(math.max(0, (state.next_start or t) - t))
@@ -1381,7 +2014,7 @@ local function public_state()
   out.events = {}
   for i, def in ipairs(definitions) do
     local snap = snapshot(def)
-    out.events[i] = { id = def.id, title = def.title, text = goal_text(snap), duration = def.duration, reward_odds = odds_json(snap) }
+    out.events[i] = { id = def.id, title = def.title, text = goal_text(snap), duration = def.duration, reward_odds = odds_json(snap), hooks = hook_lines(snap) }
   end
   return out
 end
@@ -1392,7 +2025,7 @@ server.endpoint("state", function() return public_state() end,
 -- For the area editor page of the web UI (admin only, not public): the areas as defined (the script file's and the saved ones, which win)
 -- and where the heroes are. The page saves areas into this mod's storage through POST /api/mod-store.
 local function area_json(a, source)
-  return { name = a.name, sectors = a.sectors or {}, ranges = a.ranges, rect = a.rect, near = a.near, circle = a.circle, source = source }
+  return { name = a.name, sectors = a.sectors or {}, ranges = a.ranges, rect = a.rect, near = a.near, circle = a.circle, regions = a.regions, source = source }
 end
 
 server.endpoint("areas", function()
@@ -1415,11 +2048,28 @@ local function editable(def)
   end
   return {
     id = tostring(def.id), title = def.title, target = def.target, duration = def.duration, names = def.names, types = def.types,
-    area = def.area, areas = def.areas, sectors = def.sectors, where = def.where, text = def.text, unit = def.unit, min_contribution = def.min_contribution,
-    created = def.created,
+    area = def.area, areas = def.areas, sectors = def.sectors, regions = def.regions, where = def.where, text = def.text, unit = def.unit, min_contribution = def.min_contribution,
+    created = def.created, hooks = def.hooks,
     reward = { gold = reward.gold, gold_each = reward.gold_each, item = reward.item, top_item = reward.top_item, milestones = milestones, on_fail = reward.on_fail },
   }
 end
+
+-- The events in the format of the Sacred Gear mod `world-events` for a single player / LAN game without a server (its events.json): save
+-- this answer as `events.json` in the mod's folder. Rules and hooks are public anyway (dashboard), so this endpoint is public too.
+server.endpoint("export", function()
+  local events = {}
+  for _, id in ipairs(all_order) do
+    local def = all_defs[id]
+    if def and not events_off[id] then
+      events[#events + 1] = {
+        id = tostring(def.id), title = def.title, goal = "kill", target = def.target, duration = def.duration, names = def.names, types = def.types,
+        sectors = def.sectors, regions = def.regions, unit = def.unit, text = def.text, area = def.region and def.region.name or nil, hooks = def.hooks,
+      }
+    end
+  end
+  return { v = 1, config = { first_delay = CONFIG.first_delay, cooldown = CONFIG.cooldown, result_hold = CONFIG.result_hold, order = CONFIG.order == "random" and "random" or "sequence" },
+    events = events }
+end, { public = true, description = "the events in the format of the world-events client mod (events.json for games without a server)" })
 
 server.endpoint("events", function()
   local list = {}
@@ -1434,11 +2084,13 @@ server.endpoint("events", function()
   for id, a in pairs(recorded) do if type(a) == "table" then areas[id] = clean_name(a.name or id) end end
   local tiers = {}
   for i, tier in ipairs(TIERS) do tiers[i] = { id = tier.id, name = tier.name } end
+  local game_regions = {}
+  for i, r in ipairs(server.regions and server.regions() or {}) do game_regions[i] = { id = r.id, name = clean_name(r.name), sectors = r.sectors } end
   local ev = state.current
   local running
   if ev then running = { id = ev.def.id, title = ev.def.title, count = ev.count, target = ev.def.target, left = math.floor(math.max(0, ev.ends - NOW())) } end
   return {
-    events = list, areas = areas, tiers = tiers, running = running, next_in = not ev and math.floor(math.max(0, (state.next_start or NOW()) - NOW())) or nil,
+    events = list, areas = areas, regions = game_regions, tiers = tiers, running = running, next_in = not ev and math.floor(math.max(0, (state.next_start or NOW()) - NOW())) or nil,
     control = load_key("control_result", nil), config = { order = CONFIG.order, cooldown = CONFIG.cooldown, min_players = CONFIG.min_players },
     max_web_events = MAX_WEB_EVENTS,
   }
@@ -1497,6 +2149,13 @@ server.page("", function()
     local lines_o = {}
     for _, line in ipairs(a.reward_rules or {}) do lines_o[#lines_o + 1] = "<small>" .. h(line) .. "</small>" end
     if #lines_o > 0 then parts[#parts + 1] = section("Reward", table.concat(lines_o, "<br>")) end
+  end
+  if a and a.hooks and #a.hooks > 0 then
+    local rows_h = {}
+    for _, hook in ipairs(a.hooks) do
+      rows_h[#rows_h + 1] = "<li" .. (hook.fired and ' class="done"' or "") .. ">" .. h(hook.text) .. (hook.fired and " <small>(done)</small>" or "") .. "</li>"
+    end
+    parts[#parts + 1] = section("Hooks: what happens on the way", "<ul class=\"hooks\">" .. table.concat(rows_h) .. "</ul>")
   end
   local given = {}
   for _, e in ipairs(s.rewards or {}) do

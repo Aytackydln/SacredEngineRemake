@@ -38,7 +38,7 @@ public sealed class ObjectMirror
     public int Count => _objects.Count;
     public Dictionary<uint, Entry>.ValueCollection Objects => _objects.Values;
 
-    public static bool IsState(ushort opcode) => opcode is 0x169 or 0x16B or 0x16C or 0x16E or 0x16F;
+    public static bool IsState(ushort opcode) => opcode is 0x169 or 0x16B or 0x16C or 0x16D or 0x16E or 0x16F;
     public static bool IsRemoval(ushort opcode) => opcode is 0x166 or 0x167;
 
     /// <summary>Stores an object state; <paramref name="knownBy"/> are the players that receive it with this message.</summary>
@@ -69,6 +69,87 @@ public sealed class ObjectMirror
 
     public bool TryGet(uint reference, out Entry entry) => _objects.TryGetValue(reference, out entry!);
 
+    /// <summary>
+    /// 0x165 position update [ref][x][y][surface][sector][facing] (Gold 0x4969D0/0x46D760) applied in place: the 24-byte prefix
+    /// ([ref][type][x][y][surface][sector]) and the object's base block (sector u16 +16, x +18, y +22, surface byte +26), so a
+    /// streamed or inspected state carries the current position (plan M4). Only from the object's owner. False when unknown.
+    /// </summary>
+    public bool ApplyPosition(byte sender, ReadOnlySpan<byte> update)
+    {
+        if (update.Length < 20) return false;
+        var reference = BinaryPrimitives.ReadUInt32LittleEndian(update) & ReferenceMask;
+        if (!_objects.TryGetValue(reference, out var entry) || entry.Owner != sender) return false;
+        var x = BinaryPrimitives.ReadInt32LittleEndian(update[4..]);
+        var y = BinaryPrimitives.ReadInt32LittleEndian(update[8..]);
+        var surface = BinaryPrimitives.ReadUInt32LittleEndian(update[12..]);
+        var sector = BinaryPrimitives.ReadUInt32LittleEndian(update[16..]);
+        var p = entry.Buffer.AsSpan(0, entry.Length);
+        var prefix = entry.LongPrefix ? 24 : 8;
+        if (entry.LongPrefix)
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(p[8..], x);
+            BinaryPrimitives.WriteInt32LittleEndian(p[12..], y);
+            BinaryPrimitives.WriteUInt32LittleEndian(p[16..], surface);
+            BinaryPrimitives.WriteUInt32LittleEndian(p[20..], sector);
+        }
+        var body = p[prefix..];
+        if (body.Length >= BaseBlockBytes && BinaryPrimitives.ReadUInt32LittleEndian(body) == BaseMarker)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(body[16..], (ushort)sector);
+            BinaryPrimitives.WriteInt32LittleEndian(body[18..], x);
+            BinaryPrimitives.WriteInt32LittleEndian(body[22..], y);
+            body[26] = (byte)surface;
+        }
+        Positions++;
+        return true;
+    }
+
+    /// <summary>
+    /// 0x128 health [ref][hit points] (Gold 0x549480 copies the absolute TP[2], healing and regeneration included) applied to the
+    /// creature's values block (marker 0xDEADBEEF at body +445: maximum +8, current +12), from the object's owner (plan M4).
+    /// </summary>
+    public bool ApplyHitPoints(byte sender, ReadOnlySpan<byte> update)
+    {
+        if (update.Length < 8) return false;
+        var reference = BinaryPrimitives.ReadUInt32LittleEndian(update) & ReferenceMask;
+        if (!_objects.TryGetValue(reference, out var entry) || entry.Owner != sender) return false;
+        var body = entry.Buffer.AsSpan(entry.LongPrefix ? 24 : 8, entry.Length - (entry.LongPrefix ? 24 : 8));
+        if (!ValuesAt(body, out var values)) return false;
+        BinaryPrimitives.WriteInt32LittleEndian(body[(values + CurrentHitPoints)..], BinaryPrimitives.ReadInt32LittleEndian(update[4..]));
+        HitPointUpdates++;
+        return true;
+    }
+
+    /// <summary>Current and maximum hit points of a creature state, false when it has no values block.</summary>
+    public static bool HitPoints(Entry entry, out int current, out int maximum)
+    {
+        current = maximum = 0;
+        var body = entry.Payload[(entry.LongPrefix ? 24 : 8)..];
+        if (!ValuesAt(body, out var values)) return false;
+        current = BinaryPrimitives.ReadInt32LittleEndian(body[(values + CurrentHitPoints)..]);
+        maximum = BinaryPrimitives.ReadInt32LittleEndian(body[(values + MaximumHitPoints)..]);
+        return true;
+    }
+
+    private const int CreatureValuesAt = 445, CurrentHitPoints = 12, MaximumHitPoints = 8, PhysicalBytes = 121;   // creature marker after the 121-byte physical state
+    private const uint CreatureMarker = 0xC0DEF00D, ValuesMarker = 0xDEADBEEF;
+
+    private static bool ValuesAt(ReadOnlySpan<byte> body, out int values)
+    {
+        values = CreatureValuesAt;
+        return body.Length >= values + 16 && BinaryPrimitives.ReadUInt32LittleEndian(body) == BaseMarker
+            && BinaryPrimitives.ReadUInt32LittleEndian(body[PhysicalBytes..]) == CreatureMarker
+            && BinaryPrimitives.ReadUInt32LittleEndian(body[values..]) == ValuesMarker;
+    }
+
+    /// <summary>Health updates applied (diagnostics).</summary>
+    public long HitPointUpdates { get; private set; }
+
+    /// <summary>Position updates applied (diagnostics).</summary>
+    public long Positions { get; private set; }
+    private const int BaseBlockBytes = 41;
+    private const uint BaseMarker = 0xFEEDF00D;
+
     public int CopyReferences(Span<uint> destination)
     {
         var n = 0;
@@ -79,8 +160,12 @@ public sealed class ObjectMirror
     public void Remove(ReadOnlySpan<byte> payload)
     {
         if (payload.Length < 4) return;
-        var reference = BinaryPrimitives.ReadUInt32LittleEndian(payload) & ReferenceMask;
-        if (_objects.Remove(reference, out var entry)) _free.Push(entry);
+        Remove(BinaryPrimitives.ReadUInt32LittleEndian(payload));
+    }
+
+    public void Remove(uint reference)
+    {
+        if (_objects.Remove(reference & ReferenceMask, out var entry)) _free.Push(entry);
     }
 
     /// <summary>A player left: nobody streams to that slot until it is taken again.</summary>

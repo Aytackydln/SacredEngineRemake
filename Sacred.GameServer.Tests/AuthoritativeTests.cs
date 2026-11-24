@@ -272,6 +272,14 @@ public partial class AuthoritativeTests
         BinaryPrimitives.WriteUInt32LittleEndian(hero.AsSpan(Sacred.Network.Gameplay.GoldCreatureStateLayout.PrefixSize +
             Sacred.Network.Gameplay.GoldCreatureValuesLayout.CompactWord46Offset), 777_777);
         player.Send(0x169, State(player.Slot, hero, 24));
+        // the hero's own values update (0x11B) carries the gold of a change by Gear or a merchant: [slot][u32][0xC0DEF00D][compact values]
+        var update = new byte[12 + Sacred.Network.Gameplay.GoldCreatureValuesLayout.CompactMinimumSize + 16];
+        BinaryPrimitives.WriteUInt32LittleEndian(update, player.Slot);
+        BinaryPrimitives.WriteUInt32LittleEndian(update.AsSpan(4), 2);
+        BinaryPrimitives.WriteUInt32LittleEndian(update.AsSpan(8), Sacred.Network.Gameplay.GoldCreatureStateLayout.Marker);
+        BinaryPrimitives.WriteUInt32LittleEndian(update.AsSpan(12), Sacred.Network.Gameplay.GoldCreatureValuesLayout.Marker);
+        BinaryPrimitives.WriteUInt32LittleEndian(update.AsSpan(12 + Sacred.Network.Gameplay.GoldCreatureValuesLayout.CompactWord46Offset), 555_555);
+        player.Send(0x11B, update);
         var place = new byte[12];
         BinaryPrimitives.WriteUInt32LittleEndian(place, 0x1F000);
         BinaryPrimitives.WriteUInt32LittleEndian(place.AsSpan(4), 255);
@@ -290,7 +298,7 @@ public partial class AuthoritativeTests
         Assert.IsTrue(savedLength > 0);
         var after = HeroWriterTests.Decode(saved[..savedLength]);
         var values = Sacred.Core.Pax.Hero.Objects.SacredSavedHero.FromPayload(after.Hero, after.Version).Creature.Values;
-        Assert.AreEqual(777_777u, values.Gold);
+        Assert.AreEqual(555_555u, values.Gold, "the gold of the last 0x11B values update (after 777777 of the 0x169)");
         Assert.AreEqual(decoded.Records.Count, after.Records.Count, "the foreign object is not saved, every own item is");
         var cell = 1036 + 255 * 12;
         Assert.AreEqual(0u, BinaryPrimitives.ReadUInt32LittleEndian(after.Inventory.AsSpan(cell)));

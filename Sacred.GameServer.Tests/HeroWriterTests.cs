@@ -199,4 +199,33 @@ public class HeroWriterTests
         Assert.AreEqual(256, records);
         Assert.AreEqual(-1, SavedObjects.WriteItem(body, 20, new byte[400], new byte[64 * 1024]));
     }
+
+    /// <summary>An item the client made (Gear's import: created at the hero's feet, announced with its creation state, then put into a
+    /// container) still has its world position and flags on the wire. The saved record of an item the hero holds must not carry them:
+    /// the loader treated such an item as lying in the world, so a withdrawn stash item was missing from the backpack at the next login
+    /// (found by the first real Closed Net run, shared stash e2e).</summary>
+    [TestMethod]
+    public void AHeldItemIsSavedWithTheTemplatesContainedStateNotItsWorldPosition()
+    {
+        var body = new byte[GoldItemStateLayout.MinimumSize];
+        BinaryPrimitives.WriteUInt32LittleEndian(body, GoldObjectStateLayout.Marker);
+        BinaryPrimitives.WriteUInt32LittleEndian(body.AsSpan(GoldObjectStateLayout.TypeOffset), 0x1433);
+        BinaryPrimitives.WriteUInt32LittleEndian(body.AsSpan(GoldObjectStateLayout.FlagsOffset), 0);               // not "contained"
+        BinaryPrimitives.WriteUInt16LittleEndian(body.AsSpan(GoldObjectStateLayout.SectorOffset), 0x0B5D);        // where it was made
+        BinaryPrimitives.WriteUInt32LittleEndian(body.AsSpan(GoldObjectStateLayout.XOffset), 0xA826);
+        BinaryPrimitives.WriteUInt32LittleEndian(body.AsSpan(GoldObjectStateLayout.XOffset + 4), 0x56002E);
+        BinaryPrimitives.WriteUInt32LittleEndian(body.AsSpan(GoldItemStateLayout.MarkerOffset), SavedObjects.ItemMarker);
+        // a saved item of the same kind that was in the backpack: flags 2, no sector, no position
+        var template = new byte[SavedObjects.ItemMinimumBytes + 130];
+        template.AsSpan(0, SavedObjects.PhysicalBytes).Fill(0x5A);
+        BinaryPrimitives.WriteUInt32LittleEndian(template.AsSpan(18), 2);
+        template.AsSpan(22, 11).Clear();
+        var output = new byte[64 * 1024];
+        var size = SavedObjects.WriteItem(body, 0x77, template, output);
+        Assert.IsTrue(size > 0);
+        Assert.AreEqual(2u, BinaryPrimitives.ReadUInt32LittleEndian(output.AsSpan(18)), "the flags are the template's");
+        CollectionAssert.AreEqual(new byte[11], output.AsSpan(22, 11).ToArray(), "sector, position and surface are the template's (none)");
+        Assert.AreEqual(0x77u, BinaryPrimitives.ReadUInt32LittleEndian(output.AsSpan(10)), "the saved reference");
+        Assert.AreEqual(0x1433u, BinaryPrimitives.ReadUInt32LittleEndian(output.AsSpan(14)), "the type is the live item's");
+    }
 }

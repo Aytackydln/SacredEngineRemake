@@ -76,7 +76,8 @@ public sealed partial class GameServerHost
             var changed = s.CurrentSector != current;
             s.CurrentSector = current;
             if (changed && _scripts is not null) ScriptSectorChanged(s);
-            if (_sectorOwner[current] == 0) { _sectorOwner[current] = s.Slot; SendMessage(s, 0x020, 0, 0, default); }
+            if (_sectorOwner[current] == 0) { _sectorOwner[current] = s.Slot; SendMessage(s, 0x020, 0, 0, default); WitnessSectorOwned(s, current); }
+            else if (_sectorOwner[current] == s.Slot) WitnessSectorOwned(s, current);   // back in a sector it owns: it streams its ground items again
             else if (previous != 0 && previous < SectorTableSize && _sectorOwner[previous] == s.Slot) SendMessage(s, 0x01F, 0, 0, default);
         }
         if (previous != 0 && previous < SectorTableSize && _sectorOwner[previous] == s.Slot) HandOverSector(previous, bit);
@@ -133,6 +134,7 @@ public sealed partial class GameServerHost
         {
             _sectorOwner[sector] = (byte)slot;
             SendMessage(next, 0x020, 0, 0, default);
+            WitnessSectorOwned(next, sector);
         }
     }
 

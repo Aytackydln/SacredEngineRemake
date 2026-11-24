@@ -41,6 +41,7 @@ public sealed partial class GameServerHost
     private (byte[] Json, byte[] Png) BuildAreaMap()
     {
         var map = AreaMap.Load(_config.GameDirectory!);
+        var regions = RegionMapOrNull();
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream))
         {
@@ -54,12 +55,23 @@ public sealed partial class GameServerHost
             writer.WriteNumber("ox", map.Projection.Ox); writer.WriteNumber("oy", map.Projection.Oy);
             writer.WriteNumber("kx", map.Projection.Kx); writer.WriteNumber("ky", map.Projection.Ky);
             writer.WriteEndObject();
+            writer.WriteStartArray("regions");
+            foreach (var region in regions?.Regions ?? [])
+            {
+                writer.WriteStartObject();
+                writer.WriteNumber("id", region.Id); writer.WriteString("key", region.Key); writer.WriteString("name", region.Name);
+                writer.WriteNumber("sectors", regions!.SectorsOf.TryGetValue(region.Id, out var members) ? members.Length : 0);
+                writer.WriteNumber("kills", region.KillsNeeded); writer.WriteBoolean("boss", region.Boss);
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
             writer.WriteStartArray("sectors");
             foreach (var sector in map.Sectors)
             {
                 writer.WriteStartObject();
                 writer.WriteNumber("id", sector.Id); writer.WriteNumber("x", sector.CellX); writer.WriteNumber("y", sector.CellY);
                 if (sector.Name.Length > 0) writer.WriteString("name", sector.Name);
+                if (regions?.RegionAt(sector.Id) is > 0 and var region) writer.WriteNumber("r", region);
                 writer.WriteEndObject();
             }
             writer.WriteEndArray();

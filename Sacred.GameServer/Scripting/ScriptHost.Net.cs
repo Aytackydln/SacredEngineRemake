@@ -10,7 +10,8 @@ namespace Sacred.GameServer.Scripting;
 /// local ch = net.channel("auction:bid" [, { server_only = true }])   -- the channel, or nil, message (bad name, id collision)
 /// ch:on(function(player, payload) end)                -- a message for the server; payload is a table (JSON) or a byte string
 /// ch:send(player | slot | "all", payload)             -- payload: string (bytes) or table (JSON) -> true | nil, message
-/// net.supports(player | slot)                         -- the player's computer has said HELLO
+/// net.supports(player | slot)                         -- the player's computer uses the custom message types (said HELLO)
+/// net.transport(player | slot)                        -- "custom", "chat" (channels over the chat carrier only) or nil
 /// </code>
 /// <c>server_only</c> keeps clients from relaying through the channel. Byte strings hold one byte per character (Latin-1; a string with
 /// characters above 255 is sent as UTF-8); use tables for text. Handlers get their own instruction budget (NETOPS_HANDLER_BUDGET) and the
@@ -47,6 +48,7 @@ public sealed partial class ScriptHost
             return c.Return(ChannelTable(entry));
         });
         table["supports"] = Fn("supports", c => c.Return(_server.NetSupports(SlotOf(c.GetArgument(0)))));
+        table["transport"] = Fn("transport", c => c.Return(_server.NetTransport(SlotOf(c.GetArgument(0))) is { } how ? how : LuaValue.Nil));
         return table;
     }
 

@@ -1207,13 +1207,14 @@ do
 end
 
 local function entries_hex(data)
-    -- gear.inv.export: u32 type, u16 entry count, the 130-byte value records, ...: the records as the server keeps them
+    -- gear.inv.export: u32 type, u16 n, then n+1 130-byte records (the n socketed entries and the item's own; n = 0 for an
+    -- unsocketed item), ...: the records as the server keeps them
     if type(data) ~= "string" or #data < 12 then return nil end
     local lo, hi = tonumber(data:sub(9, 10), 16), tonumber(data:sub(11, 12), 16)
     if not lo or not hi then return nil end
     local count = lo + hi * 256
-    if count < 1 or count > 9 or #data < 12 + count * 260 then return nil end
-    return data:sub(13, 12 + count * 260)
+    if count > 8 or #data < 12 + (count + 1) * 260 then return nil end
+    return data:sub(13, 12 + (count + 1) * 260)
 end
 
 local function in_hero(where) return where == "backpack" or where == "stash" or where == "equipped" end

@@ -122,6 +122,7 @@ public sealed partial class ScriptHost
         foreach (var write in _durable) if (write.File == file) write.Function = null;
         foreach (var save in _heroSaves) if (save.File == file) save.Function = null;
         _descriptions.Remove(ModName(file));
+        DropDeclarations(file);
     }
 
     /// <summary>Calls the handlers of <paramref name="name"/> that <paramref name="file"/> registered.</summary>

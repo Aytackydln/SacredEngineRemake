@@ -1,4 +1,6 @@
 using System.Runtime.CompilerServices;
+using Sacred.GameServer.Config;
+using Sacred.GameServer.Demo;
 using Sacred.GameServer.Session;
 using Sacred.GameServer.Web;
 
@@ -15,7 +17,7 @@ internal static class WebUiLauncher
     public static bool Enabled(string[] args) => WebUiOptions.From(WebUiOptions.BuildConfiguration(args)).Enabled;
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public static IAsyncDisposable? Start(string[] args, GameServerHost host, out string? error)
+    public static IAsyncDisposable? Start(string[] args, GameServerHost host, GameServerConfig config, out string? error)
     {
         error = null;
         var options = WebUiOptions.From(WebUiOptions.BuildConfiguration(args));
@@ -23,14 +25,22 @@ internal static class WebUiLauncher
         try
         {
             host.TrackHeroes = true;                                         // player data for /api/heroes and /public/heroes
-            var server = new WebUiServer(options, host, Log.Info);
+            var admin = config.Demo ? DemoAdmin(host, config) : host;
+            var server = new WebUiServer(options, admin, Log.Info);
             server.StartAsync().GetAwaiter().GetResult();
             return server;
         }
-        catch (Exception e) when (e is IOException or System.Net.Sockets.SocketException or InvalidOperationException)
+        catch (Exception e) when (e is IOException or System.Net.Sockets.SocketException or InvalidOperationException or System.Text.Json.JsonException or KeyNotFoundException)
         {
             Log.Info($"WARNING: web UI not started: {e.Message}");
             return null;
         }
+    }
+
+    private static IServerAdmin DemoAdmin(GameServerHost host, GameServerConfig config)
+    {
+        var state = DemoState.Load(config.DemoFile);
+        Log.Info($"DEMO: stub state ({state.Players.Count} players, {state.Owners.Count} owner blocks) from {config.DemoFile ?? "the built-in demo-state.json"}; no game is running.");
+        return new Demo.DemoAdmin(host, state, config.GameDirectory is { } dir && Directory.Exists(dir));
     }
 }

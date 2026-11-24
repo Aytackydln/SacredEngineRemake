@@ -68,8 +68,54 @@ public partial class NetOpsTests
         return d;
     }
 
-    private static NetOpsWire.HelloAck Handshake(RawClient c, ushort control = NetOpsWire.DefaultControl)
+    private static int _chatNumber;
+
+    /// <summary>One message to the server (target 0) or a player on the chat carrier, as the Gear client frames it.</summary>
+    private static void SendChat(RawClient c, uint target, byte kind, string name, ReadOnlySpan<byte> body)
     {
+        var number = Interlocked.Increment(ref _chatNumber) & 0x7FFF;
+        foreach (var frame in NetChatWire.Encode(NetChatWire.Join(kind, name, body), number))
+        {
+            var payload = new byte[4 + frame.Length + 2];
+            BitConverter.TryWriteBytes(payload, target);
+            frame.CopyTo(payload, 4);
+            c.Send(0x003, payload);
+        }
+    }
+
+    /// <summary>The next complete net chat message the server sent (from slot 0), as (kind, name, body).</summary>
+    private static (byte Kind, string Name, byte[] Body) NextChat(RawClient c, int timeoutMs = 3000)
+    {
+        var bytes = new List<byte>(); var total = 0; var index = 0;
+        var deadline = Environment.TickCount64 + timeoutMs;
+        while (Environment.TickCount64 < deadline)
+        {
+            var m = c.WaitFor(0x003, (int)Math.Max(1, deadline - Environment.TickCount64));
+            if (m.Payload.Length < 6 || !NetChatWire.TryRead(m.Payload.AsSpan(4), out var frame)) continue;
+            Assert.AreEqual((byte)0, m.Origin, "channel messages of the server come from slot 0");
+            if (frame.Index == 0) { bytes.Clear(); total = frame.Length; index = 0; }
+            Assert.AreEqual(index++, frame.Index);
+            Assert.IsTrue(NetChatWire.Unpack(frame.Packed, NetChatWire.BytesIn(total, frame.Index), bytes));
+            if (bytes.Count < total) continue;
+            Assert.IsTrue(NetChatWire.TrySplit(bytes.ToArray(), out var kind, out var name, out var body));
+            return (kind, name, body.ToArray());
+        }
+        throw new AssertFailedException("no net chat message");
+    }
+
+    private static byte[] AnswerBody(ushort control, ushort data, bool accept)
+    {
+        var body = new byte[6];
+        body[0] = NetOpsWire.ProtocolVersion;
+        BitConverter.TryWriteBytes(body.AsSpan(1), control); BitConverter.TryWriteBytes(body.AsSpan(3), data);
+        body[5] = (byte)(accept ? 1 : 0);
+        return body;
+    }
+
+    /// <summary>The chat handshake (the answer accepts the server's numbers), then HELLO on the agreed types.</summary>
+    internal static NetOpsWire.HelloAck Handshake(RawClient c, ushort control = NetOpsWire.DefaultControl)
+    {
+        SendChat(c, 0, NetChatWire.KindAnswer, NetChatWire.HandshakeName, AnswerBody(control, (ushort)(control + 1), true));
         c.Send(control, Hello());
         while (true)
         {
@@ -626,4 +672,175 @@ public partial class NetOpsTests
             Assert.AreEqual((3000 * i).ToString(), System.Text.Encoding.Latin1.GetString(NextMessage(a).Data));
         }
         Assert.AreEqual(0, server.Host.Scripts!.Errors);
+    }
+    // ---- the chat carrier ---------------------------------------------------------------------------------------------
+
+    [TestMethod]
+    public void ChatFramesMatchTheClientsVector()
+    {
+        // produced by Sacred Gear's kernel.lua framing (message number 5): kind 'k', channel "test", body {"a":1}
+        ushort[] expected = [0xE1A0, 0x4005, 0x4000, 0x4000, 0x400D, 0x7582, 0x5D19, 0x6E6E, 0x87B2, 0x5309, 0x48E8, 0xA2FA];
+        var message = NetChatWire.Join(NetChatWire.KindJson, "test", "{\"a\":1}"u8);
+        var frames = NetChatWire.Encode(message, 5);
+        Assert.AreEqual(1, frames.Count);
+        var units = new ushort[frames[0].Length / 2];
+        for (var i = 0; i < units.Length; i++) units[i] = (ushort)(frames[0][i * 2] | (frames[0][i * 2 + 1] << 8));
+        CollectionAssert.AreEqual(expected, units);
+    }
+
+    [TestMethod]
+    public void ChatFramesRoundTripAtEverySize()
+    {
+        foreach (var length in new[] { 2, 3, 100, 226, 227, 228, 229, 460, 461, 462, 5000, 65536 })
+        {
+            var message = Bytes(length, 3);
+            var frames = NetChatWire.Encode(message, 123);
+            Assert.AreEqual(NetChatWire.FrameCount(length), frames.Count, "frames for " + length);
+            var bytes = new List<byte>();
+            for (var i = 0; i < frames.Count; i++)
+            {
+                Assert.IsTrue(frames[i].Length <= NetChatWire.MaxUnits * 2);
+                Assert.IsTrue(NetChatWire.TryRead(frames[i], out var frame));
+                Assert.AreEqual(i, frame.Index);
+                Assert.IsTrue(NetChatWire.Unpack(frame.Packed, NetChatWire.BytesIn(length, i), bytes));
+            }
+            CollectionAssert.AreEqual(message, bytes.ToArray(), "round trip of " + length);
+        }
+        Assert.IsFalse(NetChatWire.TryRead("hello"u8.ToArray(), out _));
+    }
+
+    [TestMethod]
+    public void TheServerQueriesAPlayerThatAnnouncedItself()
+    {
+        using var server = new NetServer(c => { c.ApplyLine("NETOPS_CONTROL=0x1F0"); c.ApplyLine("NETOPS_DATA=0x1F1"); });
+        using var host = RawClient.Admit(server.Port, "Host", 1);
+        Assert.IsTrue(host.Silent(0x003, 300), "no query before the player is in the game");
+        host.Send(0x016, default); host.Send(0x018, new byte[] { 0x64, 0x19, 0, 0 }); host.WaitFor(0x018);
+        Assert.IsTrue(host.Silent(0x003, 400), "a plain client that entered the world is never written to (it would show the frames as chat)");
+        SendChat(host, 0, NetChatWire.KindHello, NetChatWire.HandshakeName, [NetOpsWire.ProtocolVersion]);       // a Gear client announces itself on entering
+        var (kind, name, body) = NextChat(host);
+        Assert.AreEqual(NetChatWire.KindQuery, kind);
+        Assert.AreEqual(NetChatWire.HandshakeName, name);
+        Assert.AreEqual(5, body.Length);
+        Assert.AreEqual(NetOpsWire.ProtocolVersion, body[0]);
+        Assert.AreEqual((ushort)0x1F0, BitConverter.ToUInt16(body, 1));
+        Assert.AreEqual((ushort)0x1F1, BitConverter.ToUInt16(body, 3));
+    }
+
+    [TestMethod]
+    public void HelloBeforeTheChatAgreementIsIgnored()
+    {
+        using var server = new NetServer();
+        using var a = RawClient.Admit(server.Port, "A", 1);
+        a.Send(NetOpsWire.DefaultControl, Hello());
+        Assert.IsTrue(server.WaitStat(s => s.NotCapable, 1));
+        Assert.IsTrue(a.Silent(NetOpsWire.DefaultControl, 200), "no HELLO_ACK without an agreement");
+        SendChat(a, 0, NetChatWire.KindAnswer, NetChatWire.HandshakeName, AnswerBody(0x1E0, 0x1E1, false));   // declines the custom types
+        a.Send(NetOpsWire.DefaultControl, Hello());
+        Assert.IsTrue(server.WaitStat(s => s.NotCapable, 2));
+        Assert.IsTrue(a.Silent(NetOpsWire.DefaultControl, 200));
+        SendChat(a, 0, NetChatWire.KindAnswer, NetChatWire.HandshakeName, AnswerBody(0x1E5, 0x1E6, true));   // other numbers than the server's
+        a.Send(NetOpsWire.DefaultControl, Hello());
+        Assert.IsTrue(server.WaitStat(s => s.NotCapable, 3));
+        Assert.IsTrue(a.Silent(NetOpsWire.DefaultControl, 200));
+        Handshake(a);                                                                                          // the real agreement
+    }
+
+    [TestMethod]
+    public void LuaChannelsWorkOverChatForPlayersWithoutTheCustomTypes()
+    {
+        using var server = new NetServer("""
+            local ch = net.channel('lua:echo')
+            ch:on(function(player, payload)
+                local how = net.transport(player)
+                if type(payload) == 'table' then
+                    assert(ch:send(player, { how = how, n = payload.n }))
+                else
+                    assert(ch:send(player, how .. ':' .. payload))
+                end
+            end)
+            """);
+        using var a = RawClient.Admit(server.Port, "A", 1);
+        SendChat(a, 0, NetChatWire.KindAnswer, NetChatWire.HandshakeName, AnswerBody(0x1E0, 0x1E1, false));   // channels over chat only
+        SendChat(a, 0, NetChatWire.KindJson, "lua:echo", "{\"n\":7}"u8);
+        var (kind, name, body) = NextChat(a);
+        Assert.AreEqual(NetChatWire.KindJson, kind);
+        Assert.AreEqual("lua:echo", name);
+        var reply = System.Text.Json.JsonDocument.Parse(body).RootElement;
+        Assert.AreEqual("chat", reply.GetProperty("how").GetString());
+        Assert.AreEqual(7, reply.GetProperty("n").GetInt32());
+        var big = Bytes(5000, 9);                                           // a message in 22 frames, both ways
+        SendChat(a, 0, NetChatWire.KindBytes, "lua:echo", big);
+        (kind, name, body) = NextChat(a, 8000);
+        Assert.AreEqual(NetChatWire.KindBytes, kind);
+        var expected = System.Text.Encoding.Latin1.GetBytes("chat:").Concat(big).ToArray();
+        CollectionAssert.AreEqual(expected, body);
+        Assert.IsTrue(a.Silent(NetOpsWire.DefaultData, 150), "a chat-only player never gets a custom frame");
+        Assert.AreEqual(0, server.Host.Scripts!.Errors);
+    }
+
+    [TestMethod]
+    public void LuaSendPicksTheTransportPerPlayer()
+    {
+        using var server = new NetServer("""
+            local ch = net.channel('lua:cast')
+            ch:on(function(player)
+                local t = {}
+                for slot = 1, 3 do t[#t + 1] = slot .. '=' .. tostring(net.transport(slot)) end
+                assert(ch:send('all', table.concat(t, ',')))
+            end)
+            """);
+        using var a = RawClient.Admit(server.Port, "A", 1);
+        using var b = RawClient.Admit(server.Port, "B", 2);
+        using var plain = RawClient.Admit(server.Port, "Plain", 3);
+        Handshake(a);                                                                                          // custom types
+        SendChat(b, 0, NetChatWire.KindAnswer, NetChatWire.HandshakeName, AnswerBody(0x1E0, 0x1E1, false));   // chat only
+        SendChat(b, 0, NetChatWire.KindBytes, "lua:cast", [1]);
+        var text = "1=custom,2=chat,3=nil";
+        Assert.AreEqual(text, System.Text.Encoding.Latin1.GetString(NextMessage(a).Data));
+        var (_, _, forB) = NextChat(b);
+        Assert.AreEqual(text, System.Text.Encoding.Latin1.GetString(forB));
+        Assert.IsTrue(plain.Silent(0x003, 200) && plain.Silent(NetOpsWire.DefaultData, 50), "a player that never spoke channels gets nothing");
+    }
+
+    [TestMethod]
+    public void ChatPathKeepsItsCaps()
+    {
+        using var server = new NetServer(c => { c.NetOps.Apply("NETOPS_MAX_CHANNELS", "2"); c.NetOps.Apply("NETOPS_RATE", "1024"); c.NetOps.Apply("NETOPS_BURST", "6000"); }, ("c1", false), ("c2", false), ("c3", false));
+        using var a = RawClient.Admit(server.Port, "A", 1);
+        SendChat(a, 0, NetChatWire.KindAnswer, NetChatWire.HandshakeName, AnswerBody(0x1E0, 0x1E1, false));
+        foreach (var name in new[] { "c1", "c2", "c3" }) SendChat(a, 0, NetChatWire.KindBytes, name, [1]);
+        SendChat(a, 0, NetChatWire.KindBytes, "nobody", [1]);
+        Assert.IsTrue(server.WaitStat(s => s.TooManyChannels, 1));
+        Assert.AreEqual(2, server.Received.Count, "the third channel of one client is refused");
+        // the token bucket counts chat bytes too: a burst of frames is cut off
+        for (var i = 0; i < 40; i++) SendChat(a, 0, NetChatWire.KindBytes, "c1", Bytes(2000, (byte)i));
+        Assert.IsTrue(server.WaitStat(s => s.RateLimited, 1));
+        Assert.IsFalse(a.IsClosed());
+    }
+
+    [TestMethod]
+    public void ChatFramesForServerOnlyChannelsAreNotRelayedBetweenPlayers()
+    {
+        using var server = new NetServer(null, ("vault:grant", true), ("open:channel", false));
+        using var a = RawClient.Admit(server.Port, "A", 1);
+        using var b = RawClient.Admit(server.Port, "B", 2);
+        SendChat(b, 1, NetChatWire.KindBytes, "vault:grant", Bytes(700));       // three frames, named in the first
+        Assert.IsTrue(server.WaitStat(s => s.ServerOnlyRefused, 1));
+        Assert.IsTrue(a.Silent(0x003, 200), "nothing of it reaches the other player");
+        SendChat(b, 1, NetChatWire.KindBytes, "open:channel", Bytes(700));      // an ordinary channel is just chat to the server
+        var (kind, name, body) = (default(byte), "", Array.Empty<byte>());
+        var bytes = new List<byte>(); var total = 0;
+        while (true)
+        {
+            var m = a.WaitFor(0x003);
+            Assert.AreEqual((byte)2, m.Origin, "relayed with the real sender");
+            Assert.IsTrue(NetChatWire.TryRead(m.Payload.AsSpan(4), out var frame));
+            if (frame.Index == 0) total = frame.Length;
+            NetChatWire.Unpack(frame.Packed, NetChatWire.BytesIn(total, frame.Index), bytes);
+            if (bytes.Count >= total) break;
+        }
+        Assert.IsTrue(NetChatWire.TrySplit(bytes.ToArray(), out kind, out name, out var rest));
+        Assert.AreEqual("open:channel", name);
+        Assert.AreEqual(700, rest.Length);
     }}

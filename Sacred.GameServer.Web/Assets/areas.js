@@ -3,6 +3,7 @@ var TILE=53.66563034057617, ST=64, COLORS=['#e0a944','#6fa3d6','#79b873','#d4604
 var $=function(s){return document.querySelector(s)};
 var M=null, img=new Image(), imgOk=false;
 var areas={}, order=[], cur=null, tool='pan', events=[];
+var RCOLORS=['#b5524a','#4a8fb5','#5aa05a','#a88a3a','#8a62b0','#3aa89c','#b0628a','#7a8a3a','#c07a3a'], regionOf={}, regionById={}, showRegions=true;
 var cellId={}, idCell={}, byId={};       // 'cx,cy' -> id; id -> [cx,cy]; id -> sector info
 var players=[], hover=null, view={x:0,y:0,k:1}, drawing=null, dirtySaved=false;
 var cv=$('#cv'), g=cv.getContext('2d'), dpr=1;
@@ -23,24 +24,31 @@ function diamond(cx,cy){var a=mapOfTile(cx*ST,cy*ST),b=mapOfTile((cx+1)*ST,cy*ST
 function expand(list,into){(list||[]).forEach(function(p){if(Array.isArray(p)){var a=Math.min(p[0],p[1]),b=Math.max(p[0],p[1]);for(var i=a;i<=b&&i-a<5000;i++)into[i]=true}else if(typeof p==='number')into[p]=true})}
 function fromDef(id,d,source){var ids={};expand(d.sectors,ids);expand(d.ranges,ids);
   if(d.rect&&d.rect.length>=4){for(var x=Math.min(d.rect[0],d.rect[2]);x<=Math.max(d.rect[0],d.rect[2]);x++)for(var y=Math.min(d.rect[1],d.rect[3]);y<=Math.max(d.rect[1],d.rect[3]);y++){var s=cellId[x+','+y];if(s)ids[s]=true}}
-  return {id:id,name:d.name||id,ids:ids,near:d.near||0,circle:d.circle?{x:d.circle.x,y:d.circle.y,r:d.circle.r}:null,source:source,changed:false}}
+  var regs=[].concat(d.regions||[]).map(Number).filter(function(n){return n>0});
+  if(M&&regs.length)M.sectors.forEach(function(s){if(s.r&&regs.indexOf(s.r)>=0)ids[s.id]=true});
+  return {id:id,regions:regs,name:d.name||id,ids:ids,near:d.near||0,circle:d.circle?{x:d.circle.x,y:d.circle.y,r:d.circle.r}:null,source:source,changed:false}}
 function compact(sorted){var out=[],i=0;while(i<sorted.length){var j=i;while(sorted[j+1]===sorted[j]+1)j++;if(j-i>=2)out.push([sorted[i],sorted[j]]);else for(var k=i;k<=j;k++)out.push(sorted[k]);i=j+1}return out}
 function sortedIds(a){return Object.keys(a.ids).map(Number).sort(function(x,y){return x-y})}
-function toDef(a){var d={name:a.name,sectors:compact(sortedIds(a))};if(a.near>0)d.near=a.near;if(a.circle)d.circle={x:Math.round(a.circle.x),y:Math.round(a.circle.y),r:Math.round(a.circle.r)};return d}
+// the sectors saved one by one: those of a region the area follows are left out (the server adds them again from the region)
+function ownIds(a){var all=sortedIds(a);if(!a.regions||!a.regions.length)return all;return all.filter(function(id){var s=byId[id];return !(s&&s.r&&a.regions.indexOf(s.r)>=0)})}
+function toDef(a){var d={name:a.name,sectors:compact(ownIds(a))};if(a.regions&&a.regions.length)d.regions=a.regions.slice().sort(function(x,y){return x-y});if(a.near>0)d.near=a.near;if(a.circle)d.circle={x:Math.round(a.circle.x),y:Math.round(a.circle.y),r:Math.round(a.circle.r)};return d}
 function luaString(t){return '"'+String(t).replace(/[\u0000-\u001f]/g,' ').replace(/\\/g,'\\\\').replace(/"/g,'\\"')+'"'}
 function compactText(list){return list.map(function(v){return Array.isArray(v)?'{'+v[0]+', '+v[1]+'}':String(v)}).join(', ')}
-function snippet(a){var p=['name = '+luaString(a.name)],s=compact(sortedIds(a));if(s.length)p.push('sectors = {'+compactText(s)+'}');if(a.near>0)p.push('near = '+a.near);
+function snippet(a){var p=['name = '+luaString(a.name)],s=compact(ownIds(a));if(s.length)p.push('sectors = {'+compactText(s)+'}');if(a.regions&&a.regions.length)p.push('regions = {'+a.regions.slice().sort(function(x,y){return x-y}).join(', ')+'}');if(a.near>0)p.push('near = '+a.near);
   if(a.circle)p.push('circle = { x = '+Math.round(a.circle.x)+', y = '+Math.round(a.circle.y)+', r = '+Math.round(a.circle.r)+' }');return a.id+' = { '+p.join(', ')+' },'}
 function slug(n){var s=String(n||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');if(!s)s='area';if(/^\d/.test(s))s='area_'+s;return s}
 window.AreaCodec={compact:compact,toDef:toDef,fromDefIds:function(d){var ids={};expand(d.sectors,ids);expand(d.ranges,ids);return ids},snippet:snippet,slug:slug,luaString:luaString,
   geometry:{TILE:TILE,ST:ST}};
 
+function rcolor(id){return RCOLORS[(id-1)%RCOLORS.length]}
+function regionLabels(w,h){M.regions.forEach(function(r){var c=regionPos&&regionPos[r.id];if(!c)return;
+  var p=screenOfMap(c[0],c[1]);if(p[0]<-80||p[0]>w+80||p[1]<-20||p[1]>h+20)return;g.font='600 '+Math.max(11,Math.min(20,view.k*14))+'px system-ui,sans-serif';g.textAlign='center';g.lineWidth=3;g.strokeStyle='rgba(0,0,0,.75)';g.strokeText(r.name,p[0],p[1]);g.fillStyle='#fff3d6';g.fillText(r.name,p[0],p[1]);g.textAlign='start'})}
 function color(a){var i=order.indexOf(a.id);return COLORS[(i<0?0:i)%COLORS.length]}
 function count(a){return Object.keys(a.ids).length}
 
 /* ---- drawing ---- */
 var fitted=false;
-function resize(){dpr=window.devicePixelRatio||1;var r=cv.getBoundingClientRect();cv.width=Math.max(1,Math.round(r.width*dpr));cv.height=Math.max(1,Math.round(r.height*dpr));if(M&&!fitted&&r.width>10&&r.height>10){fit();fitted=true}draw()}
+function resize(){dpr=window.devicePixelRatio||1;var r=cv.getBoundingClientRect();cv.width=Math.max(1,Math.round(r.width*dpr));cv.height=Math.max(1,Math.round(r.height*dpr));if(M&&!fitted&&r.width>10&&r.height>10){fit();fitted=true}render()}
 function fit(){if(!M)return;var r=cv.getBoundingClientRect();if(r.width<10||r.height<10)return;var k=Math.min(r.width/M.width,r.height/M.height);view.k=k;view.x=(r.width-M.width*k)/2;view.y=(r.height-M.height*k)/2}
 function zoomTo(a){if(!M||!a)return;var r=cv.getBoundingClientRect();if(r.width<10)return;var x0=1e9,y0=1e9,x1=-1e9,y1=-1e9,any=false;
   function add(mx,my){any=true;x0=Math.min(x0,mx);y0=Math.min(y0,my);x1=Math.max(x1,mx);y1=Math.max(y1,my)}
@@ -50,15 +58,41 @@ function zoomTo(a){if(!M||!a)return;var r=cv.getBoundingClientRect();if(r.width<
   var k=Math.min(r.width/(x1-x0),r.height/(y1-y0));k=Math.min(k,8);view.k=k;view.x=(r.width-(x1-x0)*k)/2-x0*k;view.y=(r.height-(y1-y0)*k)/2-y0*k;fitted=true;draw()}
 function visible(p,w,h){for(var i=0;i<p.length;i++){var s=screenOfMap(p[i][0],p[i][1]);if(s[0]>-60&&s[0]<w+60&&s[1]>-60&&s[1]<h+60)return true}return false}
 function path(p){var s=screenOfMap(p[0][0],p[0][1]);g.moveTo(s[0],s[1]);for(var i=1;i<p.length;i++){s=screenOfMap(p[i][0],p[i][1]);g.lineTo(s[0],s[1])}g.closePath()}
-function draw(){if(!M)return;var w=cv.width/dpr,h=cv.height/dpr;g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);g.fillStyle='#0c0a07';g.fillRect(0,0,w,h);
+/* ---- cached layers: built once in map pixels and drawn under the view transform, so panning and zooming do no per-sector work ---- */
+var gridPath=null, regionPaths=null, regionPos=null, areaLayer=null, areaRev=0, raf=0;
+function cellPath(p,x,y){var d=diamond(x,y);p.moveTo(d[0][0],d[0][1]);p.lineTo(d[1][0],d[1][1]);p.lineTo(d[2][0],d[2][1]);p.lineTo(d[3][0],d[3][1]);p.closePath()}
+// the edges of a set of cells merged into long straight runs: every edge (outline=false) or only the border of the set (outline=true)
+function edgePath(cells,inside,outline){var H={},V={},p=new Path2D();function add(o,k,v){(o[k]||(o[k]=[])).push(v)}
+  cells.forEach(function(c){var x=c[0],y=c[1];if(!outline||!inside(x,y-1))add(H,y,x);if(!inside(x,y+1))add(H,y+1,x);if(!outline||!inside(x-1,y))add(V,x,y);if(!inside(x+1,y))add(V,x+1,y)});
+  function runs(o,seg){Object.keys(o).forEach(function(k){var l=o[k].sort(function(a,b){return a-b}),i=0;while(i<l.length){var j=i;while(j+1<l.length&&l[j+1]<=l[j]+1)j++;seg(+k,l[i],l[j]+1);i=j+1}})}
+  function line(a,b){p.moveTo(a[0],a[1]);p.lineTo(b[0],b[1])}
+  runs(H,function(y,x0,x1){line(mapOfTile(x0*ST,y*ST),mapOfTile(x1*ST,y*ST))});runs(V,function(x,y0,y1){line(mapOfTile(x*ST,y0*ST),mapOfTile(x*ST,y1*ST))});return p}
+function hasCell(x,y){return !!cellId[x+','+y]}
+// the grid, one path per region colour and the label point of every region: they only depend on the map
+function buildStatic(){gridPath=edgePath(M.sectors.map(function(s){return [s.x,s.y]}),hasCell,false);regionPaths={};regionPos={};var sum={};
+  M.sectors.forEach(function(s){if(!s.r)return;var col=rcolor(s.r);cellPath(regionPaths[col]||(regionPaths[col]=new Path2D()),s.x,s.y);
+    var c=mapOfTile((s.x+.5)*ST,(s.y+.5)*ST),t=sum[s.r]||(sum[s.r]=[0,0,0]);t[0]+=c[0];t[1]+=c[1];t[2]++});
+  Object.keys(sum).forEach(function(r){var t=sum[r];regionPos[r]=[t[0]/t[2],t[1]/t[2]]})}
+// the areas' fills (a sector in the colour of one area, the selected one first) and the selected area's outline: rebuilt only when an area changes
+function buildAreas(){var key=cur+'|'+areaRev+'|'+order.join(',');if(areaLayer&&areaLayer.key===key)return areaLayer;var fills={},sel=areas[cur],cells=[];
+  M.sectors.forEach(function(s){var mine=null;for(var i=0;i<order.length;i++){var a=areas[order[i]];if(a.ids[s.id]){mine=a;if(a===sel)break}}
+    if(mine)cellPath(fills[mine.id]||(fills[mine.id]=new Path2D()),s.x,s.y);if(sel&&sel.ids[s.id])cells.push([s.x,s.y])});
+  var outline=cells.length?edgePath(cells,function(x,y){var id=cellId[x+','+y];return !!(id&&sel.ids[id])},true):null;
+  return areaLayer={key:key,fills:fills,outline:outline}}
+function mapSpace(){g.setTransform(dpr*view.k,0,0,dpr*view.k,dpr*view.x,dpr*view.y)}
+function screenSpace(){g.setTransform(dpr,0,0,dpr,0,0)}
+// pointer moves, wheel steps and polls all ask for a redraw: draw at most once per frame
+function draw(){if(!M||raf)return;raf=requestAnimationFrame(function(){raf=0;render()})}
+function render(){if(!M)return;if(!gridPath)buildStatic();var w=cv.width/dpr,h=cv.height/dpr;screenSpace();g.clearRect(0,0,w,h);g.fillStyle='#0c0a07';g.fillRect(0,0,w,h);
   if(imgOk){g.imageSmoothingEnabled=view.k<1.5;g.drawImage(img,view.x,view.y,M.width*view.k,M.height*view.k)}
   var cellpx=view.k*Math.hypot(M.projection.kx,M.projection.ky)*ST,grid=cellpx>6,gridAlpha=cellpx<14?.1:cellpx<30?.2:.3;
-  g.lineWidth=1;
-  M.sectors.forEach(function(s){var d=diamond(s.x,s.y);if(!visible(d,w,h))return;
-    var mine=null;for(var i=0;i<order.length;i++){var a=areas[order[i]];if(a.ids[s.id]){mine=a;if(a===areas[cur])break}}
-    if(mine){g.beginPath();path(d);g.globalAlpha=mine===areas[cur]?.5:.28;g.fillStyle=color(mine);g.fill();g.globalAlpha=1}
-    if(grid){g.beginPath();path(d);g.strokeStyle='rgba(255,255,255,'+gridAlpha+')';g.stroke()}});
-  var a=areas[cur];if(a){g.beginPath();M.sectors.forEach(function(s){if(a.ids[s.id]){var d=diamond(s.x,s.y);if(visible(d,w,h))path(d)}});g.strokeStyle=color(a);g.lineWidth=2;g.stroke()}
+  mapSpace();
+  if(showRegions){g.globalAlpha=.2;Object.keys(regionPaths).forEach(function(c){g.fillStyle=c;g.fill(regionPaths[c])});g.globalAlpha=1}
+  var L=buildAreas();order.forEach(function(id){var p=L.fills[id];if(p){g.globalAlpha=id===cur?.5:.28;g.fillStyle=color(areas[id]);g.fill(p)}});g.globalAlpha=1;
+  if(grid){g.lineWidth=1/view.k;g.strokeStyle='rgba(255,255,255,'+gridAlpha+')';g.stroke(gridPath)}
+  if(L.outline){g.lineWidth=2/view.k;g.strokeStyle=color(areas[cur]);g.stroke(L.outline)}
+  screenSpace();
+  if(showRegions)regionLabels(w,h);
   order.forEach(function(id){var b=areas[id];if(b.circle){var c=mapOfTile(b.circle.x/TILE,b.circle.y/TILE);var s=screenOfMap(c[0],c[1]);
     var rx=b.circle.r/TILE*view.k*(M.projection.kx*Math.SQRT2*0),ry=0;
     // the circle on the ground is an ellipse on the isometric map: draw its outline point by point
@@ -79,15 +113,24 @@ function renderAreas(){var ul=$('#areas');ul.innerHTML='';order.forEach(function
 function renderDetail(){var a=areas[cur],box=$('#detail');box.hidden=!a;if(!a)return;$('#name').value=a.name;$('#near').value=a.near||0;
   $('#info').textContent=count(a)+' sectors'+(a.circle?'; circle at x '+Math.round(a.circle.x)+' y '+Math.round(a.circle.y)+', radius '+Math.round(a.circle.r):'')+'. id: '+a.id;
   $('#snip').value=snippet(a);$('#circleOff').hidden=!a.circle}
-function touch(a){a.changed=true;dirtySaved=true;renderAreas();renderDetail();draw();$('#save').disabled=false}
+function renderRegions(){var box=$('#regioncard');if(!M.regions||!M.regions.length){box.hidden=true;$('#regionTool').hidden=true;return}box.hidden=false;var ul=$('#regions');ul.innerHTML='';
+  M.regions.forEach(function(r){var li=document.createElement('li');li.innerHTML='<span class="sw"></span><span class="nm"></span><small></small><button type="button" class="ghost" data-add="'+r.id+'">Add</button>';
+    li.querySelector('.sw').style.background=rcolor(r.id);li.querySelector('.nm').textContent=r.name;li.querySelector('small').textContent=r.sectors+' sectors';ul.appendChild(li)})}
+function addRegion(rid,on){var a=areas[cur];if(!a){status('Select or create an area first.','bad');return}var n=0;a.regions=a.regions||[];
+  M.sectors.forEach(function(s){if(s.r===rid){if(on&&!a.ids[s.id]){a.ids[s.id]=true;n++}else if(!on&&a.ids[s.id]){delete a.ids[s.id];n++}}});
+  var at=a.regions.indexOf(rid);if(on&&at<0)a.regions.push(rid);if(!on&&at>=0)a.regions.splice(at,1);
+  touch(a);status((on?'Added ':'Removed ')+n+' sectors of '+(regionById[rid]?regionById[rid].name:'region '+rid)+(on?'. The area follows the region.':'.'),'ok')}
+// a sector taken out of a region's area by hand: the area no longer follows that region as a whole
+function detach(a,sectorId){var s=byId[sectorId];if(s&&s.r&&a.regions&&a.regions.indexOf(s.r)>=0)a.regions.splice(a.regions.indexOf(s.r),1)}
+function touch(a){a.changed=true;areaRev++;dirtySaved=true;renderAreas();renderDetail();draw();$('#save').disabled=false}
 
 /* ---- tools ---- */
 function setTool(t){tool=t;document.querySelectorAll('[data-tool]').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.tool===t?'true':'false')});cv.className=t==='pan'?'':'paint';
-  $('#toolhint').textContent={pan:'Drag to move, wheel or pinch to zoom.',paint:'Drag over sectors to add them.',erase:'Drag over sectors to remove them.',rectadd:'Drag a rectangle of sector cells to add them.',rectdel:'Drag a rectangle to remove its sectors.',circle:'Click the centre, drag out the radius.'}[t]}
+  $('#toolhint').textContent={pan:'Drag to move, wheel or pinch to zoom.',paint:'Drag over sectors to add them.',region:'Click a sector to add every sector of its game region (Shift: remove them).',erase:'Drag over sectors to remove them.',rectadd:'Drag a rectangle of sector cells to add them.',rectdel:'Drag a rectangle to remove its sectors.',circle:'Click the centre, drag out the radius.'}[t]}
 document.querySelectorAll('[data-tool]').forEach(function(b){b.addEventListener('click',function(){setTool(b.dataset.tool)})});
-function paintAt(sx,sy,on){var a=areas[cur];if(!a)return;var c=cellOfScreen(sx,sy),id=cellId[c[0]+','+c[1]];if(!id)return;if(on&&!a.ids[id]){a.ids[id]=true;touch(a)}else if(!on&&a.ids[id]){delete a.ids[id];touch(a)}}
+function paintAt(sx,sy,on){var a=areas[cur];if(!a)return;var c=cellOfScreen(sx,sy),id=cellId[c[0]+','+c[1]];if(!id)return;if(on&&!a.ids[id]){a.ids[id]=true;touch(a)}else if(!on&&a.ids[id]){detach(a,id);delete a.ids[id];touch(a)}}
 function applyRect(r,on){var a=areas[cur];if(!a)return;var x0=Math.min(r.a[0],r.b[0]),x1=Math.max(r.a[0],r.b[0]),y0=Math.min(r.a[1],r.b[1]),y1=Math.max(r.a[1],r.b[1]),n=0;
-  for(var x=x0;x<=x1;x++)for(var y=y0;y<=y1;y++){var id=cellId[x+','+y];if(id){if(on&&!a.ids[id]){a.ids[id]=true;n++}else if(!on&&a.ids[id]){delete a.ids[id];n++}}}
+  for(var x=x0;x<=x1;x++)for(var y=y0;y<=y1;y++){var id=cellId[x+','+y];if(id){if(on&&!a.ids[id]){a.ids[id]=true;n++}else if(!on&&a.ids[id]){detach(a,id);delete a.ids[id];n++}}}
   if(n)touch(a);status((on?'Added ':'Removed ')+n+' sectors.')}
 
 var ptrs={}, pinch=null;
@@ -98,13 +141,14 @@ cv.addEventListener('pointerdown',function(e){cv.setPointerCapture(e.pointerId);
   else if(tool==='paint'||tool==='erase'){drawing={type:'paint'};paintAt(p[0],p[1],tool==='paint')}
   else if(tool==='rectadd'||tool==='rectdel'){var c=cellOfScreen(p[0],p[1]);drawing={type:'rect',a:[c[0],c[1]],b:[c[0],c[1]]}}
   else if(tool==='circle'){var c2=cellOfScreen(p[0],p[1]);drawing={type:'circle',t:c2[2]}}
+  else if(tool==='region'){var c4=cellOfScreen(p[0],p[1]),sid=cellId[c4[0]+','+c4[1]],sec=sid&&byId[sid];if(sec&&sec.r)addRegion(sec.r,!e.shiftKey);else status('That sector is in no region.','bad')}
   draw()});
 function dist(){var k=Object.keys(ptrs),a=ptrs[k[0]],b=ptrs[k[1]];return Math.hypot(a[0]-b[0],a[1]-b[1])||1}
 function center(){var k=Object.keys(ptrs),a=ptrs[k[0]],b=ptrs[k[1]];return [(a[0]+b[0])/2,(a[1]+b[1])/2]}
 cv.addEventListener('pointermove',function(e){var p=pos(e);if(ptrs[e.pointerId])ptrs[e.pointerId]=p;
   if(pinch&&Object.keys(ptrs).length>=2){var k=Math.max(.05,Math.min(40,pinch.view.k*dist()/pinch.d));var c=center(),m=[(pinch.c[0]-pinch.view.x)/pinch.view.k,(pinch.c[1]-pinch.view.y)/pinch.view.k];view.k=k;view.x=c[0]-m[0]*k;view.y=c[1]-m[1]*k;draw();return}
   var c3=cellOfScreen(p[0],p[1]);var id=cellId[c3[0]+','+c3[1]];hover=id?{cx:c3[0],cy:c3[1],id:id}:{cx:c3[0],cy:c3[1],id:0};
-  var s=id&&byId[id];$('#readout').textContent=(id?'Sector '+id+(s&&s.name?' "'+s.name+'"':''):'no sector')+'  cell '+c3[0]+','+c3[1]+'  x '+Math.round(c3[2][0]*TILE)+' y '+Math.round(c3[2][1]*TILE);
+  var s=id&&byId[id];$('#readout').textContent=(id?'Sector '+id+(s&&s.name?' "'+s.name+'"':'')+(s&&s.r&&regionById[s.r]?' \u00b7 '+regionById[s.r].name:''):'no sector')+'  cell '+c3[0]+','+c3[1]+'  x '+Math.round(c3[2][0]*TILE)+' y '+Math.round(c3[2][1]*TILE);
   if(drawing){if(drawing.type==='pan'){view.x=drawing.vx+p[0]-drawing.x;view.y=drawing.vy+p[1]-drawing.y}
     else if(drawing.type==='paint')paintAt(p[0],p[1],tool==='paint');
     else if(drawing.type==='rect')drawing.b=[c3[0],c3[1]];
@@ -121,6 +165,8 @@ window.addEventListener('resize',resize);
 if(window.ResizeObserver)new ResizeObserver(function(){resize()}).observe(cv);
 
 /* ---- buttons ---- */
+$('#regions').addEventListener('click',function(e){var b=e.target.closest('button[data-add]');if(b)addRegion(+b.dataset.add,!e.shiftKey)});
+$('#showRegions').addEventListener('change',function(){showRegions=this.checked;draw()});
 $('#fit').addEventListener('click',function(){fit();fitted=true;draw()});
 $('#zoomArea').addEventListener('click',function(){zoomTo(areas[cur])});
 $('#new').addEventListener('click',function(){var n=$('#newName').value.trim();if(!n){status('Give the area a name first.','bad');return}var id=slug(n),base=id,i=2;while(areas[id])id=base+'_'+i++;
@@ -140,7 +186,7 @@ $('#save').addEventListener('click',function(){var out={};order.forEach(function
 window.addEventListener('beforeunload',function(e){if(dirtySaved){e.preventDefault();e.returnValue=''}});
 
 /* ---- start ---- */
-function indexMap(){M.sectors.forEach(function(s){cellId[s.x+','+s.y]=s.id;idCell[s.id]=[s.x,s.y];byId[s.id]=s})}
+function indexMap(){M.regions=M.regions||[];M.regions.forEach(function(r){regionById[r.id]=r});M.sectors.forEach(function(s){cellId[s.x+','+s.y]=s.id;idCell[s.id]=[s.x,s.y];byId[s.id]=s});renderRegions()}
 function loadAreas(){return api('mods/world_events/areas').then(function(r){Object.keys(r.areas||{}).sort().forEach(function(id){areas[id]=fromDef(id,r.areas[id],r.areas[id].source==='saved'?'saved':'file');order.push(id)});
   events=r.events||[];cur=order[0]||null;renderAreas();renderDetail();draw();if(cur&&count(areas[cur])+(areas[cur].circle?1:0)>0)zoomTo(areas[cur])}).catch(function(e){status('The world_events mod did not answer ('+e.message+'): areas cannot be loaded or saved.','bad');$('#save').disabled=true})}
 function pollPlayers(){api('mods/world_events/whereabouts').then(function(r){players=r.players||[];draw()}).catch(function(){})}

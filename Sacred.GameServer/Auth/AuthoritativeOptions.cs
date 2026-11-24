@@ -32,6 +32,8 @@ public sealed class AuthoritativeOptions
     /// saved). Allowed: an item covered by a one-time token a script minted (<c>server.item_token</c>) and an item of the hero's baseline block.
     /// Experimental: the game's other legitimate creators (loot of client-side creatures, merchants, crafting, quest rewards) are not known yet.</summary>
     public StrictItemsMode StrictItems { get; set; }
+    /// <summary>Witness strictness: accepted item sources, windows and budgets, the gold ledger (Simulation/WitnessOptions.cs).</summary>
+    public Simulation.WitnessOptions Witness { get; } = new();
     /// <summary>Highest hero level a player's hero may report (Sacred Gold caps at 216; 0 = no check). Above it the player is removed.</summary>
     public int MaxHeroLevel { get; set; } = 216;
 
@@ -47,11 +49,11 @@ public sealed class AuthoritativeOptions
             case "AUTH_LOCK_DIFFICULTY": LockDifficulty = Int(value, 1) != 0; return true;
             case "AUTH_SAVE_INTERVAL": SaveIntervalSeconds = Math.Max(0, Int(value, SaveIntervalSeconds)); return true;
             case "AUTH_CHECK_ITEMS": CheckItems = Int(value, 1) != 0; return true;
-            case "AUTH_STRICT_ITEMS": StrictItems = value.Trim().ToLowerInvariant() switch { "log" => StrictItemsMode.Log, "0" or "off" or "" => StrictItemsMode.Off, _ => StrictItemsMode.On }; return true;
+            case "AUTH_STRICT_ITEMS": StrictItems = Simulation.WitnessOptions.ParseMode(value); return true;
             case "AUTH_MAX_HERO_LEVEL": MaxHeroLevel = Math.Max(0, Int(value, MaxHeroLevel)); return true;
             case "AUTH_SAVE_DEBOUNCE_MS": SaveDebounceMilliseconds = Math.Max(0, Int(value, SaveDebounceMilliseconds)); return true;
         }
-        return false;
+        return Witness.Apply(key, value);
     }
 
     private static int Int(string value, int fallback) =>

@@ -96,17 +96,17 @@ public sealed partial class ScriptHost
             c.Return(SlotOf(c.GetArgument(0)) is var slot and > 0 && _server.HeroUploadTime(slot) is { } t ? t : LuaValue.Nil));
     }
 
-    /// <summary>Type and value records (hex) of a Sacred Gear export: u32 type, u16 count, count x 130-byte records (260 hex), ...</summary>
+    /// <summary>Type and value records (hex) of a Sacred Gear export: u32 type, u16 n, n socketed entries and the item's own record, each 130 bytes (260 hex), ...</summary>
     internal static bool ExportParts(string hex, out uint type, out string records)
     {
         type = 0; records = "";
         if (hex.Length < 12 || hex.Any(ch => !Uri.IsHexDigit(ch))) return false;
         hex = hex.ToLowerInvariant();
         var count = Convert.ToInt32(hex.Substring(8, 2), 16) + Convert.ToInt32(hex.Substring(10, 2), 16) * 256;
-        if (count is < 1 or > 9 || hex.Length < 12 + count * 260) return false;
+        if (count > 8 || hex.Length < 12 + (count + 1) * 260) return false;
         type = 0;
         for (var b = 3; b >= 0; b--) type = type << 8 | Convert.ToUInt32(hex.Substring(b * 2, 2), 16);
-        records = hex.Substring(12, count * 260);
+        records = hex.Substring(12, (count + 1) * 260);
         return true;
     }
 

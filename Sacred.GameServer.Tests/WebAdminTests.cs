@@ -225,6 +225,28 @@ public class WebAdminTests
     private static StringContent Json(string json) => new(json, Encoding.UTF8, "application/json");
 
     [TestMethod]
+    public async Task TheBountyEditorPageIsAdminOnlyAndOffline()
+    {
+        var (server, client, _) = await StartWeb(new WebUiOptions { Enabled = true, Port = 0, Password = "s3cret" });
+        await using (server) using (client)
+        {
+            Assert.AreEqual(HttpStatusCode.Unauthorized, (await client.GetAsync("/bounties")).StatusCode);
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", Convert.ToBase64String("admin:s3cret"u8.ToArray()));
+            var page = await client.GetAsync("/bounties");
+            Assert.AreEqual(HttpStatusCode.OK, page.StatusCode);
+            var html = await page.Content.ReadAsStringAsync();
+            StringAssert.Contains(html, "src=\"assets/bounty.js\"");
+            var script = await client.GetStringAsync("/assets/bounty.js");
+            StringAssert.Contains(script, "mods/'+MOD+'/rules", "reads the mod's rules endpoint");
+            StringAssert.Contains(script, "api/mod-store", "writes the mod's storage");
+            StringAssert.Contains(html, "href=\"bounties\" aria-current=\"page\"", "the tab");
+            StringAssert.Contains(script, "Add a creature");
+            Assert.IsFalse(System.Text.RegularExpressions.Regex.IsMatch(html, @"(src|href)=""https?://|url\(https?://|@import"), "no outside resources: works offline");
+            StringAssert.Contains(await client.GetStringAsync("/mods"), "href=\"bounties\"");
+        }
+    }
+
+    [TestMethod]
     public async Task ApiServesStateAndAcceptsCommands()
     {
         var (server, client, admin) = await StartWeb(new WebUiOptions { Enabled = true, Port = 0 });

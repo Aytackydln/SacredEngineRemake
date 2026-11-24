@@ -12,9 +12,12 @@ namespace Sacred.GameServer.Tests;
 public class AuctionHouseScriptTests
 {
     private const uint Channel = 0xA0C7;
-    // gear.inv.export of a 1-record item of type 0x12A: u32 type, u16 count, one 130-byte record, then the rest of the item
+    // gear.inv.export of an unsocketed item of type 0x12A: u32 type, u16 n = 0, n + 1 = one 130-byte record (the item's own), then the rest
     private static readonly string Record = string.Concat(Enumerable.Range(0, 130).Select(i => (i % 251).ToString("x2")));
-    private static readonly string Item = "2a010000" + "0100" + Record + "deadbeef";
+    private static readonly string Item = "2a010000" + "0000" + Record + "deadbeef";
+    // the same with n = 2 sockets: the two socketed entries and the item's own record (3 records)
+    private static readonly string Socketed = "2a010000" + "0200" + string.Concat(Enumerable.Range(0, 3).Select(k => string.Concat(Enumerable.Range(0, 130).Select(i => ((i + k * 7) % 251).ToString("x2"))))) + "deadbeef";
+    private static string RecordsOf(string data, int n) => data.Substring(12, (n + 1) * 260);
 
     private sealed class Folder : IDisposable
     {
@@ -130,9 +133,9 @@ public class AuctionHouseScriptTests
     private static bool Ok(JsonElement answer) => answer.TryGetProperty("ok", out var ok) && ok.GetBoolean();
     private static double Wallet(JsonElement answer) => answer.GetProperty("wallet").GetDouble();
 
-    private static object Sell(string rid, int price = 1000, string name = "Sword of Tests", uint? reference = null) => reference is { } r
-        ? new { op = "sell", rid, data = Item, price, days = 3, @ref = r, meta = new { name, quality = "rare", category = "weapon", level = 12, text = name + "\nDamage 10-20" } }
-        : new { op = "sell", rid, data = Item, price, days = 3, meta = new { name, quality = "rare", category = "weapon", level = 12, text = name + "\nDamage 10-20" } };
+    private static object Sell(string rid, int price = 1000, string name = "Sword of Tests", uint? reference = null, string? data = null) => reference is { } r
+        ? new { op = "sell", rid, data = data ?? Item, price, days = 3, @ref = r, meta = new { name, quality = "rare", category = "weapon", level = 12, text = name + "\nDamage 10-20" } }
+        : new { op = "sell", rid, data = data ?? Item, price, days = 3, meta = new { name, quality = "rare", category = "weapon", level = 12, text = name + "\nDamage 10-20" } };
 
     [TestMethod]
     public void SellBrowseBuyCollectAndCancel()
@@ -297,6 +300,49 @@ public class AuctionHouseScriptTests
     }
 
     private static List<JsonElement> To(Fake server, int slot) => server.Sent.Where(s => s.Slot == slot).Select(s => s.Message).ToList();
+
+    [TestMethod]
+    public void ClosedNetSaleOfASocketedItemComparesAllItsRecords()
+    {
+        using var folder = new Folder();
+        var server = new Fake { Authoritative = true };
+        var (host, _) = Start(folder, server, FastChecks);
+        Ask(host, server, server.Alice, new { op = "hello" });
+        Assert.AreEqual(3 * 260, RecordsOf(Socketed, 2).Length);
+        server.Items[(1, 701)] = new ScriptHeroItem(701, 0x12A, "gone", RecordsOf(Socketed, 2));
+        server.Sent.Clear();
+        Send(host, server.Alice, Sell("s1", reference: 701, data: Socketed));
+        Wait(host, server, () => To(server, 1).Count > 0);
+        var answer = Answer(To(server, 1), "result");
+        Assert.IsTrue(Ok(answer), "n = 2: " + answer);
+        // the server's copy of only the item's own record is not that item
+        server.Items[(1, 702)] = new ScriptHeroItem(702, 0x12A, "gone", RecordsOf(Item, 0));
+        server.Sent.Clear();
+        Send(host, server.Alice, Sell("s2", reference: 702, data: Socketed));
+        Wait(host, server, () => To(server, 1).Count > 0);
+        Assert.IsFalse(Ok(Answer(To(server, 1), "result")), "a socketed export does not match an unsocketed item");
+    }
+
+    [TestMethod]
+    public void ClosedNetSaleRefusesAnExportWithTooManySocketsOrTooFewRecords()
+    {
+        using var folder = new Folder();
+        var server = new Fake { Authoritative = true };
+        var (host, _) = Start(folder, server, FastChecks);
+        Ask(host, server, server.Alice, new { op = "hello" });
+        var nine = "2a010000" + "0900" + string.Concat(Enumerable.Repeat(Record, 10));
+        var shortOne = "2a010000" + "0200" + Record + Record;          // n = 2 needs 3 records
+        var n = 710u;
+        foreach (var bad in new[] { nine, shortOne })
+        {
+            server.Items[(1, n)] = new ScriptHeroItem(n, 0x12A, "gone", Record);
+            server.Sent.Clear();
+            Send(host, server.Alice, Sell("bad" + n, reference: n, data: bad));
+            Wait(host, server, () => To(server, 1).Count > 0);
+            Assert.IsFalse(Ok(Answer(To(server, 1), "result")), "refused: " + bad.Length);
+            n++;
+        }
+    }
 
     [TestMethod]
     public void ClosedNetSaleNeedsTheItemGoneAndTheHeroSaved()

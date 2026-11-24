@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using Sacred.GameServer.Auth.Hero;
 using Sacred.GameServer.Wire;
+using Sacred.Network.Gameplay;
 
 namespace Sacred.GameServer.Session;
 
@@ -67,6 +68,25 @@ public sealed partial class GameServerHost
                 if (m.Opcode == 0x16B) { LiveHero.Store(ref live.FullBody, ref live.FullBodyLength, p[prefix..]); live.FullIsNewer = true; }
                 else { LiveHero.Store(ref live.Body, ref live.BodyLength, p[prefix..]); live.FullIsNewer = false; }
                 live.EquipmentKnown = false;                                 // the new state carries the equipment
+                WitnessHeroGold(s, live, m.Opcode == 0x16B);                 // gold ledger (GameServerHost.Witness.cs)
+                return;
+            }
+            case 0x11B:
+            {
+                // The hero's own values update (found with a real client): [u32 slot][u32][0xC0DEF00D][the compact values, 0xDEADBEEF first],
+                // sent about a second after a gold change (Gear's set_gold / add_gold, a merchant) and then every 30 s. It is the only message that
+                // tells the server of a gold change in a stock client's hero; the state messages above come at world load only. Only the gold
+                // is taken over, into the stored compact and full state (the saved hero and server.hero(player).gold follow).
+                var values = GoldCreatureStateLayout.PrefixSize;
+                if (p.Length < 12 + GoldCreatureValuesLayout.CompactMinimumSize || BinaryPrimitives.ReadUInt32LittleEndian(p) != s.Slot ||
+                    BinaryPrimitives.ReadUInt32LittleEndian(p[8..]) != GoldCreatureStateLayout.Marker ||
+                    BinaryPrimitives.ReadUInt32LittleEndian(p[12..]) != GoldCreatureValuesLayout.Marker) return;
+                var live = Live(s);
+                var gold = WitnessGold(s, BinaryPrimitives.ReadUInt32LittleEndian(p[(12 + GoldCreatureValuesLayout.CompactWord46Offset)..]));   // gold ledger (GameServerHost.Witness.cs)
+                var compactAt = values + GoldCreatureValuesLayout.CompactWord46Offset;
+                if (live.BodyLength >= compactAt + 4) BinaryPrimitives.WriteUInt32LittleEndian(live.Body.AsSpan(compactAt), gold);
+                var fullAt = values + GoldCreatureValuesLayout.FullBlock08Offset + 62;
+                if (live.FullBodyLength >= values + GoldCreatureValuesLayout.FullMinimumSize) BinaryPrimitives.WriteUInt32LittleEndian(live.FullBody.AsSpan(fullAt), gold);
                 return;
             }
             case 0x11D: case 0x11E:

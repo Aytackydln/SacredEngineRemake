@@ -50,6 +50,9 @@ public sealed class NameService
     public string? Object(uint type, uint instanceName = 0) =>
         (instanceName != 0 ? Text(instanceName) : null) ?? (_resourceOf.TryGetValue(type, out var resource) ? Text(resource) : null);
 
+    /// <summary>A text of the game by its resource key (e.g. UI_REGION_SOUTHKERN); null when there is none.</summary>
+    public string? TextByKey(string resourceKey) => Clean(_text.GetString(resourceKey, ""));
+
     /// <summary>Creature name for a creature type (e.g. 38 "Orc Warrior", 551 "Horse").</summary>
     public string? Creature(uint type, uint instanceName = 0) => Object(type, instanceName);
 

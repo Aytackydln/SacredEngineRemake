@@ -13,3 +13,13 @@
 #editor fieldset{border:1px solid var(--line);border-radius:8px;padding:.5rem .7rem}#editor legend{color:var(--gold2);font-size:.85rem;padding:0 .3rem}
 #editor .chk{display:inline-flex;gap:.3rem;align-items:center;margin-right:.8rem;color:var(--text)}#editor .chk input{width:auto}
 #editor table input{width:4.5rem;padding:.25rem .4rem}
+#editor .hk{border:1px solid var(--line);border-radius:8px;padding:.5rem .6rem;margin:.5rem 0;display:grid;gap:.5rem;background:rgba(255,255,255,.02)}
+#editor .hkhead,#editor .act>.row:first-child{align-items:end}#editor .hkhead b{color:var(--gold2);align-self:center}
+#editor .act{border-left:3px solid var(--gold2);padding:.2rem 0 .2rem .6rem;display:grid;gap:.4rem}
+#editor .row .mv{display:inline-flex;gap:.25rem;margin-left:auto;flex:none}#editor .inl{display:inline-flex;gap:.3rem;align-items:center;color:var(--text)}#editor .inl input{width:6rem}
+#editor .kind input.kt{flex:1;min-width:9rem}#editor .kind input.kw{width:4rem}
+#editor .hk select{width:auto;max-width:100%}
+#editor .hk button{padding:.25rem .6rem}
+@media (max-width:640px){#editor .hkhead,#editor .act>.row:first-child{align-items:stretch}#editor .hk select{width:100%}#editor .inl input{width:100%}}
+#editor .regpick{display:grid;gap:.2rem;margin-top:.4rem}#editor .regpick>div{display:flex;flex-wrap:wrap}
+#editor .hooknote{color:var(--bad);font-size:.85rem}

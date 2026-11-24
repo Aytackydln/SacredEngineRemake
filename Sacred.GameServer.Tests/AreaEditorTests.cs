@@ -415,4 +415,46 @@ public class AreaEditorTests
         }
         finally { File.Delete(path); }
     }
+
+    [TestMethod]
+    public void FormControlsAreThemedScopedToTheirPageAndNeverTouchTheSharedStylesheet()
+    {
+        var css = FormControls.Css(".ev", ".ae");
+        // every rule (outside the media block) starts with one of the scopes: nothing leaks into other pages
+        var main = css[..css.IndexOf("@media", StringComparison.Ordinal)];
+        foreach (var rule in main.Split((char)10, StringSplitOptions.RemoveEmptyEntries))
+            foreach (var selector in rule[..rule.IndexOf('{')].Split(','))
+                Assert.IsTrue(selector.StartsWith(".ev ") || selector.StartsWith(".ae "), selector);
+        StringAssert.Contains(css, ".ev input[type=checkbox],.ev input[type=radio],.ae input[type=checkbox],.ae input[type=radio]{appearance:none");
+        StringAssert.Contains(css, "input[type=checkbox]:checked,.ev input[type=radio]:checked", "the checked state");
+        StringAssert.Contains(css, ":focus-visible{outline:2px solid var(--gold2)", "a visible focus ring");
+        StringAssert.Contains(css, "label.check,.ae label.chk,.ae label.check{display:inline-flex;align-items:center;gap:", "the label is a centred flex row with a fixed gap");
+        StringAssert.Contains(css, "@media (pointer:coarse){", "bigger targets on touch screens");
+        Assert.IsFalse(System.Text.RegularExpressions.Regex.IsMatch(css, "#[0-9a-fA-F]{3,8}\b"), "colours come from the theme variables, light and dark follow");
+        Assert.AreEqual(css, FormControls.Css(".ev", ".ae"), "pure");
+        // the pages use it, scoped to their own wrapper
+        Assert.IsFalse(css.Contains((char)10 + " input[type"), "no unscoped selector");
+    }
+
+    [TestMethod]
+    public async Task TheEditingPagesCarryTheFormControlsAndTheOthersDoNot()
+    {
+        var (server, client, _) = await Start(new WebUiOptions { Enabled = true, Port = 0 });
+        await using (server) using (client)
+        {
+            // The rules are one file, scoped to the page's own wrapper class by a query: each editing page links its own scope.
+            StringAssert.Contains(await client.GetStringAsync("/areas"), "href=\"assets/form-controls.css?scope=ae\"");
+            StringAssert.Contains(await client.GetStringAsync("/events"), "href=\"assets/form-controls.css?scope=ev\"");
+            var areas = await client.GetStringAsync("/assets/form-controls.css?scope=ae");
+            StringAssert.Contains(areas, ".ae input[type=checkbox]");
+            Assert.IsFalse(areas.Contains(".ev input[type=checkbox]"));
+            var events = await client.GetStringAsync("/assets/form-controls.css?scope=ev");
+            StringAssert.Contains(events, ".ev input[type=checkbox]");
+            Assert.IsFalse(events.Contains(".ae input[type=checkbox]"));
+            Assert.AreEqual(HttpStatusCode.NotFound, (await client.GetAsync("/assets/form-controls.css?scope=x")).StatusCode, "only the known scopes");
+            Assert.AreEqual(HttpStatusCode.NotFound, (await client.GetAsync("/assets/form-controls.css")).StatusCode);
+            var home = await client.GetStringAsync("/mods");
+            Assert.IsFalse(home.Contains("form-controls.css"), "the other pages do not link the form controls");
+        }
+    }
 }

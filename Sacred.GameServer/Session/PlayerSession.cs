@@ -9,6 +9,8 @@ public sealed class PlayerSession
 {
     public required IClientLink Connection { get; init; }
     public uint TinCatId;
+    /// <summary>Connection number in a capture file (--capture), 0 until the first captured frame.</summary>
+    public ushort CaptureLink;
     public byte Slot;
     public SessionState State;
     public int LobbyIdentity;

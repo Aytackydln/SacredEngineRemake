@@ -12,7 +12,7 @@ public class SharedStashScriptTests
 {
     private const uint Channel = 0x5A5A;
     private static readonly string Record = string.Concat(Enumerable.Range(0, 130).Select(i => (i % 251).ToString("x2")));
-    private static readonly string Item = "2a010000" + "0100" + Record + "deadbeef";
+    private static readonly string Item = "2a010000" + "0000" + Record + "deadbeef";
 
     private sealed class Folder : IDisposable
     {

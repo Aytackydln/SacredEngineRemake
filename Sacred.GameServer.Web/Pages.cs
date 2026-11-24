@@ -160,7 +160,9 @@ internal static partial class Pages
           .Append(mods).Append("</span></a>")
           .Append("<a href=\"areas\"").Append(current == "areas" ? " aria-current=\"page\"" : "").Append(">").Append(Icon("pulse")).Append("Areas</a>")
           .Append("<a href=\"events\"").Append(current == "events" ? " aria-current=\"page\"" : "").Append(">").Append(Icon("pulse")).Append("Events</a>")
-          .Append("<a href=\"auction\"").Append(current == "auction" ? " aria-current=\"page\"" : "").Append(">").Append(Icon("pulse")).Append("Auction</a></nav>");
+          .Append("<a href=\"sectors\"").Append(current == "sectors" ? " aria-current=\"page\"" : "").Append(">").Append(Icon("pulse")).Append("Sectors</a>")
+          .Append("<a href=\"auction\"").Append(current == "auction" ? " aria-current=\"page\"" : "").Append(">").Append(Icon("pulse")).Append("Auction</a>")
+          .Append("<a href=\"bounties\"").Append(current == "bounties" ? " aria-current=\"page\"" : "").Append(">").Append(Icon("pulse")).Append("Bounties</a></nav>");
     }
 
     /// <summary>
@@ -177,7 +179,7 @@ internal static partial class Pages
           .Append(E(o.Name)).Append("</small></div></div>");
         Tabs(sb, "areas", admin.Mods().Count);
         sb.Append("</header>").Append(Assets.Text(EmbeddedResource_Assets.areas_html)).Append("</div>");
-        return Assets.Page("Areas - " + E(o.Name) + " - Sacred GameServer", sb.ToString(), ["app.css", "areas.css"], ["areas.js"], viewport: "width=device-width, initial-scale=1, viewport-fit=cover");
+        return Assets.Page("Areas - " + E(o.Name) + " - Sacred GameServer", sb.ToString(), ["app.css", "areas.css", "form-controls.css?scope=ae"], ["areas.js"], viewport: "width=device-width, initial-scale=1, viewport-fit=cover");
     }
 
     /// <summary>
@@ -194,7 +196,7 @@ internal static partial class Pages
           .Append(E(o.Name)).Append("</small></div></div>");
         Tabs(sb, "events", admin.Mods().Count);
         sb.Append("</header>").Append(Assets.Text(EmbeddedResource_Assets.events_html)).Append("</div>");
-        return Assets.Page("Events - " + E(o.Name) + " - Sacred GameServer", sb.ToString(), ["app.css", "events.css"], ["events.js"]);
+        return Assets.Page("Events - " + E(o.Name) + " - Sacred GameServer", sb.ToString(), ["app.css", "events.css", "form-controls.css?scope=ev"], ["events.js"]);
     }
 
     /// <summary>

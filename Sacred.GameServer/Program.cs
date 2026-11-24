@@ -19,6 +19,22 @@ if (args.Contains("--help") || args.Contains("-h"))
 
 if (CommandLine.Validate(args) is { } commandLineError) { Console.Error.WriteLine(commandLineError); return 2; }   // before anything is bound
 var config = GameServerConfig.Load(args);
+if (config.Demo)
+{
+    // --demo: stub state for screenshots. Nothing leaves this machine: loopback only, no LAN announce, no lobby, ephemeral game ports.
+    config.BindAddress = IPAddress.Loopback; config.TcpPort = 0; config.UdpPort = 0; config.LanAnnounce = false; config.LobbyHost = null;
+    config.AcceptAnyData = true; config.Auth.Enabled = false;
+    args = [.. args, "--webui-enabled", "--webui-hostname=127.0.0.1"];   // last wins: the web UI is on and on loopback
+}
+if (config.ReplayFile is { } replayFile)
+{
+    // --replay: the capture through the server's own decisions, nothing bound, then exit (Simulation/CaptureReplay.cs)
+    Log.TraceEnabled = config.Trace;
+    if (config.Auth.StrictItems == Sacred.GameServer.Auth.StrictItemsMode.Off) config.Auth.StrictItems = Sacred.GameServer.Auth.StrictItemsMode.Log;
+    if (config.Auth.Witness.StrictGold == Sacred.GameServer.Auth.StrictItemsMode.Off) config.Auth.Witness.StrictGold = Sacred.GameServer.Auth.StrictItemsMode.Log;
+    try { Console.Write(Sacred.GameServer.Simulation.CaptureReplay.Run(config, Sacred.GameServer.Simulation.CaptureReader.Open(replayFile)).Describe()); return 0; }
+    catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException) { Console.Error.WriteLine($"ERROR: cannot replay '{replayFile}': {e.Message}"); return 2; }
+}
 if (config.ParentWindow != 0) Log.Info($"Started by the game (window 0x{config.ParentWindow:X}).");
 GameStatus.Notifier = GameStatus.ForWindow(config.ParentWindow);   // Windows only: PostMessage(hwnd, 0x410, code, value) like the original
 GameStatus.Post(GameStatus.Started);
@@ -60,6 +76,12 @@ if (config.Auth.Enabled && config.GameDirectory is { } itemDir)
     if (itemError is not null) Log.Info($"WARNING: item tables not read from '{itemDir}' ({itemError}); unseen items are saved as 1x1.");
     else if (host.ItemFootprints is { } tables) Log.Info($"Item tables: {tables.FromRows} types with a Weapon.pak footprint (of {Sacred.GameServer.Auth.Hero.ItemFootprints.ResourceCount}) from '{itemDir}'.");
 }
+if (config.Auth.Enabled && config.Auth.Witness.PriceCheck != Sacred.GameServer.Auth.StrictItemsMode.Off && config.GameDirectory is { } priceDir)
+{
+    host.ItemPrices = Sacred.GameServer.Auth.ItemPrices.Load(priceDir, out var priceError);
+    if (priceError is not null) Log.Info($"WARNING: item pricing not read from '{priceDir}' ({priceError}); purchases are checked against the price the client states.");
+    else Log.Info($"Item pricing read from '{priceDir}' (AUTH_PRICE_CHECK={config.Auth.Witness.PriceCheck.ToString().ToLowerInvariant()}).");
+}
 if (config.GameDirectory is { } nameDir)
 {
     // Display names for the web API and scripts; read once here, never in the game loop.
@@ -96,7 +118,7 @@ if (config.LobbyHost is { } lobbyHost)
 if (lobby is null) GameStatus.Post(GameStatus.UpAndRunning);          // no lobby to wait for: the listener is open
 
 IAsyncDisposable? webUi = null;
-if (WebUiLauncher.Enabled(args)) { webUi = WebUiLauncher.Start(args, host, out var webError); if (webError is not null) return 2; }
+if (WebUiLauncher.Enabled(args)) { webUi = WebUiLauncher.Start(args, host, config, out var webError); if (webError is not null) return 2; }
 
 using var sigint = PosixSignalRegistration.Create(PosixSignal.SIGINT, c => { c.Cancel = true; host.Stop(); });
 using var sigterm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, c => { c.Cancel = true; host.Stop(); });

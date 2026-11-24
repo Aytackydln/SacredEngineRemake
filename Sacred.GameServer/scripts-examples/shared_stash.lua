@@ -73,14 +73,15 @@ local function int(v)
     return math.floor(v)
 end
 
--- gear.inv.export: u32 type, u16 entry count, the 130-byte value records, ...: the records as the server keeps them
+-- gear.inv.export: u32 type, u16 n, n entries of 130 bytes (the socketed runes), then the item's own 130-byte record, ...: the value
+-- records as the server keeps them (hero_item.records) are those n + 1 blocks
 local function entries_hex(data)
     if type(data) ~= "string" or #data < 12 then return nil end
     local lo, hi = tonumber(data:sub(9, 10), 16), tonumber(data:sub(11, 12), 16)
     if not lo or not hi then return nil end
     local count = lo + hi * 256
-    if count < 1 or count > 9 or #data < 12 + count * 260 then return nil end
-    return data:sub(13, 12 + count * 260)
+    if count > 8 or #data < 12 + (count + 1) * 260 then return nil end
+    return data:sub(13, 12 + (count + 1) * 260)
 end
 
 local function type_of(data)
@@ -436,8 +437,10 @@ local function handle(player, msg)
         if pending[key] then return end
         if type(msg.ref) ~= "number" then return result(player.slot, rid, false, "the item's id is needed") end
         if not valid_hex(msg.data) or not entries_hex(msg.data) or not known_type(msg.data) then
-            server.log("shared stash: " .. player.name .. ": a deposit with invalid item data was refused")
-            return result(player.slot, rid, false, "the item data is not valid")
+            local why = not valid_hex(msg.data) and ("not hex or out of size (" .. #tostring(msg.data) .. " characters, limit " .. config.max_data .. ")")
+                or not entries_hex(msg.data) and "no value records" or "unknown item type"
+            server.log("shared stash: " .. player.name .. ": a deposit with invalid item data was refused: " .. why)
+            return result(player.slot, rid, false, "the item data is not valid (" .. why .. ")")
         end
         -- a pending entry of this rid (earlier hero save failed): the request resumes there
         local resume
