@@ -82,3 +82,304 @@ All sending goes through `Net/IClientLink` (frame in/out, flush, close) and `ICl
 
 - Server chat uses the relayed player chat layout with the server as origin: 0x005 `[u32 0][UTF-16 text, max 0xFE bytes]` to everybody, 0x003 `[u32 target slot][text]` to one player, both with sender 0 and origin 0 (slot 0 is the session record of the 0x1B roster). Kick uses 0x157 `[reason]` to the player and 0x150 to the others (reason 8 when none is given); lock, pause, max players and flags reuse 0x019/0x01A, 0x134/0x135, 0x023 and 0x01E from the server. A banned address is answered with the FIRSTCONTACT rejection 3 (`LobbyRefused`).
 - Not checked against a real client: how the stock client displays a chat line with origin 0.
+
+## Opcode table (original dispatcher FUN_004C3F20)
+
+Index table `0x4CC9C4` (opcode - 3), jump table `0x4CC6E0`, 185 distinct cases; 229 opcodes between 0x003 and 0x1D5 have their own case, the remaining 238 reach the default case (it only logs). Source of truth for the code: `Session/OpcodeTable.cs`; `OpcodeTableTests` fails when a native opcode has no routing entry. Classes: **Forward** (pure forward), **ForwardAfterState** (forwards after a world-state update that is still a TODO here), **Consumed** (own state only), **Answered** (explicit handler), **Internal** (lobby/menu thread commands, dropped on purpose), **Admission**, **NoOp**, **Todo** (network effect needs unmodelled state; dropped silently).
+
+| Opcode | Case address | Class | Our handling |
+|---|---|---|---|
+| 0x003 | 0x4CA8AA | Answered | PrivateChat |
+| 0x004 | 0x4CA9A5 | Answered | OnGroupMessage: relayed unchanged to the named player (slot, or lobby id above 16), origin = sender; the group members of the original (statistics manager) are TODO |
+| 0x005 | 0x4CA771 | Answered | PublicChat |
+| 0x006 | 0x4CAB98 | Consumed | clears bit (payload-1) of the sender's flag mask (+0x94), UI refresh only |
+| 0x007 | 0x4CAACD | Consumed | sets bit (payload-1) of the sender's flag mask (+0x94), UI refresh only |
+| 0x009 | 0x4CBD9D | Answered | explicit handler |
+| 0x00A | 0x4CBDAF | Answered | explicit handler |
+| 0x00B | 0x4CC5BD | NoOp | no-op case (does nothing) |
+| 0x00F | 0x4CA1E1 | Answered | OnPeerReady |
+| 0x012 | 0x4CA22E | Admission | handled before routing (admission, password) |
+| 0x015 | 0x4C9ABD | Answered | upload begin: state only, data follows |
+| 0x016 | 0x4C9ABD | Answered | upload begin: state only, data follows |
+| 0x017 | 0x4C9F72 | Answered | WorldStart |
+| 0x018 | 0x4C9F72 | Answered | WorldStart |
+| 0x019 | 0x4CA469 | Answered | SetLock |
+| 0x01A | 0x4CA3D9 | Answered | SetLock |
+| 0x01B | 0x4CAC65 | Answered | OnPlayerData |
+| 0x01C | 0x4CA4F9 | Answered | OnQuit |
+| 0x01D | 0x4CAD99 | Answered | OnGameStart: host, not in game, campaign flag: sets flag 0x8000 and broadcasts 0x01E |
+| 0x01E | 0x4CAC9F | Answered | SetGameFlags |
+| 0x021 | 0x4CAE40 | Answered | OnConnectionSpeed |
+| 0x022 | 0x4CAF67 | Answered | OnSessionName |
+| 0x023 | 0x4CAE76 | Answered | SetMaxPlayers |
+| 0x024 | 0x4CB06E | Consumed | lobby/menu bookkeeping, no network effect |
+| 0x025 | 0x4CB1C1 | Consumed | lobby/menu bookkeeping, no network effect |
+| 0x029 | 0x4CB287 | Consumed | FUN_004D3030, no network effect |
+| 0x031 | 0x4CBC44 | Consumed | lobby/menu bookkeeping, no network effect |
+| 0x032 | 0x4CB64A | Internal | menu/lobby thread: sends 0x32 (0x208 bytes) to the player with lobby id payload[0] |
+| 0x034 | 0x4CBBC4 | Internal | lobby thread: removes the player with lobby id payload[0] (FUN_004D6AC0); a client must not kick others |
+| 0x035 | 0x4CC53B | Internal | menu/lobby thread: sends to the player with lobby id payload[0] |
+| 0x036 | 0x4CC53B | Internal | menu/lobby thread: sends to the player with lobby id payload[0] |
+| 0x037 | 0x4CB901 | Internal | lobby thread: broadcasts service code 0x15 |
+| 0x038 | 0x4CB78D | Consumed | lobby/menu bookkeeping, no network effect |
+| 0x039 | 0x4CB901 | Internal | lobby thread: broadcasts service code 0x15 |
+| 0x03A | 0x4CB9C6 | Consumed | lobby/menu bookkeeping, no network effect |
+| 0x03B | 0x4CB899 | Internal | lobby thread: broadcasts service code 0x16 (0x410 bytes) |
+| 0x03C | 0x4CBB69 | Consumed | lobby/menu bookkeeping, no network effect |
+| 0x03D | 0x4CBA27 | Internal | menu/lobby thread: send to a player + broadcast |
+| 0x03E | 0x4CBD00 | Consumed | lobby/menu bookkeeping, no network effect |
+| 0x040 | 0x4CC3F1 | Internal | timer command: forwards 0x0C (32 bytes, mode 7) |
+| 0x041 | 0x4CC447 | Answered | SendProbe |
+| 0x042 | 0x4CC4A0 | Answered | no-op (state only in the original) |
+| 0x043 | 0x4CC4B9 | Answered | AnswerProbe |
+| 0x044 | 0x4CC4FD | Answered | ProbeResult |
+| 0x045 | 0x4CC522 | Answered | ProbeResult |
+| 0x046 | 0x4CC5BD | NoOp | no-op case (does nothing) |
+| 0x048 | 0x4CC5BD | NoOp | no-op case (does nothing) |
+| 0x101 | 0x4CBE5A | Internal | host menu command (FUN_004D3030), no network effect |
+| 0x102 | 0x4CBE6A | Internal | host menu command: sends 0x197 to a player |
+| 0x103 | 0x4CBDC1 | Consumed | world tick helper (jumps to 0x4C7202 tail), no network effect |
+| 0x104 | 0x4CBEB1 | Internal | host menu command: forwards 0x169 (mode 4) |
+| 0x105 | 0x4CC168 | Internal | host menu command: forwards 0x16A (mode 6) |
+| 0x106 | 0x4CC286 | Internal | host menu command: forwards 0x167/0x16F (mode 6) |
+| 0x107 | 0x4CC119 | Consumed | host menu command, no network effect |
+| 0x108 | 0x4CC5BD | NoOp | no-op case (does nothing) |
+| 0x109 | 0x4C4796 | Internal | menu/lobby thread command, never accepted from clients |
+| 0x10A | 0x4C4668 | Internal | menu/lobby thread command, never accepted from clients |
+| 0x10B | 0x4C4570 | Internal | menu/lobby thread command, never accepted from clients |
+| 0x10C | 0x4C4740 | Internal | menu/lobby thread command, never accepted from clients |
+| 0x10D | 0x4C7D8A | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x10E | 0x4C82B4 | Consumed | applied to the server's own state only |
+| 0x10F | 0x4C82A2 | Consumed | applied to the server's own state only |
+| 0x111 | 0x4C7881 | Forward | mode 3 SectorVisible |
+| 0x112 | 0x4C7758 | Forward | mode 3 SectorVisible |
+| 0x113 | 0x4C816A | Forward | mode 8 SectorAndObject |
+| 0x114 | 0x4C8151 | ForwardAfterState | mode 6 ObjectVisible; the server-world update is TODO |
+| 0x118 | 0x4C4750 | Internal | session end path: service code 0x68 + forward 0x08 |
+| 0x119 | 0x4C567C | ForwardAfterState | mode 8 SectorAndObject; the server-world update is TODO |
+| 0x11A | 0x4C4D07 | Forward | mode 6 ObjectVisible |
+| 0x11B | 0x4C4D07 | Forward | mode 6 ObjectVisible |
+| 0x11C | 0x4C571C | ForwardAfterState | mode 8 SectorAndObject; the server-world update is TODO |
+| 0x11D | 0x4C55BD | ForwardAfterState | mode 8 SectorAndObject; the server-world update is TODO |
+| 0x11E | 0x4C54F9 | Forward | mode 8 SectorAndObject |
+| 0x11F | 0x4CC3D5 | Forward | mode 8 SectorAndObject |
+| 0x120 | 0x4C57AA | ForwardAfterState | mode 8 SectorAndObject; the server-world update is TODO |
+| 0x121 | 0x4C584E | ForwardAfterState | mode 8 SectorAndObject; the server-world update is TODO |
+| 0x122 | 0x4C5D3E | Consumed | applied to the server's own state only |
+| 0x123 | 0x4C5DF0 | Consumed | applied to the server's own state only |
+| 0x125 | 0x4CC582 | Forward | mode 2 InGame |
+| 0x126 | 0x4C5904 | ForwardAfterState | mode 8 SectorAndObject; the server-world update is TODO |
+| 0x127 | 0x4C59CB | ForwardAfterState | mode 6 ObjectVisible; the server-world update is TODO |
+| 0x128 | 0x4C5A8B | ForwardAfterState | mode 5 Party; the server-world update is TODO |
+| 0x129 | 0x4C5F60 | Consumed | applied to the server's own state only |
+| 0x12A | 0x4C5FF2 | Consumed | applied to the server's own state only |
+| 0x12B | 0x4C5EB4 | Consumed | applied to the server's own state only |
+| 0x12C | 0x4C5F0A | Consumed | applied to the server's own state only |
+| 0x12D | 0x4C58E8 | ForwardAfterState | mode 3 SectorVisible; the server-world update is TODO |
+| 0x12E | 0x4C5C8A | ForwardAfterState | mode 6 ObjectVisible; the server-world update is TODO |
+| 0x12F | 0x4C5B1A | ForwardAfterState | mode 8 SectorAndObject; the server-world update is TODO |
+| 0x130 | 0x4C5E2C | Consumed | applied to the server's own state only |
+| 0x131 | 0x4C5E5A | Consumed | applied to the server's own state only |
+| 0x134 | 0x4C4830 | Answered | Pause |
+| 0x135 | 0x4C47AB | Answered | Pause |
+| 0x138 | 0x4C6D0B | Forward | mode 1 Connected |
+| 0x139 | 0x4C6C60 | Answered | OnStatisticsRequest: the request is echoed to the requester (origin = asked player); the 0x13A of 0x48 bytes from the statistics manager is TODO |
+| 0x13B | 0x4C6DCE | Forward | mode 1 Connected |
+| 0x13C | 0x4C67DB | ForwardAfterState | mode 8 SectorAndObject; the server-world update is TODO |
+| 0x13E | 0x4C6A07 | Consumed | applied to the server's own state only |
+| 0x13F | 0x4C69EE | Consumed | SETITEM into inventory (FUN_004D37F0): own state; the cheat-protection correction (0x16A, mode 6) needs the object world |
+| 0x140 | 0x4C67F2 | ForwardAfterState | mode 8 SectorAndObject; the server-world update is TODO |
+| 0x141 | 0x4C6E88 | Forward | mode 8 SectorAndObject |
+| 0x144 | 0x4C6970 | Consumed | applied to the server's own state only |
+| 0x145 | 0x4C6827 | Forward | mode 5 Party |
+| 0x146 | 0x4C5273 | ForwardAfterState | mode 8 SectorAndObject; the server-world update is TODO |
+| 0x147 | 0x4C67F2 | ForwardAfterState | mode 8 SectorAndObject; the server-world update is TODO |
+| 0x148 | 0x4C7202 | Answered | OnSectorEntry |
+| 0x149 | 0x4CC582 | Forward | mode 2 InGame |
+| 0x14A | 0x4CC582 | Forward | mode 2 InGame |
+| 0x14B | 0x4C4D07 | Forward | mode 6 ObjectVisible |
+| 0x14C | 0x4C70D7 | Answered | OnSectorMessage |
+| 0x14D | 0x4CC582 | Forward | mode 2 InGame |
+| 0x14E | 0x4CC582 | Forward | mode 2 InGame |
+| 0x14F | 0x4C6030 | Consumed | applied to the server's own state only |
+| 0x150 | 0x4CA4F9 | Answered | OnQuit |
+| 0x151 | 0x4C4C6D | Forward | mode 1 Connected |
+| 0x152 | 0x4C4A2C | Internal | menu/lobby thread command, never accepted from clients |
+| 0x153 | 0x4C48B5 | Answered | OnReferenceRequest |
+| 0x154 | 0x4C4B10 | Answered | OnTriggerRequest |
+| 0x155 | 0x4C48C6 | Consumed | applied to the server's own state only |
+| 0x156 | 0x4C4A5B | Answered | Kick |
+| 0x157 | 0x4C4A5B | Answered | Kick |
+| 0x15A | 0x4C4BD1 | Internal | menu/lobby thread command, never accepted from clients |
+| 0x15B | 0x4C4A39 | Internal | menu/lobby thread command, never accepted from clients |
+| 0x15C | 0x4C6BCC | ForwardAfterState | mode 3 SectorVisible; the server-world update is TODO |
+| 0x15D | 0x4C6B2E | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x15E | 0x4C6A20 | Forward | mode 2 InGame |
+| 0x160 | 0x4C6A20 | Forward | mode 2 InGame |
+| 0x161 | 0x4C604B | Forward | mode 8 SectorAndObject |
+| 0x162 | 0x4C615B | ForwardAfterState | mode 8 SectorAndObject; the server-world update is TODO |
+| 0x163 | 0x4C604B | Forward | mode 8 SectorAndObject |
+| 0x164 | 0x4C60DA | ForwardAfterState | mode 8 SectorAndObject; the server-world update is TODO |
+| 0x165 | 0x4C5273 | ForwardAfterState | mode 8 SectorAndObject; the server-world update is TODO |
+| 0x166 | 0x4C4D86 | Answered | WorldMessage/RemoveObject (original: object removal, leave of the owner) |
+| 0x167 | 0x4C4D86 | Answered | WorldMessage/RemoveObject (original: object removal) |
+| 0x168 | 0x4C4FE6 | Consumed | clears the sender's bit in the object visibility mask (+0x3A), no network effect |
+| 0x169 | 0x4C4D07 | Answered | WorldMessage: store, then routed |
+| 0x16B | 0x4C4D07 | Forward | mode 6 ObjectVisible |
+| 0x16C | 0x4C4D07 | Answered | WorldMessage: store, then routed |
+| 0x16D | 0x4C4D07 | Forward | mode 6 ObjectVisible |
+| 0x16E | 0x4C4D07 | Answered | WorldMessage: store + stream |
+| 0x16F | 0x4C4D07 | Answered | WorldMessage: store + stream |
+| 0x170 | 0x4C5297 | ForwardAfterState | mode 8 SectorAndObject; the server-world update is TODO |
+| 0x172 | 0x4C81F0 | Consumed | applied to the server's own state only |
+| 0x173 | 0x4C538F | ForwardAfterState | mode 6 ObjectVisible; the server-world update is TODO |
+| 0x174 | 0x4C5336 | ForwardAfterState | mode 8 SectorAndObject; the server-world update is TODO |
+| 0x175 | 0x4C5407 | ForwardAfterState | mode 6 ObjectVisible; the server-world update is TODO |
+| 0x176 | 0x4C547F | Consumed | applied to the server's own state only |
+| 0x177 | 0x4C54DE | Forward | mode 6 ObjectVisible |
+| 0x178 | 0x4C670B | ForwardAfterState | mode 8 SectorAndObject; the server-world update is TODO |
+| 0x179 | 0x4C5273 | ForwardAfterState | mode 8 SectorAndObject; the server-world update is TODO |
+| 0x17A | 0x4C61DA | ForwardAfterState | mode 6 ObjectVisible; the server-world update is TODO |
+| 0x17B | 0x4C61AB | ForwardAfterState | mode 8 SectorAndObject; the server-world update is TODO |
+| 0x17C | 0x4C61AB | ForwardAfterState | mode 8 SectorAndObject; the server-world update is TODO |
+| 0x17D | 0x4C647E | ForwardAfterState | kill report: applies native event 0x208, XP/loot (state not modelled), then forwards: mode 6 when the killer word is a player slot, else mode 8 |
+| 0x17F | 0x4C61C7 | Consumed | applied to the server's own state only |
+| 0x180 | 0x4C69C0 | Answered | OnDirectedRelay: unchanged to the slot in payload[0], origin = sender |
+| 0x181 | 0x4CC582 | Forward | mode 2 InGame |
+| 0x182 | 0x4CC582 | Forward | mode 2 InGame |
+| 0x183 | 0x4C6996 | Forward | mode 8 SectorAndObject |
+| 0x184 | 0x4CC582 | Forward | mode 2 InGame |
+| 0x185 | 0x4C723B | Forward | mode 2 InGame |
+| 0x186 | 0x4C7274 | Forward | mode 2 InGame |
+| 0x187 | 0x4C72AD | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x188 | 0x4C72AD | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x189 | 0x4CC582 | Forward | mode 2 InGame |
+| 0x18A | 0x4C7333 | Consumed | applied to the server's own state only |
+| 0x18C | 0x4C7425 | Forward | mode 3 SectorVisible |
+| 0x18D | 0x4C7600 | Forward | mode 3 SectorVisible |
+| 0x18E | 0x4C9942 | Forward | mode 2 InGame |
+| 0x18F | 0x4C9965 | Forward | mode 2 InGame |
+| 0x190 | 0x4C9942 | Forward | mode 2 InGame |
+| 0x191 | 0x4C9942 | Forward | mode 2 InGame |
+| 0x192 | 0x4C9942 | Forward | mode 2 InGame |
+| 0x193 | 0x4C9942 | Forward | mode 2 InGame |
+| 0x194 | 0x4C9942 | Forward | mode 2 InGame |
+| 0x195 | 0x4C9942 | Forward | mode 2 InGame |
+| 0x196 | 0x4CC582 | Forward | mode 2 InGame |
+| 0x197 | 0x4C82C9 | Consumed | applied to the server's own state only |
+| 0x198 | 0x4C850E | Answered | OnTrade (Session/GameServerHost.Trade.cs): trade state machine; offer validation and the item exchange in the object world are TODO |
+| 0x199 | 0x4C84F6 | Forward | mode 3 SectorVisible |
+| 0x19A | 0x4CC5BD | NoOp | no-op case (does nothing) |
+| 0x19B | 0x4C84DE | Forward | mode 3 SectorVisible |
+| 0x19C | 0x4C99C0 | Consumed | applied to the server's own state only |
+| 0x19D | 0x4C99C0 | Consumed | applied to the server's own state only |
+| 0x1A4 | 0x4C95F6 | ForwardAfterState | mode 3 SectorVisible; the server-world update is TODO |
+| 0x1A5 | 0x4C95F6 | ForwardAfterState | mode 3 SectorVisible; the server-world update is TODO |
+| 0x1A6 | 0x4C96E4 | Forward | mode 6 ObjectVisible |
+| 0x1A7 | 0x4CC5BD | NoOp | no-op case (does nothing) |
+| 0x1A8 | 0x4CC5BD | NoOp | no-op case (does nothing) |
+| 0x1A9 | 0x4C97FF | Forward | mode 6 ObjectVisible |
+| 0x1AE | 0x4C79AE | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x1AF | 0x4C7BB0 | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x1B0 | 0x4C7B08 | Forward | mode 2 InGame |
+| 0x1B1 | 0x4C4CF4 | Answered | StoreWorldBank |
+| 0x1B2 | 0x4C4CBB | Answered | StoreWorldBank |
+| 0x1B3 | 0x4C4CE1 | Answered | StoreWorldBank |
+| 0x1B4 | 0x4C4CCE | Answered | StoreWorldBank |
+| 0x1B5 | 0x4C4C86 | Answered | SendWorldBanks |
+| 0x1B6 | 0x4C7C77 | Forward | mode 2 InGame |
+| 0x1B7 | 0x4C7C44 | Forward | mode 2 InGame |
+| 0x1B8 | 0x4C7CC0 | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x1B9 | 0x4C7CA7 | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x1BA | 0x4C7CD9 | Forward | mode 2 InGame |
+| 0x1BB | 0x4C7D3E | Forward | mode 2 InGame |
+| 0x1BC | 0x4C7D0C | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x1BD | 0x4C7D25 | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x1BE | 0x4C7D71 | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x1BF | 0x4C7DA0 | Forward | mode 2 InGame |
+| 0x1C0 | 0x4C7DD3 | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x1C1 | 0x4C7E05 | Forward | mode 2 InGame |
+| 0x1C2 | 0x4C7DEC | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x1C3 | 0x4C7E3A | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x1C4 | 0x4C7E50 | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x1C5 | 0x4C7EB5 | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x1C6 | 0x4C7E69 | Forward | mode 2 InGame |
+| 0x1C7 | 0x4C7E9C | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x1C8 | 0x4C7ECE | Forward | mode 2 InGame |
+| 0x1C9 | 0x4C7F1A | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x1CB | 0x4C7F01 | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x1CC | 0x4C7F50 | Forward | mode 2 InGame |
+| 0x1CD | 0x4C7F37 | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x1CE | 0x4C7F83 | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x1CF | 0x4C811E | Forward | mode 2 InGame |
+| 0x1D0 | 0x4C8105 | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x1D1 | 0x4C7F9C | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x1D2 | 0x4C7FB5 | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x1D3 | 0x4C7FD0 | ForwardAfterState | mode 2 InGame; the server-world update is TODO |
+| 0x1D4 | 0x4C8012 | Forward | mode 2 InGame |
+| 0x1D5 | 0x4C8089 | Forward | mode 2 InGame |
+
+Counts: 229 cases = 60 Forward, 57 ForwardAfterState (state part TODO), 47 Answered, 35 Consumed, 22 Internal, 7 NoOp, 0 Todo, 1 Admission. Parts of the Answered cases that need the original's object or statistics world are TODO inside their handlers (0x198 validation and exchange, 0x004 group, 0x139 answer 0x13A, 0x17D rewards, 0x01C/0x150 reason 7).
+
+### 0x198 trade (case 0x4C850E)
+
+Client message `[partner slot][sub command][...]`; the server answers with 0x198 `[other slot][code]` (origin = the other player). Per player: state (0 none, 1 invitation sent, 2 locked in, 3 trading, 4 offer rejected), partner, gold, offered references (0x23 words) and their item data (0x1AC bytes). A partner that does not exist, is not connected or not in the world ends the trade: the sender is told `[partner][0x31]` and the partner (if connected) gets the message with first word 0.
+
+| Sub | Precondition | Effect |
+|---|---|---|
+| 0x20 invite | own 0; partner 0 | own 1; message forwarded to the partner with first word = sender. Partner not 0: `[partner][0x24]` back (busy) |
+| 0x21 accept | partner 1 | both 3, offers cleared; both get `[other][0x25]` |
+| 0x22 withdraw | own 1 | own reset; `[partner][0x31]` to the sender, message (first word 0, origin 0) to the partner |
+| 0x23 decline | partner 1 | partner reset; the message (first word 0, origin 0) goes to partner and sender |
+| 0x26 offer | own 3; partner 2/3/4 | offer stored; sender `[partner][0x2A]`, partner `[sender][0x2B]`, message forwarded (offer valid; with an invalid one the original sends 0x2C/0x2D and sets state 4 - needs the object world, TODO) |
+| 0x27 gold | own 3; partner 2/3/4 | gold stored; partner 2 becomes 3 and the sender gets `[partner][0x2A]`; message forwarded |
+| 0x28 lock in | own 3 | own 2; sender `[partner][0x29]`; forwarded; if both are 2: nothing offered -> both `[other][0x31]`, else both get `[other][0x2F][partner gold][own gold][partner item data]`; both trades reset |
+| 0x2A unlock | own 2 | own 3; sender `[partner][0x2B]`; forwarded |
+| 0x2E re-check | own 2/3/4 | state 4 -> 3 when the partner's offer is valid; sender `[partner][0x2B]`, partner `[sender][0x2A]` |
+| 0x30 cancel | own 2/3/4 | both reset; both get `[other][0x31]` |
+
+A leaving player (0x150/0x01C/any removal) ends the trade of its partner with `[leaver][0x31]` (origin = leaver) before its own state is cleared (case 0x4CA4F9).
+
+## Custom net opcodes (Sacred Gear mod channels)
+
+Two message types above the original's range (its dispatch tables end at 0x1D5; every other id reaches the default case that
+only logs, so the original neither relays nor disconnects: checked with a Sacred Gear client sending 0x1E0 and a 4032 byte
+0x1E1 message to GameServer.exe). Defaults 0x1E0 (control) and 0x1E1 (data); both are options of the server and announced.
+Little endian payloads:
+
+```
+control 0x1E0   [u8 kind] ...
+  1 HELLO      c->s  [u8 proto=1][u32 features][u32 mod-set hash]       features: 1 fragments, 2 JSON
+  2 HELLO_ACK  s->c  [u8 proto][u32 features][u16 data opcode][u16 max fragment][u32 max message][u32 bytes/s][u8 max in flight]
+                     features: 1 fragments, 2 JSON, 4 relay between clients, 8 server channels (scripts on)
+  3 PEERS      s->c  [u16 mask]   bit n = slot n+1 said HELLO (re-sent to every capable player when it changes)
+data 0x1E1      [u32 channel id = FNV-1a(name)][u8 flags][u8 target][u16 message id][bytes]
+  flags   1 first fragment, 2 last fragment, 4 JSON payload (else raw bytes)
+  target  0 server, 1 host, 0xFF everybody else, 0x10 + slot (0x11..0x20) one player
+```
+
+A client sends HELLO after the world started (before admission the server drops the connection like for any other opcode); the
+server never sends 0x1E0/0x1E1 to a slot that did not. A message is cut into fragments of at most `max fragment` data bytes,
+fragments of one message are in order and share the message id (per sender); a message needs both the first and the last flag
+(a single wire message has both). The server relays fragments unchanged to the capable recipients with the real sender in the
+header's origin (sender 0 = the server for its own messages), and reassembles only messages for the server. Limits (all
+options): token bucket per session, messages in flight per sender, channels per client, message size, reassembly memory per
+session and in total, fragment timeout. Over the KCP/SBT transport the frames are the same messages.
+
+## Status messages to the game window (0x410)
+
+Sacred.exe starts the server as `CreateProcess("GameServer.exe", "quiet <HWND>[ netlog][ tincatlog]")`; the number is the decimal handle of the game's main window (app object +0xB0). In "quiet" mode the server posts `PostMessageA(hwnd, 0x410, code, value)` to it (GameServer.exe FUN_004C27B0 / FUN_004C3F20); the game handles WM 0x410 in FUN_007EF640 (called from its window procedure at 0x813561): each code logs "Gameserver status: ..." and the error codes show a message. Implemented in `Platform/GameStatus.cs`, Windows only and only with a handle (a no-op elsewhere; blittable `DllImport`, AOT safe).
+
+| Code | Value | Game's text | Sent by the original | Here |
+|---|---|---|---|---|
+| 1 | 0 | started | after start-up checks | at start-up |
+| 2 | attempt 1..5 | testing port | before each try to open the network session | once (attempt 1) before the listener is opened |
+| 3 | 0 | doing full reset | before the session loop restarts | not sent (no restart) |
+| 4 | 0 | up and running | lobby login done / session ready | lobby accepted the game; without a lobby: listener open |
+| 5 | 0 | graceful exit | normal shutdown | at the end of a normal shutdown |
+| 6 | 0 | network failed | the original quits after losing the lobby | not sent (the lobby client keeps retrying) |
+| 7 | 0 | init failed | the session could not be opened (port in use) | TCP port already in use (exit code 3) |
+| 8 | 0 | could not connect to lobby server | lobby unreachable (then quits) | first failed lobby connect, once |
+| 9 | error | lobby login failed, error #n | lobby login refused | lobby result code of the login |
+| 10 | 0 | backconnect failed | the lobby could not reach the game's port | not sent (sacred-lobby has no such result) |
+| 11 | 0 | wrong OS version | OS too old | never |

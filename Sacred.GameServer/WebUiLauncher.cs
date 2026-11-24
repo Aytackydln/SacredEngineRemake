@@ -22,6 +22,7 @@ internal static class WebUiLauncher
         if (WebUiServer.Validate(options) is { } problem) { error = problem; Log.Info("ERROR: " + problem); return null; }
         try
         {
+            host.TrackHeroes = true;                                         // player data for /api/heroes and /public/heroes
             var server = new WebUiServer(options, host, Log.Info);
             server.StartAsync().GetAwaiter().GetResult();
             return server;

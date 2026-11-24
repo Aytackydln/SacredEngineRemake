@@ -11,11 +11,14 @@ public class FloodTests
     {
         public readonly GameServerHost Host;
         private readonly Thread _thread;
-        public Server(Action<GameServerConfig> configure)
+        /// <summary>A clock the test moves by hand (flood buckets only), so refills never depend on how fast the machine is.</summary>
+        public long Now = 1000;
+        public Server(Action<GameServerConfig> configure, bool manualClock = false)
         {
             var config = new GameServerConfig { TcpPort = 0, LanAnnounce = false, TickMilliseconds = 5 };
             configure(config);
             Host = new GameServerHost(config, new AdmissionRules(null), null);
+            if (manualClock) Host.FloodClock = () => Volatile.Read(ref Now);
             _thread = new Thread(Host.Run) { IsBackground = true };
             _thread.Start();
         }
@@ -32,6 +35,18 @@ public class FloodTests
         var joiner = RawClient.Admit(server.Port, "Joiner", 2);
         joiner.Send(0x015, default); joiner.Send(0x017, default); joiner.WaitFor(0x017);
         return (host, joiner);
+    }
+
+    /// <summary>Receives <paramref name="opcode"/> until forwarded + dropped (since <paramref name="dropsBefore"/>) reaches <paramref name="sent"/>;
+    /// returns the forwarded count. The 30 s limit only guards against a hang, it never decides the result.</summary>
+    private static int Settle(Server server, RawClient receiver, int sent, long dropsBefore, ushort opcode = 0x1B0)
+    {
+        var forwarded = 0;
+        var guard = Environment.TickCount64 + 30_000;
+        while (forwarded + (server.Host.FloodDrops - dropsBefore) < sent && Environment.TickCount64 < guard)
+            if (receiver.TryReceive(50) is { } m && m.Opcode == opcode) forwarded++;
+        Assert.AreEqual(sent, forwarded + (int)(server.Host.FloodDrops - dropsBefore), "every message accounted for");
+        return forwarded;
     }
 
     private static int Count(RawClient client, ushort opcode, int windowMs = 600)
@@ -106,14 +121,23 @@ public class FloodTests
     [TestMethod]
     public void ExcessMessagesAreDroppedAndTheFlooderIsRemoved()
     {
-        using var server = new Server(c => { c.Flood.Enabled = true; c.Flood.MessagesPerSecond = 20; c.Flood.MessageBurst = 20; c.Flood.KickAfterDrops = 50; });
+        using var server = new Server(c => { c.Flood.Enabled = true; c.Flood.MessagesPerSecond = 20; c.Flood.MessageBurst = 60; c.Flood.KickAfterDrops = 50; }, manualClock: true);
         var (host, joiner) = Started(server);
         using (host) using (joiner)
         {
-            for (var i = 0; i < 40; i++) joiner.Send(0x1B0, Word((uint)i));
-            var forwarded = Count(host, 0x1B0);
-            Assert.IsTrue(forwarded is >= 10 and < 40, $"forwarded {forwarded} of 40");
-            Assert.IsTrue(server.Host.FloodDrops > 0);
+            // The clock stands still: the joiner has its burst (60) minus what admission and world entry used, nothing refills.
+            // No wall time enters the assertions: the test waits until every message is accounted for (forwarded or dropped).
+            var drops = server.Host.FloodDrops;
+            for (var i = 0; i < 80; i++) joiner.Send(0x1B0, Word((uint)i));
+            var forwarded = Settle(server, host, 80, drops);
+            var dropped = (int)(server.Host.FloodDrops - drops);
+            Assert.AreEqual(80, forwarded + dropped);
+            Assert.IsTrue(forwarded is > 40 and < 60, $"forwarded {forwarded} of 80");
+            Volatile.Write(ref server.Now, server.Now + 500);                  // half a second later: exactly 10 more tokens
+            drops = server.Host.FloodDrops;
+            for (var i = 0; i < 12; i++) joiner.Send(0x1B0, Word((uint)i));
+            Assert.AreEqual(10, Settle(server, host, 12, drops));
+            Assert.AreEqual(2, server.Host.FloodDrops - drops);
             for (var i = 0; i < 200; i++) joiner.Send(0x1B0, Word((uint)i));
             joiner.WaitFor(0x157);                                            // kicked
             host.WaitFor(0x150);
@@ -123,14 +147,15 @@ public class FloodTests
     [TestMethod]
     public void ChatSpamIsMutedNotKicked()
     {
-        using var server = new Server(c => { c.Flood.Enabled = true; c.Flood.ChatPerSecond = 1; c.Flood.ChatBurst = 3; c.Flood.KickAfterDrops = 5; });
+        using var server = new Server(c => { c.Flood.Enabled = true; c.Flood.ChatPerSecond = 1; c.Flood.ChatBurst = 3; c.Flood.KickAfterDrops = 5; }, manualClock: true);
         var (host, joiner) = Started(server);
         using (host) using (joiner)
         {
             var line = new byte[4 + 6];
             "h\0i\0"u8.CopyTo(line.AsSpan(4));
+            var before = server.Host.FloodDrops;
             for (var i = 0; i < 30; i++) joiner.Send(0x005, line);
-            Assert.AreEqual(3, Count(host, 0x005));
+            Assert.AreEqual(3, Settle(server, host, 30, before, 0x005));
             Assert.IsTrue(joiner.Silent(0x157), "a chat spammer is muted, not removed");
         }
     }

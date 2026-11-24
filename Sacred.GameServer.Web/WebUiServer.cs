@@ -107,6 +107,19 @@ public sealed class WebUiServer : IAsyncDisposable
         app.MapGet("/api/players", (RequestDelegate)(c => Json(c.Response, _admin.Players().ToArray(), WebUiJson.Default.PlayerInfoArray)));
         app.MapGet("/api/bans", (RequestDelegate)(c => Json(c.Response, _admin.Bans().ToArray(), WebUiJson.Default.BanEntryArray)));
         app.MapGet("/api/flood", (RequestDelegate)(c => Json(c.Response, _admin.Flood(), WebUiJson.Default.FloodSettings)));
+        app.MapGet("/api/heroes", (RequestDelegate)(c => Json(c.Response, _admin.Heroes().ToArray(), WebUiJson.Default.HeroInfoArray)));
+        app.MapGet("/api/heroes/{slot:int}", (RequestDelegate)(c => HeroEndpoint(c, publicView: false)));
+        app.MapGet("/mods", (RequestDelegate)(c => Html(c.Response, Pages.ModsPage(_admin, _options.PublicApi))));
+        app.MapGet("/api/mods", (RequestDelegate)(c => Json(c.Response, _admin.ModEndpoints().ToArray(), WebUiJson.Default.ModEndpointInfoArray)));
+        app.MapGet("/api/mods/installed", (RequestDelegate)(c => Json(c.Response, _admin.Mods().ToArray(), WebUiJson.Default.ModInfoArray)));
+        app.MapGet("/mods/{mod}/{**path}", (RequestDelegate)(c => ModEndpoint(c, publicOnly: false)));
+        if (_options.PublicApi)
+        {
+            app.MapGet("/public/heroes", (RequestDelegate)(c => Json(c.Response, _admin.Heroes().Select(Public).ToArray(), WebUiJson.Default.HeroInfoArray)));
+            app.MapGet("/public/heroes/{name}", (RequestDelegate)(c => HeroEndpoint(c, publicView: true)));
+            app.MapGet("/public/mods", (RequestDelegate)(c => Json(c.Response, _admin.ModEndpoints().Where(e => e.Public).ToArray(), WebUiJson.Default.ModEndpointInfoArray)));
+            app.MapGet("/public/mods/{mod}/{**path}", (RequestDelegate)(c => ModEndpoint(c, publicOnly: true)));
+        }
         app.MapGet("/api/chat", (RequestDelegate)ChatPageEndpoint);
         app.MapGet("/api/chat/stream", (RequestDelegate)ChatStreamEndpoint);
         app.MapPost("/api/{command}", (RequestDelegate)ApiCommandEndpoint);
@@ -121,6 +134,51 @@ public sealed class WebUiServer : IAsyncDisposable
     }
 
     private Task FragmentEndpoint(HttpContext context) => Html(context.Response, Pages.State(_admin));
+
+    /// <summary>The public view never shows the account part of a lobby name nor the slot.</summary>
+    private static HeroInfo Public(HeroInfo hero) => hero with { Account = null, Slot = 0 };
+
+    /// <summary><c>/api/heroes/{slot}</c> (admin) or <c>/public/heroes/{character name}</c>.</summary>
+    private Task HeroEndpoint(HttpContext context, bool publicView)
+    {
+        var heroes = _admin.Heroes();
+        HeroInfo? hero;
+        if (publicView)
+        {
+            var name = (string?)context.GetRouteValue("name") ?? "";
+            hero = heroes.FirstOrDefault(h => h.Character.Equals(name, StringComparison.OrdinalIgnoreCase));
+            if (hero is not null) hero = Public(hero);
+        }
+        else
+        {
+            var slot = Convert.ToInt32(context.GetRouteValue("slot"), System.Globalization.CultureInfo.InvariantCulture);
+            hero = heroes.FirstOrDefault(h => h.Slot == slot);
+        }
+        return hero is null ? Fail(context.Response, 404, "no such hero online") : Json(context.Response, hero, WebUiJson.Default.HeroInfo);
+    }
+
+    /// <summary><c>/mods/{mod}/{path}</c>: a script endpoint, answered by its Lua handler on the game loop.</summary>
+    private async Task ModEndpoint(HttpContext context, bool publicOnly)
+    {
+        var mod = (string?)context.GetRouteValue("mod") ?? "";
+        var path = (string?)context.GetRouteValue("path") ?? "";
+        var query = context.Request.Query.Select(q => KeyValuePair.Create(q.Key, q.Value.ToString())).Take(64).ToArray();
+        ModResponse answer;
+        try { answer = await _admin.ModRequest(mod, path, query, publicOnly, context.RequestAborted).ConfigureAwait(false); }
+        catch (TimeoutException) { answer = new ModResponse(504, "text/plain; charset=utf-8", "the script did not answer in time"); }
+        catch (OperationCanceledException) { return; }
+        context.Response.StatusCode = answer.Status;
+        context.Response.ContentType = answer.ContentType;
+        // Script output is data, not part of this site. Endpoints: nothing runs. Pages: their own inline scripts and styles run, but in
+        // a sandbox (opaque origin), so they cannot use the admin's credentials for this site's API; no forms, no base, no plugins;
+        // they may fetch (connect-src 'self', public endpoints answer CORS *) and show images.
+        context.Response.Headers.ContentSecurityPolicy = (answer.Page
+                ? "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: https:; connect-src 'self'; form-action 'none'; base-uri 'none'"
+                : "default-src 'none'; style-src 'unsafe-inline'; img-src data: https:")
+            + "; frame-ancestors " + (publicOnly ? "*" : FrameAncestors());
+        if (publicOnly) context.Response.Headers.Remove("X-Frame-Options");          // public data may be embedded anywhere
+        await context.Response.WriteAsync(answer.Body, context.RequestAborted).ConfigureAwait(false);
+    }
 
     private async Task ChatPageEndpoint(HttpContext context)
     {
@@ -291,6 +349,16 @@ public sealed class WebUiServer : IAsyncDisposable
         var request = context.Request; var response = context.Response;
         SetSecurityHeaders(response);
         if (_options.PathBase.Length > 0 && !request.PathBase.HasValue) { response.StatusCode = StatusCodes.Status404NotFound; return; }
+        // The public read-only API: anybody may read it, from any page (embeds, overlays); GET only, no credentials.
+        if (_options.PublicApi && request.Path.StartsWithSegments("/public"))
+        {
+            response.Headers.AccessControlAllowOrigin = "*";
+            response.Headers.CacheControl = "public, max-age=2";
+            if (HttpMethods.IsOptions(request.Method)) { response.Headers.AccessControlAllowMethods = "GET"; response.StatusCode = StatusCodes.Status204NoContent; return; }
+            if (!HttpMethods.IsGet(request.Method)) { response.StatusCode = StatusCodes.Status405MethodNotAllowed; return; }
+            await next().ConfigureAwait(false);
+            return;
+        }
         if (!HostAllowed(request.Host.Host)) { response.StatusCode = StatusCodes.Status400BadRequest; return; }
         var origin = request.Headers.Origin.ToString();
         var corsAllowed = origin.Length > 0 && OriginAllowed(origin);

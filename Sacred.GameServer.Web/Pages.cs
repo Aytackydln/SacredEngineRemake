@@ -29,6 +29,7 @@ internal static class Pages
         var sb = new StringBuilder(24 * 1024);
         sb.Append("<div class=\"app\">");
         sb.Append("<header class=\"top\"><div class=\"brand\"><span class=\"logo\">").Append(Icon("shield")).Append("</span><div><b>Sacred GameServer</b><small>management</small></div></div>");
+        Tabs(sb, "server", admin.Mods().Count);
         Head(sb, o);
         sb.Append("<button id=\"theme\" type=\"button\" class=\"themebtn ghost\" aria-label=\"Change theme\"></button></header><main class=\"grid\"><div class=\"col\">");
         Players(sb, players);
@@ -148,6 +149,69 @@ internal static class Pages
     {
         string Inner(bool state) => Icon(state ? onIcon : offIcon) + "<b>" + (state ? onTitle : offTitle) + "</b><small>" + (state ? onHint : offHint) + "</small>";
         Form(sb, action, $"<input type=\"hidden\" name=\"value\" value=\"{(on ? 0 : 1)}\"><button class=\"tile {(on ? "active" : "")}\" data-alt=\"{E(Inner(!on))}\">{Inner(on)}</button>");
+    }
+
+    /// <summary>The header tabs: the server page and the mods page.</summary>
+    private static void Tabs(StringBuilder sb, string current, int mods)
+    {
+        sb.Append("<nav class=\"tabs\" aria-label=\"Sections\">")
+          .Append("<a href=\"./\"").Append(current == "server" ? " aria-current=\"page\"" : "").Append(">").Append(Icon("pulse")).Append("Server</a>")
+          .Append("<a href=\"mods\"").Append(current == "mods" ? " aria-current=\"page\"" : "").Append(">").Append(Icon("users")).Append("Mods <span class=\"count\">")
+          .Append(mods).Append("</span></a></nav>");
+    }
+
+    /// <summary>
+    /// <c>GET /mods</c>: one card per mod (script file) with its pages and its endpoints listed apart. Links open in a new tab; pages
+    /// run sandboxed (see WebUiServer.ModEndpoint). Public ones show their <c>/public/mods/...</c> address too.
+    /// </summary>
+    public static string ModsPage(IServerAdmin admin, bool publicApi)
+    {
+        var o = admin.Overview();
+        var mods = admin.Mods().OrderBy(m => m.Mod, StringComparer.OrdinalIgnoreCase).ToList();
+        var sb = new StringBuilder(8 * 1024);
+        sb.Append("<div class=\"app\">");
+        sb.Append("<header class=\"top\"><div class=\"brand\"><span class=\"logo\">").Append(Icon("shield")).Append("</span><div><b>Sacred GameServer</b><small>")
+          .Append(E(o.Name)).Append("</small></div></div>");
+        Tabs(sb, "mods", mods.Count);
+        sb.Append("</header><main class=\"modgrid\">");
+        if (mods.Count == 0)
+            sb.Append("<section class=\"card\"><div class=\"empty\">").Append(Icon("users")).Append("<p>No mods installed.</p>")
+              .Append("<small>Put .lua scripts into the scripts folder; they load without a restart.</small></div></section>");
+        foreach (var mod in mods)
+        {
+            var pages = mod.Items.Where(m => m.Page).OrderBy(m => m.Path, StringComparer.OrdinalIgnoreCase).ToList();
+            var endpoints = mod.Items.Where(m => !m.Page).OrderBy(m => m.Path, StringComparer.OrdinalIgnoreCase).ToList();
+            sb.Append("<section class=\"card mod\"><h2>").Append(Icon("pulse")).Append(E(mod.Mod)).Append(".lua");
+            // The description behind a (?): shown on hover, on keyboard focus and on tap (a tap focuses the button), no script needed.
+            if (mod.Description is { Length: > 0 } about)
+                sb.Append("<button type=\"button\" class=\"help\" aria-label=\"About ").Append(E(mod.Mod)).Append("\">?<span class=\"tip\" role=\"tooltip\">")
+                  .Append(E(about)).Append("</span></button>");
+            sb.Append("</h2>");
+            if (mod.Error is { Length: > 0 } error) sb.Append("<p class=\"moderror\">Failed to load: ").Append(E(error)).Append("</p>");
+            ModList(sb, "Pages", pages, publicApi);
+            ModList(sb, "Endpoints", endpoints, publicApi);
+            sb.Append("</section>");
+        }
+        sb.Append("</main></div>");
+        return Assets.Page("Mods - " + E(o.Name) + " - Sacred GameServer", sb.ToString(), ["app.css"], []);
+    }
+
+    private static void ModList(StringBuilder sb, string title, List<ModEndpointInfo> items, bool publicApi)
+    {
+        sb.Append("<h3>").Append(title).Append(" <span class=\"count\">").Append(items.Count).Append("</span></h3>");
+        if (items.Count == 0) { sb.Append("<p class=\"dim small\">none</p>"); return; }
+        sb.Append("<ul class=\"modlist\">");
+        foreach (var m in items)
+        {
+            var path = "mods/" + Uri.EscapeDataString(m.Mod) + "/" + string.Join('/', m.Path.Split('/').Select(Uri.EscapeDataString));
+            sb.Append("<li><a href=\"").Append(E(path)).Append("\" target=\"_blank\" rel=\"noopener noreferrer\"><b>/").Append(E(m.Path.Length == 0 ? "" : m.Path))
+              .Append(m.Path.Length == 0 ? "(index)" : "").Append("</b></a>");
+            if (m.Public) sb.Append(" <span class=\"pill ").Append(publicApi ? "ok" : "").Append("\">").Append(publicApi ? "public" : "public (API off)").Append("</span>");
+            if (m.Description is { Length: > 0 } d) sb.Append("<small>").Append(E(d)).Append("</small>");
+            if (m.Public && publicApi) sb.Append("<small class=\"dim\">/public/").Append(E(path)).Append("</small>");
+            sb.Append("</li>");
+        }
+        sb.Append("</ul>");
     }
 
     private static void Bans(StringBuilder sb, IReadOnlyList<BanEntry> bans)

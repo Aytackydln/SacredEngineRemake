@@ -23,6 +23,11 @@ public sealed class AuthoritativeOptions
     /// <summary>Quiet time after a trade/pick-up before the changed hero is saved, in milliseconds.</summary>
     public int SaveDebounceMilliseconds { get; set; } = 1500;
 
+    /// <summary>Refuse item states that no legitimate item has (sockets, item types against the game tables; Auth/ItemGuard.cs).</summary>
+    public bool CheckItems { get; set; } = true;
+    /// <summary>Highest hero level a player's hero may report (Sacred Gold caps at 216; 0 = no check). Above it the player is removed.</summary>
+    public int MaxHeroLevel { get; set; } = 216;
+
     /// <summary>Applies one config key (already upper-cased, '-' replaced by '_'). Returns false for unknown keys.</summary>
     public bool Apply(string key, string value)
     {
@@ -34,6 +39,8 @@ public sealed class AuthoritativeOptions
             case "AUTH_MAX_VIOLATIONS": MaxViolations = Math.Max(0, Int(value, MaxViolations)); return true;
             case "AUTH_LOCK_DIFFICULTY": LockDifficulty = Int(value, 1) != 0; return true;
             case "AUTH_SAVE_INTERVAL": SaveIntervalSeconds = Math.Max(0, Int(value, SaveIntervalSeconds)); return true;
+            case "AUTH_CHECK_ITEMS": CheckItems = Int(value, 1) != 0; return true;
+            case "AUTH_MAX_HERO_LEVEL": MaxHeroLevel = Math.Max(0, Int(value, MaxHeroLevel)); return true;
             case "AUTH_SAVE_DEBOUNCE_MS": SaveDebounceMilliseconds = Math.Max(0, Int(value, SaveDebounceMilliseconds)); return true;
         }
         return false;

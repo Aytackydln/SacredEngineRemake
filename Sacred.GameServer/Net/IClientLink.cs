@@ -39,5 +39,7 @@ public interface IClientListener : IDisposable
     string Transport { get; }
     int Port { get; }
     ConcurrentQueue<IClientLink> Accepted { get; }
+    /// <summary>The address and port the listener is bound to (null when it has no socket).</summary>
+    System.Net.IPEndPoint? LocalEndPoint => null;
     void Start();
 }

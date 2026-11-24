@@ -61,8 +61,14 @@ public static class Routing
         // Consumed by the server's own state (inventories and NW_ITEM cheat protection 0x12x/0x13E/0x144, references, free-slot
         // checks, ...): no network effect in the original either, so they are dropped without the "unhandled" log.
         foreach (var opcode in (ReadOnlySpan<ushort>)[0x10E, 0x10F, 0x122, 0x123, 0x129, 0x12A, 0x12B, 0x12C, 0x130, 0x131, 0x13E,
-            0x144, 0x14F, 0x155, 0x172, 0x176, 0x17F, 0x18A, 0x197, 0x19C, 0x19D])
+            0x13F, 0x144, 0x14F, 0x155, 0x172, 0x176, 0x17F, 0x18A, 0x197, 0x19C, 0x19D,
+            // Cases without any network effect in the original (docs/protocol.md "Opcode table"): flag bits, lobby/menu bookkeeping,
+            // host menu helpers, the object visibility bit.
+            0x006, 0x007, 0x024, 0x025, 0x029, 0x031, 0x038, 0x03A, 0x03C, 0x03E, 0x103, 0x107, 0x168])
             Consumed[opcode] = true;
+        // 0x13F [item ref][cell][inventory id] (case 0x4C69EE -> FUN_004D37F0, SETITEM "put into inventory"): updates the server's own
+        // object and inventory; it only sends (0x16A to the viewers, mode 6) when its cheat protection corrects the item, which needs
+        // the server's object world. Dropped silently in every mode; the authoritative checks run before in CaptureHeroState.
         // 0x14F (9940 bytes, sent on entering and on leaving): the player's statistics block; case 0x4C6030 copies it into the
         // cStatsManager slot of the sender (FUN_00477500 / FUN_00477490, 0x26D4 bytes) and does nothing else.
         // 0x17F NW_FIGHT_ENEMY_SPOTTED (case 0x4C61C7 -> FUN_004CE530, pairs [creature ref][value]): sets/clears the creature's
@@ -71,12 +77,21 @@ public static class Routing
         // Commands the original's own menu/lobby thread posts into its queue (lobby connect/logout 0x10A..0x10C, 0x109, release
         // refs 0x152, savegame start positions 0x15A, host hand-over 0x15B). A client must not be able to trigger them, so they
         // are dropped. 0x153/0x154 are client requests (Session/GameServerHost.References.cs).
-        foreach (var opcode in (ReadOnlySpan<ushort>)[0x109, 0x10A, 0x10B, 0x10C, 0x152, 0x15A, 0x15B])
+        foreach (var opcode in (ReadOnlySpan<ushort>)[0x109, 0x10A, 0x10B, 0x10C, 0x152, 0x15A, 0x15B,
+            // lobby/menu thread commands that send to a lobby id, kick (0x034) or broadcast service codes; the original runs them from
+            // any sender, we do not let a client trigger them
+            0x032, 0x034, 0x035, 0x036, 0x037, 0x039, 0x03B, 0x03D, 0x040, 0x101, 0x102, 0x104, 0x105, 0x106, 0x118])
             Internal[opcode] = true;
+        // Network effects that need state this server does not model yet (OpcodeTable class Todo): dropped silently.
+                // (no opcode is pending any more; see OpcodeClass.Todo)
     }
 
     private static readonly bool[] Consumed = new bool[OpcodeLimit];
     private static readonly bool[] Internal = new bool[OpcodeLimit];
+    private static readonly bool[] Pending = new bool[OpcodeLimit];
+
+    /// <summary>Native opcodes whose network effect in the original needs unmodelled state (trade, object world); dropped.</summary>
+    public static bool IsPending(ushort opcode) => opcode < OpcodeLimit && Pending[opcode];
 
     /// <summary>Messages the original only applies to its own state.</summary>
     public static bool IsConsumed(ushort opcode) => opcode < OpcodeLimit && Consumed[opcode];

@@ -24,7 +24,14 @@ public sealed class ItemFootprints
     private const int CategoryOffset = 0x2E, RowEntryOffset = 0x18, OverlayTargetOffset = 0x76;
     private const int RowWidthOffset = 0x1C, RowHeightOffset = 0x1D, RowBaseOffset = 0x24, RowTypeOffset = 0x80;
 
-    private readonly byte[] _width = new byte[ResourceCount], _height = new byte[ResourceCount];
+    private readonly byte[] _width = new byte[ResourceCount], _height = new byte[ResourceCount], _category = new byte[ResourceCount];
+    private readonly ushort[] _base = new ushort[ResourceCount];
+
+    /// <summary>The descriptor category byte (+0x2E) of <paramref name="resource"/> after all fixes; 0 = not an item type.</summary>
+    public byte Category(uint resource) => resource < ResourceCount ? _category[resource] : (byte)0;
+
+    /// <summary>The base type a Weapon.pak row names for <paramref name="resource"/> (row +0x24), or 0.</summary>
+    public uint Base(uint resource) => resource < ResourceCount ? _base[resource] : 0u;
 
     /// <summary>Resources whose footprint comes from a Weapon.pak row (diagnostics).</summary>
     public int FromRows { get; private set; }
@@ -66,6 +73,7 @@ public sealed class ItemFootprints
     {
         var category = new byte[ResourceCount];
         var entry = new ushort[ResourceCount];
+        var bases = new ushort[ResourceCount];
         if (!ReadDescriptors(items, overlay: false, category, entry)) throw new InvalidDataException("Items.pak is not an item table");
         category[0xFEC] = category[0xFF2] = 0x16;                            // FUN_00404aa0, before the overlays
         category[0xFE9] = category[0xFEA] = category[0xFEB] = 0x18;
@@ -92,10 +100,12 @@ public sealed class ItemFootprints
             var row = rows.Slice(i * RowBytes, RowBytes);
             var parent = BinaryPrimitives.ReadInt32LittleEndian(row[RowBaseOffset..]);
             var type = BinaryPrimitives.ReadInt32LittleEndian(row[RowTypeOffset..]);
-            if (parent > 0 && parent < ResourceCount && type > 0 && type < ResourceCount) category[type] = category[parent];
+            if (parent > 0 && parent < ResourceCount && type > 0 && type < ResourceCount) { category[type] = category[parent]; bases[type] = (ushort)parent; }
         }
 
         var result = new ItemFootprints();
+        category.CopyTo(result._category, 0);
+        bases.CopyTo(result._base, 0);
         for (var resource = 0; resource < ResourceCount; resource++)
         {
             int w, h;

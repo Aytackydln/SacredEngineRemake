@@ -30,8 +30,10 @@ public sealed class PlayerSession
     public ushort CurrentSector;     // sector the player stands in (word +0 of its last 0x148)
     public long CharacterAskDueMs;   // Closed Net: ask the lobby (message 19) at this time unless the block was pushed by then
     public FloodState Flood;         // flood protection buckets (Session/FloodGuard.cs)
+    public long JoinedMs;            // server clock at admission (online time)
     public int Violations;           // authoritative mode: rejected client values
     public long HeroSaveDueMs, NextPeriodicSaveMs;   // authoritative mode: debounced / periodic hero save to the lobby (0 = none)
+    public readonly TradeState Trade = new();   // 0x198 trade state (GameServerHost.Trade.cs)
     public bool CharacterReceived;   // +0x8D, Closed Net character delivered
 
     public string Describe() => Slot != 0 ? $"#{Slot} {Name}" : $"{Connection.RemoteEndPoint}";

@@ -12,6 +12,9 @@ using Sacred.Network.Admission;
 
 namespace Sacred.GameServer.Session;
 
+/// <summary>Handler of an opcode above the native range (see <see cref="GameServerHost.RegisterOpcode"/>).</summary>
+public delegate void MessageHandler(PlayerSession player, in GoldMessageView message);
+
 /// <summary>
 /// The dedicated server: accepts clients, performs TinCat login and FIRSTCONTACT admission and runs the fixed-step game loop.
 /// Everything below <see cref="Run"/> executes on one thread; I/O threads only enqueue verified frames. The loop and packet paths
@@ -34,7 +37,18 @@ public sealed partial class GameServerHost : IDisposable
     private readonly ZlibInflater _inflater = new();
     private readonly ZlibDeflater _deflater = new();
     private readonly byte[] _relay = new byte[16 * 1024];
+    /// <summary>
+    /// Claims an opcode above the native range (0x1D5) for an extension (e.g. the Gear envelope opcodes 0x1E0/0x1E1). Its handler
+    /// runs for every message with that opcode after admission, before the native routing. Native opcodes cannot be claimed.
+    /// </summary>
+    public void RegisterOpcode(ushort opcode, MessageHandler handler)
+    {
+        if (opcode <= OpcodeTable.NativeLast) throw new ArgumentOutOfRangeException(nameof(opcode), "native opcodes cannot be claimed");
+        _extensions[opcode] = handler;
+    }
+
     private readonly bool[] _seenUnhandled = new bool[4096];
+    private readonly Dictionary<ushort, MessageHandler> _extensions = new();
     private readonly LanAnnouncer? _lan;
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private uint _nextTinCatId = 0x100;
@@ -50,9 +64,10 @@ public sealed partial class GameServerHost : IDisposable
     public GameServerHost(GameServerConfig config, AdmissionRules rules, LanAnnouncer? lan)
     {
         _config = config; _rules = rules; _lan = lan;
-        _acceptor = new TcpAcceptor(config.TcpPort, _inbox);
+        _acceptor = new TcpAcceptor(config.TcpPort, _inbox, config.BindAddress);
         _listeners.Add(_acceptor);
         InitializeSession();
+        InitializeNetOps();
     }
 
     private readonly CancellationTokenSource _stopCts = new();
@@ -60,7 +75,18 @@ public sealed partial class GameServerHost : IDisposable
     /// <summary>Cancelled by <see cref="Stop"/>: every background part (lobby, web UI streams) ends on it at once.</summary>
     public CancellationToken StopToken => _stopCts.Token;
 
-    public void Stop() { _stop = true; try { _stopCts.Cancel(); } catch (ObjectDisposedException) { } }
+    public void Stop()
+    {
+        if (!_stop) StopRequestedMs = _clock.ElapsedMilliseconds;
+        _stop = true; try { _stopCts.Cancel(); } catch (ObjectDisposedException) { }
+    }
+
+    /// <summary>Server clock when <see cref="Stop"/> was first called (shutdown timing in the log), -1 before.</summary>
+    public long StopRequestedMs { get; private set; } = -1;
+    /// <summary>The transports (TCP acceptor first); tests check their local end points.</summary>
+    public IReadOnlyList<IClientListener> Listeners => _listeners;
+
+    public long ClockMs => _clock.ElapsedMilliseconds;
 
     /// <summary>Adds another transport (for example reliable UDP); it feeds the same inbox, so sessions work the same on it.
     /// Call before <see cref="Start"/>.</summary>
@@ -88,6 +114,7 @@ public sealed partial class GameServerHost : IDisposable
             while (_clock.ElapsedMilliseconds < next && !_stop) Thread.SpinWait(50);
         }
         EndSessionForPlayers();
+        StopScripts();
         foreach (var s in _sessions) s.Connection.Close();
         Log.Info("--- Gameserver Shutdown ---");
     }
@@ -137,6 +164,9 @@ public sealed partial class GameServerHost : IDisposable
         PumpEnvironment(now);
         PumpAdmin(now);
         OnTick?.Invoke(Tick);
+        PumpScripts(now);
+        PumpNetOps(now);
+        PumpHeroes(now);
         foreach (var s in _sessions) s.Connection.Flush();
         for (var i = _retired.Count - 1; i >= 0; i--)
             if (now >= _retired[i].Due) { _retired[i].Connection.ReleaseBuffers(); _retired.RemoveAt(i); }
@@ -273,6 +303,7 @@ public sealed partial class GameServerHost : IDisposable
         else if (_hostWorldAvailable) GrantReferences(s, JoinerReferenceGrant);
         SendEnvironment(s);
         Broadcast(0x151, s.Slot, default, except: s);
+        OnPlayerJoined(s);
     }
 
     private void OnPassword(PlayerSession s, in GoldMessageView m)

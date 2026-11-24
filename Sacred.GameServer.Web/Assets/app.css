@@ -8,6 +8,14 @@ body{margin:0;background:radial-gradient(1200px 600px at 10% -10%,var(--bg2),var
 .i{width:1.15em;height:1.15em;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none;vertical-align:-.2em}
 .app{max-width:1280px;margin:0 auto;padding:1rem}
 .top{display:flex;flex-wrap:wrap;align-items:center;gap:1rem 2rem;padding:.9rem 1.1rem;background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:1rem}
+.tabs{display:flex;gap:.4rem;flex-wrap:wrap}.tabs a{display:inline-flex;align-items:center;gap:.4rem;padding:.4rem .8rem;border-radius:999px;border:1px solid var(--line);color:var(--dim);text-decoration:none}
+.tabs a[aria-current=page]{color:var(--text);border-color:var(--gold);background:var(--card2)}.tabs a:hover{color:var(--text)}
+.help{position:relative;display:inline-flex;align-items:center;justify-content:center;width:1.3rem;height:1.3rem;min-height:0;margin-left:.4rem;padding:0;border-radius:50%;font-size:.75rem;line-height:1;color:var(--dim);background:var(--card2);border:1px solid var(--line);cursor:help;text-transform:none;letter-spacing:0}
+.help .tip{display:none;position:absolute;left:50%;top:calc(100% + .4rem);transform:translateX(-50%);z-index:5;width:max-content;max-width:min(22rem,80vw);padding:.5rem .7rem;border-radius:8px;background:var(--card);border:1px solid var(--gold);color:var(--text);font-size:.85rem;font-weight:400;text-align:left;white-space:normal;box-shadow:var(--shadow)}
+.help:hover .tip,.help:focus .tip,.help:focus-visible .tip{display:block}.moderror{color:var(--bad);font-size:.85rem;margin:.3rem 0}
+.modgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(20rem,1fr));gap:1rem}.mod h3{margin:.8rem 0 .4rem;font-size:.85rem;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
+.modlist{list-style:none;margin:0;padding:0;display:grid;gap:.45rem}.modlist li{display:flex;flex-wrap:wrap;align-items:baseline;gap:.2rem .5rem;padding:.45rem .6rem;background:var(--card2);border-radius:8px}
+.modlist small{flex-basis:100%;color:var(--dim)}.modlist a{color:var(--gold2);text-decoration:none}.modlist a:hover{text-decoration:underline}
 .brand{display:flex;align-items:center;gap:.7rem}.brand b{display:block;letter-spacing:.02em}.brand small{color:var(--dim)}
 .logo{display:grid;place-items:center;width:2.4rem;height:2.4rem;border-radius:9px;background:linear-gradient(135deg,var(--gold2),var(--gold));color:#2a1c05}.logo .i{width:1.4rem;height:1.4rem;stroke-width:2}
 .head{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem 1.6rem;flex:1}.head h1{margin:0;font-size:1.2rem;color:var(--gold2);font-weight:650}

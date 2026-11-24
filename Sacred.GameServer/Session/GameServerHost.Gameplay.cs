@@ -42,11 +42,15 @@ public sealed partial class GameServerHost
     /// <summary>Gameplay routing (after admission and password).</summary>
     private void Route(PlayerSession s, in GoldMessageView m)
     {
-        if (_config.Auth.Enabled && !AuthoritativeFilter(s, m)) return;
+        if (_config.Auth.Enabled) { if (!AuthoritativeFilter(s, m)) return; }
+        else if (TrackHeroes) CaptureHeroState(s, m);
+        if (_scripts is not null && ScriptMessage(s, m)) return;
+        if (m.Opcode > OpcodeTable.NativeLast && _extensions.TryGetValue(m.Opcode, out var extension)) { extension(s, m); return; }
         if (WorldMessage(s, m)) return;
         var mode = Routing.Mode(m.Opcode);
         if (mode != RouteMode.None) { Forward(s, m, mode, Routing.IncludeSender(m.Opcode)); return; }
         if (Routing.IsConsumed(m.Opcode)) return;
+        if (Routing.IsPending(m.Opcode)) return;
         if (Routing.IsInternal(m.Opcode)) { Log.Info($"#{s.Slot} sent internal server command 0x{m.Opcode:X3}, ignored"); return; }
         switch (m.Opcode)
         {
@@ -77,11 +81,18 @@ public sealed partial class GameServerHost
             case 0x043: AnswerProbe(s, m); return;                  // 0x4CC4B9
             case 0x044: case 0x045: ProbeResult(s, m); return;      // 0x4CC4FD / 0x4CC522
             case 0x134: case 0x135: Pause(s, m); return;            // 0x4C4830 / 0x4C47AB
+            case 0x004: OnGroupMessage(s, m); return;               // 0x4CA9A5
+            case 0x139: OnStatisticsRequest(s, m); return;          // 0x4C6C60
+            case 0x180: OnDirectedRelay(s, m); return;              // 0x4C69C0
+            case 0x198: OnTrade(s, m); return;                      // 0x4C850E: trade state machine (GameServerHost.Trade.cs)
+            case 0x01D: OnGameStart(s); return;                     // 0x4CAD99
+            case 0x17D: ForwardKill(s, m); return;                  // 0x4C647E: tails 0x4C97C4 (mode 6) / 0x4C81D1 (mode 8)
             case 0x156: case 0x157: Kick(s, m); return;             // 0x4C4A5B
+            case 0x150: case 0x01C: OnQuit(s, m); return;           // 0x4CA4F9 -> FUN_004d6ac0 (graceful quit / leave)
             case 0x1B1: case 0x1B2: case 0x1B3: case 0x1B4: StoreWorldBank(s, m); return; // 0x4C4CBB..0x4C4CF4
             case 0x1B5: SendWorldBanks(s); return;                  // 0x4C4C86
         }
-        if (m.Opcode < _seenUnhandled.Length && !_seenUnhandled[m.Opcode])
+        if (!OpcodeTable.IsNative(m.Opcode) && m.Opcode < _seenUnhandled.Length && !_seenUnhandled[m.Opcode])
         {
             _seenUnhandled[m.Opcode] = true;
             Log.Info($"unhandled opcode 0x{m.Opcode:X3} ({m.Payload.Length} bytes) from {s.Describe()}");
@@ -206,11 +217,13 @@ public sealed partial class GameServerHost
             for (var slot = 1; slot <= MaxSlots; slot++)             // 0x4CA0A4: 1000 refs to every other connected player
                 if (_slots[slot] is { IsHost: false } other && other.State >= SessionState.SlotAssigned) GrantReferences(other, JoinerReferenceGrant);
             Log.Info($"Host: The world has {_sectorCount} sectors. #{s.Slot} is in the game, joiners may follow.");
+            if (_scripts is not null) ScriptPlayerEvent("enter", s);
             return;
         }
         StreamWorldTo(s);
         SendMessage(s, 0x017, 0, s.Slot, default);
         Log.Info($"#{s.Slot} {s.Name} entered the world ({_world.Count} objects)");
+        if (_scripts is not null) ScriptPlayerEvent("enter", s);
     }
 
     private void StoreWorldBank(PlayerSession s, in GoldMessageView m)
@@ -259,6 +272,70 @@ public sealed partial class GameServerHost
         Log.Info("Gameflags changed by host.");
     }
 
+    /// <summary>0x01D (case 0x4CAD99): the host starts a campaign game; only before it entered the world and with a campaign flag
+    /// (0x40010), else service code 0x64. Sets flag 0x8000 and broadcasts 0x01E [flags] to everybody.</summary>
+    private void OnGameStart(PlayerSession s)
+    {
+        if (!s.IsHost || s.InGame || (_gameFlags & 0x40010) == 0) { SendServiceCode(s, NotAllowed); return; }
+        _gameFlags |= 0x8000;
+        Span<byte> payload = stackalloc byte[4];
+        BinaryPrimitives.WriteUInt32LittleEndian(payload, _gameFlags);
+        SendAll(0x01E, 0, payload);
+    }
+
+    /// <summary>
+    /// 0x17D [creature ref][killer word][..] (case 0x4C647E): the original applies the kill to its own object world (native event
+    /// 0x208, experience and loot messages; not modelled, TODO) and then forwards the message unchanged: mode 8 (sector visible and
+    /// in the object's mask) for a creature (reference above 0x10), mode 6 (object visible) when a hero died (reference = slot).
+    /// </summary>
+    private void ForwardKill(PlayerSession s, in GoldMessageView m)
+    {
+        var reference = m.Payload.Length >= 4 ? BinaryPrimitives.ReadUInt32LittleEndian(m.Payload) : 0;
+        Forward(s, m, reference > 0x10 ? RouteMode.SectorAndObject : RouteMode.ObjectVisible, includeSender: false);
+    }
+
+    private PlayerSession? ConnectedSlot(uint slot) =>
+        slot is >= 1 and <= MaxSlots && _slots[slot] is { } p && p.State >= SessionState.SlotAssigned ? p : null;
+
+    /// <summary>
+    /// 0x180 [target slot][...] (case 0x4C69C0): the message goes unchanged to the player in that slot (1..16), origin = the sender.
+    /// </summary>
+    private void OnDirectedRelay(PlayerSession s, in GoldMessageView m)
+    {
+        if (m.Payload.Length < 4) return;
+        if (ConnectedSlot(BinaryPrimitives.ReadUInt32LittleEndian(m.Payload)) is { } target) SendMessage(target, m.Opcode, 0, s.Slot, m.Payload);
+    }
+
+    /// <summary>
+    /// 0x004 [slot or lobby id][...] (case 0x4CA9A5): the original resolves the player (a value above 16 is a lobby id, matched against
+    /// +0x90), looks up that player's group in its statistics manager and sends the message unchanged to every member except the
+    /// sender (origin = sender). TODO: the group membership lives in the statistics manager (not modelled), so only the named player
+    /// itself receives the message here.
+    /// </summary>
+    private void OnGroupMessage(PlayerSession s, in GoldMessageView m)
+    {
+        if (m.Payload.Length < 4) return;
+        var who = BinaryPrimitives.ReadUInt32LittleEndian(m.Payload);
+        PlayerSession? target = null;
+        if (who is >= 1 and <= MaxSlots) target = ConnectedSlot(who);
+        else if (who > MaxSlots)
+            for (var slot = 1; slot <= MaxSlots && target is null; slot++)
+                if (_slots[slot] is { } candidate && candidate.LobbyIdentity == (int)who) target = candidate;
+        if (target is not null && target != s) SendMessage(target, m.Opcode, 0, s.Slot, m.Payload);
+    }
+
+    /// <summary>
+    /// 0x139 [player slot] (case 0x4C6C60): the original answers the requester with the request itself (origin = the asked player) and
+    /// then with a 0x13A of 0x48 bytes built from that player's statistics manager. TODO (0x4C6CD6): the 0x13A needs the statistics
+    /// block of the asked player (see 0x14F); only the first answer is sent here.
+    /// </summary>
+    private void OnStatisticsRequest(PlayerSession s, in GoldMessageView m)
+    {
+        if (m.Payload.Length < 4) return;
+        var asked = BinaryPrimitives.ReadUInt32LittleEndian(m.Payload);
+        SendMessage(s, m.Opcode, 0, (byte)asked, m.Payload);
+    }
+
     private void SetMaxPlayers(PlayerSession s, in GoldMessageView m)
     {
         if (!RequireHost(s) || s.InGame || m.Payload.Length < 4) { if (s.IsHost) SendServiceCode(s, NotAllowed); return; }
@@ -299,7 +376,7 @@ public sealed partial class GameServerHost
     /// first in-game player (FUN_004cdc50: 0x00D to the new host). Without a candidate the session ends: everybody is kicked with
     /// reason 0x10.
     /// </summary>
-    private void RemovePlayer(PlayerSession s, uint reason, bool notifyVictim)
+    private void RemovePlayer(PlayerSession s, uint reason, bool notifyVictim, bool closeConnection = true, bool echoToLeaver = false)
     {
         if (notifyVictim)
         {
@@ -308,7 +385,10 @@ public sealed partial class GameServerHost
             SendMessage(s, 0x157, 0, 0, kick);
             s.Connection.Flush();
         }
+        CancelTradeOf(s);
+        if (_scripts is not null) ScriptPlayerEvent("leave", s);
         if (_config.Auth.Enabled) AuthoritativeLeave(s);
+        else if (TrackHeroes) ForgetHeroState(s.Slot);
         var slot = s.Slot;
         if (slot != 0 && _slots[slot] == s) RecordChat(ChatKind.System, s, -1, reason == ReasonLeft ? "left" : $"removed (reason {reason})");
         var wasHost = s.IsHost;
@@ -318,12 +398,31 @@ public sealed partial class GameServerHost
             _slots[slot] = null; PlayerCount--; LobbyPlayerRemoved(s); _world.Forget(slot);
             ReleaseReferences(slot); LeaveAllSectors(slot);
         }
-        s.State = SessionState.Closed;
         Span<byte> departure = stackalloc byte[4];
         BinaryPrimitives.WriteUInt32LittleEndian(departure, reason);
+        // Mode 1 of the original's broadcast (except = 0x11) reaches the leaver too: its own 0x150 copy, origin = its slot.
+        if (echoToLeaver && slot != 0 && !s.Connection.IsClosed) SendMessage(s, 0x150, 0, slot, departure);
+        s.State = SessionState.Closed;
         if (slot != 0) SendAll(0x150, slot, departure);
         if (wasHost) TransferHost();
-        s.Connection.Close();
+        if (closeConnection) s.Connection.Close();   // a graceful 0x150 leaves the close to the client, like the original
+    }
+
+    /// <summary>
+    /// Client 0x150 and 0x01C [u32 reason] (case 0x4CA4F9, one handler): the player leaves. The original calls
+    /// FUN_004d6ac0(slot, 1, opcode != 0x1C, reason): 0x150 [reason] (origin = player) to everybody connected, no 0x157 to the
+    /// leaver and the connection is left to the client to drop (0x150, the ESC menu's "Quit"); 0x1C additionally sends 0x157 to
+    /// the leaver, tells the others except the leaver and closes the connection itself. The leave path runs once per player
+    /// (flag +0x7D), so the TCP close that follows changes nothing. TODO (address 0x4CA4F9): with reason 7 the original also
+    /// resets the leaver's creature object in its own world (FUN_00510f0c/FUN_004eab00), which this server does not model.
+    /// </summary>
+    private void OnQuit(PlayerSession s, in GoldMessageView m)
+    {
+        if (s.State == SessionState.Closed || s.Slot == 0 || _slots[s.Slot] != s) return;
+        var reason = m.Payload.Length >= 4 ? BinaryPrimitives.ReadUInt32LittleEndian(m.Payload) : 0;
+        var withKick = m.Opcode == 0x01C;
+        Log.Info($"{s.Describe()} left the game (opcode 0x{m.Opcode:X3}, reason {reason}).");
+        RemovePlayer(s, reason, notifyVictim: withKick, closeConnection: withKick, echoToLeaver: !withKick);
     }
 
     private void TransferHost()

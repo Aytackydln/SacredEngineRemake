@@ -25,6 +25,7 @@ public static class CommandLine
     public static readonly OptionSpec[] Options =
     [
         // ---- the original GameServer.exe's Gameserver.cfg keys, as options ----
+        new("Network", "bind", OptionKind.Text, "bind the TCP and UDP listeners to this address only, e.g. 127.0.0.1 (default: every interface; loopback also turns LAN announce off)", "127.0.0.1", Aliases: ["bind-address", "network-bind"]),
         new("Original Gameserver.cfg keys", "network-port-tcp", OptionKind.Int, "game TCP port (default 2006)", "26006", 0, Port, ["port"]),
         new("Original Gameserver.cfg keys", "network-port-listen", OptionKind.Int, "UDP port the clients listen on for LAN announcements (default 2005)", "26005", 0, Port, ["listen-port"]),
         new("Original Gameserver.cfg keys", "network-password", OptionKind.Text, "game password (empty = none)", "secret", Aliases: ["password"]),
@@ -68,6 +69,8 @@ public static class CommandLine
         new("Authoritative mode", "auth-lock-difficulty", OptionKind.Flag, "keep the session's difficulty fixed", "1"),
         new("Authoritative mode", "auth-save-interval", OptionKind.Int, "seconds between periodic hero saves (0 = off)", "60"),
         new("Authoritative mode", "auth-save-debounce-ms", OptionKind.Int, "milliseconds to wait after a trade or drop before saving", "500"),
+        new("Authoritative mode", "auth-check-items", OptionKind.Flag, "refuse impossible item states (sockets; item types with --game-dir)", "1"),
+        new("Authoritative mode", "auth-max-hero-level", OptionKind.Int, "highest hero level a player may report, above it the player is removed (0 = no check)", "216"),
 
         // ---- flood protection ----
         new("Flood protection", "flood-protection", OptionKind.Flag, "1/0 overrides the default (on with --authoritative)", "1"),
@@ -81,6 +84,31 @@ public static class CommandLine
         new("Flood protection", "flood-strike-window", OptionKind.Int, "strike window in seconds", "10", 1),
         new("Flood protection", "flood-upload-grace", OptionKind.Int, "seconds of relaxed limits while a player uploads its world", "60"),
 
+        // ---- server scripts ----
+        new("Scripts", "scripts", OptionKind.Flag, "run the Lua scripts of the scripts folder (default: on when the folder exists; 0 = off)", "1"),
+        new("Scripts", "scripts-dir", OptionKind.Path, "folder with the *.lua scripts, reloaded when a file changes (default scripts)", "scripts"),
+        new("Scripts", "scripts-data", OptionKind.Path, "folder for the mods' own storage, one {mod}.json each (default script-data)", "script-data"),
+        new("Scripts", "scripts-max-response", OptionKind.Int, "largest script endpoint answer in characters (default 2097152)", "2097152", 1024, 67108864),
+        new("Scripts", "scripts-max-string", OptionKind.Int, "largest string string.rep may build (default 4194304)", "4194304", 1024, 268435456),
+        new("Scripts", "scripts-store-max", OptionKind.Int, "largest storage of one mod in bytes (default 8388608)", "8388608", 65536, 2147483647),
+        new("Scripts", "scripts-store-total-max", OptionKind.Int, "largest storage of all mods together in bytes (default 33554432)", "33554432", 65536, 2147483647),
+        new("Scripts", "scripts-budget", OptionKind.Int, "Lua instructions one handler or timer may run (default 1000000)", "1000000", 10000, 100000000),
+
+        new("Net ops", "netops", OptionKind.Flag, "custom net opcodes for mod channels (default on; 0 = off)", "1"),
+        new("Net ops", "netops-control", OptionKind.Text, "opcode of the net ops handshake, decimal or 0x hex, above 0x1D5 (default 0x1E0; env NETOPS_CONTROL)", "0x1E0"),
+        new("Net ops", "netops-data", OptionKind.Text, "opcode of the net ops data messages (default 0x1E1; env NETOPS_DATA)", "0x1E1"),
+        new("Net ops", "netops-max-fragment", OptionKind.Int, "largest data bytes of one wire message (default 4000)", "4000", 64, 4000),
+        new("Net ops", "netops-max-message", OptionKind.Int, "largest reassembled message in bytes (default 262144)", "262144", 1024, 4194304),
+        new("Net ops", "netops-max-in-flight", OptionKind.Int, "unfinished messages one sender may have (default 8)", "8", 1, 64),
+        new("Net ops", "netops-rate", OptionKind.Int, "received net ops bytes per second and session (default 65536)", "65536", 1024, 67108864),
+        new("Net ops", "netops-burst", OptionKind.Int, "net ops burst bytes per session (default 262144)", "262144", 4096, 67108864),
+        new("Net ops", "netops-max-channels", OptionKind.Int, "different channels one client may use (default 64)", "64", 1, 4096),
+        new("Net ops", "netops-max-name", OptionKind.Int, "longest channel name (default 64)", "64", 4, 256),
+        new("Net ops", "netops-reassembly-session", OptionKind.Int, "bytes of unfinished messages per session (default 1048576)", "1048576", 4096, 67108864),
+        new("Net ops", "netops-reassembly-total", OptionKind.Int, "bytes of unfinished messages in total (default 8388608)", "8388608", 4096, 536870912),
+        new("Net ops", "netops-fragment-timeout", OptionKind.Int, "seconds before an unfinished message is dropped (default 10)", "10", 1, 600),
+        new("Net ops", "netops-handler-budget", OptionKind.Int, "Lua instructions one channel handler may run (default 200000)", "200000", 1000, 100000000),
+
         // ---- web UI (value may also follow as the next argument; the same keys exist as --WebUi:Port=..., webui.json, SACRED_GS_WebUi__Port) ----
         new("Web UI", "webserver", OptionKind.Flag, "start the management web UI", "1", WebStyle: true),
         new("Web UI", "webui-enabled", OptionKind.Flag, "same as --webserver", "1", WebStyle: true),
@@ -90,6 +118,7 @@ public static class CommandLine
         new("Web UI", "webui-cors-origins", OptionKind.Text, "origins allowed to call the JSON API (comma separated)", "https://example.org", WebStyle: true),
         new("Web UI", "webui-frame-ancestors", OptionKind.Text, "who may frame the page: none, self, * or origins", "self", WebStyle: true),
         new("Web UI", "webui-allowed-hosts", OptionKind.Text, "accepted Host headers (comma separated)", "localhost", WebStyle: true),
+        new("Web UI", "webui-public-api", OptionKind.Flag, "serve read-only /public/heroes and /public/boards to anybody (embeds, overlays)", "1", WebStyle: true),
         new("Web UI", "webui-path-base", OptionKind.Text, "URL prefix behind a reverse proxy", "/sacred", WebStyle: true),
         new("Web UI", "webui-config", OptionKind.Path, "web UI settings file (default webui.json)", "webui.json", WebStyle: true),
     ];
@@ -110,16 +139,51 @@ public static class CommandLine
 
     private static string Normalize(string name) => name.Replace('_', '-').ToLowerInvariant();
 
+    /// <summary>What a bare (non <c>--</c>) argument means.</summary>
+    public enum Positional { None, Quiet, NetLog, TincatLog, WindowHandle }
+
+    /// <summary>
+    /// The single walk over the positional words, shared by <see cref="Validate"/> and <see cref="WindowHandle"/> so they cannot disagree.
+    /// Sacred.exe starts the server with CreateProcess(lpApplicationName "GameServer.exe", lpCommandLine "quiet &lt;HWND&gt;[ netlog][ tincatlog]");
+    /// the program-name slot holds "quiet", so this process sees the decimal window handle as args[0] (or as args[1] behind a literal
+    /// "quiet", when started by hand). The original takes the handle with atoi() from the text right behind "quiet "; a number anywhere
+    /// else (the value of a spaced option, a stray argument) is not a handle. <c>quiet</c>, <c>netlog</c> and <c>tincatlog</c> may stand anywhere.
+    /// </summary>
+    public static Positional Classify(string[] args, int index)
+    {
+        var arg = args[index];
+        if (arg.Equals("quiet", StringComparison.OrdinalIgnoreCase)) return Positional.Quiet;
+        if (arg.Equals("netlog", StringComparison.OrdinalIgnoreCase)) return Positional.NetLog;
+        if (arg.Equals("tincatlog", StringComparison.OrdinalIgnoreCase)) return Positional.TincatLog;
+        var handleSlot = index == 0 || (index == 1 && args[0].Equals("quiet", StringComparison.OrdinalIgnoreCase));
+        return handleSlot && TryWindowHandle(arg, out _) ? Positional.WindowHandle : Positional.None;
+    }
+
+    /// <summary>A bare decimal number (the original takes it with atoi from the text behind "quiet"): the game's window handle.</summary>
+    public static bool TryWindowHandle(string arg, out long handle)
+    {
+        handle = 0;
+        return arg.Length is > 0 and <= 10 && arg.All(char.IsAsciiDigit) && long.TryParse(arg, NumberStyles.None, CultureInfo.InvariantCulture, out handle) && handle <= int.MaxValue;
+    }
+
+    /// <summary>The window handle of the game (0 = none); the original posts its status messages (0x410) to that window.</summary>
+    public static long WindowHandle(string[] args)
+    {
+        for (var i = 0; i < args.Length && i < 2; i++)
+            if (Classify(args, i) == Positional.WindowHandle && TryWindowHandle(args[i], out var handle)) return handle;
+        return 0;
+    }
+
     /// <summary>
     /// Checks the arguments. Returns null when they are fine, else the complete error message (one or two lines) for the console.
-    /// A bare <c>quiet</c> (the original GameServer.exe's switch for "no dialog") is accepted. Nothing is bound or read here.
+    /// The positional words of the original GameServer.exe are described at <see cref="Classify"/>. Nothing is bound or read here.
     /// </summary>
     public static string? Validate(string[] args)
     {
         for (var i = 0; i < args.Length; i++)
         {
             var arg = args[i];
-            if (arg.Equals("quiet", StringComparison.OrdinalIgnoreCase) || arg is "-h" or "--help" or "-?" or "/?") continue;
+            if (Classify(args, i) != Positional.None || arg is "-h" or "--help" or "-?" or "/?") continue;
             if (!arg.StartsWith("--", StringComparison.Ordinal))
                 return $"ERROR: unexpected argument '{arg}'. Options look like --name=value; see --help.";
             var body = arg[2..];
@@ -158,6 +222,9 @@ public static class CommandLine
                 if (spec.WebStyle && value.Equals("true", StringComparison.OrdinalIgnoreCase)) return null;
                 if (spec.WebStyle && value.Equals("false", StringComparison.OrdinalIgnoreCase)) return null;
                 return value is "0" or "1" ? null : $"takes 0 or 1, not '{value}'.";
+            case OptionKind.Text when spec.Name == "bind":
+                if (!hasValue || !System.Net.IPAddress.TryParse(value, out _)) return $"needs an IP address, for example --bind=127.0.0.1, not '{value}'.";
+                return null;
             case OptionKind.Int:
                 if (!hasValue) return "needs a value, for example --" + spec.Name + "=" + spec.Sample + ".";
                 if (!long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number)) return $"needs a number, not '{value}'.";
@@ -236,6 +303,9 @@ public static class CommandLine
         text.AppendLine();
         text.AppendLine("  --help, -h                             this text");
         text.AppendLine("  quiet                                  accepted and ignored (GameServer.exe: start without the dialog)");
+        text.AppendLine("  <number>                               the game's window handle (Sacred.exe starts the server as 'quiet <number>')");
+        text.AppendLine("  netlog                                 accepted (the log always goes to Gameserver.log)");
+        text.AppendLine("  tincatlog                              like --trace: log every message");
         return text.ToString();
     }
 }

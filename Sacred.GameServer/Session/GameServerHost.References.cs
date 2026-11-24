@@ -64,6 +64,21 @@ public sealed partial class GameServerHost
             $"({BinaryPrimitives.ReadUInt32LittleEndian(_referenceReply)}-{BinaryPrimitives.ReadUInt32LittleEndian(_referenceReply.AsSpan((granted - 1) * 4))}).");
     }
 
+    /// <summary>One free reference for an object the server itself creates (script rewards), owned by <paramref name="owner"/>; 0 when none is left.</summary>
+    private uint TakeReference(byte owner)
+    {
+        if (_poolCount < 0) ResetReferences();
+        for (var inspected = 0; _poolCount > 0 && inspected < _referencePool.Length; inspected++)
+        {
+            var reference = _referencePool[_poolHead];
+            _poolHead = (_poolHead + 1) % _referencePool.Length; _poolCount--;
+            if (_referenceOwner[reference] != 0 || _world.TryGet(reference, out _)) continue;
+            _referenceOwner[reference] = owner;
+            return reference;
+        }
+        return 0;
+    }
+
     /// <summary>FUN_004ce2d0: all references of a leaving player return to the end of the pool.</summary>
     private void ReleaseReferences(byte slot)
     {

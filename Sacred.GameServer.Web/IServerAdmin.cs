@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Sacred.GameServer.Web;
 
 /// <summary>What the web UI may do and see. Implemented by the game server; every member is safe to call from any thread.</summary>
@@ -12,6 +14,14 @@ public interface IServerAdmin
     IReadOnlyList<BanEntry> Bans();
     /// <summary>Current flood protection limits and counters.</summary>
     FloodSettings Flood();
+    /// <summary>What the server knows about each online hero (refreshed about once a second).</summary>
+    IReadOnlyList<HeroInfo> Heroes();
+    /// <summary>HTTP endpoints registered by server scripts (<c>server.endpoint</c>).</summary>
+    IReadOnlyList<ModEndpointInfo> ModEndpoints();
+    /// <summary>Every installed mod (script file), with its description, load error, pages and endpoints.</summary>
+    IReadOnlyList<ModInfo> Mods() => ModEndpoints().GroupBy(e => e.Mod).Select(g => new ModInfo(g.Key, null, null, g.ToArray())).ToArray();
+    /// <summary>Runs a script endpoint on the game loop. <paramref name="publicOnly"/>: only endpoints the script marked public.</summary>
+    Task<ModResponse> ModRequest(string mod, string path, IReadOnlyList<KeyValuePair<string, string>> query, bool publicOnly, CancellationToken cancellationToken);
     /// <summary>Queues a command for the game loop. False when the queue is full.</summary>
     bool Submit(in AdminCommand command);
     /// <summary>Cancelled when the server stops: the web UI ends its streaming responses and stops at once (it never waits for browsers).</summary>
@@ -69,5 +79,31 @@ public enum AdminCommandKind
 public sealed record FloodSettings(
     bool Enabled, bool Explicit, int MessagesPerSecond, int MessageBurst, int BytesPerSecond, int ByteBurst, int ChatPerSecond, int ChatBurst,
     int KickAfterDrops, int StrikeWindowSeconds, int UploadGraceSeconds, int MaxConnectionsPerAddress, long Drops, long Removed, long RefusedConnections);
+
+/// <summary>An online hero. Values come from the hero's own object states and inventory messages; <see cref="Attributes"/> is
+/// null until the client sent a full state (0x16B). Skill, combat art and item ids are the game's numbers (names need its text
+/// tables: the optional Name fields). <see cref="Account"/> is only filled for the admin API.</summary>
+public sealed record HeroInfo(int Slot, string Character, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] string? Account,
+    int Class, int Level, long Experience, long Gold, int SkillPointsLeft, SkillInfo[] Skills, int[] AttributePoints, int[]? Attributes,
+    ArtInfo[] CombatArts, int Combos, EquippedItem[] Equipment, StoredItem[] Inventory, StoredItem[] Stash, bool InGame, double OnlineSeconds);
+
+/// <summary>A skill slot. <see cref="Name"/> (and the other records' names) is the game's text when the server read its tables
+/// (--game-dir), else left out.</summary>
+public sealed record SkillInfo(int Id, int Level, int Bonus, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Name = null);
+/// <summary>A combat art record (22 bytes): kind word (1 spell, 2 special move), art id and the byte after it (its rank as far as the saves show).</summary>
+public sealed record ArtInfo(int Kind, int Id, int Rank, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Name = null);
+/// <summary>An item: object reference, type (Items.pak resource), item level, rarity tier, filled sockets, price and its name
+/// (its own generated name, else the type's).</summary>
+public sealed record ItemInfo(uint Ref, uint Type, int Level, int Rarity, int Sockets, long Price, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Name = null);
+public sealed record EquippedItem(int Slot, ItemInfo Item);
+public sealed record StoredItem(int Cell, int Width, int Height, ItemInfo Item);
+
+/// <summary>A script endpoint: <c>/mods/{Mod}/{Path}</c> (and <c>/public/mods/...</c> when <see cref="Public"/>).</summary>
+public sealed record ModEndpointInfo(string Mod, string Path, bool Public, string? Description, bool Page = false);
+/// <summary>An installed mod: its name (script file without .lua), short description, load error and its pages and endpoints.</summary>
+public sealed record ModInfo(string Mod, string? Description, string? Error, ModEndpointInfo[] Items);
+
+/// <summary>A script endpoint's answer.</summary>
+public sealed record ModResponse(int Status, string ContentType, string Body, bool Page = false);
 
 public readonly record struct AdminCommand(AdminCommandKind Kind, int Slot = 0, int Value = 0, string? Text = null);

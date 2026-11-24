@@ -26,6 +26,7 @@ in the working directory, or `--webui-config=path`), command line (`--WebUi:Port
 | `FrameAncestors` | none | who may embed the page in a frame: `self`, `*` or origins (CSP `frame-ancestors`; default `none`) |
 | `AllowedHosts` | none | accepted `Host` headers; on password-less loopback only localhost/127.0.0.1/the hostname are accepted (DNS rebinding) |
 | `PathBase` | none | URL prefix behind a reverse proxy |
+| `PublicApi` | `false` | serve read-only `/public/heroes` and the public mod pages/endpoints (`/public/mods/...`) to anybody (CORS `*`) for embeds and stream overlays |
 
 To put the UI on another site, list that origin in `FrameAncestors` and frame the server. `CorsOrigins` is for scripts or pages that call the JSON API directly with `Authorization: Bearer`.
 
@@ -34,6 +35,8 @@ To put the UI on another site, list that origin in `FrameAncestors` and frame th
 * `GET /` server rendered page; its forms post to `/actions/{say|kick|ban|unban|lock|pause|max-players|password|name|mode|end-session|shutdown}` and are answered with a redirect back (Post/Redirect/Get). Cross-site posts (`Sec-Fetch-Site`, foreign `Origin`) are refused.
 * `GET /fragment` the server rendered state block (header, players, bans) the page swaps in every 3 s.
 * `GET /api/chat/stream[?after=ID]` chat as Server-Sent Events (`id`, `event: chat`, JSON `data`; resumes with `Last-Event-ID`; keep-alive comment every 15 s). `GET /api/chat?after=ID` is the same data as one JSON page.
+* `GET /mods` the Mods tab: one card per installed mod (script file, also those without pages or endpoints), its description behind a (?) (hover, focus or tap), a load error if any, and its pages and endpoints listed apart; `GET /api/mods/installed` the same as JSON (links open in a new tab; public ones show their `/public/mods/...` address).
+* `GET /mods/{script}/{path}` script endpoints (`server.endpoint`), `GET /api/mods` their list; with `PublicApi`, the public ones also as `GET /public/mods/{script}/{path}` and `GET /public/mods`.
 * `GET /api/flood` flood protection limits and counters; `POST /api/flood` with `text` = `KEY=VALUE` pairs (`;` separated, the `FLOOD_*` keys and `MAX_CONNECTIONS_PER_ADDRESS`) changes them live. The page's "Flood protection" card posts only the values that changed (`/actions/flood-form`).
 * `GET /api/overview | players | bans` and `POST /api/{command}` with the same command names and a JSON body (`slot`, `value`, `text`, `reason`, `address`; needs `Content-Type: application/json`).
 

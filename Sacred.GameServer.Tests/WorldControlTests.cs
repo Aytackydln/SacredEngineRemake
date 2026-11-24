@@ -47,6 +47,27 @@ public class WorldControlTests
     }
 
     [TestMethod]
+    public void InventoryPlacementIsConsumedWithoutAnUnhandledLog()
+    {
+        // 0x13F (SETITEM) is applied to the server's own inventory only; in relay mode it must not log "unhandled opcode".
+        Assert.IsTrue(Routing.IsConsumed(0x13F));
+        Assert.IsTrue(Routing.IsConsumed(0x13E));
+        using var server = new Server();
+        using var host = RawClient.Admit(server.Port, "Host", 1);
+        var log = new StringWriter();
+        var previous = Console.Out;
+        Console.SetOut(TextWriter.Synchronized(log));
+        try
+        {
+            host.Send(0x13F, new byte[12]);
+            Thread.Sleep(300);
+            Assert.IsFalse(host.IsClosed());
+            Assert.IsFalse(log.ToString().Contains("unhandled opcode"), log.ToString());
+        }
+        finally { Console.SetOut(previous); }
+    }
+
+    [TestMethod]
     public void TriggerRangeAndReferenceRequests()
     {
         using var server = new Server();

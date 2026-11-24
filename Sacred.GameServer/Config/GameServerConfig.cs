@@ -1,3 +1,4 @@
+using System.Net;
 using System.Globalization;
 
 namespace Sacred.GameServer.Config;
@@ -34,6 +35,10 @@ public sealed class GameServerConfig
     public int MaxPasswordTries { get; set; } = 3;
     /// <summary>Per-message wire trace in the log.</summary>
     public bool Trace { get; set; }
+    /// <summary>Window handle of the game that started the server (decimal argument "quiet &lt;HWND&gt;"), 0 = started by hand.</summary>
+    public long ParentWindow { get; set; }
+    /// <summary>Address the TCP and UDP listeners bind (BIND_ADDRESS / NETWORK_BIND / --bind); null = every interface like the original.</summary>
+    public IPAddress? BindAddress { get; set; }
     /// <summary>Client data version announced on LAN and to the lobby when no game data is read (--accept-any-data).</summary>
     public ushort? AnnounceVersion { get; set; }
     public string? LobbyHost { get; set; }
@@ -46,6 +51,10 @@ public sealed class GameServerConfig
     public Auth.AuthoritativeOptions Auth { get; } = new();
     /// <summary>Flood protection (on with authoritative mode unless FLOOD_PROTECTION says otherwise); see Session/FloodGuard.cs.</summary>
     public Session.FloodOptions Flood { get; } = new();
+    /// <summary>Custom net opcodes for mod channels (Wire/NetOpsWire.cs, Session/GameServerHost.Net.cs).</summary>
+    public Session.NetOpsOptions NetOps { get; } = new();
+    /// <summary>Server-side Lua scripts (Scripting/); on when the scripts folder exists.</summary>
+    public Scripting.ScriptOptions Scripts { get; } = new();
 
     public static GameServerConfig Load(string[] args)
     {
@@ -60,9 +69,11 @@ public sealed class GameServerConfig
             foreach (var line in File.ReadLines(cfgPath)) config.ApplyLine(line);
         foreach (var arg in args)
         {
+            if (arg.Equals("tincatlog", StringComparison.OrdinalIgnoreCase)) config.Trace = true;          // GameServer.exe: DAT_006340f5
             if (!arg.StartsWith("--", StringComparison.Ordinal) || arg.StartsWith("--config=", StringComparison.OrdinalIgnoreCase)) continue;
             config.ApplyLine(arg[2..]);
         }
+        config.ParentWindow = CommandLine.WindowHandle(args);
         return config;
     }
 
@@ -85,6 +96,7 @@ public sealed class GameServerConfig
         var value = split < 0 ? "1" : line[(split + 1)..].Trim();
         switch (key)
         {
+            case "BIND_ADDRESS" or "NETWORK_BIND" or "BIND": BindAddress = IPAddress.TryParse(value, out var bind) ? bind : BindAddress; break;
             case "NETWORK_PORT_TCP" or "PORT": TcpPort = Int(value, TcpPort); break;
             case "NETWORK_PORT_LISTEN" or "LISTEN_PORT": ListenPort = Int(value, ListenPort); break;
             case "NETWORK_LOBBYPORT": LobbyPort = Int(value, LobbyPort); break;
@@ -106,7 +118,7 @@ public sealed class GameServerConfig
             case "CLOSED_NET": ClosedNet = Int(value, 1) != 0; break;
             case "TRACE": Trace = Int(value, 1) != 0; break;
             case "ANNOUNCE_VERSION" or "VERSION": AnnounceVersion = (ushort)Math.Clamp(Int(value, 0), 0, ushort.MaxValue); break;
-            default: if (!Auth.Apply(key, value)) Flood.Apply(key, value); break;
+            default: if (!Auth.Apply(key, value) && !Flood.Apply(key, value) && !NetOps.Apply(key, value)) Scripts.Apply(key, value); break;
         }
     }
 

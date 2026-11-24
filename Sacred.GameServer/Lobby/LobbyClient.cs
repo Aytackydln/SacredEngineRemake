@@ -42,6 +42,12 @@ public sealed class LobbyClient : IDisposable
     public ConcurrentQueue<LobbyEvent> Events { get; } = new();
     /// <summary>True between the lobby's answer to message 12 and the loss of the connection (<c>FUN_0048d100</c>).</summary>
     public bool IsOnline => _online;
+
+    /// <summary>Status callback (code, value) for the game that started the server: 4 up and running, 8 lobby unreachable, 9 login refused
+    /// (GameServer.exe posts these to the game's window, see Platform/GameStatus.cs).</summary>
+    public Action<int, int>? Status { get; init; }
+    private bool _unreachableReported;
+    private void Report(int code, int value) { try { Status?.Invoke(code, value); } catch (Exception e) when (e is not OutOfMemoryException) { } }
     public IPAddress? PublicAddress { get; private set; }
 
     /// <param name="stop">Cancelled when the server stops (the host's <c>StopToken</c>): the lobby ends at once.</param>
@@ -118,6 +124,7 @@ public sealed class LobbyClient : IDisposable
             {
                 if (token.IsCancellationRequested) break;
                 Log.Info($"LOBBY: {e.Message}");
+                if (e is SocketException && !_unreachableReported && !_online) { _unreachableReported = true; Report(8, 0); }
             }
             if (_online) { _online = false; Events.Enqueue(new LobbyEvent(LobbyEventKind.Offline)); }
             _socket?.Dispose(); _socket = null;
@@ -281,7 +288,7 @@ public sealed class LobbyClient : IDisposable
                 if (body.Length < 4) return;
                 PublicAddress = new IPAddress(body[..4]);
                 Log.Info($"LOBBY: Internet IP: {PublicAddress}.");
-                if (!_online) { _online = true; Events.Enqueue(new LobbyEvent(LobbyEventKind.Online, Address: PublicAddress)); }
+                if (!_online) { _online = true; Events.Enqueue(new LobbyEvent(LobbyEventKind.Online, Address: PublicAddress)); Report(4, 0); }
                 return;
             case LobbyProtocol.Result:                               // 15: result code, request type
                 if (body.Length < 8) return;
@@ -289,8 +296,8 @@ public sealed class LobbyClient : IDisposable
                 var last = BinaryPrimitives.ReadInt32LittleEndian(body[4..]);
                 if (code != 0 && code != 12) Log.Info($"LOBBY: result={code}, last={last}.");
                 if (last == LobbyProtocol.ServerLogin && code == 0 && !_online)
-                { _online = true; Events.Enqueue(new LobbyEvent(LobbyEventKind.Online)); }
-                if (last == LobbyProtocol.ServerLogin && code != 0) throw new IOException($"lobby refused the game (result {code})");
+                { _online = true; Events.Enqueue(new LobbyEvent(LobbyEventKind.Online)); Report(4, 0); }
+                if (last == LobbyProtocol.ServerLogin && code != 0) { Report(9, code); throw new IOException($"lobby refused the game (result {code})"); }
                 return;
             case LobbyProtocol.UserKicked:                           // 47: [perm id][reason][text] -> internal 0x34
                 if (body.Length >= 4) Events.Enqueue(new LobbyEvent(LobbyEventKind.Kick, BinaryPrimitives.ReadInt32LittleEndian(body)));

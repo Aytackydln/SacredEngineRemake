@@ -128,23 +128,22 @@ public partial class AuthoritativeTests
     }
 
     [TestMethod]
-    public void SpoofedTradeSenderIsDroppedAndRepeatOffendersAreKicked()
+    public void TradeMessagesNameThePartnerAndAreNotViolations()
     {
+        // 0x198 is [partner slot][sub command]: the first word is the other player, so it is not a "spoofed sender" (case 0x4C850E).
         using var server = new Server(c => c.Auth.MaxViolations = 2);
         var (host, joiner) = Started(server);
         using (host) using (joiner)
         {
-            var spoof = new byte[8];
-            BinaryPrimitives.WriteUInt32LittleEndian(spoof, host.Slot);
-            joiner.Send(0x198, spoof);
-            Assert.IsTrue(host.Silent(0x198));
-            var own = new byte[8];
-            BinaryPrimitives.WriteUInt32LittleEndian(own, joiner.Slot);
-            joiner.Send(0x198, own);
-            Assert.IsTrue(joiner.Silent(0x157));                              // the genuine trade is not a violation
-            joiner.Send(0x198, spoof);                                        // second violation: kicked
-            joiner.WaitFor(0x157);
-            host.WaitFor(0x150);
+            for (var i = 0; i < 4; i++)
+            {
+                var invite = new byte[8];
+                BinaryPrimitives.WriteUInt32LittleEndian(invite, host.Slot);
+                BinaryPrimitives.WriteUInt32LittleEndian(invite.AsSpan(4), i % 2 == 0 ? 0x20u : 0x22u);
+                joiner.Send(0x198, invite);
+                host.WaitFor(0x198);
+            }
+            Assert.IsTrue(joiner.Silent(0x157), "nobody is kicked for trading");
         }
     }
 
@@ -184,6 +183,49 @@ public partial class AuthoritativeTests
         player.Dispose();                                                      // disconnect saves again
         fake.WaitFor(LobbyProtocol.ServerDataUpload);
         Assert.IsTrue(server.Host.HeroSaves >= 2);
+    }
+
+    [TestMethod]
+    public void GracefulQuitLeavesOnceAndTheHeroIsSavedOnce()
+    {
+        using var fake = new LobbyTests.FakeLobby();
+        var block = new byte[0x300];
+        new Random(11).NextBytes(block);
+        using var server = new Server(c => { c.Auth.SaveDebounceMilliseconds = 20; c.Auth.SaveIntervalSeconds = 0; }, fake, new FixedSerializer(block));
+        var log = new StringWriter();
+        var previous = Console.Out;
+        Console.SetOut(TextWriter.Synchronized(log));
+        try
+        {
+            var player = RawClient.Admit(server.Port, "Hero", 500, block: 2);
+            fake.WaitFor(LobbyProtocol.UserJoinedServer);
+            var push = new byte[18 + 0x300];
+            BinaryPrimitives.WriteInt32LittleEndian(push, 500);
+            BinaryPrimitives.WriteUInt16LittleEndian(push.AsSpan(4), 2);
+            BinaryPrimitives.WriteInt32LittleEndian(push.AsSpan(6), 0x300);
+            BinaryPrimitives.WriteInt32LittleEndian(push.AsSpan(14), 0x300);
+            fake.SendLobby(LobbyProtocol.PublicData, push);
+            player.WaitFor(0x132);
+            player.Send(0x016, default); player.Send(0x018, Word(0x1964)); player.WaitFor(0x018);
+            using var other = RawClient.Admit(server.Port, "Other", 501);
+            other.Send(0x017, default);
+            other.WaitFor(0x017);
+
+            player.Send(0x150, Word(0));                                          // the ESC menu's Quit
+            var left = other.WaitFor(0x150);
+            Assert.AreEqual(player.Slot, left.Origin);
+            Assert.AreEqual(0u, BinaryPrimitives.ReadUInt32LittleEndian(left.Payload));
+            var own = player.WaitFor(0x150);                                       // the leaver gets its own copy too (mode 1)
+            Assert.AreEqual(player.Slot, own.Origin);
+            other.WaitFor(0x00D);                                                  // the leaving host hands over
+            fake.WaitFor(LobbyProtocol.ServerDataUpload);
+            player.Dispose();                                                      // the TCP close that follows
+            Thread.Sleep(600);
+            Assert.AreEqual(1, server.Host.HeroSaves, "saved once, not again on the close");
+            Assert.IsTrue(other.Silent(0x150), "no second departure message");
+            Assert.IsFalse(log.ToString().Contains("unhandled opcode"), log.ToString());
+        }
+        finally { Console.SetOut(previous); }
     }
 
     [TestMethod]

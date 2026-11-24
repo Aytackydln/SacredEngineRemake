@@ -17,7 +17,9 @@ namespace Sacred.GameServer.Session;
 /// <item>violations are counted per player and kick at <c>AUTH_MAX_VIOLATIONS</c>;</item>
 /// <item>anti-dupe: the hero is saved to the lobby when the player leaves, periodically and shortly after trades, pick-ups and
 /// equipment and inventory changes, from the server's own view of the hero (GameServerHost.HeroState.cs, Auth/Hero/HeroWriter)
-/// or an <see cref="IHeroSerializer"/> that replaces it.</item>
+/// or an <see cref="IHeroSerializer"/> that replaces it;</item>
+/// <item>item states no legitimate item has are refused (<see cref="ItemGuard"/>), a hero above the level cap is removed
+/// (<see cref="HeroGuard"/>).</item>
 /// </list>
 /// </summary>
 public sealed partial class GameServerHost
@@ -42,6 +44,7 @@ public sealed partial class GameServerHost
     private bool AuthoritativeFilter(PlayerSession s, in GoldMessageView m)
     {
         var options = _config.Auth;
+        if (m.Opcode is 0x169 or 0x16B or 0x16C or 0x16E or 0x16F && !PlausibleState(s, m)) return false;
         CaptureHeroState(s, m);
         switch (m.Opcode)
         {
@@ -62,7 +65,7 @@ public sealed partial class GameServerHost
                 return true;
             }
             case 0x198:
-                if (m.Payload.Length < 4 || BinaryPrimitives.ReadUInt32LittleEndian(m.Payload) != s.Slot) { Violation(s, "trade message with a foreign sender"); return false; }
+                // [partner slot][sub command]: the first word names the partner, not the sender (case 0x4C850E)
                 MarkHeroChanged(s);
                 return true;
             case 0x141: case 0x142: case 0x11D: case 0x11E: case 0x13E: case 0x13F: case 0x122:   // pick-up, equipment, inventory
@@ -82,6 +85,30 @@ public sealed partial class GameServerHost
         }
         return true;
     }
+
+    /// <summary>Item and hero plausibility (Auth/ItemGuard.cs, Auth/HeroGuard.cs). An impossible item state is dropped (not stored
+    /// in the object world, not relayed, so never saved) and counted as a violation; an impossible hero removes the player.</summary>
+    private bool PlausibleState(PlayerSession s, in GoldMessageView m)
+    {
+        var prefix = m.Opcode is 0x16C or 0x16E ? 8 : 24;
+        if (m.Payload.Length <= prefix) return true;
+        var reference = BinaryPrimitives.ReadUInt32LittleEndian(m.Payload) & 0x7FFFFFFF;
+        var body = m.Payload[prefix..];
+        if (reference == s.Slot)
+        {
+            if (HeroGuard.Check(body, m.Opcode == 0x16B, _config.Auth) is not { } hero) return true;
+            Violation(s, hero, kick: false);
+            if (s.State != SessionState.Closed) RemovePlayer(s, ReasonCheat, notifyVictim: true);
+            return false;
+        }
+        if (!_config.Auth.CheckItems || ItemGuard.Check(body, ItemFootprints) is not { } why) return true;
+        RejectedItems++;
+        Violation(s, $"0x{m.Opcode:X3} 0x{reference:X}: {why}");
+        return false;
+    }
+
+    /// <summary>Item states refused by <see cref="ItemGuard"/> (diagnostics and tests).</summary>
+    public int RejectedItems { get; private set; }
 
     private void Violation(PlayerSession s, string why, bool kick = true)
     {

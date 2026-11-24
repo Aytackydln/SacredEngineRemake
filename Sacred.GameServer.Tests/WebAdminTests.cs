@@ -198,6 +198,16 @@ public class WebAdminTests
         public long ChatHead => Chat.Count;
         public IReadOnlyList<ChatEntry> ChatSince(long afterId, int max) => Chat.Where(c => c.Id > afterId).Take(max).ToList();
         public IReadOnlyList<BanEntry> Bans() => [];
+        public IReadOnlyList<HeroInfo> Heroes() => [new HeroInfo(1, "Alice", "acct.Alice", 2, 12, 3400, 990, 1, [new SkillInfo(14, 3, 0)], [1, 0, 2, 0, 0, 0], null,
+            [new ArtInfo(2, 1097, 6)], 4, [new EquippedItem(12, new ItemInfo(40, 7452, 11, 2, 1, 500))], [new StoredItem(0, 1, 1, new ItemInfo(41, 5000, 3, 0, 0, 20))], [], true, 75)];
+        public IReadOnlyList<ModInfo> Mods() => [new ModInfo("ladders", "Ladders <and> boards", null, ModEndpoints().ToArray()), new ModInfo("quiet", "Does things in the background", null, []),
+            new ModInfo("broken", null, "line 1: unexpected symbol", [])];
+        public IReadOnlyList<ModEndpointInfo> ModEndpoints() => [new ModEndpointInfo("ladders", "by-creature", true, "csv"), new ModEndpointInfo("ladders", "admin", false, null), new ModEndpointInfo("ladders", "page", true, "dashboard", Page: true)];
+        public Task<ModResponse> ModRequest(string mod, string path, IReadOnlyList<KeyValuePair<string, string>> query, bool publicOnly, CancellationToken cancellationToken) =>
+            Task.FromResult(mod == "ladders" && path == "by-creature" ? new ModResponse(200, "text/csv; charset=utf-8", "creature,kills\r\n551," + (query.FirstOrDefault(q => q.Key == "n").Value ?? "0"))
+                : mod == "ladders" && path == "page" ? new ModResponse(200, "text/html; charset=utf-8", "<h1>dash</h1>", Page: true)
+                : mod == "ladders" && path == "admin" && !publicOnly ? new ModResponse(200, "text/plain; charset=utf-8", "admin only")
+                : new ModResponse(404, "text/plain; charset=utf-8", "no such endpoint"));
         public FloodSettings Flood() => new(true, false, 600, 3000, 2 * 1024 * 1024, 8 * 1024 * 1024, 3, 8, 500, 10, 60, 8, 42, 1, 2);
         public bool Submit(in AdminCommand command) { Commands.Add(command); return true; }
         public CancellationToken StopRequested => default;
@@ -334,6 +344,69 @@ public class WebAdminTests
     }
 
     [TestMethod]
+    public async Task HeroesForAdminsAndThePublicApi()
+    {
+        var (server, client, _) = await StartWeb(new WebUiOptions { Enabled = true, Port = 0 });
+        await using (server) using (client)
+        {
+            using var heroes = JsonDocument.Parse(await client.GetStringAsync("/api/heroes"));
+            Assert.AreEqual("acct.Alice", heroes.RootElement[0].GetProperty("account").GetString());
+            Assert.AreEqual(1097, heroes.RootElement[0].GetProperty("combatArts")[0].GetProperty("id").GetInt32());
+            Assert.AreEqual(7452u, JsonDocument.Parse(await client.GetStringAsync("/api/heroes/1")).RootElement.GetProperty("equipment")[0].GetProperty("item").GetProperty("type").GetUInt32());
+            Assert.AreEqual(HttpStatusCode.NotFound, (await client.GetAsync("/api/heroes/9")).StatusCode);
+            Assert.AreEqual(HttpStatusCode.NotFound, (await client.GetAsync("/public/heroes")).StatusCode, "the public API is off by default");
+            // The Mods tab: one card per mod, pages and endpoints apart; the server page no longer lists them.
+            var mods = await client.GetStringAsync("/mods");
+            StringAssert.Contains(mods, "ladders.lua");
+            StringAssert.Contains(mods, "quiet.lua", "mods without pages or endpoints are listed too");
+            StringAssert.Contains(mods, "class=\"help\"");
+            StringAssert.Contains(mods, "Ladders &lt;and&gt; boards", "descriptions are escaped");
+            StringAssert.Contains(mods, "Failed to load: line 1: unexpected symbol");
+            var card = mods.IndexOf("ladders.lua", StringComparison.Ordinal);
+            var pagesAt = mods.IndexOf("Pages", card, StringComparison.Ordinal);
+            var endpointsAt = mods.IndexOf("Endpoints", card, StringComparison.Ordinal);
+            Assert.IsTrue(pagesAt > 0 && endpointsAt > pagesAt);
+            Assert.IsTrue(mods.IndexOf("by-creature", StringComparison.Ordinal) > endpointsAt, "the endpoint is listed under Endpoints");
+            var page = mods.IndexOf("/page", StringComparison.Ordinal);
+            Assert.IsTrue(page > pagesAt && page < endpointsAt, "the page is listed under Pages");
+            var main = await client.GetStringAsync("/");
+            StringAssert.Contains(main, "href=\"mods\"");
+            Assert.IsFalse(main.Contains("by-creature"));
+        }
+        var (open, anonymous, _) = await StartWeb(new WebUiOptions { Enabled = true, Port = 0, PublicApi = true, Password = "secret" });
+        await using (open) using (anonymous)
+        {
+            Assert.AreEqual(HttpStatusCode.Unauthorized, (await anonymous.GetAsync("/api/heroes")).StatusCode, "the admin API still needs the password");
+            var response = await anonymous.GetAsync("/public/heroes/alice");
+            Assert.AreEqual(HttpStatusCode.OK, response.StatusCode);
+            Assert.AreEqual("*", response.Headers.GetValues("Access-Control-Allow-Origin").Single());
+            using var hero = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            Assert.IsFalse(hero.RootElement.TryGetProperty("account", out _), "no account names in public");
+            Assert.AreEqual(0, hero.RootElement.GetProperty("slot").GetInt32());
+            Assert.AreEqual(12, hero.RootElement.GetProperty("level").GetInt32());
+            Assert.AreEqual(HttpStatusCode.MethodNotAllowed, (await anonymous.PostAsync("/public/heroes", Json("{}"))).StatusCode);
+            // Script endpoints: public ones for everybody, the rest behind the password.
+            var csv = await anonymous.GetAsync("/public/mods/ladders/by-creature?n=7");
+            Assert.AreEqual(HttpStatusCode.OK, csv.StatusCode);
+            Assert.AreEqual("text/csv", csv.Content.Headers.ContentType!.MediaType);
+            Assert.AreEqual("creature,kills\r\n551,7", await csv.Content.ReadAsStringAsync());
+            StringAssert.Contains(string.Join(";", csv.Headers.GetValues("Content-Security-Policy")), "default-src 'none'");
+            Assert.AreEqual(HttpStatusCode.NotFound, (await anonymous.GetAsync("/public/mods/ladders/admin")).StatusCode);
+            Assert.AreEqual(HttpStatusCode.Unauthorized, (await anonymous.GetAsync("/mods/ladders/admin")).StatusCode);
+            // Pages: sandboxed (opaque origin, cannot use the admin's credentials), no forms, no base, inline script only.
+            var page = await anonymous.GetAsync("/public/mods/ladders/page");
+            Assert.AreEqual("text/html", page.Content.Headers.ContentType!.MediaType);
+            var policy = string.Join(";", page.Headers.GetValues("Content-Security-Policy"));
+            foreach (var part in new[] { "sandbox allow-scripts", "default-src 'none'", "form-action 'none'", "base-uri 'none'", "frame-ancestors *" })
+                StringAssert.Contains(policy, part);
+            Assert.IsFalse(policy.Contains("allow-same-origin"));
+            Assert.AreEqual("nosniff", page.Headers.GetValues("X-Content-Type-Options").Single());
+            using var list = JsonDocument.Parse(await anonymous.GetStringAsync("/public/mods"));
+            Assert.AreEqual(2, list.RootElement.GetArrayLength());                 // the public page and the public endpoint
+        }
+    }
+
+    [TestMethod]
     public async Task FloodLimitsAreShownAndChangedLive()
     {
         var (server, _, admin) = await StartWeb(new WebUiOptions { Enabled = true, Port = 0 });
@@ -371,6 +444,7 @@ public class WebAdminTests
     public void FloodChangesApplyToTheRunningServerWithoutKicking()
     {
         using var server = new Server();
+        server.Host.FloodClock = () => 1000;                                  // no refill while the test sends
         using var a = RawClient.Admit(server.Port, "Alice", 1);
         using var b = RawClient.Admit(server.Port, "Bob", 2);
         Assert.IsFalse(server.Host.Flood().Enabled);

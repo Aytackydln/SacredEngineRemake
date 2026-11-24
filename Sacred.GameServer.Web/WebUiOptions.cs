@@ -25,6 +25,9 @@ public sealed class WebUiOptions
     public string[] AllowedHosts { get; init; } = [];
     /// <summary>URL prefix when the UI sits behind a reverse proxy path (for example /sacred).</summary>
     public string PathBase { get; init; } = "";
+    /// <summary>Serve the read-only <c>/public/*</c> endpoints (heroes without account names, script boards) to anybody, with
+    /// <c>Access-Control-Allow-Origin: *</c>, for embeds on other sites and stream overlays. Off by default.</summary>
+    public bool PublicApi { get; init; }
 
     public static IConfigurationRoot BuildConfiguration(string[] args)
     {
@@ -66,7 +69,7 @@ public sealed class WebUiOptions
         ["--webui-enabled"] = "WebUi:Enabled", ["--webserver"] = "WebUi:Enabled", ["--webui-hostname"] = "WebUi:Hostname", ["--webui-port"] = "WebUi:Port",
         ["--webui-password"] = "WebUi:Password", ["--webui-cors-origins"] = "WebUi:CorsOrigins",
         ["--webui-frame-ancestors"] = "WebUi:FrameAncestors", ["--webui-allowed-hosts"] = "WebUi:AllowedHosts",
-        ["--webui-path-base"] = "WebUi:PathBase",
+        ["--webui-path-base"] = "WebUi:PathBase", ["--webui-public-api"] = "WebUi:PublicApi",
     };
 
     public static WebUiOptions From(IConfiguration configuration)
@@ -85,6 +88,7 @@ public sealed class WebUiOptions
             FrameAncestors = List(section, "FrameAncestors"),
             AllowedHosts = List(section, "AllowedHosts"),
             PathBase = pathBase,
+            PublicApi = Bool(section["PublicApi"]),
         };
     }
 

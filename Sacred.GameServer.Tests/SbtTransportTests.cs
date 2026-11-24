@@ -46,7 +46,7 @@ public class SbtTransportTests
         thread.Start();
         try
         {
-            using var udp = new UdpClient(AddressFamily.InterNetwork);
+            using var udp = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));          // bound to loopback, not the wildcard
             udp.Connect(IPAddress.Loopback, listener.Port);
 
             udp.Send(Hello(7, host.TcpPort + 1, default));                    // wrong game port

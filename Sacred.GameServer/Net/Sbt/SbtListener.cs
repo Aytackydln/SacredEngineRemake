@@ -34,18 +34,19 @@ public sealed class SbtListener : IClientListener
 
     public string Transport => "kcp";
     public int Port { get; }
+    public IPEndPoint? LocalEndPoint => (IPEndPoint?)_socket.LocalEndPoint;
     public ConcurrentQueue<IClientLink> Accepted { get; } = new();
     public int SessionCount { get { lock (_sessions) return _sessions.Count; } }
     internal long Now => _clock.ElapsedMilliseconds;
 
     /// <param name="tcpPort">The game's TCP port; HELLO must name it (Sacred Bild redirects the game's connect() to it).</param>
-    public SbtListener(int port, ConcurrentQueue<InboundFrame> inbox, Func<int> tcpPort)
+    public SbtListener(int port, ConcurrentQueue<InboundFrame> inbox, Func<int> tcpPort, IPAddress? bind = null)
     {
         _inbox = inbox; _tcpPort = tcpPort;
-        _socket = new Socket(Socket.OSSupportsIPv6 ? AddressFamily.InterNetworkV6 : AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-        if (Socket.OSSupportsIPv6) _socket.DualMode = true;
+        var (socket, endPoint) = BindPolicy.Create(SocketType.Dgram, ProtocolType.Udp, bind, port);
+        _socket = socket;
         if (OperatingSystem.IsWindows()) _socket.IOControl(-1744830452 /* SIO_UDP_CONNRESET */, [0, 0, 0, 0], null);
-        _socket.Bind(new IPEndPoint(Socket.OSSupportsIPv6 ? IPAddress.IPv6Any : IPAddress.Any, port));
+        _socket.Bind(endPoint);
         Port = ((IPEndPoint)_socket.LocalEndPoint!).Port;
     }
 

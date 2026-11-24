@@ -17,6 +17,10 @@ public sealed partial class GameServerHost
 
     private bool FloodOn => _config.Flood.IsEnabled(_config.Auth.Enabled);
 
+    /// <summary>Milliseconds the flood buckets refill against; the server clock unless a test supplies its own.</summary>
+    public Func<long>? FloodClock { get; set; }
+    private long FloodNow => FloodClock?.Invoke() ?? _clock.ElapsedMilliseconds;
+
     /// <summary>Messages and frames dropped by the flood protection since start (diagnostics).</summary>
     public long FloodDrops { get; private set; }
 
@@ -35,15 +39,16 @@ public sealed partial class GameServerHost
         return false;
     }
 
-    private bool FloodFrame(PlayerSession s, int bytes, long now)
+    private bool FloodFrame(PlayerSession s, int bytes, long frameTime)
     {
+        var now = FloodClock is null ? frameTime : FloodNow;
         var grace = FloodGuard.InUploadGrace(s.Flood, s.InGame, now, _config.Flood);
         return Apply(s, FloodGuard.Frame(ref s.Flood, bytes, grace, now, _config.Flood), "data");
     }
 
     private bool FloodMessage(PlayerSession s, in GoldMessageView m)
     {
-        var now = _clock.ElapsedMilliseconds;
+        var now = FloodNow;
         if (s.Flood.AdmittedMs == 0 && s.State >= SessionState.SlotAssigned) s.Flood.AdmittedMs = now;
         var grace = FloodGuard.InUploadGrace(s.Flood, s.InGame, now, _config.Flood);
         return Apply(s, FloodGuard.Message(ref s.Flood, m.Opcode, grace, now, _config.Flood), "messages");
