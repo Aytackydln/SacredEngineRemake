@@ -1,0 +1,42 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auction house</title><style>
+body{font:14px/1.4 system-ui,sans-serif;margin:0;padding:16px 20px;background:#15120e;color:#e8dcc4}
+h1{font-size:20px;margin:0 0 10px}h2{font-size:15px;margin:22px 0 6px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+input,select{background:#241e17;color:#e8dcc4;border:1px solid #4a3e2e;border-radius:4px;padding:4px 6px}
+table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:4px 8px;border-bottom:1px solid #2c2419}
+th{cursor:pointer;user-select:none;color:#bfae8c;font-weight:600}th.on::after{content:attr(data-dir)}
+td.n{text-align:right;font-variant-numeric:tabular-nums}.dim{color:#8f8168}
+.normal{color:#ffffff}.magic{color:#6f8cff}.rare{color:#ffe14a}.unique{color:#ff9d2e}.set{color:#3ad13a}
+</style></head><body><h1>Auction house</h1>
+<div class="bar"><input id="q" type="search" placeholder="search items and sellers" size="30">
+<select id="qu"><option value="">every quality</option><option>normal</option><option>magic</option><option>rare</option><option>unique</option><option>set</option></select>
+<span class="dim" id="n"></span></div>
+<table><thead><tr><th data-k="name">Item</th><th data-k="level">Level</th><th data-k="price">Price</th><th data-k="median">Recent median</th><th data-k="seller">Seller</th><th data-k="left">Time left</th></tr></thead><tbody id="rows"></tbody></table>
+<h2>Recent sales</h2><table><thead><tr><th>Item</th><th>Price</th><th>Seller</th><th>Buyer</th><th>When</th></tr></thead><tbody id="sales"></tbody></table>
+<h2>Rules</h2><table><tbody id="rules"></tbody></table>
+<p class="dim">Set under "config" in this mod's storage (web admin); applied within 30 seconds, no reload needed.</p>
+<script>var ROWS={{json rows}},SALES={{json sales}},NOW={{json now}},RULES={{json rules}};</script>
+<script>
+var key='left',dir=1,q=document.getElementById('q'),qu=document.getElementById('qu');
+function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
+function gold(n){return n==null?'':String(n).replace(/\B(?=(\d{3})+(?!\d))/g,',')}
+function left(s){if(s<3600)return Math.max(1,Math.round(s/60))+' min';if(s<172800)return Math.round(s/3600)+' h';return Math.round(s/86400)+' days'}
+function ago(t){return left(Math.max(60,NOW-t))+' ago'}
+function draw(){var b=document.getElementById('rows'),t=q.value.toLowerCase().split(/\s+/).filter(Boolean),k=qu.value,list=[];
+b.textContent='';for(var i=0;i<ROWS.length;i++){var r=ROWS[i],h=((r.name||'')+' '+(r.seller||'')).toLowerCase(),ok=!k||r.quality===k;
+for(var j=0;ok&&j<t.length;j++)if(h.indexOf(t[j])<0)ok=false;if(ok)list.push(r)}
+list.sort(function(a,c){var x=a[key],y=c[key];if(x==null)x='';if(y==null)y='';if(typeof x==='string'){x=x.toLowerCase();y=String(y).toLowerCase()}return x<y?-dir:x>y?dir:a.id-c.id});
+for(i=0;i<list.length;i++){r=list[i];var tr=el('tr');tr.appendChild(el('td',r.quality||'normal',r.name));tr.appendChild(el('td','n',r.level));
+tr.appendChild(el('td','n',gold(r.price)));tr.appendChild(el('td','n dim',gold(r.median)));tr.appendChild(el('td','',r.seller));
+tr.appendChild(el('td','n',left(r.left)));b.appendChild(tr)}
+if(!list.length){tr=el('tr');var td=el('td','dim',ROWS.length?'Nothing matches.':'Nothing for sale right now. Players put items up from a chest in the game (Sacred Gear mod auction-house).');td.colSpan=6;tr.appendChild(td);b.appendChild(tr)}
+document.getElementById('n').textContent=list.length+' of '+ROWS.length;
+var ths=document.querySelectorAll('th[data-k]');for(i=0;i<ths.length;i++){ths[i].className=ths[i].getAttribute('data-k')===key?'on':'';ths[i].setAttribute('data-dir',dir>0?' ▲':' ▼')}}
+var ths=document.querySelectorAll('th[data-k]');for(var i=0;i<ths.length;i++)ths[i].onclick=function(){var k=this.getAttribute('data-k');if(k===key)dir=-dir;else{key=k;dir=1}draw()};
+q.oninput=draw;qu.onchange=draw;draw();
+var s=document.getElementById('sales');for(i=0;i<SALES.length;i++){var r=SALES[i],tr=el('tr');tr.appendChild(el('td',r.quality||'normal',r.name));
+tr.appendChild(el('td','n',gold(r.price)));tr.appendChild(el('td','',r.seller));tr.appendChild(el('td','',r.buyer));tr.appendChild(el('td','dim',ago(r.t)));s.appendChild(tr)}
+if(!SALES.length){tr=el('tr');td=el('td','dim','No sales yet.');td.colSpan=5;tr.appendChild(td);s.appendChild(tr)}
+var rb=document.getElementById('rules');for(var k in RULES){var v=RULES[k];tr=el('tr');tr.appendChild(el('td','dim',k));tr.appendChild(el('td','',Array.isArray(v)?v.join(', '):String(v)));rb.appendChild(tr)}
+</script></body></html>

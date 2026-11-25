@@ -1,0 +1,5 @@
+# Files a server run creates when started from this folder (never commit them).
+script-data/
+.uid-secret
+Gameserver.log
+webui.json
