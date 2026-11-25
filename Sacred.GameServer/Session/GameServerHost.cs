@@ -379,9 +379,22 @@ public sealed partial class GameServerHost : IDisposable
     /// <summary>Send one server message (sender 0 = GameServer, origin = originating player).</summary>
     public void SendMessage(PlayerSession s, ushort opcode, byte sender, byte origin, ReadOnlySpan<byte> payload)
     {
-        if (s.State == SessionState.Closed || GoldWire.MessageHeaderBytes + payload.Length > _build.Length) return;
-        var length = GoldWire.WriteMessage(_build, opcode, sender, origin, ++s.TxSequence, payload);
-        SendBatch(s, _build.AsSpan(0, length));
+        var size = GoldWire.MessageHeaderBytes + payload.Length;
+        if (s.State == SessionState.Closed || size > GoldWire.MaximumBatchBytes) return;
+        if (size <= _build.Length)
+        {
+            var length = GoldWire.WriteMessage(_build, opcode, sender, origin, ++s.TxSequence, payload);
+            SendBatch(s, _build.AsSpan(0, length));
+            return;
+        }
+        // World banks run to ~1 MB (the wire allows 22-bit message sizes); they only fit the envelope once compressed.
+        var large = ArrayPool<byte>.Shared.Rent(size);
+        try
+        {
+            var length = GoldWire.WriteMessage(large, opcode, sender, origin, ++s.TxSequence, payload);
+            SendBatch(s, large.AsSpan(0, length));
+        }
+        finally { ArrayPool<byte>.Shared.Return(large); }
     }
 
     /// <summary>Send a pre-built batch of messages.</summary>
@@ -393,7 +406,11 @@ public sealed partial class GameServerHost : IDisposable
             while (reader.TryRead(out var traced)) Log.Trace("TX", s.Slot, traced.Opcode, traced.Sender, traced.Origin, traced.Payload);
         }
         var envelopeLength = GoldWire.EncodeEnvelope(batch, _envelope, _deflater);
-        if (envelopeLength < 0) return;
+        if (envelopeLength < 0)
+        {
+            Log.Info($"Batch of {batch.Length} bytes does not fit an envelope (compressed limit {GoldWire.MaximumCompressedBytes}); not sent to #{s.Slot}.");
+            return;
+        }
         var frame = s.Connection.BeginFrame(TinCatWire.HeaderBytes + 4 + envelopeLength);
         var body = frame[TinCatWire.HeaderBytes..];
         BinaryPrimitives.WriteUInt16LittleEndian(body, TinCatWire.GameModule);

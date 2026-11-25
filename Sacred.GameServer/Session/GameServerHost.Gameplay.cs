@@ -250,25 +250,15 @@ public sealed partial class GameServerHost
             if (_worldBanks[opcode - 0x1B1] is not { } bank) continue;
             var upload = bank.AsSpan(0, _worldBankLength[opcode - 0x1B1]);
             var served = WorldBankForm.GetServedLength(opcode, upload);
-            if (served < 0) { SendBank(s, opcode, upload); continue; }
+            if (served < 0) { SendMessage(s, opcode, 0, 0, upload); continue; }
             var buffer = ArrayPool<byte>.Shared.Rent(served);
             try
             {
-                if (WorldBankForm.TryConvert(opcode, upload, buffer, out var length)) SendBank(s, opcode, buffer.AsSpan(0, length));
-                else SendBank(s, opcode, upload);
+                if (WorldBankForm.TryConvert(opcode, upload, buffer, out var length)) SendMessage(s, opcode, 0, 0, buffer.AsSpan(0, length));
+                else SendMessage(s, opcode, 0, 0, upload);
             }
             finally { ArrayPool<byte>.Shared.Return(buffer); }
         }
-    }
-
-    private void SendBank(PlayerSession s, ushort opcode, ReadOnlySpan<byte> payload)
-    {
-        if (GoldWire.MessageHeaderBytes + payload.Length > _build.Length)
-        {
-            Log.Info($"World bank 0x{opcode:X3} ({payload.Length} bytes) exceeds the {_build.Length}-byte message buffer; not sent to #{s.Slot}.");
-            return;
-        }
-        SendMessage(s, opcode, 0, 0, payload);
     }
 
     // ---- host commands ----------------------------------------------------------------------------------------------
