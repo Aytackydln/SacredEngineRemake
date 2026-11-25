@@ -1,0 +1,6 @@
+.bo{display:grid;gap:1rem;max-width:72rem}.bo label{display:grid;grid-template-columns:13rem 1fr;gap:.5rem;align-items:center;margin:.35rem 0}
+.bo label small{display:block;color:var(--dim)}.bo input[type=checkbox]{justify-self:start}.bo .general{max-width:44rem}
+.bo table{border-collapse:collapse;width:100%}.bo th,.bo td{text-align:left;padding:.25rem .3rem;border-bottom:1px solid var(--line,#3b3025);vertical-align:top}
+.bo th{font-weight:600;font-size:.8rem;color:var(--dim)}.bo td input{width:100%;min-width:3rem;box-sizing:border-box}.bo td input.bo-n{width:4.5rem}.bo td input.bo-t{min-width:9rem}.bo td input.bo-i{min-width:10rem}.bo td input.bo-t{min-width:13rem}.bo td select{min-width:8rem}
+.bo .bo-chips{display:flex;flex-wrap:wrap;gap:.25rem;margin-bottom:.25rem}.bo .bo-chip{padding:.1rem .45rem;font-size:.8rem}.bo td select{max-width:11rem}
+.bo .status{min-height:1.2rem}.bo .status.bad{color:var(--bad)}.bo .status.ok{color:var(--ok)}.bo .bo-extra{font-size:.75rem;color:var(--dim);margin-top:.15rem}

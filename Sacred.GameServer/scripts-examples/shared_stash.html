@@ -1,0 +1,4 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Shared stash</title><style>body{font:14px system-ui;margin:2em;max-width:40em}td{padding:2px 8px}</style></head><body><h1>Shared stash (Closed Net)</h1><p>Accounts with entries: {{accounts}}. Items: {{ready}} ready, {{reserved}} reserved (withdrawals), {{pending}} pending (deposits). Requests in flight: {{in_flight}}.</p><h2>Tunables</h2><form id="f"><table><!--rows--></table><button>Save</button> <span id="m"></span></form><script>
+document.getElementById("f").onsubmit=async e=>{e.preventDefault();const c={};for(const i of e.target.querySelectorAll("input"))c[i.name]=Number(i.value);
+const r=await fetch("/api/mod-store",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mod:"shared_stash",set:{config:c}})});
+document.getElementById("m").textContent=r.ok?"saved, applies within a second":"failed: "+r.status};</script></body></html>

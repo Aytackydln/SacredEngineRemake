@@ -1,0 +1,25 @@
+.ev{display:grid;gap:1rem}
+.ev table{width:100%;border-collapse:collapse}.ev th,.ev td{padding:.4rem .5rem;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.ev th{color:var(--dim);font-weight:600;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
+.ev td.act{white-space:nowrap;text-align:right}.ev td.act button{margin-left:.25rem;padding:.25rem .6rem}
+.ev tr.off td{opacity:.55}.ev small{color:var(--dim)}
+.ev .status{min-height:1.2rem;font-size:.9rem}.ev .status.bad{color:var(--bad)}.ev .status.ok{color:var(--ok)}
+.ev .bar{height:.9rem;background:var(--bg);border:1px solid var(--line);border-radius:6px;overflow:hidden;margin:.4rem 0;max-width:30rem}.ev .bar i{display:block;height:100%;background:linear-gradient(var(--gold2),var(--gold))}
+.ev .row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+#editor{max-width:44rem;max-height:92dvh;overflow:auto}
+#editor form{display:grid;gap:.6rem}
+#editor label{display:grid;gap:.15rem;font-size:.85rem;color:var(--dim)}#editor label input,#editor label select{color:var(--text);width:100%}
+#editor .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:.6rem}
+#editor fieldset{border:1px solid var(--line);border-radius:8px;padding:.5rem .7rem}#editor legend{color:var(--gold2);font-size:.85rem;padding:0 .3rem}
+#editor .chk{display:inline-flex;gap:.3rem;align-items:center;margin-right:.8rem;color:var(--text)}#editor .chk input{width:auto}
+#editor table input{width:4.5rem;padding:.25rem .4rem}
+#editor .hk{border:1px solid var(--line);border-radius:8px;padding:.5rem .6rem;margin:.5rem 0;display:grid;gap:.5rem;background:rgba(255,255,255,.02)}
+#editor .hkhead,#editor .act>.row:first-child{align-items:end}#editor .hkhead b{color:var(--gold2);align-self:center}
+#editor .act{border-left:3px solid var(--gold2);padding:.2rem 0 .2rem .6rem;display:grid;gap:.4rem}
+#editor .row .mv{display:inline-flex;gap:.25rem;margin-left:auto;flex:none}#editor .inl{display:inline-flex;gap:.3rem;align-items:center;color:var(--text)}#editor .inl input{width:6rem}
+#editor .kind input.kt{flex:1;min-width:9rem}#editor .kind input.kw{width:4rem}
+#editor .hk select{width:auto;max-width:100%}
+#editor .hk button{padding:.25rem .6rem}
+@media (max-width:640px){#editor .hkhead,#editor .act>.row:first-child{align-items:stretch}#editor .hk select{width:100%}#editor .inl input{width:100%}}
+#editor .regpick{display:grid;gap:.2rem;margin-top:.4rem}#editor .regpick>div{display:flex;flex-wrap:wrap}
+#editor .hooknote{color:var(--bad);font-size:.85rem}

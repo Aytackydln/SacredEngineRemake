@@ -1,0 +1,25 @@
+{
+  "name": "Demo Realm",
+  "maxPlayers": 16,
+  "players": [
+    { "name": "Seraphim",   "class": 0, "level": 54, "xp": 8420000, "gold": 182340, "address": "127.0.0.1", "latency": 18, "online": 5400, "at": [39.5, 37.5] },
+    { "name": "Gladiatrix", "class": 1, "level": 61, "xp": 11900000, "gold": 90210,  "address": "127.0.0.1", "latency": 42, "online": 3100, "at": [56.3, 49.4] },
+    { "name": "Ironfist",   "class": 2, "level": 38, "xp": 2100000, "gold": 14200,   "address": "127.0.0.1", "latency": 64, "online": 900,  "sector": [43, 56] },
+    { "name": "Dryad_Lyra", "class": 3, "level": 47, "xp": 5300000, "gold": 66400,   "address": "127.0.0.1", "latency": 25, "online": 12000, "sector": [30, 50] }
+  ],
+  "chat": [
+    { "kind": "system", "text": "Dryad_Lyra joined the game." },
+    { "from": 1, "text": "anyone up for the dragon in the north?" },
+    { "from": 2, "text": "give me five minutes, repairing" },
+    { "kind": "broadcast", "text": "Event: Silver Creek goblin invasion starts in 10 minutes." },
+    { "from": 4, "to": 1, "kind": "private", "text": "meet at the bridge?" }
+  ],
+  "bans": [ { "address": "203.0.113.7", "reason": "gold spam", "ago": 86400 } ],
+  "owners": [
+    { "slot": 1, "rect": [38, 36, 4, 3], "also": [3] },
+    { "slot": 2, "rect": [55, 48, 3, 4] },
+    { "slot": 3, "rect": [42, 56, 3, 2] },
+    { "slot": 4, "rect": [30, 50, 2, 2] }
+  ],
+  "unowned": [ { "cell": [46, 42], "players": [3] } ]
+}
