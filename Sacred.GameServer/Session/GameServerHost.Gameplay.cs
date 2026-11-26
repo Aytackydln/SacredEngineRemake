@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Buffers.Binary;
 using Sacred.GameServer.Web;
 using Sacred.GameServer.Wire;
@@ -239,13 +240,25 @@ public sealed partial class GameServerHost
         _worldBankLength[index] = m.Payload.Length;
     }
 
-    /// <summary>0x1B5: the original serializes its four current banks in the order 0x1B2, 0x1B4, 0x1B3, 0x1B1. We replay the host's last upload.</summary>
+    /// <summary>0x1B5: the original serializes its four current banks in the order 0x1B2, 0x1B4, 0x1B3, 0x1B1. We replay the host's last
+    /// upload; bank 0x1B3 is converted to the participant form (see <see cref="WorldBankForm"/>), the others are identical on the wire.</summary>
     private void SendWorldBanks(PlayerSession s)
     {
         ReadOnlySpan<ushort> order = [0x1B2, 0x1B4, 0x1B3, 0x1B1];
         foreach (var opcode in order)
-            if (_worldBanks[opcode - 0x1B1] is { } bank)
-                SendMessage(s, opcode, 0, 0, bank.AsSpan(0, _worldBankLength[opcode - 0x1B1]));
+        {
+            if (_worldBanks[opcode - 0x1B1] is not { } bank) continue;
+            var upload = bank.AsSpan(0, _worldBankLength[opcode - 0x1B1]);
+            var served = WorldBankForm.GetServedLength(opcode, upload);
+            if (served < 0) { SendMessage(s, opcode, 0, 0, upload); continue; }
+            var buffer = ArrayPool<byte>.Shared.Rent(served);
+            try
+            {
+                if (WorldBankForm.TryConvert(opcode, upload, buffer, out var length)) SendMessage(s, opcode, 0, 0, buffer.AsSpan(0, length));
+                else SendMessage(s, opcode, 0, 0, upload);
+            }
+            finally { ArrayPool<byte>.Shared.Return(buffer); }
+        }
     }
 
     // ---- host commands ----------------------------------------------------------------------------------------------
